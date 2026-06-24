@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { registerIpcHandlers } from './ipc';
 
 // Headless / VM / remote-desktop environments may lack a usable GPU, which
 // otherwise aborts startup ("GPU process isn't usable"). Opt into software
@@ -121,8 +122,11 @@ const createWindows = (): void => {
   createToolbarWindow();
 };
 
-// Create windows once Electron has finished initialization.
-app.on('ready', createWindows);
+// Register IPC handlers once, then create windows, after Electron is ready.
+app.whenReady().then(() => {
+  registerIpcHandlers();
+  createWindows();
+});
 
 // Quit when all windows are closed, except on macOS.
 app.on('window-all-closed', () => {

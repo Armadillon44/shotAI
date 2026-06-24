@@ -68,3 +68,44 @@ body {
   color: #4b5563;
   line-height: 1.55;
 }
+
+.project__runtime {
+  margin-top: 1.75rem;
+  padding: 1rem 1.25rem;
+  max-width: 32rem;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.project__runtime-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+
+.project__runtime-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.project__runtime-grid dt {
+  color: #6b7280;
+}
+
+.project__runtime-grid dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: #1d1f24;
+}
+
+.project__error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
