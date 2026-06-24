@@ -1,0 +1,70 @@
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial,
+    sans-serif;
+  color: #1d1f24;
+  background: #f6f7f9;
+}
+
+.project {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.project__header {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #e3e6ea;
+  background: #ffffff;
+}
+
+.project__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.project__logo {
+  font-size: 1.6rem;
+  color: #4f46e5;
+  line-height: 1;
+}
+
+.project__title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.project__tagline {
+  margin: 0.25rem 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.project__body {
+  flex: 1;
+  padding: 2rem;
+}
+
+.project__hint {
+  max-width: 46ch;
+  color: #4b5563;
+  line-height: 1.55;
+}

@@ -1,0 +1,85 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial,
+    sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0.5rem;
+  gap: 0.5rem;
+  background: #1f2330;
+  color: #f4f5f7;
+}
+
+/* The drag handle: lets the frameless window be moved. Buttons opt out below. */
+.toolbar__drag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  height: 100%;
+  padding-left: 0.25rem;
+  -webkit-app-region: drag;
+}
+
+.toolbar__grip {
+  width: 10px;
+  height: 18px;
+  background-image: radial-gradient(#6b7280 1px, transparent 1px);
+  background-size: 4px 4px;
+  opacity: 0.8;
+}
+
+.toolbar__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.toolbar__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: #2c3142;
+  color: #f4f5f7;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.toolbar__btn:hover {
+  background: #3a4159;
+}
+
+.toolbar__btn--rec .toolbar__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ef4444;
+}
