@@ -9,12 +9,34 @@
 
 export const PROJECT_SCHEMA_VERSION = 1;
 
-export type CaptureRegionMode = 'window' | 'area' | 'screen' | 'all';
+export type CaptureMode = 'auto' | 'window' | 'area' | 'screen' | 'all';
 
-export interface CaptureSettings {
-  region: CaptureRegionMode;
-  /** Resolved target (window id / rect / display id) — filled in later phases. */
-  target: unknown | null;
+/** What each capture in a session targets (chosen before recording). */
+export interface CaptureTarget {
+  mode: CaptureMode;
+  /** 'screen' — node-screenshots Monitor id. */
+  monitorId?: number;
+  /** 'window' — the picked window (re-resolved each step in case it moved). */
+  window?: { id: number; pid: number; title: string };
+  /** 'area' — fixed rectangle in global physical pixels. */
+  area?: Rect;
+}
+
+/** A pickable open window (for the 'window' chooser). */
+export interface WindowInfo {
+  id: number;
+  pid: number;
+  title: string;
+  app: string;
+}
+
+/** A pickable monitor (for the 'screen' chooser). */
+export interface MonitorInfo {
+  id: number;
+  name: string;
+  width: number;
+  height: number;
+  isPrimary: boolean;
 }
 
 export interface Point {
@@ -85,7 +107,7 @@ export interface ProjectManifest {
   createdWith: 'shotAI';
   createdAt: string; // ISO 8601 (project metadata, not per-step capture data)
   updatedAt: string; // ISO 8601
-  captureSettings: CaptureSettings | null;
+  captureSettings: CaptureTarget | null;
   steps: ProjectStep[];
   sop: unknown | null; // Claude-generated SOP structure (Phase 3)
 }

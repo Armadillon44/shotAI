@@ -11,7 +11,13 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import * as ps from './ProjectStore';
 import { CaptureController } from './CaptureController';
+import type { CaptureTarget } from '../shared/project';
 import { getRecents, persistProjectsDir, setRecents } from './settings';
+
+/** Read a PNG's pixel dimensions from its IHDR chunk (after the 8-byte sig). */
+function pngSize(buf: Buffer): { w: number; h: number } {
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+}
 
 async function checkNativeModules(): Promise<boolean> {
   let ok = true;
@@ -101,11 +107,143 @@ async function checkCapturePipeline(): Promise<boolean> {
   }
 }
 
+/**
+ * Verify listTargets() + the explicit capture modes (screen / all / area /
+ * window). Each mode records one step into its own temp project; we read the
+ * written PNG's dimensions to confirm the right surface was captured. The area
+ * check proves the crop math works ahead of the (not-yet-built) drag overlay.
+ */
+async function checkCaptureModes(): Promise<boolean> {
+  const { Monitor } = await import('node-screenshots');
+  const mon = Monitor.all().find((m) => m.isPrimary()) ?? Monitor.all()[0];
+  if (!mon) {
+    console.error('[capture-test] modes: no monitor available');
+    return false;
+  }
+
+  const origDir = await ps.getProjectsDir();
+  const origRecents = await getRecents();
+  const testRoot = path.join(app.getPath('temp'), `shotai-modes-${process.pid}`);
+  let ok = true;
+  try {
+    await ps.setProjectsDir(testRoot);
+
+    const lister = new CaptureController(() => undefined);
+    const targets = await lister.listTargets();
+    console.log(
+      `[capture-test] listTargets       = ${targets.windows.length} windows, ${targets.monitors.length} monitors`,
+    );
+    ok = ok && targets.monitors.length >= 1;
+
+    // Click a point safely inside the primary monitor.
+    const point = { x: mon.x() + 100, y: mon.y() + 100 };
+    const runMode = async (
+      label: string,
+      target: CaptureTarget,
+      opts: {
+        button?: 'left' | 'right';
+        menuPopup?: boolean;
+        menuOwnerBounds?: { x: number; y: number; width: number; height: number };
+      } = {},
+    ): Promise<{ w: number; h: number } | null> => {
+      const proj = await ps.createProject(`Mode ${label}`);
+      const c = new CaptureController(() => undefined);
+      await c.start(proj.path, { attachHook: false, target });
+      const step = await c.captureStep('click', point, opts.button ?? 'left', {
+        menuPopup: opts.menuPopup,
+        menuOwnerBounds: opts.menuOwnerBounds,
+      });
+      await c.stop();
+      if (!step) {
+        console.log(`[capture-test] mode ${label.padEnd(13)} = (no step)`);
+        return null;
+      }
+      const size = pngSize(await fs.readFile(path.join(proj.path, step.screenshot)));
+      console.log(`[capture-test] mode ${label.padEnd(13)} = ${size.w}x${size.h}`);
+      return size;
+    };
+
+    const screen = await runMode('screen', { mode: 'screen', monitorId: mon.id() });
+    ok = ok && !!screen && screen.w === mon.width() && screen.h === mon.height();
+
+    const all = await runMode('all', { mode: 'all' });
+    ok = ok && !!all && all.w >= 1 && all.h >= 1;
+
+    const area = await runMode('area', {
+      mode: 'area',
+      area: { x: mon.x() + 100, y: mon.y() + 100, width: 300, height: 200 },
+    });
+    ok = ok && !!area && area.w === 300 && area.h === 200;
+
+    if (targets.windows.length) {
+      const w = targets.windows[0];
+      const winTarget: CaptureTarget = {
+        mode: 'window',
+        window: { id: w.id, pid: w.pid, title: w.title },
+      };
+      const win = await runMode('window', winTarget);
+      ok = ok && !!win && win.w >= 1 && win.h >= 1;
+
+      // Context-menu selection in 'window' mode crops to the picked window's
+      // region (+ menu box), not the whole monitor — but still >= the box.
+      const menuWin = await runMode('menu(window)', winTarget, {
+        button: 'left',
+        menuPopup: true,
+      });
+      ok = ok && !!menuWin && menuWin.w >= 1 && menuWin.w <= mon.width();
+    } else {
+      console.log('[capture-test] mode window        = (no pickable windows — skipped)');
+    }
+
+    // 'auto' menu selection must frame the owner window + menu (a CROP), not the
+    // whole screen — the key fix for the "captured the entire screen" report.
+    const ownerBounds = {
+      x: mon.x() + 200,
+      y: mon.y() + 200,
+      width: 900,
+      height: 600,
+    };
+    const menuAuto = await runMode('menu(auto)', { mode: 'auto' }, {
+      button: 'left',
+      menuPopup: true,
+      menuOwnerBounds: ownerBounds,
+    });
+    ok =
+      ok &&
+      !!menuAuto &&
+      menuAuto.w < mon.width() &&
+      menuAuto.h < mon.height() &&
+      menuAuto.w >= 1;
+
+    // 'screen' menu selection keeps the user's chosen full monitor.
+    const menuScreen = await runMode(
+      'menu(screen)',
+      { mode: 'screen', monitorId: mon.id() },
+      { button: 'left', menuPopup: true },
+    );
+    ok = ok && !!menuScreen && menuScreen.w === mon.width() && menuScreen.h === mon.height();
+
+    return ok;
+  } catch (e) {
+    console.error('[capture-test] modes FAILED:', (e as Error).message);
+    return false;
+  } finally {
+    await persistProjectsDir(origDir);
+    await setRecents(origRecents);
+    await fs.rm(testRoot, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 export async function runCaptureTest(): Promise<void> {
   console.log(
     `[capture-test] runtime ${process.platform}/${process.arch} · electron ${process.versions.electron}`,
   );
   const nativesOk = await checkNativeModules();
   const pipelineOk = await checkCapturePipeline();
-  console.log(nativesOk && pipelineOk ? '[capture-test] PASS' : '[capture-test] FAIL');
+  const modesOk = await checkCaptureModes();
+  console.log(
+    nativesOk && pipelineOk && modesOk
+      ? '[capture-test] PASS'
+      : '[capture-test] FAIL',
+  );
 }

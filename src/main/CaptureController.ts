@@ -2,14 +2,21 @@
 //
 // On each trigger (a system-wide mouse click via uiohook-napi, or a global
 // hotkey), it synchronously gathers: the active window (get-windows), a
-// screenshot of the monitor under the click (node-screenshots), and the click
-// coordinates. It skips shotAI's own windows, writes the PNG into the project's
-// shots/ folder, and appends a step to project.json. Captures are serialized so
-// rapid clicks can't race.
+// screenshot (node-screenshots), and the click coordinates. It skips shotAI's
+// own windows, writes the PNG into the project's shots/ folder, and appends a
+// step to project.json. Captures are serialized so rapid clicks can't race.
 //
-// Region modes (window/area/all) + the selector overlay, and click-marker DPI
-// calibration, are follow-up work; this defaults to capturing the monitor the
-// click landed on ("screen" mode).
+// What each step captures is chosen before recording via the session's
+// CaptureTarget.mode:
+//   - 'auto'   → smart per-click: app window / OS-shell region / desktop
+//                fullscreen, classified by captureModeFor() (the default).
+//   - 'window' → a single picked window, re-resolved each step (handles moves).
+//   - 'area'   → a fixed user-dragged rectangle (global physical px).
+//   - 'screen' → a single picked monitor.
+//   - 'all'    → every screen (best-effort: primary monitor for now; true
+//                multi-monitor stitching is a follow-up).
+//
+// Click-marker DPI calibration is follow-up work (Phase 2 markers).
 import { app, BrowserWindow, globalShortcut, screen } from 'electron';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -18,9 +25,13 @@ import type { UiohookMouseEvent } from 'uiohook-napi';
 import * as projectStore from './ProjectStore';
 import type {
   CapturedWindow,
+  CaptureTarget,
+  MonitorInfo,
   Point,
   ProjectStep,
+  Rect,
   StepClick,
+  WindowInfo,
 } from '../shared/project';
 import type { CaptureState } from '../shared/ipc';
 import { IpcChannels } from '../shared/ipc';
@@ -28,6 +39,18 @@ import { captureLog } from './logger';
 
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+S';
 const OWN_WINDOW_TITLES = new Set(['shotAI', 'shotAI — Capture']);
+const DEFAULT_TARGET: CaptureTarget = { mode: 'auto' };
+
+// A right-click is captured immediately as its own step (the target the user
+// right-clicked). It also opens a context menu, so we treat the NEXT click as a
+// menu selection: the menu is a separate top-level popup window (#32768) that
+// per-window (PrintWindow) capture can't see, so we grab the monitor (BitBlt
+// includes the popup) and crop to the menu's owner window/area. This is how long
+// (ms) after a right-click the next click is assumed to be that selection. It's
+// generous because the menu stays open until the user clicks, and they may
+// read/hover submenus first; a stray non-menu click only crops to ~the owner
+// window anyway (cheap). One-shot: consumed by the next click.
+const MENU_FOLLOWUP_WINDOW_MS = 30000;
 
 type Natives = {
   uIOhook: typeof import('uiohook-napi').uIOhook;
@@ -36,11 +59,23 @@ type Natives = {
   activeWindow: typeof import('get-windows').activeWindow;
 };
 
+type NsMonitor = InstanceType<Natives['Monitor']>;
+type NsWindow = InstanceType<Natives['Window']>;
+
+/** A captured image plus where its top-left sits in global physical pixels. */
+type Grab = {
+  png: Buffer;
+  originX: number;
+  originY: number;
+  monitor: NsMonitor | null;
+};
+
 type Session = {
   projectPath: string;
   projectTitle: string;
   paused: boolean;
   stepCount: number;
+  target: CaptureTarget;
 };
 
 type Broadcast = (channel: string, payload: unknown) => void;
@@ -75,6 +110,15 @@ const SHELL_HOST_RE =
  *                   notifications) → capture a tight region around the click
  *  - 'fullscreen' → the desktop, or an unidentified window → whole monitor
  */
+/** Smallest rectangle containing both inputs. */
+function unionRect(a: Rect, b: Rect): Rect {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  const right = Math.max(a.x + a.width, b.x + b.width);
+  const bottom = Math.max(a.y + a.height, b.y + b.height);
+  return { x, y, width: right - x, height: bottom - y };
+}
+
 function captureModeFor(active: ActiveLike): 'window' | 'region' | 'fullscreen' {
   if (!active) return 'fullscreen'; // unknown focus → full context, never a guessed crop
   const app = active.owner.name;
@@ -93,11 +137,43 @@ export class CaptureController {
   private hookAttached = false;
   private hotkeyRegistered = false;
   private queue: Promise<unknown> = Promise.resolve();
+  // Armed by a right-click: the next click is treated as a context-menu
+  // selection (see MENU_FOLLOWUP_WINDOW_MS). `ownerBounds` is the right-clicked
+  // window's bounds (filled in by captureStep) so the selection shot can frame
+  // the menu together with its window. null = unarmed.
+  private menuFollowUp: { until: number; ownerBounds: Rect | null } | null = null;
 
   private readonly onMouseDown = (event: UiohookMouseEvent): void => {
     if (!this.session || this.session.paused) return;
+    const point = { x: event.x, y: event.y };
+    const button = mapButton(event.button);
+
+    if (button === 'right') {
+      // Record the right-click itself now (the target), and arm a window: the
+      // next click is almost certainly the menu selection. The menu stays open
+      // until that click, so the window is generous.
+      this.menuFollowUp = {
+        until: Date.now() + MENU_FOLLOWUP_WINDOW_MS,
+        ownerBounds: null,
+      };
+      this.enqueue(() => this.captureStep('click', point, button));
+      return;
+    }
+
+    // A left-click within the armed window = selecting from the context menu;
+    // capture so the popup is included and framed with its owner window/area.
+    const followUp =
+      button === 'left' && this.menuFollowUp && Date.now() < this.menuFollowUp.until
+        ? this.menuFollowUp
+        : null;
+    this.menuFollowUp = null; // one-shot: any click consumes the armed window
     this.enqueue(() =>
-      this.captureStep('click', { x: event.x, y: event.y }, mapButton(event.button)),
+      this.captureStep(
+        'click',
+        point,
+        button,
+        followUp ? { menuPopup: true, menuOwnerBounds: followUp.ownerBounds } : {},
+      ),
     );
   };
 
@@ -152,9 +228,10 @@ export class CaptureController {
    */
   async start(
     projectPath: string,
-    opts: { attachHook?: boolean } = {},
+    opts: { attachHook?: boolean; target?: CaptureTarget } = {},
   ): Promise<CaptureState> {
     const attachHook = opts.attachHook ?? true;
+    const target = opts.target ?? DEFAULT_TARGET;
 
     // Don't clobber an in-progress session (a stray second start would misroute
     // queued captures into the wrong project).
@@ -191,10 +268,11 @@ export class CaptureController {
       projectTitle: manifest.title,
       paused: false,
       stepCount,
+      target,
     };
 
     captureLog.info(
-      `recording started: "${manifest.title}" (${manifest.steps.length} existing steps, next #${stepCount + 1}) at ${projectPath}`,
+      `recording started: "${manifest.title}" [mode=${target.mode}] (${manifest.steps.length} existing steps, next #${stepCount + 1}) at ${projectPath}`,
     );
     if (attachHook) this.attachTriggers();
     this.onRecordingChange?.(true); // e.g. hide the main window while recording
@@ -215,6 +293,7 @@ export class CaptureController {
   }
 
   private detachTriggers(): void {
+    this.menuFollowUp = null; // don't carry an armed menu window across sessions
     if (this.hookAttached && this.natives) {
       this.natives.uIOhook.off('mousedown', this.onMouseDown);
       this.natives.uIOhook.stop();
@@ -233,6 +312,7 @@ export class CaptureController {
 
   pause(): CaptureState {
     if (this.session) this.session.paused = true;
+    this.menuFollowUp = null;
     captureLog.info('recording paused');
     this.emitState();
     return this.getState();
@@ -240,6 +320,7 @@ export class CaptureController {
 
   resume(): CaptureState {
     if (this.session) this.session.paused = false;
+    this.menuFollowUp = null;
     captureLog.info('recording resumed');
     this.emitState();
     return this.getState();
@@ -303,11 +384,61 @@ export class CaptureController {
     return false;
   }
 
+  /**
+   * Re-resolve a picked window against the current window list — by id first,
+   * then pid+title, then pid alone (window ids can change across sessions, and
+   * the window may have moved/changed title since it was picked).
+   */
+  private resolveWindow(
+    Window: Natives['Window'],
+    target: CaptureTarget['window'],
+  ): NsWindow | null {
+    if (!target) return null;
+    const all = Window.all();
+    return (
+      all.find((w) => w.id() === target.id) ??
+      all.find((w) => w.pid() === target.pid && w.title() === target.title) ??
+      all.find((w) => w.pid() === target.pid) ??
+      null
+    );
+  }
+
+  /**
+   * Enumerate pickable windows + monitors for the Window/Screen choosers.
+   * Skips shotAI's own windows, minimized windows, and untitled utility windows.
+   */
+  async listTargets(): Promise<{ windows: WindowInfo[]; monitors: MonitorInfo[] }> {
+    const { Monitor, Window } = await this.loadNatives();
+    const own = this.ownPids();
+    const seen = new Set<string>();
+    const windows: WindowInfo[] = [];
+    for (const w of Window.all()) {
+      if (own.has(w.pid())) continue;
+      if (w.isMinimized()) continue;
+      const title = (w.title() ?? '').trim();
+      if (!title) continue;
+      const key = `${w.pid()}::${title}`;
+      if (seen.has(key)) continue; // collapse duplicate windows of the same app/title
+      seen.add(key);
+      windows.push({ id: w.id(), pid: w.pid(), title, app: w.appName() ?? '' });
+    }
+    const monitors: MonitorInfo[] = Monitor.all().map((m) => ({
+      id: m.id(),
+      name: m.name() || `Display ${m.id()}`,
+      width: m.width(),
+      height: m.height(),
+      isPrimary: m.isPrimary(),
+    }));
+    captureLog.debug(`listTargets: ${windows.length} windows, ${monitors.length} monitors`);
+    return { windows, monitors };
+  }
+
   /** Perform one capture into the active project. Public so the test can drive it. */
   async captureStep(
     trigger: ProjectStep['trigger'],
     point: Point | null,
     button: StepClick['button'] = 'left',
+    opts: { menuPopup?: boolean; menuOwnerBounds?: Rect | null } = {},
   ): Promise<ProjectStep | null> {
     // Re-check here (not just at enqueue) so a pause/stop that lands while
     // tasks are queued actually suppresses the backlog.
@@ -331,56 +462,201 @@ export class CaptureController {
       return null;
     }
 
-    // Monitor under the click — kept as step metadata.
-    const monitor =
+    // For a right-click, remember the owner window's bounds (physical px) so the
+    // following menu-selection capture can frame the menu together with it. The
+    // focused window here is the owner (the menu isn't open yet at right-down).
+    if (button === 'right' && this.menuFollowUp && this.menuFollowUp.ownerBounds === null) {
+      this.menuFollowUp.ownerBounds = focused
+        ? {
+            x: focused.x(),
+            y: focused.y(),
+            width: focused.width(),
+            height: focused.height(),
+          }
+        : null;
+    }
+
+    const target = this.session.target;
+    const mode = target.mode;
+
+    // Monitor under the click — the default capture surface + fallback.
+    const clickMonitor: NsMonitor | null =
       (point ? Monitor.fromPoint(point.x, point.y) : null) ??
       Monitor.all().find((m) => m.isPrimary()) ??
-      Monitor.all()[0];
+      Monitor.all()[0] ??
+      null;
 
-    // Choose what to capture based on the click target:
-    //  - normal app window → just that window (clean, focused shots)
-    //  - shell element (taskbar/Start/tray/notifications) → a tight region
-    //    around the click (avoids the giant black shell-window capture)
-    //  - desktop / fallback → the whole monitor
-    const mode = captureModeFor(active);
-    const grab = ():
-      | { png: Buffer; originX: number; originY: number }
-      | null => {
-      if (mode === 'window') {
-        // `focused` (the node-screenshots focused window) is resolved above and
-        // already confirmed not to be shotAI's own window.
-        if (focused && focused.x() > -10000 && focused.y() > -10000) {
+    // In 'auto' mode, classify the click target (app window / OS-shell region /
+    // desktop fullscreen). The explicit modes ignore this.
+    const autoMode = mode === 'auto' ? captureModeFor(active) : null;
+
+    const grab = (): Grab | null => {
+      // CONTEXT-MENU SELECTION — the menu is a separate top-level popup window
+      // that per-window (PrintWindow) capture can't see, so grab the monitor
+      // (BitBlt of the composited desktop includes the popup) and crop to frame
+      // the menu WITH what it belongs to. 'screen'/'all' keep the whole monitor
+      // (the user picked a monitor); 'auto'/'window'/'area' crop to the owner
+      // window / picked window / chosen area, unioned with a box around the click
+      // so a menu overflowing that region is still included.
+      if (opts.menuPopup) {
+        const pickedWin =
+          mode === 'window' ? this.resolveWindow(Window, target.window) : null;
+        const winRect: Rect | null =
+          pickedWin && pickedWin.x() > -10000 && pickedWin.y() > -10000
+            ? {
+                x: pickedWin.x(),
+                y: pickedWin.y(),
+                width: pickedWin.width(),
+                height: pickedWin.height(),
+              }
+            : null;
+
+        let mon: NsMonitor | null = clickMonitor;
+        if (mode === 'screen' && target.monitorId != null) {
+          mon = Monitor.all().find((m) => m.id() === target.monitorId) ?? clickMonitor;
+        } else if (winRect) {
+          mon = Monitor.fromPoint(winRect.x, winRect.y) ?? clickMonitor;
+        }
+        if (!mon) return null;
+
+        let region: Rect | null = null;
+        if (mode !== 'screen' && mode !== 'all') {
+          let base: Rect | null =
+            mode === 'window'
+              ? winRect
+              : mode === 'area'
+                ? target.area ?? null
+                : opts.menuOwnerBounds ?? null; // 'auto' → owner at right-click time
+          if (point) {
+            const sf = mon.scaleFactor() || 1;
+            const box: Rect = {
+              x: point.x - Math.round(48 * sf),
+              y: point.y - Math.round(56 * sf),
+              width: Math.round(620 * sf),
+              height: Math.round(760 * sf),
+            };
+            base = base ? unionRect(base, box) : box;
+          }
+          region = base;
+        }
+
+        try {
+          const full = mon.captureImageSync();
+          if (!region) {
+            return {
+              png: full.toPngSync(),
+              originX: mon.x(),
+              originY: mon.y(),
+              monitor: mon,
+            };
+          }
+          const lx = Math.round(region.x - mon.x());
+          const ly = Math.round(region.y - mon.y());
+          const cropX = Math.max(0, Math.min(lx, mon.width() - 1));
+          const cropY = Math.max(0, Math.min(ly, mon.height() - 1));
+          const cropW = Math.max(1, Math.min(lx + Math.round(region.width), mon.width()) - cropX);
+          const cropH = Math.max(1, Math.min(ly + Math.round(region.height), mon.height()) - cropY);
+          return {
+            png: full.cropSync(cropX, cropY, cropW, cropH).toPngSync(),
+            originX: mon.x() + cropX,
+            originY: mon.y() + cropY,
+            monitor: mon,
+          };
+        } catch (e) {
+          captureLog.warn('menu-popup capture failed:', e);
+          return null;
+        }
+      }
+
+      // WINDOW — an explicitly picked window, or 'auto' classified the click as
+      // a normal app window (the focused window, already confirmed not ours).
+      if (mode === 'window' || autoMode === 'window') {
+        const win =
+          mode === 'window' ? this.resolveWindow(Window, target.window) : focused;
+        if (win && win.x() > -10000 && win.y() > -10000) {
           try {
             return {
-              png: focused.captureImageSync().toPngSync(),
-              originX: focused.x(),
-              originY: focused.y(),
+              png: win.captureImageSync().toPngSync(),
+              originX: win.x(),
+              originY: win.y(),
+              monitor: Monitor.fromPoint(win.x(), win.y()) ?? clickMonitor,
             };
-          } catch {
-            // fall through to monitor capture
+          } catch (e) {
+            captureLog.warn('window capture failed, falling back to monitor:', e);
+          }
+        } else if (mode === 'window') {
+          captureLog.warn('picked window not found — falling back to monitor capture');
+        }
+        // fall through to a monitor capture
+      }
+
+      // AREA — a fixed user-dragged rectangle (global physical px).
+      if (mode === 'area' && target.area) {
+        const a = target.area;
+        const mon = Monitor.fromPoint(a.x, a.y) ?? clickMonitor;
+        if (mon) {
+          try {
+            const cropX = Math.max(0, Math.min(Math.round(a.x - mon.x()), mon.width() - 1));
+            const cropY = Math.max(0, Math.min(Math.round(a.y - mon.y()), mon.height() - 1));
+            const cropW = Math.max(1, Math.min(Math.round(a.width), mon.width() - cropX));
+            const cropH = Math.max(1, Math.min(Math.round(a.height), mon.height() - cropY));
+            return {
+              png: mon.captureImageSync().cropSync(cropX, cropY, cropW, cropH).toPngSync(),
+              originX: mon.x() + cropX,
+              originY: mon.y() + cropY,
+              monitor: mon,
+            };
+          } catch (e) {
+            captureLog.warn('area capture failed, falling back to monitor:', e);
           }
         }
       }
-      if (!monitor) return null;
-      try {
-        const full = monitor.captureImageSync();
-        const mx = monitor.x();
-        const my = monitor.y();
-        if (mode === 'region' && point) {
-          const sf = monitor.scaleFactor() || 1;
-          const boxW = Math.min(Math.round(520 * sf), monitor.width());
-          const boxH = Math.min(Math.round(400 * sf), monitor.height());
-          const cx = point.x - mx;
-          const cy = point.y - my;
-          const cropX = Math.max(0, Math.min(cx - Math.floor(boxW / 2), monitor.width() - boxW));
-          const cropY = Math.max(0, Math.min(cy - Math.floor(boxH / 2), monitor.height() - boxH));
-          return {
-            png: full.cropSync(cropX, cropY, boxW, boxH).toPngSync(),
-            originX: mx + cropX,
-            originY: my + cropY,
-          };
+
+      // Resolve which monitor to capture for the remaining cases.
+      let mon = clickMonitor;
+      if (mode === 'screen' && target.monitorId != null) {
+        mon = Monitor.all().find((m) => m.id() === target.monitorId) ?? clickMonitor;
+      } else if (mode === 'all') {
+        const monitors = Monitor.all();
+        if (monitors.length > 1) {
+          captureLog.warn(
+            `'all screens': ${monitors.length} monitors — capturing primary only (multi-monitor stitching is a follow-up)`,
+          );
         }
-        return { png: full.toPngSync(), originX: mx, originY: my };
+        mon = monitors.find((m) => m.isPrimary()) ?? monitors[0] ?? clickMonitor;
+      }
+      if (!mon) return null;
+
+      // REGION — 'auto' shell element (taskbar/Start/tray): a tight crop around
+      // the click, avoiding the giant black shell-window capture.
+      if (autoMode === 'region' && point) {
+        try {
+          const sf = mon.scaleFactor() || 1;
+          const boxW = Math.min(Math.round(520 * sf), mon.width());
+          const boxH = Math.min(Math.round(400 * sf), mon.height());
+          const cx = point.x - mon.x();
+          const cy = point.y - mon.y();
+          const cropX = Math.max(0, Math.min(cx - Math.floor(boxW / 2), mon.width() - boxW));
+          const cropY = Math.max(0, Math.min(cy - Math.floor(boxH / 2), mon.height() - boxH));
+          return {
+            png: mon.captureImageSync().cropSync(cropX, cropY, boxW, boxH).toPngSync(),
+            originX: mon.x() + cropX,
+            originY: mon.y() + cropY,
+            monitor: mon,
+          };
+        } catch (e) {
+          captureLog.warn('region capture failed, falling back to full monitor:', e);
+        }
+      }
+
+      // FULLSCREEN — the whole monitor ('auto' desktop/fallback, 'screen', 'all').
+      try {
+        return {
+          png: mon.captureImageSync().toPngSync(),
+          originX: mon.x(),
+          originY: mon.y(),
+          monitor: mon,
+        };
       } catch (e) {
         captureLog.warn('monitor capture failed:', e);
         return null;
@@ -388,7 +664,7 @@ export class CaptureController {
     };
     const grabbed = grab();
     if (!grabbed) return null;
-    const { png, originX, originY } = grabbed;
+    const { png, originX, originY, monitor } = grabbed;
 
     const order = ++this.session.stepCount;
     const filename = `step-${String(order).padStart(4, '0')}.png`;
@@ -434,7 +710,11 @@ export class CaptureController {
       element: { available: false, name: null, controlType: null, bounds: null },
       caption:
         trigger === 'click'
-          ? `Click in ${window?.app ?? 'screen'}`
+          ? opts.menuPopup
+            ? `Select from context menu in ${window?.app ?? 'screen'}`
+            : button === 'right'
+              ? `Right-click in ${window?.app ?? 'screen'}`
+              : `Click in ${window?.app ?? 'screen'}`
           : `Capture: ${window?.title ?? 'screen'}`,
       note: '',
       crop: null,
@@ -443,7 +723,7 @@ export class CaptureController {
 
     await projectStore.addStep(this.session.projectPath, step);
     captureLog.info(
-      `step #${order} [${trigger}/${mode}] ${window?.app ?? 'screen'} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
+      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${opts.menuPopup ? ' menu-select' : button === 'right' ? ' right' : ''}] ${window?.app ?? 'screen'} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
     );
     this.broadcast(IpcChannels.captureStepAdded, step);
     this.emitState();

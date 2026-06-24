@@ -1,6 +1,37 @@
 import React from 'react';
 import type { AppInfo, CaptureState } from '../../shared/ipc';
-import type { ProjectStep, ProjectSummary } from '../../shared/project';
+import type {
+  CaptureMode,
+  CaptureTarget,
+  MonitorInfo,
+  ProjectStep,
+  ProjectSummary,
+  Rect,
+  WindowInfo,
+} from '../../shared/project';
+
+type Targets = { windows: WindowInfo[]; monitors: MonitorInfo[] };
+
+const MODE_OPTIONS: {
+  mode: CaptureMode;
+  label: string;
+  hint: string;
+  disabled?: boolean;
+}[] = [
+  { mode: 'auto', label: 'Auto', hint: 'Smart per-click: app window, OS element, or desktop' },
+  { mode: 'window', label: 'Window', hint: 'Capture one specific window each step' },
+  { mode: 'area', label: 'Area', hint: 'Drag-select a fixed region to capture' },
+  { mode: 'screen', label: 'Screen', hint: 'Capture one monitor each step' },
+  { mode: 'all', label: 'All screens', hint: 'Capture the whole screen each step' },
+];
+
+const MODE_DESC: Record<CaptureMode, string> = {
+  auto: 'Smart capture — picks the app window, a tight region around OS elements (taskbar, Start, tray), or the full screen on the desktop.',
+  window: 'Every step captures the window you pick below (re-found if it moves).',
+  area: 'Every step captures a fixed rectangle you drag-select on screen.',
+  screen: 'Every step captures the monitor you pick below.',
+  all: 'Every step captures the entire screen.',
+};
 
 export function App(): React.JSX.Element {
   const [info, setInfo] = React.useState<AppInfo | null>(null);
@@ -11,6 +42,15 @@ export function App(): React.JSX.Element {
   const [error, setError] = React.useState<string | null>(null);
   const [capture, setCapture] = React.useState<CaptureState | null>(null);
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
+
+  // Capture-mode selection (applied to the next recording).
+  const [mode, setMode] = React.useState<CaptureMode>('auto');
+  const [targets, setTargets] = React.useState<Targets | null>(null);
+  const [targetsLoading, setTargetsLoading] = React.useState(false);
+  const [pickedWindow, setPickedWindow] = React.useState<WindowInfo | null>(null);
+  const [pickedMonitorId, setPickedMonitorId] = React.useState<number | null>(null);
+  const [pickedArea, setPickedArea] = React.useState<Rect | null>(null);
+  const [selectingArea, setSelectingArea] = React.useState(false);
 
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
@@ -24,6 +64,76 @@ export function App(): React.JSX.Element {
     setProjectsDir(dir);
     setRecents(recent);
   }, []);
+
+  const loadTargets = React.useCallback(async () => {
+    setTargetsLoading(true);
+    try {
+      const t = await window.shotai.capture.listTargets();
+      setTargets(t);
+      // Keep the prior pick if it's still around, otherwise sensible defaults.
+      setPickedWindow((prev) =>
+        prev && t.windows.some((w) => w.id === prev.id)
+          ? prev
+          : t.windows[0] ?? null,
+      );
+      setPickedMonitorId((prev) =>
+        prev != null && t.monitors.some((m) => m.id === prev)
+          ? prev
+          : (t.monitors.find((m) => m.isPrimary) ?? t.monitors[0])?.id ?? null,
+      );
+    } catch (e) {
+      fail(e);
+    } finally {
+      setTargetsLoading(false);
+    }
+  }, []);
+
+  const selectMode = (m: CaptureMode) => {
+    setMode(m);
+    if ((m === 'window' || m === 'screen') && !targets) void loadTargets();
+  };
+
+  const buildTarget = (): CaptureTarget => {
+    switch (mode) {
+      case 'window':
+        return pickedWindow
+          ? {
+              mode: 'window',
+              window: {
+                id: pickedWindow.id,
+                pid: pickedWindow.pid,
+                title: pickedWindow.title,
+              },
+            }
+          : { mode: 'auto' };
+      case 'screen':
+        return pickedMonitorId != null
+          ? { mode: 'screen', monitorId: pickedMonitorId }
+          : { mode: 'screen' };
+      case 'all':
+        return { mode: 'all' };
+      case 'area':
+        return pickedArea ? { mode: 'area', area: pickedArea } : { mode: 'auto' };
+      default:
+        return { mode: 'auto' };
+    }
+  };
+
+  const selectArea = async () => {
+    setSelectingArea(true);
+    try {
+      const r = await window.shotai.region.selectArea();
+      if (r) setPickedArea(r);
+    } catch (e) {
+      fail(e);
+    } finally {
+      setSelectingArea(false);
+    }
+  };
+
+  // 'window' needs a picked window and 'area' a selected rect; others are ready.
+  const modeReady =
+    mode === 'window' ? !!pickedWindow : mode === 'area' ? !!pickedArea : true;
 
   React.useEffect(() => {
     window.shotai.getAppInfo().then(setInfo).catch(fail);
@@ -53,7 +163,7 @@ export function App(): React.JSX.Element {
       // Load any existing steps so the list matches the (real) header count.
       const manifest = await window.shotai.projects.open(projectPath);
       setSteps(manifest.steps);
-      const state = await window.shotai.capture.start(projectPath);
+      const state = await window.shotai.capture.start(projectPath, buildTarget());
       setCapture(state);
     } catch (e) {
       fail(e);
@@ -62,7 +172,7 @@ export function App(): React.JSX.Element {
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || busy) return;
+    if (!title.trim() || busy || !modeReady) return;
     setBusy(true);
     try {
       const summary = await window.shotai.projects.create(title.trim());
@@ -153,6 +263,124 @@ export function App(): React.JSX.Element {
           </div>
         )}
 
+        {!recording && (
+          <section className="capmode">
+            <span className="project__label">Capture mode</span>
+            <div
+              className="capmode__modes"
+              role="radiogroup"
+              aria-label="Capture mode"
+            >
+              {MODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === opt.mode}
+                  className={`capmode__chip${
+                    mode === opt.mode ? ' capmode__chip--on' : ''
+                  }`}
+                  disabled={opt.disabled}
+                  title={opt.hint}
+                  onClick={() => selectMode(opt.mode)}
+                >
+                  {opt.label}
+                  {opt.disabled && <span className="capmode__soon">next</span>}
+                </button>
+              ))}
+            </div>
+            <p className="capmode__desc">{MODE_DESC[mode]}</p>
+
+            {(mode === 'window' || mode === 'screen') && (
+              <div className="capmode__picker">
+                {mode === 'window' ? (
+                  <select
+                    className="capmode__select"
+                    aria-label="Window to capture"
+                    value={pickedWindow ? String(pickedWindow.id) : ''}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      setPickedWindow(
+                        targets?.windows.find((w) => w.id === id) ?? null,
+                      );
+                    }}
+                  >
+                    {!targets?.windows.length && (
+                      <option value="">
+                        {targetsLoading ? 'Loading…' : 'No windows found'}
+                      </option>
+                    )}
+                    {targets?.windows.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.app ? `${w.app} — ` : ''}
+                        {w.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    className="capmode__select"
+                    aria-label="Monitor to capture"
+                    value={pickedMonitorId != null ? String(pickedMonitorId) : ''}
+                    onChange={(e) => setPickedMonitorId(Number(e.target.value))}
+                  >
+                    {!targets?.monitors.length && (
+                      <option value="">
+                        {targetsLoading ? 'Loading…' : 'No monitors found'}
+                      </option>
+                    )}
+                    {targets?.monitors.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} · {m.width}×{m.height}
+                        {m.isPrimary ? ' · primary' : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  onClick={() => void loadTargets()}
+                  disabled={targetsLoading}
+                  title="Refresh the list"
+                >
+                  ↻
+                </button>
+              </div>
+            )}
+            {mode === 'area' && (
+              <div className="capmode__picker">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void selectArea()}
+                  disabled={selectingArea}
+                >
+                  {selectingArea
+                    ? 'Selecting…'
+                    : pickedArea
+                      ? 'Re-select area'
+                      : 'Select area…'}
+                </button>
+                {pickedArea && (
+                  <span className="capmode__area">
+                    {pickedArea.width} × {pickedArea.height}px @ ({pickedArea.x},{' '}
+                    {pickedArea.y})
+                  </span>
+                )}
+              </div>
+            )}
+            {mode === 'window' && !pickedWindow && (
+              <p className="capmode__warn">
+                Pick a window above to enable recording.
+              </p>
+            )}
+            {mode === 'area' && !pickedArea && !selectingArea && (
+              <p className="capmode__warn">Select an area to enable recording.</p>
+            )}
+          </section>
+        )}
+
         <div className="project__row">
           <div className="project__dir">
             <span className="project__label">Projects folder</span>
@@ -189,7 +417,7 @@ export function App(): React.JSX.Element {
           <button
             type="submit"
             className="btn btn--primary"
-            disabled={busy || recording || !title.trim()}
+            disabled={busy || recording || !title.trim() || !modeReady}
           >
             {busy ? 'Creating…' : 'New project + record'}
           </button>
@@ -208,7 +436,7 @@ export function App(): React.JSX.Element {
                 <button
                   type="button"
                   className="btn btn--small"
-                  disabled={recording}
+                  disabled={recording || !modeReady}
                   onClick={() => onRecord(p.path)}
                 >
                   Record

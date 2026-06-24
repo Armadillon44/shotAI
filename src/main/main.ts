@@ -3,6 +3,7 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
+import { RegionService } from './RegionService';
 import { initLogging, mainLog } from './logger';
 
 initLogging();
@@ -175,7 +176,8 @@ app.whenReady().then(async () => {
       }
     },
   });
-  registerIpcHandlers(capture);
+  const region = new RegionService(preloadPath);
+  registerIpcHandlers(capture, region);
   createWindows();
 });
 
