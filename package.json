@@ -50,11 +50,15 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
+    "electron-log": "^5.4.4",
     "electron-squirrel-startup": "^1.0.1",
     "get-windows": "^9.3.0",
     "node-screenshots": "^0.2.8",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "uiohook-napi": "^1.5.5"
+  },
+  "optionalDependencies": {
+    "node-screenshots-win32-x64-msvc": "0.2.8"
   }
 }

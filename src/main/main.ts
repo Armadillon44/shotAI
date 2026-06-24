@@ -3,6 +3,9 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
+import { initLogging, mainLog } from './logger';
+
+initLogging();
 
 // Windows-on-ARM VMs (this dev box) and headless/CI environments can't create
 // a GPU context, which otherwise aborts startup ("GPU process isn't usable").
@@ -17,6 +20,9 @@ if (process.env.SHOTAI_ENABLE_GPU !== '1') {
   // This VM can't initialize the OS sandbox, so child (renderer/GPU) processes
   // never start without this. The app only loads local bundled content.
   app.commandLine.appendSwitch('no-sandbox');
+  mainLog.info('GPU disabled — software rendering (set SHOTAI_ENABLE_GPU=1 to enable)');
+} else {
+  mainLog.info('GPU enabled (SHOTAI_ENABLE_GPU=1)');
 }
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -29,15 +35,13 @@ const preloadPath = path.join(__dirname, 'preload.js');
 /** Surface renderer load success/failure in the terminal (load failures are otherwise console-only). */
 const wireLoadDiagnostics = (win: BrowserWindow, label: string): void => {
   win.webContents.on('did-finish-load', () => {
-    if (!app.isPackaged) {
-      console.log(`[shotAI] ${label} window loaded`);
-    }
+    mainLog.debug(`${label} window loaded`);
   });
   win.webContents.on(
     'did-fail-load',
     (_event, errorCode, errorDescription, validatedURL) => {
-      console.error(
-        `[shotAI] ${label} window FAILED to load (${errorCode} ${errorDescription}): ${validatedURL}`,
+      mainLog.error(
+        `${label} window FAILED to load (${errorCode} ${errorDescription}): ${validatedURL}`,
       );
     },
   );
@@ -63,6 +67,7 @@ const createProjectWindow = (): BrowserWindow => {
     },
   });
 
+  win.setContentProtection(true); // keep shotAI out of its own screenshots
   wireLoadDiagnostics(win, 'project');
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -102,6 +107,7 @@ const createToolbarWindow = (): BrowserWindow => {
     },
   });
 
+  win.setContentProtection(true); // keep shotAI out of its own screenshots
   wireLoadDiagnostics(win, 'toolbar');
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -117,11 +123,9 @@ const createToolbarWindow = (): BrowserWindow => {
 };
 
 const createWindows = (): void => {
-  if (!app.isPackaged) {
-    console.log(
-      `[shotAI] runtime: ${process.platform}/${process.arch} · electron ${process.versions.electron} · chrome ${process.versions.chrome}`,
-    );
-  }
+  mainLog.info(
+    `runtime: ${process.platform}/${process.arch} · electron ${process.versions.electron} · chrome ${process.versions.chrome}`,
+  );
   createProjectWindow();
   createToolbarWindow();
 };

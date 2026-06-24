@@ -8,9 +8,10 @@ import {
 import { IpcChannels, type AppInfo } from '../shared/ipc';
 import * as projectStore from './ProjectStore';
 import type { CaptureController } from './CaptureController';
+import { ipcLog } from './logger';
 
 function devLog(message: string): void {
-  if (!app.isPackaged) console.log(`[shotAI] ${message}`);
+  ipcLog.debug(message);
 }
 
 /** Validate an IPC argument is a string (types are erased at the IPC boundary). */

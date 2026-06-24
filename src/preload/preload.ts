@@ -36,6 +36,11 @@ const api: ShotaiApi = {
       return () =>
         ipcRenderer.removeListener(IpcChannels.captureStepAdded, listener);
     },
+    onError: (cb: (message: string) => void) => {
+      const listener = (_e: IpcRendererEvent, message: string) => cb(message);
+      ipcRenderer.on(IpcChannels.captureError, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.captureError, listener);
+    },
   },
 };
 

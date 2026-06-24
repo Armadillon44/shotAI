@@ -39,6 +39,7 @@ export const IpcChannels = {
   // main -> renderer events
   captureStateChanged: 'capture:state-changed',
   captureStepAdded: 'capture:step-added',
+  captureError: 'capture:error',
 } as const;
 
 /** The typed API exposed to the renderer on `window.shotai` via contextBridge. */
@@ -63,5 +64,7 @@ export interface ShotaiApi {
     onStateChanged(cb: (state: CaptureState) => void): () => void;
     /** Subscribe to newly captured steps; returns an unsubscribe function. */
     onStepAdded(cb: (step: ProjectStep) => void): () => void;
+    /** Subscribe to capture failures (so a long recording can't fail silently). */
+    onError(cb: (message: string) => void): () => void;
   };
 }

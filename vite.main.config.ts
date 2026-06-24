@@ -6,7 +6,12 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   build: {
     rollupOptions: {
-      external: ['uiohook-napi', 'node-screenshots', 'get-windows'],
+      external: [
+        'uiohook-napi',
+        'node-screenshots',
+        'get-windows',
+        /^electron-log/,
+      ],
     },
   },
 });

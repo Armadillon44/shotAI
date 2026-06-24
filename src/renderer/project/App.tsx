@@ -36,9 +36,13 @@ export function App(): React.JSX.Element {
     const offStep = window.shotai.capture.onStepAdded((step) =>
       setSteps((prev) => [...prev, step]),
     );
+    const offError = window.shotai.capture.onError((message) =>
+      setError(`Capture error: ${message}`),
+    );
     return () => {
       offState();
       offStep();
+      offError();
     };
   }, []);
 
@@ -46,7 +50,9 @@ export function App(): React.JSX.Element {
 
   const onRecord = async (projectPath: string) => {
     try {
-      setSteps([]);
+      // Load any existing steps so the list matches the (real) header count.
+      const manifest = await window.shotai.projects.open(projectPath);
+      setSteps(manifest.steps);
       const state = await window.shotai.capture.start(projectPath);
       setCapture(state);
     } catch (e) {
@@ -100,7 +106,9 @@ export function App(): React.JSX.Element {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => window.shotai.capture.pause().then(setCapture)}
+                  onClick={() =>
+                    window.shotai.capture.pause().then(setCapture).catch(fail)
+                  }
                 >
                   Pause
                 </button>
@@ -108,7 +116,9 @@ export function App(): React.JSX.Element {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => window.shotai.capture.resume().then(setCapture)}
+                  onClick={() =>
+                    window.shotai.capture.resume().then(setCapture).catch(fail)
+                  }
                 >
                   Resume
                 </button>
@@ -116,7 +126,9 @@ export function App(): React.JSX.Element {
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={() => window.shotai.capture.stop().then(setCapture)}
+                onClick={() =>
+                  window.shotai.capture.stop().then(setCapture).catch(fail)
+                }
               >
                 Stop
               </button>
