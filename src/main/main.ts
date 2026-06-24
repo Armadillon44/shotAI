@@ -32,6 +32,11 @@ if (started) {
 
 const preloadPath = path.join(__dirname, 'preload.js');
 
+// The main project window + the always-on-top toolbar pill — tracked so capture
+// can hide the main window and show the pill while recording (and the inverse).
+let projectWindow: BrowserWindow | null = null;
+let toolbarWindow: BrowserWindow | null = null;
+
 /** Surface renderer load success/failure in the terminal (load failures are otherwise console-only). */
 const wireLoadDiagnostics = (win: BrowserWindow, label: string): void => {
   win.webContents.on('did-finish-load', () => {
@@ -69,6 +74,10 @@ const createProjectWindow = (): BrowserWindow => {
 
   win.setContentProtection(true); // keep shotAI out of its own screenshots
   wireLoadDiagnostics(win, 'project');
+  projectWindow = win;
+  win.on('closed', () => {
+    projectWindow = null;
+  });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -109,6 +118,10 @@ const createToolbarWindow = (): BrowserWindow => {
 
   win.setContentProtection(true); // keep shotAI out of its own screenshots
   wireLoadDiagnostics(win, 'toolbar');
+  toolbarWindow = win;
+  win.on('closed', () => {
+    toolbarWindow = null;
+  });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     win.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}/toolbar.html`);
@@ -118,7 +131,7 @@ const createToolbarWindow = (): BrowserWindow => {
     );
   }
 
-  win.once('ready-to-show', () => win.show());
+  // The pill stays hidden until a recording starts (shown via onRecordingChange).
   return win;
 };
 
@@ -144,7 +157,24 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  const capture = createCaptureController();
+  const capture = createCaptureController({
+    // Hide the main window while recording (the always-on-top toolbar pill is
+    // the control); restore + focus it when recording stops.
+    onRecordingChange: (recording) => {
+      const proj =
+        projectWindow && !projectWindow.isDestroyed() ? projectWindow : null;
+      const pill =
+        toolbarWindow && !toolbarWindow.isDestroyed() ? toolbarWindow : null;
+      if (recording) {
+        proj?.hide();
+        pill?.show(); // pill only appears while recording
+      } else {
+        pill?.hide();
+        proj?.show();
+        proj?.focus();
+      }
+    },
+  });
   registerIpcHandlers(capture);
   createWindows();
 });

@@ -10,7 +10,7 @@
 // Region modes (window/area/all) + the selector overlay, and click-marker DPI
 // calibration, are follow-up work; this defaults to capturing the monitor the
 // click landed on ("screen" mode).
-import { app, BrowserWindow, globalShortcut } from 'electron';
+import { app, BrowserWindow, globalShortcut, screen } from 'electron';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
@@ -87,6 +87,7 @@ function captureModeFor(active: ActiveLike): 'window' | 'region' | 'fullscreen' 
 
 export class CaptureController {
   private readonly broadcast: Broadcast;
+  private readonly onRecordingChange?: (recording: boolean) => void;
   private natives: Natives | null = null;
   private session: Session | null = null;
   private hookAttached = false;
@@ -105,8 +106,12 @@ export class CaptureController {
     this.enqueue(() => this.captureStep('hotkey', null));
   };
 
-  constructor(broadcast: Broadcast) {
+  constructor(
+    broadcast: Broadcast,
+    onRecordingChange?: (recording: boolean) => void,
+  ) {
     this.broadcast = broadcast;
+    this.onRecordingChange = onRecordingChange;
   }
 
   private async loadNatives(): Promise<Natives> {
@@ -192,6 +197,7 @@ export class CaptureController {
       `recording started: "${manifest.title}" (${manifest.steps.length} existing steps, next #${stepCount + 1}) at ${projectPath}`,
     );
     if (attachHook) this.attachTriggers();
+    this.onRecordingChange?.(true); // e.g. hide the main window while recording
     this.emitState();
     return this.getState();
   }
@@ -240,11 +246,13 @@ export class CaptureController {
   }
 
   async stop(): Promise<CaptureState> {
+    const wasRecording = this.session !== null;
     const count = this.session?.stepCount ?? 0;
     this.detachTriggers();
     await this.queue.catch(() => undefined); // let in-flight captures finish
     this.session = null;
     captureLog.info(`recording stopped (${count} steps total)`);
+    if (wasRecording) this.onRecordingChange?.(false); // e.g. restore the main window
     this.emitState();
     return this.getState();
   }
@@ -271,6 +279,30 @@ export class CaptureController {
     return pids;
   }
 
+  /** True if a (physical-pixel) click point lands on a visible shotAI window. */
+  private pointHitsOwnWindow(point: Point): boolean {
+    let dip: Point = point;
+    try {
+      // uiohook reports physical screen pixels; window bounds are DIP.
+      dip = screen.screenToDipPoint({ x: point.x, y: point.y });
+    } catch {
+      /* fall back to the raw point */
+    }
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (w.isDestroyed() || !w.isVisible()) continue;
+      const b = w.getBounds();
+      if (
+        dip.x >= b.x &&
+        dip.x < b.x + b.width &&
+        dip.y >= b.y &&
+        dip.y < b.y + b.height
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Perform one capture into the active project. Public so the test can drive it. */
   async captureStep(
     trigger: ProjectStep['trigger'],
@@ -292,7 +324,10 @@ export class CaptureController {
     const activeIsOwn =
       !!active &&
       (ours.has(active.owner.processId) || OWN_WINDOW_TITLES.has(active.title));
-    if (activeIsOwn || (focused && ours.has(focused.pid()))) {
+    const focusedIsOwn = !!focused && ours.has(focused.pid());
+    // Geometric check catches clicks on the always-on-top pill, which doesn't
+    // reliably report as the active/focused window (and is content-protected).
+    if (activeIsOwn || focusedIsOwn || (point && this.pointHitsOwnWindow(point))) {
       return null;
     }
 
@@ -417,13 +452,15 @@ export class CaptureController {
 }
 
 /** Build a CaptureController that broadcasts events to all renderer windows. */
-export function createCaptureController(): CaptureController {
+export function createCaptureController(
+  opts: { onRecordingChange?: (recording: boolean) => void } = {},
+): CaptureController {
   const broadcast: Broadcast = (channel, payload) => {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) win.webContents.send(channel, payload);
     }
   };
-  const controller = new CaptureController(broadcast);
+  const controller = new CaptureController(broadcast, opts.onRecordingChange);
   // Release the global input hook + shortcuts on quit so the uiohook worker
   // thread can't keep the process alive (zombie) on Windows.
   app.on('before-quit', () => {

@@ -73,8 +73,13 @@ body {
   cursor: pointer;
 }
 
-.toolbar__btn:hover {
+.toolbar__btn:hover:not(:disabled) {
   background: #3a4159;
+}
+
+.toolbar__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .toolbar__btn--rec .toolbar__dot {
@@ -82,4 +87,30 @@ body {
   height: 12px;
   border-radius: 50%;
   background: #ef4444;
+}
+
+.toolbar__btn--stop:hover {
+  background: #7f1d1d;
+}
+
+/* Recording/paused status indicator in the drag label */
+.toolbar__rec-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ef4444;
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: tb-pulse 1.4s ease-in-out infinite;
+}
+
+.toolbar--paused .toolbar__label {
+  color: #fcd34d;
+}
+
+@keyframes tb-pulse {
+  50% {
+    opacity: 0.3;
+  }
 }
