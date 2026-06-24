@@ -123,7 +123,13 @@ const createWindows = (): void => {
 };
 
 // Register IPC handlers once, then create windows, after Electron is ready.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (process.env.SHOTAI_SELFTEST === '1') {
+    const { runSelfTest } = await import('./selftest');
+    await runSelfTest();
+    app.quit();
+    return;
+  }
   registerIpcHandlers();
   createWindows();
 });
