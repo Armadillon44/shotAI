@@ -258,18 +258,17 @@ export class CaptureController {
     });
   }
 
-  private isOwnWindow(win: { title: string; owner: { processId: number } }): boolean {
-    if (win.owner.processId === process.pid) return true;
-    if (OWN_WINDOW_TITLES.has(win.title)) return true;
-    const ourPids = new Set<number>();
+  /** OS pids belonging to shotAI (main/browser process + each window's renderer). */
+  private ownPids(): Set<number> {
+    const pids = new Set<number>([process.pid]);
     for (const w of BrowserWindow.getAllWindows()) {
       try {
-        ourPids.add(w.webContents.getOSProcessId());
+        pids.add(w.webContents.getOSProcessId());
       } catch {
         /* window gone */
       }
     }
-    return ourPids.has(win.owner.processId);
+    return pids;
   }
 
   /** Perform one capture into the active project. Public so the test can drive it. */
@@ -284,8 +283,17 @@ export class CaptureController {
     const { Monitor, Window, activeWindow } = await this.loadNatives();
 
     const active = await activeWindow();
-    if (active && this.isOwnWindow(active)) {
-      return null; // never record clicks on shotAI's own windows
+    const focused = Window.all().find((w) => w.isFocused());
+
+    // Never record clicks on shotAI's own windows. Check BOTH signals: our
+    // content-protected windows make get-windows return null, but
+    // node-screenshots still reports the focused window's owning pid.
+    const ours = this.ownPids();
+    const activeIsOwn =
+      !!active &&
+      (ours.has(active.owner.processId) || OWN_WINDOW_TITLES.has(active.title));
+    if (activeIsOwn || (focused && ours.has(focused.pid()))) {
+      return null;
     }
 
     // Monitor under the click — kept as step metadata.
@@ -304,13 +312,9 @@ export class CaptureController {
       | { png: Buffer; originX: number; originY: number }
       | null => {
       if (mode === 'window') {
-        const focused = Window.all().find((w) => w.isFocused());
-        if (
-          focused &&
-          focused.pid() !== process.pid &&
-          focused.x() > -10000 &&
-          focused.y() > -10000
-        ) {
+        // `focused` (the node-screenshots focused window) is resolved above and
+        // already confirmed not to be shotAI's own window.
+        if (focused && focused.x() > -10000 && focused.y() > -10000) {
           try {
             return {
               png: focused.captureImageSync().toPngSync(),
