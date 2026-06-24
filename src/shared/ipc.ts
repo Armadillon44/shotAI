@@ -2,7 +2,7 @@
  * IPC contract shared by the main process, preload, and renderer.
  * Keep channel names and payload types here so all three stay in sync.
  */
-import type { ProjectManifest, ProjectSummary } from './project';
+import type { ProjectManifest, ProjectStep, ProjectSummary } from './project';
 
 export interface AppInfo {
   name: string;
@@ -14,6 +14,15 @@ export interface AppInfo {
   node: string;
 }
 
+export type CaptureStatus = 'idle' | 'recording' | 'paused';
+
+export interface CaptureState {
+  status: CaptureStatus;
+  projectPath: string | null;
+  projectTitle: string | null;
+  stepCount: number;
+}
+
 /** IPC channel names — single source of truth. */
 export const IpcChannels = {
   getAppInfo: 'app:get-info',
@@ -22,6 +31,14 @@ export const IpcChannels = {
   listRecentProjects: 'projects:list-recent',
   createProject: 'projects:create',
   openProject: 'projects:open',
+  captureStart: 'capture:start',
+  capturePause: 'capture:pause',
+  captureResume: 'capture:resume',
+  captureStop: 'capture:stop',
+  captureGetState: 'capture:get-state',
+  // main -> renderer events
+  captureStateChanged: 'capture:state-changed',
+  captureStepAdded: 'capture:step-added',
 } as const;
 
 /** The typed API exposed to the renderer on `window.shotai` via contextBridge. */
@@ -29,15 +46,22 @@ export interface ShotaiApi {
   /** Runtime / app info from the main process. */
   getAppInfo(): Promise<AppInfo>;
   projects: {
-    /** Absolute path to the current projects directory. */
     getDir(): Promise<string>;
-    /** Open a native folder picker to change the projects dir; returns the new dir, or null if cancelled. */
     chooseDir(): Promise<string | null>;
-    /** Recent projects, most-recently-touched first. */
     listRecent(): Promise<ProjectSummary[]>;
-    /** Create a new, empty project folder; returns its summary. */
     create(title: string): Promise<ProjectSummary>;
-    /** Read an existing project's manifest. */
     open(projectPath: string): Promise<ProjectManifest>;
+  };
+  capture: {
+    /** Start (or append to) a recording session for the given project. */
+    start(projectPath: string): Promise<CaptureState>;
+    pause(): Promise<CaptureState>;
+    resume(): Promise<CaptureState>;
+    stop(): Promise<CaptureState>;
+    getState(): Promise<CaptureState>;
+    /** Subscribe to capture state changes; returns an unsubscribe function. */
+    onStateChanged(cb: (state: CaptureState) => void): () => void;
+    /** Subscribe to newly captured steps; returns an unsubscribe function. */
+    onStepAdded(cb: (step: ProjectStep) => void): () => void;
   };
 }

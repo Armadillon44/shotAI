@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
   PROJECT_SCHEMA_VERSION,
   type ProjectManifest,
+  type ProjectStep,
   type ProjectSummary,
 } from '../shared/project';
 import {
@@ -179,4 +180,26 @@ export async function listRecentProjects(): Promise<ProjectSummary[]> {
 
   // `recents` is already most-recently-touched-first; preserve that order.
   return summaries;
+}
+
+// Serialize manifest writes so rapid captures can't interleave read-modify-write.
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+/** Append a captured step to a project's manifest (serialized, atomic-ish). */
+export function addStep(projectPath: string, step: ProjectStep): Promise<void> {
+  const run = writeQueue.then(async () => {
+    const manifest = await readManifest(projectPath);
+    manifest.steps.push(step);
+    manifest.updatedAt = new Date().toISOString();
+    await fs.writeFile(
+      path.join(projectPath, MANIFEST),
+      JSON.stringify(manifest, null, 2),
+      'utf8',
+    );
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }

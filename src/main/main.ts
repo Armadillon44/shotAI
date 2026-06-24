@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
+import { createCaptureController } from './CaptureController';
 
 // Headless / VM / remote-desktop environments may lack a usable GPU, which
 // otherwise aborts startup ("GPU process isn't usable"). Opt into software
@@ -136,7 +137,8 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  registerIpcHandlers();
+  const capture = createCaptureController();
+  registerIpcHandlers(capture);
   createWindows();
 });
 
