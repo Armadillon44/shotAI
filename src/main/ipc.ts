@@ -7,9 +7,11 @@ import {
 } from 'electron';
 import { IpcChannels, type AppInfo } from '../shared/ipc';
 import * as projectStore from './ProjectStore';
+import type { CaptureController } from './CaptureController';
+import { ipcLog } from './logger';
 
 function devLog(message: string): void {
-  if (!app.isPackaged) console.log(`[shotAI] ${message}`);
+  ipcLog.debug(message);
 }
 
 /** Validate an IPC argument is a string (types are erased at the IPC boundary). */
@@ -21,7 +23,7 @@ function asString(value: unknown, name: string): string {
 }
 
 /** Register all main-process IPC handlers. Call once, after the app is ready. */
-export function registerIpcHandlers(): void {
+export function registerIpcHandlers(capture: CaptureController): void {
   ipcMain.handle(IpcChannels.getAppInfo, (): AppInfo => {
     devLog('ipc: app:get-info');
     return {
@@ -83,4 +85,28 @@ export function registerIpcHandlers(): void {
       return projectStore.openProject(asString(projectPath, 'projectPath'));
     },
   );
+
+  ipcMain.handle(
+    IpcChannels.captureStart,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: capture:start');
+      return capture.start(asString(projectPath, 'projectPath'));
+    },
+  );
+  ipcMain.handle(IpcChannels.capturePause, () => {
+    devLog('ipc: capture:pause');
+    return capture.pause();
+  });
+  ipcMain.handle(IpcChannels.captureResume, () => {
+    devLog('ipc: capture:resume');
+    return capture.resume();
+  });
+  ipcMain.handle(IpcChannels.captureStop, () => {
+    devLog('ipc: capture:stop');
+    return capture.stop();
+  });
+  ipcMain.handle(IpcChannels.captureGetState, () => {
+    devLog('ipc: capture:get-state');
+    return capture.getState();
+  });
 }
