@@ -4,16 +4,19 @@ import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
 
-// Headless / VM / remote-desktop environments may lack a usable GPU, which
-// otherwise aborts startup ("GPU process isn't usable"). Opt into software
-// rendering there via SHOTAI_DISABLE_GPU=1 (used for CI / automated launches).
-if (process.env.SHOTAI_DISABLE_GPU === '1') {
+// Windows-on-ARM VMs (this dev box) and headless/CI environments can't create
+// a GPU context, which otherwise aborts startup ("GPU process isn't usable").
+// Default to software rendering so the app launches; set SHOTAI_ENABLE_GPU=1 to
+// use the GPU on machines that support it.
+if (process.env.SHOTAI_ENABLE_GPU !== '1') {
   app.disableHardwareAcceleration();
-  app.commandLine.appendSwitch('no-sandbox');
   app.commandLine.appendSwitch('disable-gpu');
   app.commandLine.appendSwitch('disable-gpu-compositing');
   app.commandLine.appendSwitch('disable-software-rasterizer');
   app.commandLine.appendSwitch('in-process-gpu');
+  // This VM can't initialize the OS sandbox, so child (renderer/GPU) processes
+  // never start without this. The app only loads local bundled content.
+  app.commandLine.appendSwitch('no-sandbox');
 }
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
