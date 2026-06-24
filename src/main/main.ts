@@ -130,6 +130,12 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+  if (process.env.SHOTAI_CAPTURE_TEST === '1') {
+    const { runCaptureTest } = await import('./capture-selftest');
+    await runCaptureTest();
+    app.quit();
+    return;
+  }
   registerIpcHandlers();
   createWindows();
 });

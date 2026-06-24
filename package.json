@@ -11,9 +11,16 @@
     "make": "electron-forge make --arch=x64",
     "publish": "electron-forge publish --arch=x64",
     "lint": "eslint --ext .ts,.tsx .",
-    "postinstall": "node scripts/postinstall-electron.mjs"
+    "postinstall": "node scripts/postinstall.mjs"
   },
-  "keywords": ["electron", "screenshots", "sop", "documentation", "scribe", "claude"],
+  "keywords": [
+    "electron",
+    "screenshots",
+    "sop",
+    "documentation",
+    "scribe",
+    "claude"
+  ],
   "author": {
     "name": "Armadillon44",
     "email": "ddreier@lacrossefootwear.com"
@@ -29,6 +36,7 @@
     "@electron-forge/plugin-fuses": "^7.11.2",
     "@electron-forge/plugin-vite": "^7.11.2",
     "@electron/fuses": "^1.8.0",
+    "@electron/rebuild": "^4.0.4",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -43,7 +51,10 @@
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
+    "get-windows": "^9.3.0",
+    "node-screenshots": "^0.2.8",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "uiohook-napi": "^1.5.5"
   }
 }

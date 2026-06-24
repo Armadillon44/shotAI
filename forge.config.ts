@@ -11,7 +11,11 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
   },
-  rebuildConfig: {},
+  // Our native deps (uiohook-napi, node-screenshots, get-windows) are all N-API
+  // (ABI-stable) and ship/carry x64 prebuilts, which are resolved at runtime by
+  // the x64 (emulated) Electron. Skip Forge's auto-rebuild — there's nothing to
+  // build, and source-building here would fail (no Python/MSVC on this box).
+  rebuildConfig: { onlyModules: [] },
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),
