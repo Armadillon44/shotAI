@@ -1,8 +1,8 @@
 {
-  "name": "screenshottool",
-  "productName": "screenshottool",
+  "name": "shotai",
+  "productName": "shotAI",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "Local-first SOP builder — record a process and let Claude write the step-by-step guide.",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -13,7 +13,7 @@
     "lint": "eslint --ext .ts,.tsx .",
     "postinstall": "node scripts/postinstall-electron.mjs"
   },
-  "keywords": [],
+  "keywords": ["electron", "screenshots", "sop", "documentation", "scribe", "claude"],
   "author": {
     "name": "Armadillon44",
     "email": "ddreier@lacrossefootwear.com"
