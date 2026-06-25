@@ -483,6 +483,9 @@ body {
 
 .rep__bodywrap {
   min-width: 0;
+  /* match the image's max box (REPORT_BASE_W) so the caption-row controls
+     right-align to the screenshot's right edge rather than the page edge */
+  max-width: 800px;
 }
 
 .rep__caption {
@@ -500,8 +503,22 @@ body {
   max-width: 100%;
   border: 1px solid #e3e6ea;
   border-radius: 10px;
-  overflow: auto; /* a zoomed image scrolls within its box, not the page */
+  overflow: auto; /* a zoomed image pans within its box (scrollbars hidden) */
   background: #ffffff;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+}
+
+.rep__imgwrap::-webkit-scrollbar {
+  display: none; /* Chromium — pan by dragging instead */
+}
+
+.rep__imgwrap--pan {
+  cursor: grab;
+}
+
+.rep__imgwrap--pan:active {
+  cursor: grabbing;
 }
 
 /* Sizes to the image so the absolutely-positioned marker scrolls with it. */

@@ -167,6 +167,9 @@ export function Editor({
     step.annotations ?? [],
   );
   const [crop, setCrop] = React.useState<Rect | null>(step.crop ?? null);
+  // When true, the editor shows only the cropped region (zoomed to fill) so you
+  // can work on it directly. Annotations stay in full-image coords regardless.
+  const [viewCropped, setViewCropped] = React.useState(false);
   const [clickImage, setClickImage] = React.useState<Point | null>(
     step.click ? { ...step.click.image } : null,
   );
@@ -220,6 +223,21 @@ export function Editor({
   const natH = img?.naturalHeight ?? 0;
   const scale = natW && natH ? Math.min(VIEW_W / natW, VIEW_H / natH, 1) : 1;
   const markerR = natW && natH ? clickMarkerRadius(natW, natH) : 20;
+  // Stage transform: whole image (fit), or — when crop is applied in-line — just
+  // the crop region zoomed to fill the canvas. Pointer coords stay in image space.
+  const cropView =
+    viewCropped && crop
+      ? (() => {
+          const cs = Math.min(VIEW_W / crop.width, VIEW_H / crop.height, 8);
+          return {
+            scale: cs,
+            x: -crop.x * cs,
+            y: -crop.y * cs,
+            w: Math.max(1, Math.round(crop.width * cs)),
+            h: Math.max(1, Math.round(crop.height * cs)),
+          };
+        })()
+      : { scale, x: 0, y: 0, w: Math.round(natW * scale), h: Math.round(natH * scale) };
 
   const selected = annotations.find((a) => a.id === selectedId) ?? null;
 
@@ -517,6 +535,7 @@ export function Editor({
               onClick={() => {
                 setTool(t.tool);
                 if (t.tool !== 'select') setSelectedId(null);
+                if (t.tool === 'crop') setViewCropped(false); // re-crop on the full image
               }}
             >
               {t.label}
@@ -527,7 +546,24 @@ export function Editor({
         <div className="ed__spacer" />
 
         {crop && (
-          <button type="button" className="btn btn--small" onClick={() => setCrop(null)}>
+          <button
+            type="button"
+            className="btn btn--small"
+            onClick={() => setViewCropped((v) => !v)}
+            title="Work on just the cropped region (non-destructive)"
+          >
+            {viewCropped ? 'Show full' : 'Apply crop'}
+          </button>
+        )}
+        {crop && (
+          <button
+            type="button"
+            className="btn btn--small"
+            onClick={() => {
+              setCrop(null);
+              setViewCropped(false);
+            }}
+          >
             Reset crop
           </button>
         )}
@@ -664,10 +700,12 @@ export function Editor({
         ) : (
           <Stage
             ref={stageRef}
-            width={natW * scale}
-            height={natH * scale}
-            scaleX={scale}
-            scaleY={scale}
+            width={cropView.w}
+            height={cropView.h}
+            scaleX={cropView.scale}
+            scaleY={cropView.scale}
+            x={cropView.x}
+            y={cropView.y}
             onMouseDown={onStageMouseDown}
             onMouseMove={onStageMouseMove}
             style={{ cursor: selectable ? 'default' : 'crosshair' }}

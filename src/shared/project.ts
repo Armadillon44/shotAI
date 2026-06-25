@@ -192,6 +192,9 @@ export interface ProjectStep {
   renderRev?: number;
   /** Per-step DISPLAY zoom in the report (default 1); does not affect export. */
   reportZoom?: number;
+  /** Report pan as a fraction 0..1 of the pannable range (0.5 = centered). */
+  reportPanX?: number;
+  reportPanY?: number;
 }
 
 /** Editor-mutable fields of a step (sent over IPC by the inline editor). */
@@ -208,6 +211,8 @@ export type StepPatch = Partial<
     | 'click'
     | 'markerColor'
     | 'reportZoom'
+    | 'reportPanX'
+    | 'reportPanY'
   >
 >;
 

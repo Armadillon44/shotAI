@@ -16,11 +16,15 @@ const ZOOM_MAX = 4;
 function StepFigure({
   projectId,
   step,
+  onReframe,
 }: {
   projectId: string;
   step: ProjectStep;
+  onReframe: (step: ProjectStep, panX: number, panY: number) => void;
 }): React.JSX.Element {
   const [dims, setDims] = React.useState<{ w: number; h: number } | null>(null);
+  const wrapRef = React.useRef<HTMLDivElement | null>(null);
+  const drag = React.useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
   const flattened = !!step.flattened;
   // Cache-bust the flattened <img> with renderRev (bumped only when it's actually
   // re-rendered) so a re-save updates it but a display-zoom change doesn't reload.
@@ -29,6 +33,13 @@ function StepFigure({
     : shotUrl(projectId, step.screenshot);
 
   const zoom = step.reportZoom ?? 1;
+  // Fixed viewport: the image fit within REPORT_BASE (<=800x600) at zoom 1; the
+  // box shrinks for zoom<1 and stays fixed for zoom>1 so the image overflows and
+  // pans in BOTH axes (instead of the box growing taller).
+  const baseScale = dims ? Math.min(REPORT_BASE_W / dims.w, REPORT_BASE_H / dims.h, 1) : 0;
+  const baseW = dims ? dims.w * baseScale : 0;
+  const baseH = dims ? dims.h * baseScale : 0;
+  const boxScale = Math.min(zoom, 1);
   const markerColor =
     step.markerColor ?? (step.click?.button === 'right' ? '#2563eb' : '#e11d48');
   // Marker as a fraction of the displayed image; subtract crop origin when the
@@ -44,16 +55,64 @@ function StepFigure({
     }
   }
 
+  // Restore the persisted pan (as a fraction of the scrollable range) whenever
+  // the rendered size changes (load, zoom). Scrollbars are hidden; you drag.
+  React.useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || !dims) return;
+    const rangeX = el.scrollWidth - el.clientWidth;
+    const rangeY = el.scrollHeight - el.clientHeight;
+    el.scrollLeft = rangeX * (step.reportPanX ?? 0.5);
+    el.scrollTop = rangeY * (step.reportPanY ?? 0.5);
+  }, [dims, zoom, step.reportPanX, step.reportPanY]);
+
+  const onPanStart = (e: React.MouseEvent) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    if (el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight) return;
+    e.preventDefault();
+    drag.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+    const move = (ev: MouseEvent) => {
+      const d = drag.current;
+      if (!d) return;
+      el.scrollLeft = d.sl - (ev.clientX - d.x);
+      el.scrollTop = d.st - (ev.clientY - d.y);
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      drag.current = null;
+      const rangeX = el.scrollWidth - el.clientWidth;
+      const rangeY = el.scrollHeight - el.clientHeight;
+      onReframe(
+        step,
+        rangeX > 0 ? el.scrollLeft / rangeX : 0.5,
+        rangeY > 0 ? el.scrollTop / rangeY : 0.5,
+      );
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
   return (
     <figure className="rep__figure">
-      <div className="rep__imgwrap">
+      <div
+        className={`rep__imgwrap${zoom > 1 ? ' rep__imgwrap--pan' : ''}`}
+        ref={wrapRef}
+        onMouseDown={onPanStart}
+        style={dims ? { width: baseW * boxScale, height: baseH * boxScale } : undefined}
+      >
         <div className="rep__imginner">
           <img
             className="rep__img"
             src={src}
             alt={step.caption}
             loading="lazy"
-            style={{ maxWidth: REPORT_BASE_W * zoom, maxHeight: REPORT_BASE_H * zoom }}
+            style={
+              dims
+                ? { width: baseW * zoom, height: baseH * zoom }
+                : { maxWidth: REPORT_BASE_W, maxHeight: REPORT_BASE_H }
+            }
             onLoad={(e) =>
               setDims({
                 w: e.currentTarget.naturalWidth,
@@ -90,6 +149,19 @@ export function Report({
     try {
       const manifest = await window.shotai.projects.updateStep(projectPath, step.id, {
         reportZoom: z,
+      });
+      applyManifest(manifest);
+    } catch {
+      /* display-only; ignore persistence errors */
+    }
+  };
+
+  const reframe = async (step: ProjectStep, panX: number, panY: number) => {
+    if (!projectPath) return;
+    try {
+      const manifest = await window.shotai.projects.updateStep(projectPath, step.id, {
+        reportPanX: panX,
+        reportPanY: panY,
       });
       applyManifest(manifest);
     } catch {
@@ -170,7 +242,7 @@ export function Report({
                   )}
                 </div>
               </div>
-              <StepFigure projectId={projectId} step={s} />
+              <StepFigure projectId={projectId} step={s} onReframe={reframe} />
               {s.note && <p className="rep__note">{s.note}</p>}
               {s.window && (
                 <p className="rep__meta">

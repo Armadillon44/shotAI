@@ -133,6 +133,8 @@ function parseStepPatch(value: unknown): StepPatch {
     patch.markerColor = v.markerColor;
   }
   if (isNum(v.reportZoom)) patch.reportZoom = Math.max(0.2, Math.min(6, v.reportZoom));
+  if (isNum(v.reportPanX)) patch.reportPanX = Math.max(0, Math.min(1, v.reportPanX));
+  if (isNum(v.reportPanY)) patch.reportPanY = Math.max(0, Math.min(1, v.reportPanY));
   if (Array.isArray(v.annotations)) {
     patch.annotations = v.annotations.filter((a: unknown): a is Annotation => {
       if (!a || typeof a !== 'object') return false;
