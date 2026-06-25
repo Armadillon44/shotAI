@@ -7,7 +7,12 @@ import { useProjectStore } from './store';
 import { Report } from './Report';
 import { Editor } from '../editor/Editor';
 
-export function ProjectDetail(): React.JSX.Element {
+export function ProjectDetail({
+  onResumeCapture,
+}: {
+  /** Resume capturing into this project (wired to App's capture flow). */
+  onResumeCapture?: () => void;
+}): React.JSX.Element {
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
   const title = useProjectStore((s) => s.title);
@@ -20,12 +25,33 @@ export function ProjectDetail(): React.JSX.Element {
   const [editing, setEditing] = React.useState<ProjectStep | null>(null);
   const [importing, setImporting] = React.useState(false);
   const [importErr, setImportErr] = React.useState<string | null>(null);
+  const [autoEditId, setAutoEditId] = React.useState<string | null>(null);
+  // True while a text step is being inline-edited in the report; we disable
+  // structural actions (resume/add/import) so they can't discard the draft.
+  const [textEditing, setTextEditing] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
 
-  // Only screenshot steps open the image editor (text steps get a text editor in 2c).
+  // Only screenshot steps open the image editor (text steps edit inline in the report).
   const onEditStep = (step: ProjectStep) => {
     if (step.kind === 'text') return;
     setEditing(step);
+  };
+
+  const onAddText = async () => {
+    if (!projectPath) return;
+    setImportErr(null);
+    try {
+      const manifest = await window.shotai.projects.addTextStep(
+        projectPath,
+        steps.length,
+      );
+      applyManifest(manifest);
+      // Open the newly appended text step straight into its inline editor.
+      const added = manifest.steps[manifest.steps.length - 1];
+      if (added) setAutoEditId(added.id);
+    } catch (err) {
+      setImportErr(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,12 +81,44 @@ export function ProjectDetail(): React.JSX.Element {
         <h2 className="detail__title" title={title}>
           {title}
         </h2>
+        {onResumeCapture && (
+          <button
+            type="button"
+            className="btn btn--small"
+            disabled={textEditing}
+            onClick={onResumeCapture}
+            title={
+              textEditing
+                ? 'Finish editing the text step first'
+                : 'Resume capturing — click through more steps; they append to this project'
+            }
+          >
+            ⏺ Resume capturing
+          </button>
+        )}
         <button
           type="button"
           className="btn btn--small"
-          disabled={importing}
+          disabled={textEditing}
+          onClick={() => void onAddText()}
+          title={
+            textEditing
+              ? 'Finish editing the text step first'
+              : 'Add a text-only step (heading + body) for instructions between screenshots'
+          }
+        >
+          + Text step
+        </button>
+        <button
+          type="button"
+          className="btn btn--small"
+          disabled={importing || textEditing}
           onClick={() => fileRef.current?.click()}
-          title="Add your own PNG/JPEG image as a new step"
+          title={
+            textEditing
+              ? 'Finish editing the text step first'
+              : 'Add your own PNG/JPEG image as a new step'
+          }
         >
           {importing ? 'Importing…' : 'Import image'}
         </button>
@@ -81,7 +139,11 @@ export function ProjectDetail(): React.JSX.Element {
       {loading ? (
         <p className="project__hint">Loading…</p>
       ) : (
-        <Report onEditStep={onEditStep} />
+        <Report
+          onEditStep={onEditStep}
+          autoEditId={autoEditId}
+          onEditingChange={setTextEditing}
+        />
       )}
 
       {editing && projectId && projectPath && (

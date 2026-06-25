@@ -268,6 +268,10 @@ export function addStep(projectPath: string, step: ProjectStep): Promise<void> {
   const run = writeQueue.then(async () => {
     const manifest = await readManifest(projectPath);
     manifest.steps.push(step);
+    // step.order tracks array position, not the capture filename counter (which
+    // climbs past orphaned step-NNNN.png files left by deletes). Without this,
+    // resuming capture after a delete renders a gap like 1, 2, 3, 6.
+    renumber(manifest.steps);
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(projectPath, manifest);
   });
@@ -311,6 +315,108 @@ export function updateStep(
     return manifest;
   });
   // Keep the chain alive even if one write rejects.
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Reassign step.order to 1..N in array order. */
+function renumber(steps: ProjectStep[]): void {
+  steps.forEach((s, i) => {
+    s.order = i + 1;
+  });
+}
+
+/** Remove a step from the manifest and renumber. Leaves its files on disk
+ *  (originals are preserved). Serialized via the writeQueue. */
+export function deleteStep(
+  projectPath: string,
+  stepId: string,
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const idx = manifest.steps.findIndex((s) => s.id === stepId);
+    if (idx === -1) throw new Error(`step ${stepId} not found`);
+    manifest.steps.splice(idx, 1);
+    renumber(manifest.steps);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return manifest;
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Reorder steps to match `orderedIds` (any unmentioned steps keep their
+ *  relative order at the end), then renumber. Serialized via the writeQueue. */
+export function reorderSteps(
+  projectPath: string,
+  orderedIds: string[],
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const byId = new Map(manifest.steps.map((s) => [s.id, s]));
+    const reordered: ProjectStep[] = [];
+    for (const id of orderedIds) {
+      const s = byId.get(id);
+      if (s) {
+        reordered.push(s);
+        byId.delete(id);
+      }
+    }
+    for (const s of manifest.steps) if (byId.has(s.id)) reordered.push(s);
+    manifest.steps = reordered;
+    renumber(manifest.steps);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return manifest;
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Insert an empty text step at `atIndex` (clamped) and renumber. */
+export function addTextStep(
+  projectPath: string,
+  atIndex: number,
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const step: ProjectStep = {
+      id: randomUUID(),
+      order: 0,
+      kind: 'text',
+      screenshot: '',
+      trigger: 'hotkey',
+      click: null,
+      monitor: null,
+      window: null,
+      element: { available: false, name: null, controlType: null, bounds: null },
+      caption: '',
+      note: '',
+      heading: '',
+      body: '',
+      crop: null,
+      annotations: [],
+    };
+    const i = Math.max(0, Math.min(Math.round(atIndex), manifest.steps.length));
+    manifest.steps.splice(i, 0, step);
+    renumber(manifest.steps);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return manifest;
+  });
   writeQueue = run.then(
     () => undefined,
     () => undefined,

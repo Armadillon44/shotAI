@@ -254,6 +254,42 @@ export function registerIpcHandlers(
   );
 
   ipcMain.handle(
+    IpcChannels.deleteStep,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, stepId: unknown) => {
+      devLog('ipc: projects:delete-step');
+      return projectStore.deleteStep(
+        asString(projectPath, 'projectPath'),
+        asString(stepId, 'stepId'),
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.reorderSteps,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, orderedIds: unknown) => {
+      devLog('ipc: projects:reorder-steps');
+      if (!Array.isArray(orderedIds) || orderedIds.some((id) => typeof id !== 'string')) {
+        throw new Error('orderedIds must be an array of strings');
+      }
+      return projectStore.reorderSteps(
+        asString(projectPath, 'projectPath'),
+        orderedIds as string[],
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.addTextStep,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown) => {
+      devLog('ipc: projects:add-text-step');
+      return projectStore.addTextStep(
+        asString(projectPath, 'projectPath'),
+        isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+      );
+    },
+  );
+
+  ipcMain.handle(
     IpcChannels.captureStart,
     (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown) => {
       devLog('ipc: capture:start');

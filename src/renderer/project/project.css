@@ -613,6 +613,53 @@ body {
   white-space: pre-wrap;
 }
 
+/* Per-step controls (move / edit / delete), shared by shot + text steps */
+.rep__ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Inline text-step editor */
+.rep__textedit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.2rem 0 0.4rem;
+}
+
+.rep__textedit-h,
+.rep__textedit-b {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.rep__textedit-h {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.rep__textedit-b {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 5rem;
+}
+
+.rep__textedit-h:focus,
+.rep__textedit-b:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+}
+
+.rep__textedit-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 /* Inline editor overlay */
 .ed__overlay {
   position: fixed;

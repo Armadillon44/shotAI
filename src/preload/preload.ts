@@ -31,6 +31,12 @@ const api: ShotaiApi = {
       ),
     importStep: (projectPath: string, bytes: Uint8Array) =>
       ipcRenderer.invoke(IpcChannels.importStep, projectPath, bytes),
+    deleteStep: (projectPath: string, stepId: string) =>
+      ipcRenderer.invoke(IpcChannels.deleteStep, projectPath, stepId),
+    reorderSteps: (projectPath: string, orderedIds: string[]) =>
+      ipcRenderer.invoke(IpcChannels.reorderSteps, projectPath, orderedIds),
+    addTextStep: (projectPath: string, atIndex: number) =>
+      ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex),
   },
   capture: {
     start: (projectPath: string, target?: CaptureTarget) =>

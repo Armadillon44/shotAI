@@ -133,39 +133,167 @@ function StepFigure({
   );
 }
 
+function TextStepEditor({
+  step,
+  onSave,
+  onCancel,
+}: {
+  step: ProjectStep;
+  onSave: (heading: string, body: string) => void;
+  onCancel: () => void;
+}): React.JSX.Element {
+  const [heading, setHeading] = React.useState(step.heading ?? '');
+  const [body, setBody] = React.useState(step.body ?? '');
+  return (
+    <div className="rep__textedit">
+      <input
+        className="rep__textedit-h"
+        placeholder="Heading (optional)"
+        value={heading}
+        autoFocus
+        onChange={(e) => setHeading(e.target.value)}
+      />
+      <textarea
+        className="rep__textedit-b"
+        placeholder="Text…"
+        rows={4}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+      />
+      <div className="rep__textedit-actions">
+        <button
+          type="button"
+          className="btn btn--small btn--primary"
+          onClick={() => onSave(heading, body)}
+        >
+          Save
+        </button>
+        <button type="button" className="btn btn--small" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Report({
   onEditStep,
+  autoEditId,
+  onEditingChange,
 }: {
   onEditStep?: (step: ProjectStep) => void;
+  /** When set to a (text) step id, open that step's inline editor. */
+  autoEditId?: string | null;
+  /** Notifies the parent whether a text step is currently being inline-edited
+   *  (so it can disable structural actions that would discard the draft). */
+  onEditingChange?: (editing: boolean) => void;
 }): React.JSX.Element | null {
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
   const steps = useProjectStore((s) => s.steps);
   const applyManifest = useProjectStore((s) => s.applyManifest);
+  const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
+  // Blocks a second structural mutation (reorder/delete) landing inside the IPC
+  // round-trip of the first, which would otherwise act on a stale step order.
+  const busyRef = React.useRef(false);
+  // The id of a just-added text step still in its initial editing session — used
+  // so cancelling it (before any save) removes it rather than leaving an empty
+  // step. Cleared on the first save or cancel of that step.
+  const freshTextIdRef = React.useRef<string | null>(null);
+
+  // A freshly added text step opens straight into its editor.
+  React.useEffect(() => {
+    if (autoEditId) {
+      setEditingTextId(autoEditId);
+      freshTextIdRef.current = autoEditId;
+    }
+  }, [autoEditId]);
+
+  // Keep the parent in sync so it can guard against discarding an open draft.
+  React.useEffect(() => {
+    onEditingChange?.(editingTextId !== null);
+  }, [editingTextId, onEditingChange]);
 
   const setZoom = async (step: ProjectStep, next: number) => {
     if (!projectPath) return;
     const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
     try {
-      const manifest = await window.shotai.projects.updateStep(projectPath, step.id, {
-        reportZoom: z,
-      });
-      applyManifest(manifest);
+      applyManifest(
+        await window.shotai.projects.updateStep(projectPath, step.id, { reportZoom: z }),
+      );
     } catch {
-      /* display-only; ignore persistence errors */
+      /* display-only; ignore */
     }
   };
 
   const reframe = async (step: ProjectStep, panX: number, panY: number) => {
     if (!projectPath) return;
     try {
-      const manifest = await window.shotai.projects.updateStep(projectPath, step.id, {
-        reportPanX: panX,
-        reportPanY: panY,
-      });
-      applyManifest(manifest);
+      applyManifest(
+        await window.shotai.projects.updateStep(projectPath, step.id, {
+          reportPanX: panX,
+          reportPanY: panY,
+        }),
+      );
     } catch {
-      /* display-only; ignore persistence errors */
+      /* display-only; ignore */
+    }
+  };
+
+  const move = async (idx: number, dir: 1 | -1) => {
+    const j = idx + dir;
+    if (busyRef.current || !projectPath || j < 0 || j >= steps.length) return;
+    const ids = steps.map((s) => s.id);
+    [ids[idx], ids[j]] = [ids[j], ids[idx]];
+    busyRef.current = true;
+    try {
+      applyManifest(await window.shotai.projects.reorderSteps(projectPath, ids));
+    } catch {
+      /* ignore */
+    } finally {
+      busyRef.current = false;
+    }
+  };
+
+  const del = async (step: ProjectStep) => {
+    if (busyRef.current || !projectPath) return;
+    if (!window.confirm('Delete this step? (its image file stays on disk)')) return;
+    busyRef.current = true;
+    try {
+      applyManifest(await window.shotai.projects.deleteStep(projectPath, step.id));
+    } catch {
+      /* ignore */
+    } finally {
+      busyRef.current = false;
+    }
+  };
+
+  const saveText = async (step: ProjectStep, heading: string, body: string) => {
+    if (!projectPath) return;
+    try {
+      applyManifest(
+        await window.shotai.projects.updateStep(projectPath, step.id, { heading, body }),
+      );
+      if (freshTextIdRef.current === step.id) freshTextIdRef.current = null;
+      setEditingTextId(null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Cancel closes the inline editor. A freshly added text step (the one that
+  // auto-opened) that was never saved is removed, so "+ Text step" then Cancel
+  // doesn't leave an empty step behind.
+  const cancelText = async (step: ProjectStep) => {
+    const wasFresh = freshTextIdRef.current === step.id;
+    freshTextIdRef.current = null;
+    setEditingTextId(null);
+    if (wasFresh && !step.heading && !step.body && projectPath) {
+      try {
+        applyManifest(await window.shotai.projects.deleteStep(projectPath, step.id));
+      } catch {
+        /* ignore */
+      }
     }
   };
 
@@ -173,33 +301,79 @@ export function Report({
   if (steps.length === 0) {
     return (
       <p className="project__hint">
-        No steps yet. Resume capturing (or Import image) to add steps.
+        No steps yet. Resume capturing, Import an image, or Add a text step.
       </p>
     );
   }
 
+  const controls = (s: ProjectStep, idx: number) => (
+    <div className="rep__ctl">
+      <button
+        type="button"
+        className="btn btn--small"
+        disabled={idx === 0}
+        title="Move up"
+        onClick={() => void move(idx, -1)}
+      >
+        ↑
+      </button>
+      <button
+        type="button"
+        className="btn btn--small"
+        disabled={idx === steps.length - 1}
+        title="Move down"
+        onClick={() => void move(idx, 1)}
+      >
+        ↓
+      </button>
+      <button
+        type="button"
+        className="btn btn--small"
+        // While a text step is open in the inline editor, switching to edit
+        // another text step would discard the open draft — block it.
+        disabled={s.kind === 'text' && editingTextId !== null}
+        title={
+          s.kind === 'text' && editingTextId !== null
+            ? 'Finish editing the open text step first'
+            : 'Edit'
+        }
+        onClick={() => (s.kind === 'text' ? setEditingTextId(s.id) : onEditStep?.(s))}
+      >
+        Edit
+      </button>
+      <button type="button" className="btn btn--small" onClick={() => void del(s)}>
+        Delete
+      </button>
+    </div>
+  );
+
   return (
     <ol className="rep">
-      {steps.map((s) =>
+      {steps.map((s, idx) =>
         s.kind === 'text' ? (
           <li key={s.id} className="rep__step rep__step--text">
             <div className="rep__num rep__num--text" aria-hidden="true">
               ¶
             </div>
             <div className="rep__bodywrap">
-              {s.heading && <h3 className="rep__textheading">{s.heading}</h3>}
-              {s.body && <p className="rep__textbody">{s.body}</p>}
-              {!s.heading && !s.body && (
-                <p className="project__hint">Empty text step.</p>
-              )}
-              {onEditStep && (
-                <button
-                  type="button"
-                  className="btn btn--small rep__edit"
-                  onClick={() => onEditStep(s)}
-                >
-                  Edit
-                </button>
+              {editingTextId === s.id ? (
+                <TextStepEditor
+                  step={s}
+                  onSave={(h, b) => void saveText(s, h, b)}
+                  onCancel={() => void cancelText(s)}
+                />
+              ) : (
+                <>
+                  <div className="rep__caprow">
+                    <h3 className="rep__textheading">{s.heading || 'Text'}</h3>
+                    <div className="rep__actions">{controls(s, idx)}</div>
+                  </div>
+                  {s.body ? (
+                    <p className="rep__textbody">{s.body}</p>
+                  ) : (
+                    <p className="project__hint">Empty text step — click Edit.</p>
+                  )}
+                </>
               )}
             </div>
           </li>
@@ -231,15 +405,7 @@ export function Report({
                       +
                     </button>
                   </div>
-                  {onEditStep && (
-                    <button
-                      type="button"
-                      className="btn btn--small"
-                      onClick={() => onEditStep(s)}
-                    >
-                      Edit
-                    </button>
-                  )}
+                  {controls(s, idx)}
                 </div>
               </div>
               <StepFigure projectId={projectId} step={s} onReframe={reframe} />

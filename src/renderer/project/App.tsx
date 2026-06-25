@@ -164,16 +164,33 @@ export function App(): React.JSX.Element {
   // capture-mode picker) shows when nothing is open and we're not recording.
   const openPath = useProjectStore((s) => s.projectPath);
   const openProjectInDetail = useProjectStore((s) => s.open);
+  const adoptOpened = useProjectStore((s) => s.applyOpened);
   const showDetail = !recording && !!openPath;
   const showHome = !recording && !openPath;
 
+  // When a capture session that ran on the open project ends, reload its
+  // manifest so the newly captured steps appear in the detail report.
+  const wasRecording = React.useRef(false);
+  React.useEffect(() => {
+    if (wasRecording.current && !recording && openPath) {
+      void openProjectInDetail(openPath);
+    }
+    wasRecording.current = recording;
+  }, [recording, openPath, openProjectInDetail]);
+
   const onRecord = async (projectPath: string) => {
     try {
-      // Load any existing steps so the list matches the (real) header count.
-      const { manifest } = await window.shotai.projects.open(projectPath);
+      // One open: seeds the recording HUD's step list and gives us the id +
+      // manifest to mark the project "open" in the detail store (no second,
+      // fallible IPC). A failure here throws → caught → capture never starts.
+      const { projectId, manifest } = await window.shotai.projects.open(projectPath);
       setSteps(manifest.steps);
       const state = await window.shotai.capture.start(projectPath, buildTarget());
-      setCapture(state);
+      setCapture(state); // recording → detail/home both hidden, so no view flash
+      // While recording the detail view stays hidden; when capture stops the
+      // user lands in its report and the capture-end effect reloads the
+      // freshly captured steps.
+      adoptOpened(projectId, projectPath, manifest);
     } catch (e) {
       fail(e);
     }
@@ -272,7 +289,13 @@ export function App(): React.JSX.Element {
           </div>
         )}
 
-        {showDetail && <ProjectDetail />}
+        {showDetail && (
+          <ProjectDetail
+            onResumeCapture={
+              openPath ? () => void onRecord(openPath) : undefined
+            }
+          />
+        )}
 
         {showHome && (
           <section className="capmode">

@@ -42,6 +42,9 @@ export const IpcChannels = {
   openProject: 'projects:open',
   updateStep: 'projects:update-step',
   importStep: 'projects:import-step',
+  deleteStep: 'projects:delete-step',
+  reorderSteps: 'projects:reorder-steps',
+  addTextStep: 'projects:add-text-step',
   captureStart: 'capture:start',
   capturePause: 'capture:pause',
   captureResume: 'capture:resume',
@@ -88,6 +91,12 @@ export interface ShotaiApi {
      * bytes are actually an image (magic bytes). Returns the updated manifest.
      */
     importStep(projectPath: string, bytes: Uint8Array): Promise<ProjectManifest>;
+    /** Delete a step (leaves its files on disk); renumbers. Returns the manifest. */
+    deleteStep(projectPath: string, stepId: string): Promise<ProjectManifest>;
+    /** Reorder steps to match the given id order; renumbers. Returns the manifest. */
+    reorderSteps(projectPath: string, orderedIds: string[]): Promise<ProjectManifest>;
+    /** Insert an empty text step at the given index. Returns the manifest. */
+    addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
   };
   capture: {
     /**

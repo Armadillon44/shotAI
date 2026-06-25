@@ -18,6 +18,17 @@ interface ProjectState {
 
   /** Open a project into the detail view. */
   open: (projectPath: string) => Promise<void>;
+  /**
+   * Adopt a project the caller has already opened (manifest + id in hand) into
+   * the detail store, without a second IPC round-trip. Used by the capture flow
+   * so the project is "open" when recording stops — and so a fallible second
+   * open can't leave the store half-set.
+   */
+  applyOpened: (
+    projectId: string,
+    projectPath: string,
+    manifest: ProjectManifest,
+  ) => void;
   /** Return to the home view. */
   close: () => void;
   selectStep: (id: string | null) => void;
@@ -56,6 +67,18 @@ export const useProjectStore = create<ProjectState>((set) => ({
       });
     }
   },
+
+  applyOpened: (projectId, projectPath, manifest) =>
+    set({
+      projectId,
+      projectPath,
+      title: manifest.title,
+      steps: manifest.steps,
+      updatedAt: manifest.updatedAt,
+      selectedStepId: null,
+      loading: false,
+      error: null,
+    }),
 
   close: () =>
     set({
