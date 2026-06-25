@@ -222,6 +222,103 @@ body {
   font-size: 0.8rem;
 }
 
+/* Capture-mode chooser */
+.capmode {
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.capmode__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.capmode__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid #cbd1d9;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1d1f24;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.capmode__chip:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.capmode__chip--on {
+  border-color: #4f46e5;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 600;
+}
+
+.capmode__chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.capmode__soon {
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.capmode__desc {
+  margin: 0.6rem 0 0;
+  color: #4b5563;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.capmode__picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.capmode__select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #cbd1d9;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.88rem;
+}
+
+.capmode__select:focus {
+  outline: 2px solid #c7d2fe;
+  border-color: #4f46e5;
+}
+
+.capmode__area {
+  font-size: 0.85rem;
+  color: #3730a3;
+  font-variant-numeric: tabular-nums;
+}
+
+.capmode__warn {
+  margin: 0.5rem 0 0;
+  color: #b45309;
+  font-size: 0.82rem;
+}
+
 /* Recording panel */
 .rec {
   margin-bottom: 1.5rem;

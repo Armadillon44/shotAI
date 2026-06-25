@@ -1,0 +1,75 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  font-family:
+    'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+.ov {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+}
+
+.ov__hint {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.85rem 1.5rem;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.85);
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 600;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.ov__hint-sub {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: #c7cdda;
+}
+
+/* The selection rectangle. Its huge spread box-shadow dims everything outside
+   it while the (transparent) interior shows the live desktop through the
+   transparent window. */
+.ov__sel {
+  position: absolute;
+  border: 2px solid #6366f1;
+  background: transparent;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.ov__dims {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 0.12rem 0.45rem;
+  border-radius: 6px;
+  background: #6366f1;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
