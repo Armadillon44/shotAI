@@ -9,6 +9,8 @@ import type {
   Rect,
   WindowInfo,
 } from '../../shared/project';
+import { useProjectStore } from './store';
+import { ProjectDetail } from './ProjectDetail';
 
 type Targets = { windows: WindowInfo[]; monitors: MonitorInfo[] };
 
@@ -158,10 +160,17 @@ export function App(): React.JSX.Element {
 
   const recording = capture?.status === 'recording' || capture?.status === 'paused';
 
+  // Detail/editor view ownership lives in the Zustand store. Home (recents +
+  // capture-mode picker) shows when nothing is open and we're not recording.
+  const openPath = useProjectStore((s) => s.projectPath);
+  const openProjectInDetail = useProjectStore((s) => s.open);
+  const showDetail = !recording && !!openPath;
+  const showHome = !recording && !openPath;
+
   const onRecord = async (projectPath: string) => {
     try {
       // Load any existing steps so the list matches the (real) header count.
-      const manifest = await window.shotai.projects.open(projectPath);
+      const { manifest } = await window.shotai.projects.open(projectPath);
       setSteps(manifest.steps);
       const state = await window.shotai.capture.start(projectPath, buildTarget());
       setCapture(state);
@@ -263,7 +272,9 @@ export function App(): React.JSX.Element {
           </div>
         )}
 
-        {!recording && (
+        {showDetail && <ProjectDetail />}
+
+        {showHome && (
           <section className="capmode">
             <span className="project__label">Capture mode</span>
             <div
@@ -381,6 +392,8 @@ export function App(): React.JSX.Element {
           </section>
         )}
 
+        {showHome && (
+          <>
         <div className="project__row">
           <div className="project__dir">
             <span className="project__label">Projects folder</span>
@@ -433,20 +446,32 @@ export function App(): React.JSX.Element {
             {recents.map((p) => (
               <li key={p.path} className="project__item">
                 <span className="project__item-title">{p.title}</span>
-                <button
-                  type="button"
-                  className="btn btn--small"
-                  disabled={recording || !modeReady}
-                  onClick={() => onRecord(p.path)}
-                >
-                  Record
-                </button>
+                <div className="project__item-actions">
+                  <button
+                    type="button"
+                    className="btn btn--small"
+                    onClick={() => void openProjectInDetail(p.path)}
+                  >
+                    Open
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--small"
+                    disabled={recording || !modeReady}
+                    onClick={() => onRecord(p.path)}
+                    title="Resume capturing into this project"
+                  >
+                    Record
+                  </button>
+                </div>
                 <code className="project__item-path" title={p.path}>
                   {p.path} · {p.stepCount} step{p.stepCount === 1 ? '' : 's'}
                 </code>
               </li>
             ))}
           </ul>
+        )}
+          </>
         )}
       </section>
 

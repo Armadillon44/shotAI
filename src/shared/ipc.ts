@@ -64,7 +64,11 @@ export interface ShotaiApi {
     chooseDir(): Promise<string | null>;
     listRecent(): Promise<ProjectSummary[]>;
     create(title: string): Promise<ProjectSummary>;
-    open(projectPath: string): Promise<ProjectManifest>;
+    /**
+     * Open a project: returns its manifest plus an opaque `projectId` the
+     * renderer uses to build shot:// image URLs (never a filesystem path).
+     */
+    open(projectPath: string): Promise<{ projectId: string; manifest: ProjectManifest }>;
   };
   capture: {
     /**

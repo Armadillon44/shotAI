@@ -3,6 +3,7 @@
 // export/) under the user-chosen projects directory.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import {
   PROJECT_SCHEMA_VERSION,
   type ProjectManifest,
@@ -148,14 +149,67 @@ export async function createProject(title: string): Promise<ProjectSummary> {
   return summarize(manifest, dir);
 }
 
+/** Open: resolve + confine the path, read the manifest, mark recently opened. */
+async function loadProject(
+  projectPath: string,
+): Promise<{ resolved: string; manifest: ProjectManifest }> {
+  const resolved = await resolveKnownProject(projectPath);
+  const manifest = await readManifest(resolved);
+  await addRecent(resolved);
+  return { resolved, manifest };
+}
+
 /** Read an existing project's manifest and mark it recently opened. */
 export async function openProject(
   projectPath: string,
 ): Promise<ProjectManifest> {
-  const resolved = await resolveKnownProject(projectPath);
-  const manifest = await readManifest(resolved);
-  await addRecent(resolved);
-  return manifest;
+  return (await loadProject(projectPath)).manifest;
+}
+
+// Session-scoped registry mapping an opaque id → a project's absolute folder.
+// The renderer references projects (and their shot images) by this id, never by
+// a filesystem path, so a compromised renderer can't point the shot:// protocol
+// at arbitrary files. Ids are stable per folder within a session.
+const idToDir = new Map<string, string>();
+const dirToId = new Map<string, string>();
+
+function registerProject(absDir: string): string {
+  const existing = dirToId.get(absDir);
+  if (existing) return existing;
+  const id = randomUUID();
+  idToDir.set(id, absDir);
+  dirToId.set(absDir, id);
+  return id;
+}
+
+/**
+ * Open a project for the renderer: same as openProject, plus an opaque id the
+ * renderer uses to build shot:// URLs (see resolveProjectFile).
+ */
+export async function openProjectWithId(
+  projectPath: string,
+): Promise<{ projectId: string; manifest: ProjectManifest }> {
+  const { resolved, manifest } = await loadProject(projectPath);
+  return { projectId: registerProject(resolved), manifest };
+}
+
+/**
+ * Resolve a project-relative file path for the shot:// protocol, confined to
+ * the registered project's folder. Returns the absolute path, or null if the id
+ * is unknown or the path escapes the folder. Caller still checks the extension.
+ */
+export function resolveProjectFile(
+  projectId: string,
+  rel: string,
+): string | null {
+  const dir = idToDir.get(projectId);
+  if (!dir) return null;
+  const abs = path.resolve(dir, rel);
+  const within = path.relative(dir, abs);
+  if (within === '' || within.startsWith('..') || path.isAbsolute(within)) {
+    return null; // escapes the project folder
+  }
+  return abs;
 }
 
 /** Recent projects, most-recently-touched first; prunes entries gone from disk. */

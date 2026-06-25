@@ -126,7 +126,7 @@ export function registerIpcHandlers(
     IpcChannels.openProject,
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: projects:open');
-      return projectStore.openProject(asString(projectPath, 'projectPath'));
+      return projectStore.openProjectWithId(asString(projectPath, 'projectPath'));
     },
   );
 

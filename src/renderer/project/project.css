@@ -411,3 +411,136 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Recent-project action buttons (Open / Record) */
+.project__item-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+/* Project-detail view */
+.detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid #e3e6ea;
+}
+
+.detail__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail__count {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* In-app report (step list with screenshots + click markers) */
+.rep {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.rep__step {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.85rem;
+}
+
+.rep__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #4f46e5;
+  color: #ffffff;
+  font-weight: 650;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rep__bodywrap {
+  min-width: 0;
+}
+
+.rep__caption {
+  margin: 0.2rem 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.rep__figure {
+  margin: 0;
+}
+
+.rep__imgwrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.rep__img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Click-register marker, positioned as a fraction of the image's natural size */
+.rep__marker {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px; /* center on the click point */
+  border: 2.5px solid #ef4444;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.18);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+}
+
+.rep__marker--right {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.18);
+}
+
+.rep__note {
+  margin: 0.6rem 0 0;
+  color: #374151;
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.rep__meta {
+  margin: 0.4rem 0 0;
+  color: #9097a1;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
