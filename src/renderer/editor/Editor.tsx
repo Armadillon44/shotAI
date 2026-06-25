@@ -170,6 +170,9 @@ export function Editor({
   // When true, the editor shows only the cropped region (zoomed to fill) so you
   // can work on it directly. Annotations stay in full-image coords regardless.
   const [viewCropped, setViewCropped] = React.useState(false);
+  // Editing zoom on top of the fit/crop scale — for precise work on large
+  // captures. The canvas scrolls when the zoomed stage exceeds it.
+  const [editorZoom, setEditorZoom] = React.useState(1);
   const [clickImage, setClickImage] = React.useState<Point | null>(
     step.click ? { ...step.click.image } : null,
   );
@@ -223,21 +226,21 @@ export function Editor({
   const natH = img?.naturalHeight ?? 0;
   const scale = natW && natH ? Math.min(VIEW_W / natW, VIEW_H / natH, 1) : 1;
   const markerR = natW && natH ? clickMarkerRadius(natW, natH) : 20;
-  // Stage transform: whole image (fit), or — when crop is applied in-line — just
-  // the crop region zoomed to fill the canvas. Pointer coords stay in image space.
-  const cropView =
-    viewCropped && crop
-      ? (() => {
-          const cs = Math.min(VIEW_W / crop.width, VIEW_H / crop.height, 8);
-          return {
-            scale: cs,
-            x: -crop.x * cs,
-            y: -crop.y * cs,
-            w: Math.max(1, Math.round(crop.width * cs)),
-            h: Math.max(1, Math.round(crop.height * cs)),
-          };
-        })()
-      : { scale, x: 0, y: 0, w: Math.round(natW * scale), h: Math.round(natH * scale) };
+  // Stage transform: the visible region (whole image, or — when crop is applied
+  // in-line — just the crop) fit to the canvas, times the editing zoom. Pointer
+  // coords stay in image space regardless of transform/scroll.
+  const region =
+    viewCropped && crop ? crop : { x: 0, y: 0, width: natW, height: natH };
+  const baseScale =
+    viewCropped && crop ? Math.min(VIEW_W / crop.width, VIEW_H / crop.height, 8) : scale;
+  const stageScale = baseScale * editorZoom;
+  const cropView = {
+    scale: stageScale,
+    x: -region.x * stageScale,
+    y: -region.y * stageScale,
+    w: Math.max(1, Math.round(region.width * stageScale)),
+    h: Math.max(1, Math.round(region.height * stageScale)),
+  };
 
   const selected = annotations.find((a) => a.id === selectedId) ?? null;
 
@@ -535,7 +538,10 @@ export function Editor({
               onClick={() => {
                 setTool(t.tool);
                 if (t.tool !== 'select') setSelectedId(null);
-                if (t.tool === 'crop') setViewCropped(false); // re-crop on the full image
+                if (t.tool === 'crop') {
+                  setViewCropped(false); // re-crop on the full image
+                  setEditorZoom(1);
+                }
               }}
             >
               {t.label}
@@ -549,7 +555,10 @@ export function Editor({
           <button
             type="button"
             className="btn btn--small"
-            onClick={() => setViewCropped((v) => !v)}
+            onClick={() => {
+              setViewCropped((v) => !v);
+              setEditorZoom(1);
+            }}
             title="Work on just the cropped region (non-destructive)"
           >
             {viewCropped ? 'Show full' : 'Apply crop'}
@@ -587,6 +596,30 @@ export function Editor({
 
       {/* Properties row — reserved height so the modal doesn't reflow/grow. */}
       <div className="ed__props">
+        <div className="ed__zoom" title="Zoom the canvas for precise editing">
+          <button
+            type="button"
+            className="ed__tool"
+            onClick={() => setEditorZoom((z) => Math.max(0.5, z / 1.25))}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="ed__tool"
+            title="Fit"
+            onClick={() => setEditorZoom(1)}
+          >
+            {Math.round(editorZoom * 100)}%
+          </button>
+          <button
+            type="button"
+            className="ed__tool"
+            onClick={() => setEditorZoom((z) => Math.min(8, z * 1.25))}
+          >
+            +
+          </button>
+        </div>
         {showColorCtl && (
           <label className="ed__opt ed__opt--color" title="Color">
             Color

@@ -503,14 +503,10 @@ body {
   max-width: 100%;
   border: 1px solid #e3e6ea;
   border-radius: 10px;
-  overflow: auto; /* a zoomed image pans within its box (scrollbars hidden) */
+  /* hidden (not auto): drag-pan still works via programmatic scrollLeft/Top, but
+     the mouse wheel doesn't pan the image — it scrolls the page as expected. */
+  overflow: hidden;
   background: #ffffff;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none;
-}
-
-.rep__imgwrap::-webkit-scrollbar {
-  display: none; /* Chromium — pan by dragging instead */
 }
 
 .rep__imgwrap--pan {
@@ -645,20 +641,24 @@ body {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  /* nowrap + scroll so adding controls never grows the modal height */
+  /* nowrap + horizontal scroll so adding controls never grows the modal height;
+     overflow-y:hidden is explicit because overflow-x:auto would otherwise compute
+     overflow-y to auto and show a spurious 1px vertical scrollbar. */
   flex-wrap: nowrap;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
-/* Contextual property controls live on their own reserved-height row so they
-   never reflow the tools row or expand the modal as they appear/disappear. */
+/* Contextual property controls + the editor zoom live on their own reserved-
+   height row so they never reflow the tools row or expand the modal. */
 .ed__props {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  min-height: 2rem;
+  min-height: 2.6rem;
   padding: 0 0.1rem;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .ed__props-hint {
