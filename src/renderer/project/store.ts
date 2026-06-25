@@ -1,7 +1,7 @@
 // Zustand store for the project-detail / editor view. The home view (recents +
 // capture-mode picker) stays in App.tsx; this owns the currently-open project.
 import { create } from 'zustand';
-import type { ProjectStep } from '../../shared/project';
+import type { ProjectManifest, ProjectStep } from '../../shared/project';
 
 interface ProjectState {
   /** Opaque id used to build shot:// image URLs (never a filesystem path). */
@@ -10,6 +10,8 @@ interface ProjectState {
   projectPath: string | null;
   title: string;
   steps: ProjectStep[];
+  /** Manifest updatedAt — also used to cache-bust re-saved flattened renders. */
+  updatedAt: string;
   selectedStepId: string | null;
   loading: boolean;
   error: string | null;
@@ -19,6 +21,8 @@ interface ProjectState {
   /** Return to the home view. */
   close: () => void;
   selectStep: (id: string | null) => void;
+  /** Re-sync from a manifest returned by a mutation (e.g. an editor save). */
+  applyManifest: (manifest: ProjectManifest) => void;
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -26,6 +30,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   projectPath: null,
   title: '',
   steps: [],
+  updatedAt: '',
   selectedStepId: null,
   loading: false,
   error: null,
@@ -40,6 +45,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         projectPath,
         title: manifest.title,
         steps: manifest.steps,
+        updatedAt: manifest.updatedAt,
         selectedStepId: null,
         loading: false,
       });
@@ -57,11 +63,19 @@ export const useProjectStore = create<ProjectState>((set) => ({
       projectPath: null,
       title: '',
       steps: [],
+      updatedAt: '',
       selectedStepId: null,
       error: null,
     }),
 
   selectStep: (id) => set({ selectedStepId: id }),
+
+  applyManifest: (manifest) =>
+    set({
+      steps: manifest.steps,
+      title: manifest.title,
+      updatedAt: manifest.updatedAt,
+    }),
 }));
 
 /** Build a shot:// URL for a project-relative file (e.g. "shots/step-0001.png"). */

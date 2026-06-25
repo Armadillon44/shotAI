@@ -4,7 +4,7 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import { IpcChannels, type CaptureState, type ShotaiApi } from '../shared/ipc';
-import type { CaptureTarget, ProjectStep, Rect } from '../shared/project';
+import type { CaptureTarget, ProjectStep, Rect, StepPatch } from '../shared/project';
 
 const api: ShotaiApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
@@ -16,6 +16,19 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.createProject, title),
     open: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.openProject, projectPath),
+    updateStep: (
+      projectPath: string,
+      stepId: string,
+      patch: StepPatch,
+      flattenedPng?: Uint8Array | null,
+    ) =>
+      ipcRenderer.invoke(
+        IpcChannels.updateStep,
+        projectPath,
+        stepId,
+        patch,
+        flattenedPng ?? null,
+      ),
   },
   capture: {
     start: (projectPath: string, target?: CaptureTarget) =>

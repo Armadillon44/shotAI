@@ -544,3 +544,182 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.rep__caprow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.rep__edit {
+  margin-left: auto;
+}
+
+/* Text steps */
+.rep__num--text {
+  background: #6b7280;
+  font-size: 1.1rem;
+}
+
+.rep__textheading {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.rep__textbody {
+  margin: 0;
+  color: #374151;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* Inline editor overlay */
+.ed__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.ed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 100%;
+  max-height: 100%;
+  padding: 0.9rem;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+}
+
+.ed__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.ed__tools {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  background: #f3f4f6;
+  border-radius: 8px;
+}
+
+.ed__tool {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #1d1f24;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ed__tool:hover {
+  background: #e5e7eb;
+}
+
+.ed__tool--on {
+  background: #ffffff;
+  border-color: #cbd1d9;
+  font-weight: 600;
+  color: #3730a3;
+}
+
+.ed__spacer {
+  flex: 1;
+}
+
+.ed__opt select {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #cbd1d9;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.ed__canvas {
+  display: flex;
+  /* `safe` so a zoomed (overflowing) stage can scroll to its top-left edge */
+  align-items: safe center;
+  justify-content: safe center;
+  overflow: auto;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  /* checkerboard so transparent/edges are legible */
+  background-color: #f8fafc;
+  background-image:
+    linear-gradient(45deg, #eceff3 25%, transparent 25%),
+    linear-gradient(-45deg, #eceff3 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eceff3 75%),
+    linear-gradient(-45deg, transparent 75%, #eceff3 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+
+.ed__hint {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.ed__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: #4b5563;
+}
+
+.ed__opt input[type='range'] {
+  width: 90px;
+}
+
+.ed__zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem;
+  background: #f3f4f6;
+  border-radius: 8px;
+}
+
+/* In-layout text entry (Electron has no window.prompt(); a focused-then-blurred
+   floating input was too fragile, so this stays put until Add/Enter/Cancel). */
+.ed__textbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #eef2ff;
+}
+
+.ed__textlabel {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: #3730a3;
+  white-space: nowrap;
+}
+
+.ed__textfield {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #cbd1d9;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.ed__textfield:focus {
+  outline: 2px solid #c7d2fe;
+  border-color: #4f46e5;
+}

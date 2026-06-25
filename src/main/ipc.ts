@@ -9,7 +9,16 @@ import { IpcChannels, type AppInfo } from '../shared/ipc';
 import * as projectStore from './ProjectStore';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
-import type { CaptureMode, CaptureTarget } from '../shared/project';
+import type {
+  Annotation,
+  CaptureMode,
+  CaptureTarget,
+  Point,
+  Rect,
+  StepClick,
+  StepKind,
+  StepPatch,
+} from '../shared/project';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -61,6 +70,73 @@ function parseCaptureTarget(value: unknown): CaptureTarget | undefined {
     }
   }
   return target;
+}
+
+function parseRect(value: unknown): Rect | null {
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  if (isNum(r.x) && isNum(r.y) && isNum(r.width) && isNum(r.height)) {
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
+  return null;
+}
+
+function parsePoint(value: unknown): Point | null {
+  if (!value || typeof value !== 'object') return null;
+  const p = value as Record<string, unknown>;
+  return isNum(p.x) && isNum(p.y) ? { x: p.x, y: p.y } : null;
+}
+
+const CLICK_BUTTONS: ReadonlySet<StepClick['button']> = new Set<StepClick['button']>([
+  'left',
+  'right',
+  'middle',
+  'other',
+]);
+
+/** Validate a moved click (editor only repositions image coords). */
+function parseClick(value: unknown): StepClick | null {
+  if (!value || typeof value !== 'object') return null;
+  const c = value as Record<string, unknown>;
+  const global = parsePoint(c.global);
+  const image = parsePoint(c.image);
+  if (!global || !image) return null;
+  const button =
+    typeof c.button === 'string' && CLICK_BUTTONS.has(c.button as StepClick['button'])
+      ? (c.button as StepClick['button'])
+      : 'left';
+  return { global, image, button };
+}
+
+const STEP_KINDS: ReadonlySet<StepKind> = new Set<StepKind>(['shot', 'text']);
+
+/**
+ * Validate an editor step-patch arriving over IPC (types are erased at the
+ * boundary). Keeps only recognized fields; annotations are kept as-is when they
+ * look like annotations (object with string `type` + `id`) — they're the user's
+ * own project data, stored verbatim as JSON.
+ */
+function parseStepPatch(value: unknown): StepPatch {
+  if (!value || typeof value !== 'object') throw new Error('patch must be an object');
+  const v = value as Record<string, unknown>;
+  const patch: StepPatch = {};
+  if (typeof v.caption === 'string') patch.caption = v.caption;
+  if (typeof v.note === 'string') patch.note = v.note;
+  if (typeof v.heading === 'string') patch.heading = v.heading;
+  if (typeof v.body === 'string') patch.body = v.body;
+  if (typeof v.kind === 'string' && STEP_KINDS.has(v.kind as StepKind)) {
+    patch.kind = v.kind as StepKind;
+  }
+  if ('crop' in v) patch.crop = v.crop === null ? null : parseRect(v.crop);
+  if ('click' in v) patch.click = v.click === null ? null : parseClick(v.click);
+  if (Array.isArray(v.annotations)) {
+    patch.annotations = v.annotations.filter((a: unknown): a is Annotation => {
+      if (!a || typeof a !== 'object') return false;
+      const o = a as Record<string, unknown>;
+      return typeof o.type === 'string' && typeof o.id === 'string';
+    });
+  }
+  return patch;
 }
 
 /** Register all main-process IPC handlers. Call once, after the app is ready. */
@@ -127,6 +203,31 @@ export function registerIpcHandlers(
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: projects:open');
       return projectStore.openProjectWithId(asString(projectPath, 'projectPath'));
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.updateStep,
+    (
+      _event: IpcMainInvokeEvent,
+      projectPath: unknown,
+      stepId: unknown,
+      patch: unknown,
+      png: unknown,
+    ) => {
+      devLog('ipc: projects:update-step');
+      const buf =
+        png instanceof Uint8Array
+          ? Buffer.from(png)
+          : png instanceof ArrayBuffer
+            ? Buffer.from(new Uint8Array(png))
+            : null;
+      return projectStore.updateStep(
+        asString(projectPath, 'projectPath'),
+        asString(stepId, 'stepId'),
+        parseStepPatch(patch),
+        buf,
+      );
     },
   );
 

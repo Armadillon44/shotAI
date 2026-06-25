@@ -9,6 +9,7 @@ import type {
   ProjectStep,
   ProjectSummary,
   Rect,
+  StepPatch,
   WindowInfo,
 } from './project';
 
@@ -39,6 +40,7 @@ export const IpcChannels = {
   listRecentProjects: 'projects:list-recent',
   createProject: 'projects:create',
   openProject: 'projects:open',
+  updateStep: 'projects:update-step',
   captureStart: 'capture:start',
   capturePause: 'capture:pause',
   captureResume: 'capture:resume',
@@ -69,6 +71,17 @@ export interface ShotaiApi {
      * renderer uses to build shot:// image URLs (never a filesystem path).
      */
     open(projectPath: string): Promise<{ projectId: string; manifest: ProjectManifest }>;
+    /**
+     * Apply an editor patch to one step. `flattenedPng` (the baked render with
+     * redaction) is optional; when given it's written to the project's
+     * render-cache and referenced by step.flattened. Returns the updated manifest.
+     */
+    updateStep(
+      projectPath: string,
+      stepId: string,
+      patch: StepPatch,
+      flattenedPng?: Uint8Array | null,
+    ): Promise<ProjectManifest>;
   };
   capture: {
     /**

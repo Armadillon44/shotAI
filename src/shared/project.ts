@@ -81,10 +81,87 @@ export interface StepElement {
   bounds: Rect | null;
 }
 
+/**
+ * Non-destructive vector annotations drawn over a step's screenshot. All
+ * geometry is in IMAGE (screenshot) pixel coordinates — independent of how the
+ * image is displayed — so annotations stay correct and re-editable. They are
+ * flattened into the exported PNG; blur/redact is BAKED destructively at flatten
+ * time so original pixels never leave the machine.
+ */
+export interface AnnotationBase {
+  id: string;
+}
+/** Rounded rectangle outline (optionally filled). */
+export interface RectAnnotation extends AnnotationBase {
+  type: 'rect';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  cornerRadius: number;
+  stroke: string;
+  strokeWidth: number;
+  fill: string | null;
+}
+/** Arrow from (points[0],points[1]) to (points[2],points[3]). */
+export interface ArrowAnnotation extends AnnotationBase {
+  type: 'arrow';
+  points: [number, number, number, number];
+  stroke: string;
+  strokeWidth: number;
+}
+/** Blur/redact region — baked destructively into the flattened output. */
+export interface BlurAnnotation extends AnnotationBase {
+  type: 'blur';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** 'pixelate' = mosaic; 'solid' = opaque fill. Both destroy the pixels. */
+  mode: 'pixelate' | 'solid';
+  /** Mosaic block size in image px (pixelate); ignored for solid. */
+  blockSize: number;
+}
+/** Numbered step stamp (a circle with a number). */
+export interface StampAnnotation extends AnnotationBase {
+  type: 'stamp';
+  x: number; // center
+  y: number;
+  /** Displayed number — defaults to the step order but is independent. */
+  n: number;
+  radius: number;
+  fill: string;
+  textColor: string;
+}
+/** Free text label. */
+export interface TextAnnotation extends AnnotationBase {
+  type: 'text';
+  x: number;
+  y: number;
+  text: string;
+  fontSize: number;
+  fill: string;
+}
+export type Annotation =
+  | RectAnnotation
+  | ArrowAnnotation
+  | BlurAnnotation
+  | StampAnnotation
+  | TextAnnotation;
+
+/**
+ * A step is either a captured screenshot ('shot') or an authored text block
+ * ('text') inserted between shots (section heading / intro / note) for the SOP.
+ * Defaults to 'shot' when absent (older manifests).
+ */
+export type StepKind = 'shot' | 'text';
+
 export interface ProjectStep {
   id: string;
   order: number;
-  /** Path to the original capture, relative to the project folder. */
+  /** 'shot' (default) or 'text'. */
+  kind?: StepKind;
+  /** Path to the original capture, relative to the project folder ('' for text steps). */
   screenshot: string;
   trigger: 'click' | 'hotkey';
   click: StepClick | null;
@@ -95,11 +172,36 @@ export interface ProjectStep {
   caption: string;
   /** User free-text note. */
   note: string;
-  /** Optional crop rect (Phase 2 editor). */
+  /** Text step: optional heading. */
+  heading?: string;
+  /** Text step: body (markdown). */
+  body?: string;
+  /** Optional crop rect, in image px (Phase 2 editor). */
   crop: Rect | null;
-  /** Vector annotations (Phase 2 editor). */
-  annotations: unknown[];
+  /** Non-destructive vector annotations (Phase 2 editor). */
+  annotations: Annotation[];
+  /**
+   * Path (relative to the project folder) to the flattened render — original
+   * cropped + annotations drawn + redaction BAKED in. Written by the editor; the
+   * report/export prefer it over the raw screenshot. null until first edited.
+   */
+  flattened?: string | null;
 }
+
+/** Editor-mutable fields of a step (sent over IPC by the inline editor). */
+export type StepPatch = Partial<
+  Pick<
+    ProjectStep,
+    | 'caption'
+    | 'note'
+    | 'heading'
+    | 'body'
+    | 'kind'
+    | 'crop'
+    | 'annotations'
+    | 'click'
+  >
+>;
 
 export interface ProjectManifest {
   version: number;

@@ -9,6 +9,7 @@ import {
   type ProjectManifest,
   type ProjectStep,
   type ProjectSummary,
+  type StepPatch,
 } from '../shared/project';
 import {
   addRecent,
@@ -68,6 +69,18 @@ async function resolveKnownProject(projectPath: string): Promise<string> {
   throw new Error('Project path is not within the projects directory');
 }
 
+/** Ensure each step has the fields the editor relies on (defensive on read). */
+function normalizeSteps(steps: unknown): ProjectStep[] {
+  if (!Array.isArray(steps)) return [];
+  return steps.map((s) => {
+    const step = s as ProjectStep;
+    return {
+      ...step,
+      annotations: Array.isArray(step.annotations) ? step.annotations : [],
+    };
+  });
+}
+
 /** Read + validate a project manifest, defaulting any missing/corrupt fields. */
 async function readManifest(projectPath: string): Promise<ProjectManifest> {
   const raw = await fs.readFile(path.join(projectPath, MANIFEST), 'utf8');
@@ -85,9 +98,20 @@ async function readManifest(projectPath: string): Promise<ProjectManifest> {
     createdAt: typeof parsed.createdAt === 'string' ? parsed.createdAt : '',
     updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
     captureSettings: parsed.captureSettings ?? null,
-    steps: Array.isArray(parsed.steps) ? parsed.steps : [],
+    steps: normalizeSteps(parsed.steps),
     sop: parsed.sop ?? null,
   };
+}
+
+async function writeManifest(
+  projectPath: string,
+  manifest: ProjectManifest,
+): Promise<void> {
+  await fs.writeFile(
+    path.join(projectPath, MANIFEST),
+    JSON.stringify(manifest, null, 2),
+    'utf8',
+  );
 }
 
 function summarize(
@@ -245,12 +269,45 @@ export function addStep(projectPath: string, step: ProjectStep): Promise<void> {
     const manifest = await readManifest(projectPath);
     manifest.steps.push(step);
     manifest.updatedAt = new Date().toISOString();
-    await fs.writeFile(
-      path.join(projectPath, MANIFEST),
-      JSON.stringify(manifest, null, 2),
-      'utf8',
-    );
+    await writeManifest(projectPath, manifest);
   });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/**
+ * Apply an editor patch to one step (serialized through the same writeQueue as
+ * captures, so a live recording can't race an edit). If `flattenedPng` is given,
+ * write it into the project's render-cache and point step.flattened at it. The
+ * path is confined to a known project. Returns the updated manifest.
+ */
+export function updateStep(
+  projectPath: string,
+  stepId: string,
+  patch: StepPatch,
+  flattenedPng?: Buffer | null,
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const step = manifest.steps.find((s) => s.id === stepId);
+    if (!step) throw new Error(`step ${stepId} not found`);
+    Object.assign(step, patch);
+    if (flattenedPng && flattenedPng.length) {
+      const renderDir = path.join(resolved, 'export', '.render');
+      await fs.mkdir(renderDir, { recursive: true });
+      await fs.writeFile(path.join(renderDir, `${stepId}.png`), flattenedPng);
+      // posix separators for the shot:// URL the renderer builds from this.
+      step.flattened = path.posix.join('export', '.render', `${stepId}.png`);
+    }
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return manifest;
+  });
+  // Keep the chain alive even if one write rejects.
   writeQueue = run.then(
     () => undefined,
     () => undefined,

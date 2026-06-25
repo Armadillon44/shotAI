@@ -18,7 +18,18 @@ initLogging();
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'shot',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+    // corsEnabled is REQUIRED with supportFetchAPI on Electron 42+: the editor
+    // loads screenshots with crossOrigin='anonymous' (a CORS-mode request) so the
+    // canvas stays untainted for flatten()/toBlob(); without corsEnabled the load
+    // is blocked before our handler runs (kCorsDisabledScheme) and Save breaks.
+    // The handler returns Access-Control-Allow-Origin:'*' to complete the dance.
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+    },
   },
 ]);
 
