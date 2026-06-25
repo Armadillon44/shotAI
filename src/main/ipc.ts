@@ -239,7 +239,12 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IpcChannels.importStep,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, bytes: unknown) => {
+    (
+      _event: IpcMainInvokeEvent,
+      projectPath: unknown,
+      bytes: unknown,
+      atIndex: unknown,
+    ) => {
       devLog('ipc: projects:import-step');
       const buf =
         bytes instanceof Uint8Array
@@ -249,7 +254,11 @@ export function registerIpcHandlers(
             : null;
       if (!buf || buf.length === 0) throw new Error('No image data received');
       if (buf.length > 60 * 1024 * 1024) throw new Error('Image too large (max 60 MB)');
-      return projectStore.importStep(asString(projectPath, 'projectPath'), buf);
+      return projectStore.importStep(
+        asString(projectPath, 'projectPath'),
+        buf,
+        isNum(atIndex) ? atIndex : null,
+      );
     },
   );
 
@@ -296,6 +305,16 @@ export function registerIpcHandlers(
       return capture.start(asString(projectPath, 'projectPath'), {
         target: parseCaptureTarget(target),
       });
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.captureSingle,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown) => {
+      devLog('ipc: capture:single');
+      return capture.captureSingle(
+        asString(projectPath, 'projectPath'),
+        isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+      );
     },
   );
   ipcMain.handle(IpcChannels.captureListTargets, () => {

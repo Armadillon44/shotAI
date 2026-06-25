@@ -118,6 +118,11 @@ type Session = {
   paused: boolean;
   stepCount: number;
   target: CaptureTarget;
+  // Single-shot mode: capture exactly one click, insert it at this manifest
+  // index (not append), then auto-stop. Used by the report's "insert one
+  // screenshot here" affordance. Absent for a normal recording session.
+  // `fired` guards against a fast second click being captured before stop.
+  single?: { insertAt: number; fired?: boolean };
 };
 
 type Broadcast = (channel: string, payload: unknown) => void;
@@ -205,6 +210,29 @@ export class CaptureController {
     if (!this.session || this.session.paused) return;
     const point = { x: event.x, y: event.y };
     const button = mapButton(event.button);
+
+    // Single-shot insert: capture the first real click as ONE step inserted at
+    // the chosen index, then end the session. No double-click/menu machinery —
+    // this is an explicit one-screenshot grab, not a recording.
+    if (this.session.single) {
+      if (this.session.single.fired) return; // the one shot is already in flight
+      if (this.pointHitsOwnWindow(point)) return; // ignore clicks on shotAI's own UI
+      this.session.single.fired = true;
+      const insertAt = this.session.single.insertAt;
+      this.enqueue(async () => {
+        const step = await this.captureStep('click', point, button, { insertAt });
+        if (!step) {
+          captureLog.warn(
+            `single-shot: click at (${point.x},${point.y}) captured nothing — ending the session (the window is restored; retry the insert)`,
+          );
+        }
+        // Always end the session after the one click attempt, restoring the
+        // window. (Fire-and-forget: stop() awaits the capture queue, which
+        // contains THIS task — awaiting it here would deadlock.)
+        void this.stop();
+      });
+      return;
+    }
 
     // Collapse a double-click (two left mousedowns at ~the same spot in quick
     // succession) into a single step — capture the first, ignore the second.
@@ -557,14 +585,60 @@ export class CaptureController {
     return this.getState();
   }
 
-  private attachTriggers(): void {
+  /**
+   * Arm a one-shot capture: the next real click captures a single step inserted
+   * at `insertAt` in the manifest, then the session auto-stops. Hides the main
+   * window (via onRecordingChange) so shotAI isn't in the shot, same as a normal
+   * recording. Rejects if a recording is already in progress.
+   */
+  async captureSingle(projectPath: string, insertAt: number): Promise<CaptureState> {
+    if (this.session) {
+      throw new Error('A recording is already in progress');
+    }
+    await this.loadNatives();
+    const manifest = await projectStore.openProject(projectPath);
+    const shotsDir = path.join(projectPath, 'shots');
+    await fs.mkdir(shotsDir, { recursive: true });
+
+    // Seed the filename counter past any shot on disk (deletes leave orphans).
+    let stepCount = manifest.steps.length;
+    try {
+      for (const f of await fs.readdir(shotsDir)) {
+        const m = /^step-(\d+)\.png$/i.exec(f);
+        if (m) stepCount = Math.max(stepCount, Number(m[1]));
+      }
+    } catch {
+      /* shots/ unreadable — fall back to manifest length */
+    }
+
+    const at = Math.max(0, Math.min(Math.round(insertAt), manifest.steps.length));
+    this.session = {
+      projectPath,
+      projectTitle: manifest.title,
+      paused: false,
+      stepCount,
+      target: DEFAULT_TARGET,
+      single: { insertAt: at },
+    };
+    captureLog.info(
+      `single-shot capture armed: insert at index ${at} into "${manifest.title}"`,
+    );
+    // No hotkey for single-shot: the hotkey path can't carry the insert index
+    // and wouldn't auto-stop, so the one shot is mouse-click only.
+    this.attachTriggers({ hotkey: false });
+    this.onRecordingChange?.(true);
+    this.emitState();
+    return this.getState();
+  }
+
+  private attachTriggers(opts: { hotkey?: boolean } = {}): void {
     const { uIOhook } = this.natives!;
     if (!this.hookAttached) {
       uIOhook.on('mousedown', this.onMouseDown);
       uIOhook.start();
       this.hookAttached = true;
     }
-    if (!this.hotkeyRegistered) {
+    if ((opts.hotkey ?? true) && !this.hotkeyRegistered) {
       this.hotkeyRegistered = globalShortcut.register(DEFAULT_HOTKEY, this.onHotkey);
     }
   }
@@ -721,6 +795,8 @@ export class CaptureController {
       preGrab?: { image: NsImage; monitor: NsMonitor } | null;
       /** Right-click step: wait for the menu to render, then grab it fresh. */
       awaitMenuFrame?: boolean;
+      /** Single-shot: insert at this manifest index (renumbered) instead of append. */
+      insertAt?: number | null;
     } = {},
   ): Promise<ProjectStep | null> {
     // Re-check here (not just at enqueue) so a pause/stop that lands while
@@ -1038,9 +1114,13 @@ export class CaptureController {
       annotations: [],
     };
 
-    await projectStore.addStep(this.session.projectPath, step);
+    if (opts.insertAt != null) {
+      await projectStore.insertStepAt(this.session.projectPath, step, opts.insertAt);
+    } else {
+      await projectStore.addStep(this.session.projectPath, step);
+    }
     captureLog.info(
-      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}] ${window?.app ?? 'screen'} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
+      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
     );
     this.broadcast(IpcChannels.captureStepAdded, step);
     this.emitState();

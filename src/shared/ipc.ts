@@ -46,6 +46,7 @@ export const IpcChannels = {
   reorderSteps: 'projects:reorder-steps',
   addTextStep: 'projects:add-text-step',
   captureStart: 'capture:start',
+  captureSingle: 'capture:single',
   capturePause: 'capture:pause',
   captureResume: 'capture:resume',
   captureStop: 'capture:stop',
@@ -87,10 +88,15 @@ export interface ShotaiApi {
       flattenedPng?: Uint8Array | null,
     ): Promise<ProjectManifest>;
     /**
-     * Import a user-supplied PNG/JPEG as a new appended step. Main validates the
-     * bytes are actually an image (magic bytes). Returns the updated manifest.
+     * Import a user-supplied PNG/JPEG as a new step. Main validates the bytes are
+     * actually an image (magic bytes). Inserts at `atIndex` (omitted → append).
+     * Returns the updated manifest.
      */
-    importStep(projectPath: string, bytes: Uint8Array): Promise<ProjectManifest>;
+    importStep(
+      projectPath: string,
+      bytes: Uint8Array,
+      atIndex?: number,
+    ): Promise<ProjectManifest>;
     /** Delete a step (leaves its files on disk); renumbers. Returns the manifest. */
     deleteStep(projectPath: string, stepId: string): Promise<ProjectManifest>;
     /** Reorder steps to match the given id order; renumbers. Returns the manifest. */
@@ -104,6 +110,12 @@ export interface ShotaiApi {
      * `target` selects what each step captures; defaults to Auto (smart per-click).
      */
     start(projectPath: string, target?: CaptureTarget): Promise<CaptureState>;
+    /**
+     * Arm a one-shot capture: the next click is captured as a single step
+     * inserted at `atIndex`, then recording auto-stops. The main window hides
+     * while armed (so shotAI isn't in the shot).
+     */
+    captureSingle(projectPath: string, atIndex: number): Promise<CaptureState>;
     pause(): Promise<CaptureState>;
     resume(): Promise<CaptureState>;
     stop(): Promise<CaptureState>;

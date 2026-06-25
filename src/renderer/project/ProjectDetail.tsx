@@ -30,6 +30,10 @@ export function ProjectDetail({
   // structural actions (resume/add/import) so they can't discard the draft.
   const [textEditing, setTextEditing] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
+  // Where the next image import lands (set just before opening the file dialog);
+  // null → append. Lets one hidden <input> serve both the header button and the
+  // per-gap insert affordance.
+  const pendingInsertRef = React.useRef<number | null>(null);
 
   // Only screenshot steps open the image editor (text steps edit inline in the report).
   const onEditStep = (step: ProjectStep) => {
@@ -37,39 +41,74 @@ export function ProjectDetail({
     setEditing(step);
   };
 
-  const onAddText = async () => {
+  const addTextAt = async (atIndex: number) => {
     if (!projectPath) return;
     setImportErr(null);
     try {
-      const manifest = await window.shotai.projects.addTextStep(
-        projectPath,
-        steps.length,
-      );
+      const manifest = await window.shotai.projects.addTextStep(projectPath, atIndex);
       applyManifest(manifest);
-      // Open the newly appended text step straight into its inline editor.
-      const added = manifest.steps[manifest.steps.length - 1];
-      if (added) setAutoEditId(added.id);
+      // Identify the inserted step deterministically from the RETURNED manifest:
+      // the store clamps the insert index to the old length, so the new step sits
+      // at clamp(atIndex, 0, newLen-1). (Reverse-engineering it by diffing a
+      // possibly-stale `steps` snapshot could open the wrong/no step on a rapid
+      // double-insert.) Only auto-open if it really is a fresh empty text step.
+      const i = Math.max(0, Math.min(Math.round(atIndex), manifest.steps.length - 1));
+      const added = manifest.steps[i];
+      if (added && added.kind === 'text' && !added.heading && !added.body) {
+        setAutoEditId(added.id);
+      }
     } catch (err) {
       setImportErr(err instanceof Error ? err.message : String(err));
     }
   };
 
+  const pickImageAt = (atIndex: number | null) => {
+    pendingInsertRef.current = atIndex;
+    fileRef.current?.click();
+  };
+
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-picking the same file
+    const atIndex = pendingInsertRef.current;
+    pendingInsertRef.current = null;
     if (!file || !projectPath) return;
     setImporting(true);
     setImportErr(null);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // Main also validates by magic bytes; this is a fast client-side reject.
-      const manifest = await window.shotai.projects.importStep(projectPath, bytes);
+      const manifest = await window.shotai.projects.importStep(
+        projectPath,
+        bytes,
+        atIndex ?? undefined,
+      );
       applyManifest(manifest);
     } catch (err) {
       setImportErr(err instanceof Error ? err.message : String(err));
     } finally {
       setImporting(false);
     }
+  };
+
+  // Record a single screenshot inserted at `atIndex`. This flips capture state to
+  // "recording" (App hides the window + shows the pill); the first click is
+  // captured, inserted, and the session auto-stops, after which App reloads the
+  // report. No HUD seeding needed here.
+  const captureSingleAt = async (atIndex: number) => {
+    if (!projectPath) return;
+    setImportErr(null);
+    try {
+      await window.shotai.capture.captureSingle(projectPath, atIndex);
+    } catch (err) {
+      setImportErr(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const onInsert = (atIndex: number, kind: 'text' | 'image' | 'shot') => {
+    if (kind === 'text') void addTextAt(atIndex);
+    else if (kind === 'image') pickImageAt(atIndex);
+    else void captureSingleAt(atIndex);
   };
 
   return (
@@ -100,7 +139,7 @@ export function ProjectDetail({
           type="button"
           className="btn btn--small"
           disabled={textEditing}
-          onClick={() => void onAddText()}
+          onClick={() => void addTextAt(steps.length)}
           title={
             textEditing
               ? 'Finish editing the text step first'
@@ -113,7 +152,7 @@ export function ProjectDetail({
           type="button"
           className="btn btn--small"
           disabled={importing || textEditing}
-          onClick={() => fileRef.current?.click()}
+          onClick={() => pickImageAt(null)}
           title={
             textEditing
               ? 'Finish editing the text step first'
@@ -143,6 +182,7 @@ export function ProjectDetail({
           onEditStep={onEditStep}
           autoEditId={autoEditId}
           onEditingChange={setTextEditing}
+          onInsert={onInsert}
         />
       )}
 

@@ -108,6 +108,7 @@ function StepFigure({
             src={src}
             alt={step.caption}
             loading="lazy"
+            draggable={false}
             style={
               dims
                 ? { width: baseW * zoom, height: baseH * zoom }
@@ -176,10 +177,57 @@ function TextStepEditor({
   );
 }
 
+/** Single-line inline editor (number badge / caption). Commits once on Enter or
+ *  blur; Escape cancels. The `done` guard prevents the Enter→blur double-commit. */
+function InlineInput({
+  initial,
+  type = 'text',
+  className,
+  placeholder,
+  max,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  type?: 'text' | 'number';
+  className: string;
+  placeholder?: string;
+  max?: number;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}): React.JSX.Element {
+  const [value, setValue] = React.useState(initial);
+  const done = React.useRef(false);
+  const finish = (commit: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (commit) onCommit(value);
+    else onCancel();
+  };
+  return (
+    <input
+      className={className}
+      type={type}
+      {...(type === 'number' ? { min: 1, max } : {})}
+      value={value}
+      autoFocus
+      placeholder={placeholder}
+      onChange={(e) => setValue(e.target.value)}
+      onFocus={(e) => e.currentTarget.select()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') finish(true);
+        else if (e.key === 'Escape') finish(false);
+      }}
+      onBlur={() => finish(true)}
+    />
+  );
+}
+
 export function Report({
   onEditStep,
   autoEditId,
   onEditingChange,
+  onInsert,
 }: {
   onEditStep?: (step: ProjectStep) => void;
   /** When set to a (text) step id, open that step's inline editor. */
@@ -187,12 +235,19 @@ export function Report({
   /** Notifies the parent whether a text step is currently being inline-edited
    *  (so it can disable structural actions that would discard the draft). */
   onEditingChange?: (editing: boolean) => void;
+  /** Insert a step at a manifest index (from the hover-"+" between steps). */
+  onInsert?: (atIndex: number, kind: 'text' | 'image' | 'shot') => void;
 }): React.JSX.Element | null {
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
   const steps = useProjectStore((s) => s.steps);
   const applyManifest = useProjectStore((s) => s.applyManifest);
   const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
+  const [editingCapId, setEditingCapId] = React.useState<string | null>(null);
+  const [editingNumId, setEditingNumId] = React.useState<string | null>(null);
+  const [insertMenuAt, setInsertMenuAt] = React.useState<number | null>(null);
+  const [dragIdx, setDragIdx] = React.useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = React.useState<number | null>(null);
   // Blocks a second structural mutation (reorder/delete) landing inside the IPC
   // round-trip of the first, which would otherwise act on a stale step order.
   const busyRef = React.useRef(false);
@@ -240,11 +295,14 @@ export function Report({
     }
   };
 
-  const move = async (idx: number, dir: 1 | -1) => {
-    const j = idx + dir;
-    if (busyRef.current || !projectPath || j < 0 || j >= steps.length) return;
+  // Move the step at `from` to position `to` (both 0-based, `to` clamped),
+  // renumber via reorderSteps. Backs the ↑/↓ buttons, drag-drop, and number entry.
+  const reorderTo = async (from: number, to: number) => {
+    const dest = Math.max(0, Math.min(to, steps.length - 1));
+    if (busyRef.current || !projectPath || from === dest) return;
     const ids = steps.map((s) => s.id);
-    [ids[idx], ids[j]] = [ids[j], ids[idx]];
+    const [moved] = ids.splice(from, 1);
+    ids.splice(dest, 0, moved);
     busyRef.current = true;
     try {
       applyManifest(await window.shotai.projects.reorderSteps(projectPath, ids));
@@ -253,6 +311,42 @@ export function Report({
     } finally {
       busyRef.current = false;
     }
+  };
+
+  const move = (idx: number, dir: 1 | -1) => void reorderTo(idx, idx + dir);
+
+  const commitNum = (idx: number, raw: string) => {
+    setEditingNumId(null);
+    const n = Number.parseInt(raw, 10);
+    if (Number.isFinite(n)) void reorderTo(idx, n - 1); // 1-based → 0-based
+  };
+
+  const saveCaption = async (step: ProjectStep, caption: string) => {
+    setEditingCapId(null);
+    if (!projectPath || caption === step.caption) return;
+    try {
+      applyManifest(
+        await window.shotai.projects.updateStep(projectPath, step.id, { caption }),
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const onRowDrop = (idx: number) => {
+    // Drop = "insert before the target row" (the indicator line is drawn above
+    // it). When dragging downward, removing the source first shifts the target
+    // left by one, so subtract one to keep the result matching the indicator.
+    if (dragIdx !== null && dragIdx !== idx) {
+      void reorderTo(dragIdx, dragIdx < idx ? idx - 1 : idx);
+    }
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const doInsert = (atIndex: number, kind: 'text' | 'image' | 'shot') => {
+    setInsertMenuAt(null);
+    onInsert?.(atIndex, kind);
   };
 
   const del = async (step: ProjectStep) => {
@@ -298,13 +392,117 @@ export function Report({
   };
 
   if (!projectId) return null;
+
+  // The hover-"+" between steps. Disabled while a text draft is open (inserting
+  // would switch/discard it). Hidden entirely if the parent gives no handler.
+  const canInsert = !!onInsert && editingTextId === null;
+  const insertZone = (atIndex: number) =>
+    onInsert ? (
+      <div className="rep__insert">
+        {insertMenuAt === atIndex ? (
+          <div className="rep__insert-menu" role="menu">
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={() => doInsert(atIndex, 'text')}
+            >
+              + Text
+            </button>
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={() => doInsert(atIndex, 'image')}
+            >
+              + Image
+            </button>
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={() => doInsert(atIndex, 'shot')}
+            >
+              + Screenshot
+            </button>
+            <button
+              type="button"
+              className="btn btn--small rep__insert-x"
+              title="Cancel"
+              onClick={() => setInsertMenuAt(null)}
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="rep__insert-btn"
+            title="Insert a step here"
+            disabled={!canInsert}
+            onClick={() => setInsertMenuAt(atIndex)}
+          >
+            +
+          </button>
+        )}
+      </div>
+    ) : null;
+
   if (steps.length === 0) {
     return (
-      <p className="project__hint">
-        No steps yet. Resume capturing, Import an image, or Add a text step.
-      </p>
+      <div className="rep rep--empty">
+        {insertZone(0)}
+        <p className="project__hint">
+          No steps yet. Resume capturing, Import an image, or Add a text step.
+        </p>
+      </div>
     );
   }
+
+  // Left rail: a drag grip + the (click-to-edit) step number. Numbered for ALL
+  // step kinds, including text steps, so the sequence reads 1..N.
+  const rail = (s: ProjectStep, idx: number) => (
+    <div className="rep__rail">
+      <button
+        type="button"
+        className="rep__grip"
+        draggable
+        aria-label="Drag to reorder"
+        title="Drag to reorder"
+        onDragStart={(e) => {
+          setDragIdx(idx);
+          e.dataTransfer.effectAllowed = 'move';
+          try {
+            e.dataTransfer.setData('text/plain', String(idx));
+          } catch {
+            /* some platforms restrict setData */
+          }
+        }}
+        onDragEnd={() => {
+          setDragIdx(null);
+          setDragOverIdx(null);
+        }}
+      >
+        ⠿
+      </button>
+      {editingNumId === s.id ? (
+        <InlineInput
+          initial={String(s.order)}
+          type="number"
+          max={steps.length}
+          className="rep__num-input"
+          onCommit={(v) => commitNum(idx, v)}
+          onCancel={() => setEditingNumId(null)}
+        />
+      ) : (
+        <button
+          type="button"
+          className={`rep__num${s.kind === 'text' ? ' rep__num--text' : ''}`}
+          title="Click to set this step's position"
+          onClick={() => setEditingNumId(s.id)}
+        >
+          {s.order}
+        </button>
+      )}
+    </div>
+  );
 
   const controls = (s: ProjectStep, idx: number) => (
     <div className="rep__ctl">
@@ -313,7 +511,7 @@ export function Report({
         className="btn btn--small"
         disabled={idx === 0}
         title="Move up"
-        onClick={() => void move(idx, -1)}
+        onClick={() => move(idx, -1)}
       >
         ↑
       </button>
@@ -322,7 +520,7 @@ export function Report({
         className="btn btn--small"
         disabled={idx === steps.length - 1}
         title="Move down"
-        onClick={() => void move(idx, 1)}
+        onClick={() => move(idx, 1)}
       >
         ↓
       </button>
@@ -347,44 +545,70 @@ export function Report({
     </div>
   );
 
-  return (
-    <ol className="rep">
-      {steps.map((s, idx) =>
-        s.kind === 'text' ? (
-          <li key={s.id} className="rep__step rep__step--text">
-            <div className="rep__num rep__num--text" aria-hidden="true">
-              ¶
-            </div>
-            <div className="rep__bodywrap">
-              {editingTextId === s.id ? (
-                <TextStepEditor
-                  step={s}
-                  onSave={(h, b) => void saveText(s, h, b)}
-                  onCancel={() => void cancelText(s)}
-                />
-              ) : (
-                <>
-                  <div className="rep__caprow">
-                    <h3 className="rep__textheading">{s.heading || 'Text'}</h3>
-                    <div className="rep__actions">{controls(s, idx)}</div>
-                  </div>
-                  {s.body ? (
-                    <p className="rep__textbody">{s.body}</p>
-                  ) : (
-                    <p className="project__hint">Empty text step — click Edit.</p>
-                  )}
-                </>
-              )}
-            </div>
-          </li>
-        ) : (
-          <li key={s.id} className="rep__step">
-            <div className="rep__num" aria-hidden="true">
-              {s.order}
-            </div>
-            <div className="rep__bodywrap">
+  const stepRow = (s: ProjectStep, idx: number) => {
+    const cls =
+      `rep__step${s.kind === 'text' ? ' rep__step--text' : ''}` +
+      `${dragIdx === idx ? ' rep__step--dragging' : ''}` +
+      `${dragOverIdx === idx && dragIdx !== null && dragIdx !== idx ? ' rep__step--over' : ''}`;
+    return (
+      <div
+        className={cls}
+        role="listitem"
+        onDragOver={(e) => {
+          if (dragIdx === null) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (dragOverIdx !== idx) setDragOverIdx(idx);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          onRowDrop(idx);
+        }}
+      >
+        {rail(s, idx)}
+        <div className="rep__bodywrap">
+          {s.kind === 'text' ? (
+            editingTextId === s.id ? (
+              <TextStepEditor
+                step={s}
+                onSave={(h, b) => void saveText(s, h, b)}
+                onCancel={() => void cancelText(s)}
+              />
+            ) : (
+              <>
+                <div className="rep__caprow">
+                  <h3 className="rep__textheading">{s.heading || 'Text'}</h3>
+                  <div className="rep__actions">{controls(s, idx)}</div>
+                </div>
+                {s.body ? (
+                  <p className="rep__textbody">{s.body}</p>
+                ) : (
+                  <p className="project__hint">Empty text step — click Edit.</p>
+                )}
+              </>
+            )
+          ) : (
+            <>
               <div className="rep__caprow">
-                <h3 className="rep__caption">{s.caption}</h3>
+                {editingCapId === s.id ? (
+                  <InlineInput
+                    initial={s.caption}
+                    className="rep__cap-input"
+                    placeholder="Caption…"
+                    onCommit={(v) => void saveCaption(s, v)}
+                    onCancel={() => setEditingCapId(null)}
+                  />
+                ) : (
+                  <h3
+                    className="rep__caption"
+                    title="Click to edit caption"
+                    onClick={() => setEditingCapId(s.id)}
+                  >
+                    {s.caption || (
+                      <span className="rep__caption-empty">Add a caption…</span>
+                    )}
+                  </h3>
+                )}
                 <div className="rep__actions">
                   <div className="rep__zoom" title="Zoom this image in the report">
                     <button
@@ -416,10 +640,22 @@ export function Report({
                   {s.window.title ? ` — ${s.window.title}` : ''}
                 </p>
               )}
-            </div>
-          </li>
-        ),
-      )}
-    </ol>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="rep" role="list">
+      {insertZone(0)}
+      {steps.map((s, idx) => (
+        <React.Fragment key={s.id}>
+          {stepRow(s, idx)}
+          {insertZone(idx + 1)}
+        </React.Fragment>
+      ))}
+    </div>
   );
 }

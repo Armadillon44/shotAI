@@ -266,14 +266,15 @@ let writeQueue: Promise<unknown> = Promise.resolve();
 /** Append a captured step to a project's manifest (serialized, atomic-ish). */
 export function addStep(projectPath: string, step: ProjectStep): Promise<void> {
   const run = writeQueue.then(async () => {
-    const manifest = await readManifest(projectPath);
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
     manifest.steps.push(step);
     // step.order tracks array position, not the capture filename counter (which
     // climbs past orphaned step-NNNN.png files left by deletes). Without this,
     // resuming capture after a delete renders a gap like 1, 2, 3, 6.
     renumber(manifest.steps);
     manifest.updatedAt = new Date().toISOString();
-    await writeManifest(projectPath, manifest);
+    await writeManifest(resolved, manifest);
   });
   writeQueue = run.then(
     () => undefined,
@@ -442,13 +443,44 @@ function detectImage(bytes: Buffer): 'png' | 'jpg' | null {
 }
 
 /**
- * Import a user-supplied image as a new (appended) screenshot step. Validates
- * the bytes are actually a PNG/JPEG (magic bytes, not the extension) and writes
- * them into shots/ with a non-colliding name. Serialized via the writeQueue.
+ * Insert an already-built step at `atIndex` (clamped; null/undefined → append),
+ * then renumber. Serialized via the writeQueue. Used by the single-shot capture
+ * path to drop a recorded screenshot at a chosen position.
+ */
+export function insertStepAt(
+  projectPath: string,
+  step: ProjectStep,
+  atIndex?: number | null,
+): Promise<void> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const i =
+      atIndex == null
+        ? manifest.steps.length
+        : Math.max(0, Math.min(Math.round(atIndex), manifest.steps.length));
+    manifest.steps.splice(i, 0, step);
+    renumber(manifest.steps);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/**
+ * Import a user-supplied image as a new screenshot step. Validates the bytes are
+ * actually a PNG/JPEG (magic bytes, not the extension) and writes them into
+ * shots/ with a non-colliding name. Inserts at `atIndex` (clamped; null → append)
+ * and renumbers. Serialized via the writeQueue.
  */
 export function importStep(
   projectPath: string,
   bytes: Buffer,
+  atIndex?: number | null,
 ): Promise<ProjectManifest> {
   const run = writeQueue.then(async () => {
     const kind = detectImage(bytes);
@@ -473,10 +505,9 @@ export function importStep(
     const filename = `step-${String(maxFile + 1).padStart(4, '0')}.${kind}`;
     await fs.writeFile(path.join(shotsDir, filename), bytes, { flag: 'wx' });
 
-    const order = manifest.steps.reduce((mx, s) => Math.max(mx, s.order), 0) + 1;
     const step: ProjectStep = {
       id: randomUUID(),
-      order,
+      order: 0, // renumber() assigns the real position below
       screenshot: `shots/${filename}`,
       trigger: 'hotkey',
       click: null,
@@ -488,7 +519,12 @@ export function importStep(
       crop: null,
       annotations: [],
     };
-    manifest.steps.push(step);
+    const i =
+      atIndex == null
+        ? manifest.steps.length
+        : Math.max(0, Math.min(Math.round(atIndex), manifest.steps.length));
+    manifest.steps.splice(i, 0, step);
+    renumber(manifest.steps);
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
     return manifest;

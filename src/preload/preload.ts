@@ -29,8 +29,8 @@ const api: ShotaiApi = {
         patch,
         flattenedPng ?? null,
       ),
-    importStep: (projectPath: string, bytes: Uint8Array) =>
-      ipcRenderer.invoke(IpcChannels.importStep, projectPath, bytes),
+    importStep: (projectPath: string, bytes: Uint8Array, atIndex?: number) =>
+      ipcRenderer.invoke(IpcChannels.importStep, projectPath, bytes, atIndex),
     deleteStep: (projectPath: string, stepId: string) =>
       ipcRenderer.invoke(IpcChannels.deleteStep, projectPath, stepId),
     reorderSteps: (projectPath: string, orderedIds: string[]) =>
@@ -41,6 +41,8 @@ const api: ShotaiApi = {
   capture: {
     start: (projectPath: string, target?: CaptureTarget) =>
       ipcRenderer.invoke(IpcChannels.captureStart, projectPath, target),
+    captureSingle: (projectPath: string, atIndex: number) =>
+      ipcRenderer.invoke(IpcChannels.captureSingle, projectPath, atIndex),
     pause: () => ipcRenderer.invoke(IpcChannels.capturePause),
     resume: () => ipcRenderer.invoke(IpcChannels.captureResume),
     stop: () => ipcRenderer.invoke(IpcChannels.captureStop),

@@ -221,7 +221,6 @@ export function App(): React.JSX.Element {
           </span>
           <h1 className="project__title">shotAI</h1>
         </div>
-        <p className="project__tagline">Local-first SOP builder</p>
       </header>
 
       <section className="project__body">
