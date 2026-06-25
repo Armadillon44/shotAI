@@ -9,6 +9,10 @@
 // be reasoned about (and unit-tested) on its own.
 import type { Annotation, BlurAnnotation, Rect } from '../../shared/project';
 
+// Minimum redaction downsample factor (image px). Below this, averaged text can
+// stay legible, so the bake clamps up to it regardless of the stored value.
+export const MIN_REDACT_BLOCK = 8;
+
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(v, hi));
 }
@@ -100,8 +104,13 @@ function bakeRedaction(
     return true;
   }
 
-  // Mosaic: draw the region into a tiny canvas, then back up with smoothing off.
-  const block = Math.max(4, Math.round(a.blockSize || 12));
+  // Smooth blur: AVERAGE-downsample the region to a few samples, then upsample
+  // with interpolation. The downsample is destructive (high-frequency detail —
+  // text — is averaged away irreversibly), but the smooth up/down sampling reads
+  // as a soft blur rather than hard pixel blocks. `block` is the downsample
+  // factor (≈ the blur's feature size in image px); floored at MIN_REDACT_BLOCK
+  // so even a hand-edited manifest can't blur so lightly that text stays legible.
+  const block = Math.max(MIN_REDACT_BLOCK, Math.round(a.blockSize || 12));
   const sw = Math.max(1, Math.round(w / block));
   const sh = Math.max(1, Math.round(h / block));
   const tmp = document.createElement('canvas');
@@ -113,10 +122,10 @@ function bakeRedaction(
     ctx.fillRect(x0, y0, w, h);
     return true;
   }
-  tctx.imageSmoothingEnabled = false;
+  tctx.imageSmoothingEnabled = true; // averaging downsample
   tctx.drawImage(ctx.canvas, x0, y0, w, h, 0, 0, sw, sh);
   const prevSmoothing = ctx.imageSmoothingEnabled;
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true; // smooth upsample
   ctx.drawImage(tmp, 0, 0, sw, sh, x0, y0, w, h);
   ctx.imageSmoothingEnabled = prevSmoothing;
   return true;

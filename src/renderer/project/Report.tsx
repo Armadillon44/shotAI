@@ -34,6 +34,8 @@ function StepFigure({
   // image is the original (full) or the flattened (cropped) render, so subtract
   // the crop origin when flattened+cropped; the marker is hidden if it falls
   // outside the visible region.
+  const markerColor =
+    step.markerColor ?? (step.click?.button === 'right' ? '#2563eb' : '#e11d48');
   const offX = flattened && step.crop ? step.crop.x : 0;
   const offY = flattened && step.crop ? step.crop.y : 0;
   let marker: { left: string; top: string } | null = null;
@@ -62,8 +64,12 @@ function StepFigure({
         />
         {marker && step.click && (
           <span
-            className={`rep__marker rep__marker--${step.click.button}`}
-            style={marker}
+            className="rep__marker"
+            style={{
+              ...marker,
+              borderColor: markerColor,
+              background: `${markerColor}2e`,
+            }}
             aria-hidden="true"
           />
         )}

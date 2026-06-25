@@ -178,6 +178,8 @@ export interface ProjectStep {
   body?: string;
   /** Optional crop rect, in image px (Phase 2 editor). */
   crop: Rect | null;
+  /** Click-register marker color (editor-set); defaults to the accent if unset. */
+  markerColor?: string;
   /** Non-destructive vector annotations (Phase 2 editor). */
   annotations: Annotation[];
   /**
@@ -200,6 +202,7 @@ export type StepPatch = Partial<
     | 'crop'
     | 'annotations'
     | 'click'
+    | 'markerColor'
   >
 >;
 

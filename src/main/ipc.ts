@@ -129,6 +129,9 @@ function parseStepPatch(value: unknown): StepPatch {
   }
   if ('crop' in v) patch.crop = v.crop === null ? null : parseRect(v.crop);
   if ('click' in v) patch.click = v.click === null ? null : parseClick(v.click);
+  if (typeof v.markerColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.markerColor)) {
+    patch.markerColor = v.markerColor;
+  }
   if (Array.isArray(v.annotations)) {
     patch.annotations = v.annotations.filter((a: unknown): a is Annotation => {
       if (!a || typeof a !== 'object') return false;

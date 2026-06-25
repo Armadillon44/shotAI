@@ -682,6 +682,16 @@ body {
   width: 90px;
 }
 
+.ed__opt--color input[type='color'] {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #cbd1d9;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
 .ed__zoom {
   display: inline-flex;
   align-items: center;

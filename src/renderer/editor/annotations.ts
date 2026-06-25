@@ -47,6 +47,7 @@ export function createRect(
   w: number,
   h: number,
   strokeWidth = DEFAULT_STROKE_WIDTH,
+  color = ACCENT,
 ): RectAnnotation {
   return {
     id: newId(),
@@ -56,7 +57,7 @@ export function createRect(
     width: w,
     height: h,
     cornerRadius: 10,
-    stroke: ACCENT,
+    stroke: color,
     strokeWidth,
     fill: null,
   };
@@ -68,12 +69,13 @@ export function createArrow(
   x2: number,
   y2: number,
   strokeWidth = DEFAULT_STROKE_WIDTH,
+  color = ACCENT,
 ): ArrowAnnotation {
   return {
     id: newId(),
     type: 'arrow',
     points: [x1, y1, x2, y2],
-    stroke: ACCENT,
+    stroke: color,
     strokeWidth,
   };
 }
@@ -108,6 +110,7 @@ export function createStamp(
   y: number,
   n: number,
   radius = 22,
+  color = ACCENT,
 ): StampAnnotation {
   return {
     id: newId(),
@@ -116,7 +119,7 @@ export function createStamp(
     y,
     n,
     radius,
-    fill: ACCENT,
+    fill: color,
     textColor: '#ffffff',
   };
 }
@@ -136,6 +139,7 @@ export function createText(
   y: number,
   text: string,
   fontSize = 28,
+  color = ACCENT,
 ): TextAnnotation {
   return {
     id: newId(),
@@ -144,7 +148,7 @@ export function createText(
     y,
     text,
     fontSize,
-    fill: ACCENT,
+    fill: color,
   };
 }
 

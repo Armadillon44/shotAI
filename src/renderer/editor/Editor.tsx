@@ -41,6 +41,9 @@ import {
   defaultStrokeWidth,
   dragRect,
 } from './annotations';
+import { MIN_REDACT_BLOCK, flattenToPng } from './flatten';
+
+const CLICK_ID = '__click__'; // pseudo-selection id for the click marker
 
 const VIEW_W = 940;
 const VIEW_H = 540;
@@ -65,9 +68,11 @@ type TextEntry = {
 };
 
 /**
- * A blur/redact region rendered as a LIVE mosaic preview (Konva Pixelate filter
- * on the cropped image) so the blur-amount slider shows its real effect; 'solid'
- * renders a black box. Re-caches when geometry/amount change (filters need it).
+ * A blur/redact region rendered as a LIVE preview that matches flatten.ts: the
+ * region is AVERAGE-downsampled into a tiny canvas, which Konva then upscales
+ * smoothly — a soft blur (not hard pixel blocks), with detail destroyed. 'solid'
+ * renders a black box. The preview canvas is recomputed when geometry/amount
+ * change, so the blur-amount slider shows its real effect.
  */
 function BlurRegion({
   img,
@@ -86,23 +91,26 @@ function BlurRegion({
   onTransformEnd: () => void;
   registerRef: (node: Konva.Node | null) => void;
 }): React.JSX.Element {
-  const ref = React.useRef<Konva.Image | null>(null);
-  React.useEffect(() => {
-    if (a.mode !== 'pixelate') return; // solid renders a plain Rect, no caching
-    const node = ref.current;
-    if (!node) return;
+  const preview = React.useMemo(() => {
+    if (a.mode !== 'pixelate') return null;
+    const block = Math.max(MIN_REDACT_BLOCK, Math.round(a.blockSize));
+    const sw = Math.max(1, Math.round(a.width / block));
+    const sh = Math.max(1, Math.round(a.height / block));
+    const c = document.createElement('canvas');
+    c.width = sw;
+    c.height = sh;
+    const cx = c.getContext('2d');
+    if (!cx) return null;
+    cx.imageSmoothingEnabled = true;
     try {
-      // pixelRatio:1 so the mosaic cell size is in IMAGE px and the live preview
-      // matches what flatten.ts bakes (Pixelate bins in cache px — on a HiDPI
-      // display the default devicePixelRatio would halve the apparent cells).
-      node.cache({ pixelRatio: 1 });
-      node.getLayer()?.batchDraw();
+      cx.drawImage(img, a.x, a.y, a.width, a.height, 0, 0, sw, sh);
     } catch {
-      /* cache can fail mid-resize; harmless, re-runs on next change */
+      return null;
     }
-  }, [a.x, a.y, a.width, a.height, a.blockSize, a.mode]);
+    return c;
+  }, [img, a.x, a.y, a.width, a.height, a.blockSize, a.mode]);
 
-  if (a.mode === 'solid') {
+  if (a.mode === 'solid' || !preview) {
     return (
       <KRect
         ref={(n) => registerRef(n)}
@@ -110,7 +118,7 @@ function BlurRegion({
         y={a.y}
         width={a.width}
         height={a.height}
-        fill="#000000"
+        fill={a.mode === 'solid' ? '#000000' : 'rgba(15,23,42,0.55)'}
         draggable={draggable}
         onClick={onSelect}
         onTap={onSelect}
@@ -121,18 +129,12 @@ function BlurRegion({
   }
   return (
     <KImage
-      ref={(n) => {
-        ref.current = n;
-        registerRef(n);
-      }}
-      image={img}
+      ref={(n) => registerRef(n)}
+      image={preview}
       x={a.x}
       y={a.y}
       width={a.width}
       height={a.height}
-      crop={{ x: a.x, y: a.y, width: a.width, height: a.height }}
-      filters={[Konva.Filters.Pixelate]}
-      pixelSize={Math.max(4, Math.round(a.blockSize))}
       draggable={draggable}
       onClick={onSelect}
       onTap={onSelect}
@@ -161,6 +163,8 @@ export function Editor({
   const [strokeWidth, setStrokeWidth] = React.useState(DEFAULT_STROKE_WIDTH);
   const [blockSize, setBlockSize] = React.useState(DEFAULT_BLOCK_SIZE);
   const [redactMode, setRedactMode] = React.useState<'pixelate' | 'solid'>('pixelate');
+  const [color, setColor] = React.useState(ACCENT); // default for new shapes
+  const [markerColor, setMarkerColor] = React.useState(step.markerColor ?? ACCENT);
   const [zoom, setZoom] = React.useState(1);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState<Rect | null>(null);
@@ -255,7 +259,7 @@ export function Editor({
     }
     if (tool === 'stamp') {
       const n = annotations.filter((a) => a.type === 'stamp').length + 1;
-      const a = createStamp(p.x, p.y, n, defaultStampRadius(natW, natH));
+      const a = createStamp(p.x, p.y, n, defaultStampRadius(natW, natH), color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
       setTool('select');
@@ -295,7 +299,7 @@ export function Editor({
       const pts = arrowDraft;
       setArrowDraft(null);
       if (pts && Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) >= MIN_DRAG) {
-        const a = createArrow(pts[0], pts[1], pts[2], pts[3], strokeWidth);
+        const a = createArrow(pts[0], pts[1], pts[2], pts[3], strokeWidth, color);
         setAnnotations((prev) => [...prev, a]);
         setSelectedId(a.id);
       }
@@ -311,7 +315,7 @@ export function Editor({
     if (tool === 'crop') {
       setCrop(r);
     } else if (tool === 'rect') {
-      const a = createRect(r.x, r.y, r.width, r.height, strokeWidth);
+      const a = createRect(r.x, r.y, r.width, r.height, strokeWidth, color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
     } else if (tool === 'blur') {
@@ -370,6 +374,19 @@ export function Editor({
   // Selection outline for arrow/stamp/text (rect/blur already show the
   // Transformer's handles). Measured from the node so it fits any shape.
   React.useEffect(() => {
+    if (selectedId === CLICK_ID) {
+      setSelBox(
+        clickImage
+          ? {
+              x: clickImage.x - markerR,
+              y: clickImage.y - markerR,
+              width: markerR * 2,
+              height: markerR * 2,
+            }
+          : null,
+      );
+      return;
+    }
     const sel = annotations.find((a) => a.id === selectedId);
     if (!selectedId || !sel || sel.type === 'rect' || sel.type === 'blur') {
       setSelBox(null);
@@ -383,7 +400,7 @@ export function Editor({
     } else {
       setSelBox(null);
     }
-  }, [selectedId, annotations]);
+  }, [selectedId, annotations, clickImage, markerR]);
 
   const setRef = (id: string) => (node: Konva.Node | null) => {
     if (node) shapeRefs.current.set(id, node);
@@ -400,7 +417,7 @@ export function Editor({
         update(entry.id, { text: value, fontSize: entry.fontSize } as Partial<Annotation>);
       else remove(entry.id);
     } else if (value) {
-      const a = createText(entry.imageX, entry.imageY, value, entry.fontSize);
+      const a = createText(entry.imageX, entry.imageY, value, entry.fontSize, color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
     }
@@ -420,13 +437,22 @@ export function Editor({
     setRedactMode(m);
     if (selected?.type === 'blur') update(selected.id, { mode: m } as Partial<Annotation>);
   };
+  const changeColor = (c: string) => {
+    setColor(c); // also the default for new shapes
+    if (selectedId === CLICK_ID) {
+      setMarkerColor(c);
+    } else if (selected?.type === 'rect' || selected?.type === 'arrow') {
+      update(selected.id, { stroke: c } as Partial<Annotation>);
+    } else if (selected?.type === 'text' || selected?.type === 'stamp') {
+      update(selected.id, { fill: c } as Partial<Annotation>);
+    }
+  };
 
   const onSave = async () => {
     if (!img) return;
     setSaving(true);
     setError(null);
     try {
-      const { flattenToPng } = await import('./flatten');
       const blob = await flattenToPng(img, annotations, crop);
       const bytes = new Uint8Array(await blob.arrayBuffer());
       const click =
@@ -434,7 +460,7 @@ export function Editor({
       const manifest = await window.shotai.projects.updateStep(
         projectPath,
         step.id,
-        { annotations, crop, click },
+        { annotations, crop, click, markerColor },
         bytes,
       );
       onSaved(manifest);
@@ -457,6 +483,16 @@ export function Editor({
       : strokeWidth;
   const blockVal = selected?.type === 'blur' ? selected.blockSize : blockSize;
   const modeVal = selected?.type === 'blur' ? selected.mode : redactMode;
+  const selectedIsClick = selectedId === CLICK_ID;
+  // Color applies to the click marker + box/arrow/text/stamp (not redactions).
+  const showColorCtl = selectedIsClick || (!!selected && selected.type !== 'blur');
+  const colorOf = (s: Annotation): string =>
+    s.type === 'text' || s.type === 'stamp'
+      ? s.fill
+      : s.type === 'rect' || s.type === 'arrow'
+        ? s.stroke
+        : color;
+  const colorVal = selectedIsClick ? markerColor : selected ? colorOf(selected) : color;
 
   return (
     <div className="ed">
@@ -479,6 +515,15 @@ export function Editor({
           ))}
         </div>
 
+        {showColorCtl && (
+          <label className="ed__opt ed__opt--color" title="Color">
+            <input
+              type="color"
+              value={colorVal}
+              onChange={(e) => changeColor(e.target.value)}
+            />
+          </label>
+        )}
         {showStrokeCtl && (
           <label className="ed__opt" title="Line width">
             Width
@@ -495,17 +540,20 @@ export function Editor({
           <>
             <label className="ed__opt" title="How redaction is baked in">
               <select value={modeVal} onChange={(e) => changeMode(e.target.value as 'pixelate' | 'solid')}>
-                <option value="pixelate">Pixelate</option>
+                <option value="pixelate">Blur</option>
                 <option value="solid">Black box</option>
               </select>
             </label>
             {modeVal === 'pixelate' && (
-              <label className="ed__opt" title="Blur amount (mosaic block size)">
+              <label
+                className="ed__opt"
+                title="Blur strength — higher is stronger; the minimum keeps text unreadable"
+              >
                 Blur
                 <input
                   type="range"
-                  min={4}
-                  max={48}
+                  min={MIN_REDACT_BLOCK}
+                  max={60}
                   value={blockVal}
                   onChange={(e) => changeBlock(Number(e.target.value))}
                 />
@@ -760,10 +808,13 @@ export function Editor({
                   x={clickImage.x}
                   y={clickImage.y}
                   radius={markerR}
-                  stroke={ACCENT}
+                  stroke={markerColor}
                   strokeWidth={Math.max(2, Math.round(markerR * 0.22))}
-                  fill="rgba(225,29,72,0.18)"
+                  fill={`${markerColor}2e`}
                   draggable={selectable}
+                  onClick={() => selectable && setSelectedId(CLICK_ID)}
+                  onTap={() => selectable && setSelectedId(CLICK_ID)}
+                  onDragStart={() => setSelBox(null)}
                   onDragEnd={(e) => setClickImage({ x: e.target.x(), y: e.target.y() })}
                 />
               )}
@@ -824,7 +875,7 @@ export function Editor({
                   y={textEntry.imageY}
                   text={textEntry.value || 'Text…'}
                   fontSize={textEntry.fontSize}
-                  fill={ACCENT}
+                  fill={color}
                   opacity={0.65}
                   listening={false}
                 />
