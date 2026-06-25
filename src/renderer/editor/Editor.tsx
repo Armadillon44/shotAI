@@ -88,15 +88,19 @@ function BlurRegion({
 }): React.JSX.Element {
   const ref = React.useRef<Konva.Image | null>(null);
   React.useEffect(() => {
+    if (a.mode !== 'pixelate') return; // solid renders a plain Rect, no caching
     const node = ref.current;
     if (!node) return;
     try {
-      node.cache();
+      // pixelRatio:1 so the mosaic cell size is in IMAGE px and the live preview
+      // matches what flatten.ts bakes (Pixelate bins in cache px — on a HiDPI
+      // display the default devicePixelRatio would halve the apparent cells).
+      node.cache({ pixelRatio: 1 });
       node.getLayer()?.batchDraw();
     } catch {
       /* cache can fail mid-resize; harmless, re-runs on next change */
     }
-  }, [a.x, a.y, a.width, a.height, a.blockSize]);
+  }, [a.x, a.y, a.width, a.height, a.blockSize, a.mode]);
 
   if (a.mode === 'solid') {
     return (
@@ -128,7 +132,7 @@ function BlurRegion({
       height={a.height}
       crop={{ x: a.x, y: a.y, width: a.width, height: a.height }}
       filters={[Konva.Filters.Pixelate]}
-      pixelSize={Math.max(2, Math.round(a.blockSize))}
+      pixelSize={Math.max(4, Math.round(a.blockSize))}
       draggable={draggable}
       onClick={onSelect}
       onTap={onSelect}
@@ -626,10 +630,29 @@ export function Editor({
             </Layer>
             <Layer>
               {annotations.map((a) => {
+                // blur is its own component (no `common` spread) — handle first
+                // so we don't build/invoke setRef twice for it.
+                if (a.type === 'blur') {
+                  return (
+                    <BlurRegion
+                      key={a.id}
+                      img={img}
+                      a={a}
+                      draggable={selectable}
+                      registerRef={setRef(a.id)}
+                      onSelect={() => selectable && setSelectedId(a.id)}
+                      onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
+                      onTransformEnd={() => onTransformEnd(a.id)}
+                    />
+                  );
+                }
                 const common = {
                   key: a.id,
                   ref: setRef(a.id),
                   draggable: selectable,
+                  // hide the (state-based) selection outline while dragging so it
+                  // doesn't trail the shape; it's recomputed on dragEnd.
+                  onDragStart: () => setSelBox(null),
                   onClick: () => selectable && setSelectedId(a.id),
                   onTap: () => selectable && setSelectedId(a.id),
                 };
@@ -645,20 +668,6 @@ export function Editor({
                       stroke={a.stroke}
                       strokeWidth={a.strokeWidth}
                       fill={a.fill ?? undefined}
-                      onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
-                      onTransformEnd={() => onTransformEnd(a.id)}
-                    />
-                  );
-                }
-                if (a.type === 'blur') {
-                  return (
-                    <BlurRegion
-                      key={a.id}
-                      img={img}
-                      a={a}
-                      draggable={selectable}
-                      registerRef={setRef(a.id)}
-                      onSelect={() => selectable && setSelectedId(a.id)}
                       onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
                       onTransformEnd={() => onTransformEnd(a.id)}
                     />
