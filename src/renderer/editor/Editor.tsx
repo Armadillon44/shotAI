@@ -48,8 +48,6 @@ const CLICK_ID = '__click__'; // pseudo-selection id for the click marker
 const VIEW_W = 940;
 const VIEW_H = 540;
 const MIN_DRAG = 6; // image px — ignore accidental micro-drags
-const ZOOM_MIN = 0.2;
-const ZOOM_MAX = 6;
 
 type Props = {
   projectId: string;
@@ -93,21 +91,34 @@ function BlurRegion({
 }): React.JSX.Element {
   const preview = React.useMemo(() => {
     if (a.mode !== 'pixelate') return null;
+    const w = Math.max(1, Math.round(a.width));
+    const h = Math.max(1, Math.round(a.height));
     const block = Math.max(MIN_REDACT_BLOCK, Math.round(a.blockSize));
-    const sw = Math.max(1, Math.round(a.width / block));
-    const sh = Math.max(1, Math.round(a.height / block));
-    const c = document.createElement('canvas');
-    c.width = sw;
-    c.height = sh;
-    const cx = c.getContext('2d');
-    if (!cx) return null;
-    cx.imageSmoothingEnabled = true;
+    const sw = Math.max(1, Math.round(w / block));
+    const sh = Math.max(1, Math.round(h / block));
+    const small = document.createElement('canvas');
+    small.width = sw;
+    small.height = sh;
+    const sctx = small.getContext('2d');
+    if (!sctx) return null;
+    sctx.imageSmoothingEnabled = true;
     try {
-      cx.drawImage(img, a.x, a.y, a.width, a.height, 0, 0, sw, sh);
+      sctx.drawImage(img, a.x, a.y, a.width, a.height, 0, 0, sw, sh);
     } catch {
       return null;
     }
-    return c;
+    // Rebuild at full size matching flatten.ts: opaque base + soft Gaussian.
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    const octx = out.getContext('2d');
+    if (!octx) return null;
+    octx.imageSmoothingEnabled = true;
+    octx.drawImage(small, 0, 0, sw, sh, 0, 0, w, h);
+    octx.filter = `blur(${Math.max(1, Math.round(block * 0.6))}px)`;
+    octx.drawImage(small, 0, 0, sw, sh, 0, 0, w, h);
+    octx.filter = 'none';
+    return out;
   }, [img, a.x, a.y, a.width, a.height, a.blockSize, a.mode]);
 
   if (a.mode === 'solid' || !preview) {
@@ -165,7 +176,6 @@ export function Editor({
   const [redactMode, setRedactMode] = React.useState<'pixelate' | 'solid'>('pixelate');
   const [color, setColor] = React.useState(ACCENT); // default for new shapes
   const [markerColor, setMarkerColor] = React.useState(step.markerColor ?? ACCENT);
-  const [zoom, setZoom] = React.useState(1);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState<Rect | null>(null);
   const [arrowDraft, setArrowDraft] = React.useState<
@@ -208,8 +218,7 @@ export function Editor({
 
   const natW = img?.naturalWidth ?? 0;
   const natH = img?.naturalHeight ?? 0;
-  const fitScale = natW && natH ? Math.min(VIEW_W / natW, VIEW_H / natH, 1) : 1;
-  const scale = fitScale * zoom;
+  const scale = natW && natH ? Math.min(VIEW_W / natW, VIEW_H / natH, 1) : 1;
   const markerR = natW && natH ? clickMarkerRadius(natW, natH) : 20;
 
   const selected = annotations.find((a) => a.id === selectedId) ?? null;
@@ -515,74 +524,7 @@ export function Editor({
           ))}
         </div>
 
-        {showColorCtl && (
-          <label className="ed__opt ed__opt--color" title="Color">
-            <input
-              type="color"
-              value={colorVal}
-              onChange={(e) => changeColor(e.target.value)}
-            />
-          </label>
-        )}
-        {showStrokeCtl && (
-          <label className="ed__opt" title="Line width">
-            Width
-            <input
-              type="range"
-              min={1}
-              max={80}
-              value={strokeVal}
-              onChange={(e) => changeStroke(Number(e.target.value))}
-            />
-          </label>
-        )}
-        {showBlurCtl && (
-          <>
-            <label className="ed__opt" title="How redaction is baked in">
-              <select value={modeVal} onChange={(e) => changeMode(e.target.value as 'pixelate' | 'solid')}>
-                <option value="pixelate">Blur</option>
-                <option value="solid">Black box</option>
-              </select>
-            </label>
-            {modeVal === 'pixelate' && (
-              <label
-                className="ed__opt"
-                title="Blur strength — higher is stronger; the minimum keeps text unreadable"
-              >
-                Blur
-                <input
-                  type="range"
-                  min={MIN_REDACT_BLOCK}
-                  max={60}
-                  value={blockVal}
-                  onChange={(e) => changeBlock(Number(e.target.value))}
-                />
-              </label>
-            )}
-          </>
-        )}
-
         <div className="ed__spacer" />
-
-        <div className="ed__zoom" title="Zoom">
-          <button
-            type="button"
-            className="ed__tool"
-            onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z / 1.25))}
-          >
-            −
-          </button>
-          <button type="button" className="ed__tool" onClick={() => setZoom(1)}>
-            {Math.round(scale * 100)}%
-          </button>
-          <button
-            type="button"
-            className="ed__tool"
-            onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z * 1.25))}
-          >
-            +
-          </button>
-        </div>
 
         {crop && (
           <button type="button" className="btn btn--small" onClick={() => setCrop(null)}>
@@ -605,6 +547,63 @@ export function Editor({
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
+      </div>
+
+      {/* Properties row — reserved height so the modal doesn't reflow/grow. */}
+      <div className="ed__props">
+        {showColorCtl && (
+          <label className="ed__opt ed__opt--color" title="Color">
+            Color
+            <input
+              type="color"
+              value={colorVal}
+              onChange={(e) => changeColor(e.target.value)}
+            />
+          </label>
+        )}
+        {showStrokeCtl && (
+          <label className="ed__opt" title="Line width">
+            Width
+            <input
+              type="range"
+              min={1}
+              max={80}
+              value={strokeVal}
+              onChange={(e) => changeStroke(Number(e.target.value))}
+            />
+          </label>
+        )}
+        {showBlurCtl && (
+          <>
+            <label className="ed__opt" title="How redaction is baked in">
+              Redact
+              <select value={modeVal} onChange={(e) => changeMode(e.target.value as 'pixelate' | 'solid')}>
+                <option value="pixelate">Blur</option>
+                <option value="solid">Black box</option>
+              </select>
+            </label>
+            {modeVal === 'pixelate' && (
+              <label
+                className="ed__opt"
+                title="Blur strength — higher is stronger; the minimum keeps text unreadable"
+              >
+                Strength
+                <input
+                  type="range"
+                  min={MIN_REDACT_BLOCK}
+                  max={60}
+                  value={blockVal}
+                  onChange={(e) => changeBlock(Number(e.target.value))}
+                />
+              </label>
+            )}
+          </>
+        )}
+        {!showColorCtl && !showStrokeCtl && !showBlurCtl && (
+          <span className="ed__props-hint">
+            Select an element to change its color, width, or blur.
+          </span>
+        )}
       </div>
 
       {error && <p className="project__error">Error: {error}</p>}

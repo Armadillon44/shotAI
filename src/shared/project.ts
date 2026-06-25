@@ -188,6 +188,10 @@ export interface ProjectStep {
    * report/export prefer it over the raw screenshot. null until first edited.
    */
   flattened?: string | null;
+  /** Bumped each time `flattened` is rewritten — used to cache-bust the <img>. */
+  renderRev?: number;
+  /** Per-step DISPLAY zoom in the report (default 1); does not affect export. */
+  reportZoom?: number;
 }
 
 /** Editor-mutable fields of a step (sent over IPC by the inline editor). */
@@ -203,6 +207,7 @@ export type StepPatch = Partial<
     | 'annotations'
     | 'click'
     | 'markerColor'
+    | 'reportZoom'
   >
 >;
 

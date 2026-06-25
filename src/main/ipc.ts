@@ -132,6 +132,7 @@ function parseStepPatch(value: unknown): StepPatch {
   if (typeof v.markerColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.markerColor)) {
     patch.markerColor = v.markerColor;
   }
+  if (isNum(v.reportZoom)) patch.reportZoom = Math.max(0.2, Math.min(6, v.reportZoom));
   if (Array.isArray(v.annotations)) {
     patch.annotations = v.annotations.filter((a: unknown): a is Annotation => {
       if (!a || typeof a !== 'object') return false;
@@ -231,6 +232,22 @@ export function registerIpcHandlers(
         parseStepPatch(patch),
         buf,
       );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.importStep,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, bytes: unknown) => {
+      devLog('ipc: projects:import-step');
+      const buf =
+        bytes instanceof Uint8Array
+          ? Buffer.from(bytes)
+          : bytes instanceof ArrayBuffer
+            ? Buffer.from(new Uint8Array(bytes))
+            : null;
+      if (!buf || buf.length === 0) throw new Error('No image data received');
+      if (buf.length > 60 * 1024 * 1024) throw new Error('Image too large (max 60 MB)');
+      return projectStore.importStep(asString(projectPath, 'projectPath'), buf);
     },
   );
 

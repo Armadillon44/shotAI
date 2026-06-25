@@ -29,6 +29,8 @@ const api: ShotaiApi = {
         patch,
         flattenedPng ?? null,
       ),
+    importStep: (projectPath: string, bytes: Uint8Array) =>
+      ipcRenderer.invoke(IpcChannels.importStep, projectPath, bytes),
   },
   capture: {
     start: (projectPath: string, target?: CaptureTarget) =>

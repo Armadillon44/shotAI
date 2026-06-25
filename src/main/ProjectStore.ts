@@ -302,12 +302,91 @@ export function updateStep(
       await fs.writeFile(path.join(renderDir, `${stepId}.png`), flattenedPng);
       // posix separators for the shot:// URL the renderer builds from this.
       step.flattened = path.posix.join('export', '.render', `${stepId}.png`);
+      // Bump only on a real re-render so the report cache-busts the <img> then —
+      // but NOT on display-only patches (e.g. reportZoom), avoiding a reload.
+      step.renderRev = (step.renderRev ?? 0) + 1;
     }
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
     return manifest;
   });
   // Keep the chain alive even if one write rejects.
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Detect a supported image by its magic bytes (don't trust the extension). */
+function detectImage(bytes: Buffer): 'png' | 'jpg' | null {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    return 'png';
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'jpg';
+  }
+  return null;
+}
+
+/**
+ * Import a user-supplied image as a new (appended) screenshot step. Validates
+ * the bytes are actually a PNG/JPEG (magic bytes, not the extension) and writes
+ * them into shots/ with a non-colliding name. Serialized via the writeQueue.
+ */
+export function importStep(
+  projectPath: string,
+  bytes: Buffer,
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    const kind = detectImage(bytes);
+    if (!kind) {
+      throw new Error('Unsupported file — please choose a PNG or JPEG image.');
+    }
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const shotsDir = path.join(resolved, 'shots');
+    await fs.mkdir(shotsDir, { recursive: true });
+
+    // Next free step-NNNN past existing files + manifest, so we never overwrite.
+    let maxFile = manifest.steps.length;
+    try {
+      for (const f of await fs.readdir(shotsDir)) {
+        const m = /^step-(\d+)\./i.exec(f);
+        if (m) maxFile = Math.max(maxFile, Number(m[1]));
+      }
+    } catch {
+      /* shots/ unreadable — fall back to manifest length */
+    }
+    const filename = `step-${String(maxFile + 1).padStart(4, '0')}.${kind}`;
+    await fs.writeFile(path.join(shotsDir, filename), bytes, { flag: 'wx' });
+
+    const order = manifest.steps.reduce((mx, s) => Math.max(mx, s.order), 0) + 1;
+    const step: ProjectStep = {
+      id: randomUUID(),
+      order,
+      screenshot: `shots/${filename}`,
+      trigger: 'hotkey',
+      click: null,
+      monitor: null,
+      window: null,
+      element: { available: false, name: null, controlType: null, bounds: null },
+      caption: 'Imported screenshot',
+      note: '',
+      crop: null,
+      annotations: [],
+    };
+    manifest.steps.push(step);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return manifest;
+  });
   writeQueue = run.then(
     () => undefined,
     () => undefined,

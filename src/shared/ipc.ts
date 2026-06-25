@@ -41,6 +41,7 @@ export const IpcChannels = {
   createProject: 'projects:create',
   openProject: 'projects:open',
   updateStep: 'projects:update-step',
+  importStep: 'projects:import-step',
   captureStart: 'capture:start',
   capturePause: 'capture:pause',
   captureResume: 'capture:resume',
@@ -82,6 +83,11 @@ export interface ShotaiApi {
       patch: StepPatch,
       flattenedPng?: Uint8Array | null,
     ): Promise<ProjectManifest>;
+    /**
+     * Import a user-supplied PNG/JPEG as a new appended step. Main validates the
+     * bytes are actually an image (magic bytes). Returns the updated manifest.
+     */
+    importStep(projectPath: string, bytes: Uint8Array): Promise<ProjectManifest>;
   };
   capture: {
     /**

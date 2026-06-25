@@ -18,11 +18,32 @@ export function ProjectDetail(): React.JSX.Element {
   const applyManifest = useProjectStore((s) => s.applyManifest);
 
   const [editing, setEditing] = React.useState<ProjectStep | null>(null);
+  const [importing, setImporting] = React.useState(false);
+  const [importErr, setImportErr] = React.useState<string | null>(null);
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
 
   // Only screenshot steps open the image editor (text steps get a text editor in 2c).
   const onEditStep = (step: ProjectStep) => {
     if (step.kind === 'text') return;
     setEditing(step);
+  };
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file || !projectPath) return;
+    setImporting(true);
+    setImportErr(null);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      // Main also validates by magic bytes; this is a fast client-side reject.
+      const manifest = await window.shotai.projects.importStep(projectPath, bytes);
+      applyManifest(manifest);
+    } catch (err) {
+      setImportErr(err instanceof Error ? err.message : String(err));
+    } finally {
+      setImporting(false);
+    }
   };
 
   return (
@@ -34,11 +55,28 @@ export function ProjectDetail(): React.JSX.Element {
         <h2 className="detail__title" title={title}>
           {title}
         </h2>
+        <button
+          type="button"
+          className="btn btn--small"
+          disabled={importing}
+          onClick={() => fileRef.current?.click()}
+          title="Add your own PNG/JPEG image as a new step"
+        >
+          {importing ? 'Importing…' : 'Import image'}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg"
+          style={{ display: 'none' }}
+          onChange={onImportFile}
+        />
         <span className="detail__count">
           {steps.length} step{steps.length === 1 ? '' : 's'}
         </span>
       </div>
 
+      {importErr && <p className="project__error">Import failed: {importErr}</p>}
       {error && <p className="project__error">Error: {error}</p>}
       {loading ? (
         <p className="project__hint">Loading…</p>
