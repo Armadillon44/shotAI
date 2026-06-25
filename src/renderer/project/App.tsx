@@ -214,16 +214,22 @@ export function App(): React.JSX.Element {
 
   return (
     <main className="project">
-      <header className="project__header">
-        <div className="project__brand">
-          <span className="project__logo" aria-hidden="true">
-            ◎
-          </span>
-          <h1 className="project__title">shotAI</h1>
-        </div>
-      </header>
+      {/* The shotAI banner is hidden in the detail/edit view so the project's
+          own sticky header pins flush to the top. */}
+      {!showDetail && (
+        <header className="project__header">
+          <div className="project__brand">
+            <span className="project__logo" aria-hidden="true">
+              ◎
+            </span>
+            <h1 className="project__title">shotAI</h1>
+          </div>
+        </header>
+      )}
 
-      <section className="project__body">
+      <section
+        className={`project__body${showDetail ? ' project__body--detail' : ''}`}
+      >
         {error && <p className="project__error">Error: {error}</p>}
 
         {recording && capture && (

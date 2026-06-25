@@ -58,6 +58,12 @@ body {
   overflow-y: auto;
 }
 
+/* Detail/edit view: no banner above, so drop the top padding and let the
+   project's own sticky header (.detail__bar) pin flush to the very top. */
+.project__body--detail {
+  padding-top: 0;
+}
+
 .project__error {
   margin: 0 0 1rem;
   padding: 0.6rem 0.8rem;
