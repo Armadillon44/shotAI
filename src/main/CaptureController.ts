@@ -49,8 +49,27 @@ const DEFAULT_TARGET: CaptureTarget = { mode: 'auto' };
 // (ms) after a right-click the next click is assumed to be that selection. It's
 // generous because the menu stays open until the user clicks, and they may
 // read/hover submenus first; a stray non-menu click only crops to ~the owner
-// window anyway (cheap). One-shot: consumed by the next click.
+// window anyway (cheap). The arm is consumed by the next click but RE-ARMED
+// (for SUBMENU_FOLLOWUP_WINDOW_MS) after each menu selection so a flyout chain
+// (e.g. View → Extra large icons) captures every level — see onMouseDown.
 const MENU_FOLLOWUP_WINDOW_MS = 30000;
+// After a menu selection, re-arm for this much shorter window: submenu
+// navigation is quick, and a short window limits how long an ordinary next
+// click could be mis-read as a menu selection once the menu has closed.
+const SUBMENU_FOLLOWUP_WINDOW_MS = 6000;
+// A context menu (and its submenus) opens at/around the click point. A click
+// within this box (logical px, scaled by the monitor's factor) of the previous
+// menu point is treated as continued menu navigation; a click outside means the
+// menu was dismissed and the user moved on, so we disarm. Generous to the right
+// and down (where menus/submenus open) but bounded so distant clicks disarm.
+const MENU_PROXIMITY_X = 640;
+const MENU_PROXIMITY_Y = 680;
+// While a menu is armed, we grab the monitor on mouse MOVE (throttled) so we
+// have a frame of the menu taken while it is STABLY open — capturing only at
+// the selection click races the menu's dismissal on mouse-up (on a slow/remote
+// display the click grab can land after the popup has cleared). The selection
+// step uses the most recent hover grab; this is how often (ms) we take one.
+const HOVER_GRAB_THROTTLE_MS = 200;
 
 type Natives = {
   uIOhook: typeof import('uiohook-napi').uIOhook;
@@ -61,6 +80,7 @@ type Natives = {
 
 type NsMonitor = InstanceType<Natives['Monitor']>;
 type NsWindow = InstanceType<Natives['Window']>;
+type NsImage = ReturnType<NsMonitor['captureImageSync']>;
 
 /** A captured image plus where its top-left sits in global physical pixels. */
 type Grab = {
@@ -140,8 +160,19 @@ export class CaptureController {
   // Armed by a right-click: the next click is treated as a context-menu
   // selection (see MENU_FOLLOWUP_WINDOW_MS). `ownerBounds` is the right-clicked
   // window's bounds (filled in by captureStep) so the selection shot can frame
-  // the menu together with its window. null = unarmed.
-  private menuFollowUp: { until: number; ownerBounds: Rect | null } | null = null;
+  // the menu together with its window. `lastPoint` is the right-click (then each
+  // menu selection) point — the proximity gate that decides whether the next
+  // click is still menu navigation. `hoverGrab` is the most recent monitor frame
+  // taken while the cursor hovers the open menu (see HOVER_GRAB_THROTTLE_MS); the
+  // selection step prefers it over grabbing at click-time, which races the
+  // dismissal. `lastHoverAt` throttles those grabs. null = unarmed.
+  private menuFollowUp: {
+    until: number;
+    ownerBounds: Rect | null;
+    lastPoint: Point;
+    hoverGrab: { image: NsImage; monitor: NsMonitor } | null;
+    lastHoverAt: number;
+  } | null = null;
 
   private readonly onMouseDown = (event: UiohookMouseEvent): void => {
     if (!this.session || this.session.paused) return;
@@ -150,32 +181,130 @@ export class CaptureController {
 
     if (button === 'right') {
       // Record the right-click itself now (the target), and arm a window: the
-      // next click is almost certainly the menu selection. The menu stays open
-      // until that click, so the window is generous.
+      // next click is almost certainly the menu selection. The menu opens AT the
+      // cursor, so subsequent selections cluster near this point — seed it as
+      // lastPoint for the proximity gate. ownerBounds is filled by captureStep.
       this.menuFollowUp = {
         until: Date.now() + MENU_FOLLOWUP_WINDOW_MS,
         ownerBounds: null,
+        lastPoint: point,
+        hoverGrab: null,
+        lastHoverAt: 0,
       };
+      captureLog.debug(`menu: armed by right-click at (${point.x},${point.y})`);
       this.enqueue(() => this.captureStep('click', point, button));
       return;
     }
 
-    // A left-click within the armed window = selecting from the context menu;
-    // capture so the popup is included and framed with its owner window/area.
-    const followUp =
-      button === 'left' && this.menuFollowUp && Date.now() < this.menuFollowUp.until
-        ? this.menuFollowUp
-        : null;
-    this.menuFollowUp = null; // one-shot: any click consumes the armed window
-    this.enqueue(() =>
-      this.captureStep(
-        'click',
-        point,
-        button,
-        followUp ? { menuPopup: true, menuOwnerBounds: followUp.ownerBounds } : {},
-      ),
-    );
+    // A left-click within the armed window AND near the last menu point = a
+    // context-menu (or submenu) selection. Use the most recent hover grab — a
+    // frame taken while the menu was stably open (see onMouseMove). Capturing
+    // only here races the menu's dismissal on mouse-up; on a slow/remote display
+    // the grab lands after the popup clears. Fall back to a grab now only if the
+    // user clicked without moving (no hover grab was taken).
+    const fu = this.menuFollowUp;
+    const isMenuSelect =
+      button === 'left' &&
+      !!fu &&
+      Date.now() < fu.until &&
+      this.nearMenuPoint(point, fu.lastPoint);
+
+    if (isMenuSelect) {
+      const ownerBounds = fu?.ownerBounds ?? null;
+      const usedHover = !!fu?.hoverGrab;
+      const preGrab = fu?.hoverGrab ?? this.grabClickMonitorSync(point);
+      captureLog.debug(
+        `menu: selection at (${point.x},${point.y}) — using ${usedHover ? 'hover grab' : preGrab ? 'click-time grab (no hover)' : 'NO grab'}`,
+      );
+      // Re-arm (shorter window) so the next click in a flyout/submenu chain is
+      // also captured as a menu selection; the proximity gate disarms it once
+      // the user clicks away from the menu. Reset the hover grab so the next
+      // selection captures the (possibly changed) submenu, not this frame.
+      this.menuFollowUp = {
+        until: Date.now() + SUBMENU_FOLLOWUP_WINDOW_MS,
+        ownerBounds,
+        lastPoint: point,
+        hoverGrab: null,
+        lastHoverAt: 0,
+      };
+      this.enqueue(() =>
+        this.captureStep('click', point, button, {
+          menuPopup: true,
+          menuOwnerBounds: ownerBounds,
+          preGrab,
+        }),
+      );
+      return;
+    }
+
+    if (fu) {
+      // There was an arm but this click wasn't treated as a menu selection —
+      // log why, so the failing cases are diagnosable from the log file.
+      const reason =
+        button !== 'left'
+          ? `button=${button}`
+          : Date.now() >= fu.until
+            ? 'window expired'
+            : `too far from (${fu.lastPoint.x},${fu.lastPoint.y})`;
+      captureLog.debug(`menu: disarmed — click at (${point.x},${point.y}) not a selection (${reason})`);
+    }
+    this.menuFollowUp = null; // a non-menu click disarms the follow-up
+    this.enqueue(() => this.captureStep('click', point, button));
   };
+
+  // While a menu is armed, keep a fresh monitor frame taken WHILE the cursor
+  // hovers the open menu. The selection click then uses this frame instead of
+  // grabbing at click-time (which races the menu's dismissal). Throttled, and
+  // gated to the menu's vicinity so wandering the cursor elsewhere doesn't churn
+  // captures or overwrite a good frame with one that no longer shows the menu.
+  private readonly onMouseMove = (event: UiohookMouseEvent): void => {
+    if (!this.session || this.session.paused) return;
+    const fu = this.menuFollowUp;
+    if (!fu) return;
+    const now = Date.now();
+    if (now >= fu.until || now - fu.lastHoverAt < HOVER_GRAB_THROTTLE_MS) return;
+    const point = { x: event.x, y: event.y };
+    if (!this.nearMenuPoint(point, fu.lastPoint)) return;
+    fu.lastHoverAt = now;
+    const grab = this.grabClickMonitorSync(point);
+    if (grab) fu.hoverGrab = grab;
+  };
+
+  /** True when a click is close enough to the previous menu point to still be
+   *  menu navigation (vs. the user having dismissed the menu and moved on). */
+  private nearMenuPoint(point: Point, last: Point): boolean {
+    let sf = 1;
+    try {
+      sf = this.natives?.Monitor.fromPoint(point.x, point.y)?.scaleFactor() ?? 1;
+    } catch {
+      /* fall back to 1× */
+    }
+    return (
+      Math.abs(point.x - last.x) <= MENU_PROXIMITY_X * sf &&
+      Math.abs(point.y - last.y) <= MENU_PROXIMITY_Y * sf
+    );
+  }
+
+  /** Synchronously capture the monitor under a click. Used for menu selections,
+   *  where any async delay lets the popup dismiss before we can grab it. */
+  private grabClickMonitorSync(
+    point: Point,
+  ): { image: NsImage; monitor: NsMonitor } | null {
+    if (!this.natives) return null;
+    const { Monitor } = this.natives;
+    try {
+      const mon =
+        Monitor.fromPoint(point.x, point.y) ??
+        Monitor.all().find((m) => m.isPrimary()) ??
+        Monitor.all()[0] ??
+        null;
+      if (!mon) return null;
+      return { image: mon.captureImageSync(), monitor: mon };
+    } catch (e) {
+      captureLog.warn('synchronous menu grab failed:', e);
+      return null;
+    }
+  }
 
   private readonly onHotkey = (): void => {
     if (!this.session || this.session.paused) return;
@@ -284,6 +413,7 @@ export class CaptureController {
     const { uIOhook } = this.natives!;
     if (!this.hookAttached) {
       uIOhook.on('mousedown', this.onMouseDown);
+      uIOhook.on('mousemove', this.onMouseMove);
       uIOhook.start();
       this.hookAttached = true;
     }
@@ -296,6 +426,7 @@ export class CaptureController {
     this.menuFollowUp = null; // don't carry an armed menu window across sessions
     if (this.hookAttached && this.natives) {
       this.natives.uIOhook.off('mousedown', this.onMouseDown);
+      this.natives.uIOhook.off('mousemove', this.onMouseMove);
       this.natives.uIOhook.stop();
       this.hookAttached = false;
     }
@@ -438,7 +569,11 @@ export class CaptureController {
     trigger: ProjectStep['trigger'],
     point: Point | null,
     button: StepClick['button'] = 'left',
-    opts: { menuPopup?: boolean; menuOwnerBounds?: Rect | null } = {},
+    opts: {
+      menuPopup?: boolean;
+      menuOwnerBounds?: Rect | null;
+      preGrab?: { image: NsImage; monitor: NsMonitor } | null;
+    } = {},
   ): Promise<ProjectStep | null> {
     // Re-check here (not just at enqueue) so a pause/stop that lands while
     // tasks are queued actually suppresses the backlog.
@@ -511,13 +646,30 @@ export class CaptureController {
               }
             : null;
 
-        let mon: NsMonitor | null = clickMonitor;
-        if (mode === 'screen' && target.monitorId != null) {
-          mon = Monitor.all().find((m) => m.id() === target.monitorId) ?? clickMonitor;
-        } else if (winRect) {
-          mon = Monitor.fromPoint(winRect.x, winRect.y) ?? clickMonitor;
+        // Prefer the pixels grabbed synchronously at mousedown (the menu is
+        // still painted then). The pre-grab is always the monitor under the
+        // click — which is where the menu is — so it's used as-is. Without it
+        // (e.g. the headless test), fall back to grabbing now, best-effort.
+        let mon: NsMonitor | null;
+        let full: NsImage;
+        if (opts.preGrab) {
+          mon = opts.preGrab.monitor;
+          full = opts.preGrab.image;
+        } else {
+          mon = clickMonitor;
+          if (mode === 'screen' && target.monitorId != null) {
+            mon = Monitor.all().find((m) => m.id() === target.monitorId) ?? clickMonitor;
+          } else if (winRect) {
+            mon = Monitor.fromPoint(winRect.x, winRect.y) ?? clickMonitor;
+          }
+          if (!mon) return null;
+          try {
+            full = mon.captureImageSync();
+          } catch (e) {
+            captureLog.warn('menu-popup capture failed:', e);
+            return null;
+          }
         }
-        if (!mon) return null;
 
         let region: Rect | null = null;
         if (mode !== 'screen' && mode !== 'all') {
@@ -541,7 +693,6 @@ export class CaptureController {
         }
 
         try {
-          const full = mon.captureImageSync();
           if (!region) {
             return {
               png: full.toPngSync(),
@@ -563,7 +714,7 @@ export class CaptureController {
             monitor: mon,
           };
         } catch (e) {
-          captureLog.warn('menu-popup capture failed:', e);
+          captureLog.warn('menu-popup crop failed:', e);
           return null;
         }
       }
