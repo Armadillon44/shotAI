@@ -459,6 +459,47 @@ body {
   gap: 0.5rem;
 }
 
+/* Export button + dropdown menu (HTML / PDF / Markdown). */
+.export {
+  position: relative;
+  display: inline-flex;
+}
+.export__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+.export__item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: #1f2937;
+  cursor: pointer;
+}
+.export__item:hover {
+  background: #f1f5f9;
+}
+.export__hint {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
 .detail__title {
   flex: 1;
   min-width: 0;

@@ -74,6 +74,16 @@ export interface SopProgress {
   chars?: number;
 }
 
+/** Output format for an exported report/SOP. */
+export type ExportFormat = 'html' | 'pdf' | 'markdown';
+
+/** Result of an export — the file that was written (revealed in the OS file manager). */
+export interface ExportResult {
+  format: ExportFormat;
+  /** Absolute path to the written file. */
+  outputPath: string;
+}
+
 /** IPC channel names — single source of truth. */
 export const IpcChannels = {
   getAppInfo: 'app:get-info',
@@ -87,6 +97,7 @@ export const IpcChannels = {
   deleteStep: 'projects:delete-step',
   reorderSteps: 'projects:reorder-steps',
   addTextStep: 'projects:add-text-step',
+  exportProject: 'projects:export',
   // SOP settings + Claude key management (Phase 3)
   getSopSettings: 'settings:get-sop',
   setSopSettings: 'settings:set-sop',
@@ -159,6 +170,13 @@ export interface ShotaiApi {
     addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
     revertSop(projectPath: string): Promise<ProjectManifest>;
+    /**
+     * Export the project's report/SOP to a self-contained file under `export/`.
+     * The renderer must flatten all shot steps first (so only redacted renders
+     * are written/embedded). On success the file is revealed in the OS file
+     * manager. Returns the written file path.
+     */
+    export(projectPath: string, format: ExportFormat): Promise<ExportResult>;
   };
   settings: {
     /** Current SOP generation settings (non-secret; never includes the API key). */

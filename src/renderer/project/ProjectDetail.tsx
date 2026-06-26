@@ -3,10 +3,18 @@
 // edited. Shown when a project is open (store.projectPath set).
 import React from 'react';
 import type { ProjectStep } from '../../shared/project';
+import type { ExportFormat } from '../../shared/ipc';
 import { useProjectStore } from './store';
+import { ensureFlattened } from './sop-prepare';
 import { Report } from './Report';
 import { SopPanel } from './SopPanel';
 import { Editor } from '../editor/Editor';
+
+const EXPORT_LABEL: Record<ExportFormat, string> = {
+  html: 'HTML',
+  pdf: 'PDF',
+  markdown: 'Markdown',
+};
 
 export function ProjectDetail({
   onResumeCapture,
@@ -48,6 +56,62 @@ export function ProjectDetail({
       .then((s) => setSopEnabled(s.enabled))
       .catch(() => undefined);
   }, []);
+
+  // Export menu (HTML / PDF / Markdown). Export is independent of AI — it works on
+  // the report whether or not Claude was run.
+  const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
+  const [exporting, setExporting] = React.useState<ExportFormat | null>(null);
+  const [exportErr, setExportErr] = React.useState<string | null>(null);
+  const exportRef = React.useRef<HTMLDivElement | null>(null);
+  // Aborts an in-flight flatten if the user leaves the project mid-export.
+  const exportAbortRef = React.useRef<AbortController | null>(null);
+  const hasShots = steps.some((s) => s.kind !== 'text');
+
+  React.useEffect(
+    () => () => exportAbortRef.current?.abort(),
+    [projectId],
+  );
+
+  React.useEffect(() => {
+    if (!exportMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExportMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [exportMenuOpen]);
+
+  const doExport = async (format: ExportFormat) => {
+    if (!projectPath || !projectId) return;
+    exportAbortRef.current?.abort();
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
+    setExportMenuOpen(false);
+    setExportErr(null);
+    setExporting(format);
+    try {
+      // Flatten first so only redacted, marker-baked renders are written/embedded
+      // (export refuses raw screenshots for any step with a redaction/crop).
+      const flattened = await ensureFlattened(projectId, projectPath, steps, controller.signal);
+      if (flattened) applyManifest(flattened);
+      await window.shotai.projects.export(projectPath, format);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return; // left the project
+      setExportErr(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (exportAbortRef.current === controller) exportAbortRef.current = null;
+      setExporting(null);
+    }
+  };
 
   // Only screenshot steps open the image editor (text steps edit inline in the report).
   const onEditStep = (step: ProjectStep) => {
@@ -178,6 +242,54 @@ export function ProjectDetail({
           >
             {importing ? 'Importing…' : 'Import image'}
           </button>
+          <div className="export" ref={exportRef}>
+            <button
+              type="button"
+              className="btn btn--small"
+              disabled={!hasShots || exporting !== null || textEditing || importing}
+              onClick={() => setExportMenuOpen((o) => !o)}
+              title={
+                !hasShots
+                  ? 'Add a screenshot before exporting'
+                  : textEditing
+                    ? 'Finish editing the text step first'
+                    : 'Export this report as HTML, PDF, or Markdown'
+              }
+            >
+              {exporting ? `Exporting ${EXPORT_LABEL[exporting]}…` : '⬇ Export'}
+            </button>
+            {exportMenuOpen && (
+              <div className="export__menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="export__item"
+                  disabled={exporting !== null}
+                  onClick={() => void doExport('html')}
+                >
+                  HTML <span className="export__hint">single self-contained file</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="export__item"
+                  disabled={exporting !== null}
+                  onClick={() => void doExport('pdf')}
+                >
+                  PDF <span className="export__hint">print-ready document</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="export__item"
+                  disabled={exporting !== null}
+                  onClick={() => void doExport('markdown')}
+                >
+                  Markdown <span className="export__hint">.md + images/ folder</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <input
           ref={fileRef}
@@ -189,6 +301,7 @@ export function ProjectDetail({
       </div>
 
       {importErr && <p className="project__error">Import failed: {importErr}</p>}
+      {exportErr && <p className="project__error">Export failed: {exportErr}</p>}
       {error && <p className="project__error">Error: {error}</p>}
       {loading ? (
         <p className="project__hint">Loading…</p>

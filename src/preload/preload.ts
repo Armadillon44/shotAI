@@ -6,6 +6,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
   IpcChannels,
   type CaptureState,
+  type ExportFormat,
   type ShotaiApi,
   type SopProgress,
 } from '../shared/ipc';
@@ -45,6 +46,8 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex),
     revertSop: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),
+    export: (projectPath: string, format: ExportFormat) =>
+      ipcRenderer.invoke(IpcChannels.exportProject, projectPath, format),
   },
   settings: {
     getSop: () => ipcRenderer.invoke(IpcChannels.getSopSettings),

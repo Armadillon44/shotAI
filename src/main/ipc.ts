@@ -5,8 +5,9 @@ import {
   ipcMain,
   type IpcMainInvokeEvent,
 } from 'electron';
-import { IpcChannels, type AppInfo } from '../shared/ipc';
+import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
 import * as projectStore from './ProjectStore';
+import { exportProject } from './export';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
 import type {
@@ -119,6 +120,19 @@ function parseClick(value: unknown): StepClick | null {
       ? (c.button as StepClick['button'])
       : 'left';
   return { global, image, button };
+}
+
+const EXPORT_FORMATS: ReadonlySet<ExportFormat> = new Set<ExportFormat>([
+  'html',
+  'pdf',
+  'markdown',
+]);
+
+function parseExportFormat(value: unknown): ExportFormat {
+  if (typeof value !== 'string' || !EXPORT_FORMATS.has(value as ExportFormat)) {
+    throw new Error('format must be one of: html, pdf, markdown');
+  }
+  return value as ExportFormat;
 }
 
 const STEP_KINDS: ReadonlySet<StepKind> = new Set<StepKind>(['shot', 'text']);
@@ -327,6 +341,17 @@ export function registerIpcHandlers(
       return projectStore.addTextStep(
         asString(projectPath, 'projectPath'),
         isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.exportProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+      devLog('ipc: projects:export');
+      return exportProject(
+        asString(projectPath, 'projectPath'),
+        parseExportFormat(format),
       );
     },
   );
