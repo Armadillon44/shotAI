@@ -338,6 +338,8 @@ export function updateStep(
       // FRESHNESS, not mere existence (Phase-3b review). The shipping editor always
       // co-sends a PNG so this branch only fires on annotations/crop-only patches.
       step.flattened = null;
+      // The dropped render also carried the baked marker; the next bake must redo it.
+      step.markerBaked = false;
     }
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
@@ -529,10 +531,8 @@ export function applySopEdits(
       }
       next.push({
         ...step,
+        // Fall back to existing text if the model returns blank (don't wipe).
         caption: e.caption.trim() || step.caption,
-        // Fall back to the existing value (don't wipe user-written text) if the
-        // model returns blank — mirrors the caption guard.
-        heading: e.heading.trim() || step.heading || '',
         body: e.body.trim() || step.body || '',
         note: e.note ?? step.note,
       });

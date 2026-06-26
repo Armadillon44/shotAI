@@ -32,12 +32,28 @@ export async function ensureFlattened(
   let latest: ProjectManifest | null = null;
   for (const step of steps) {
     if (step.kind === 'text') continue;
-    if (step.flattened) continue;
+    // Re-bake when there's no render OR the existing render predates marker-baking
+    // (markerBaked falsy) — otherwise Claude would get a render with no click ring.
+    if (step.flattened && step.markerBaked) continue;
     if (!step.screenshot) continue;
     const img = await loadImage(shotUrl(projectId, step.screenshot));
-    const blob = await flattenToPng(img, step.annotations, step.crop);
+    // Bake the click ring so Claude's vision sees exactly what was clicked
+    // (matches the report's marker color default).
+    const marker = step.click
+      ? {
+          x: step.click.image.x,
+          y: step.click.image.y,
+          color: step.markerColor ?? (step.click.button === 'right' ? '#2563eb' : '#e11d48'),
+        }
+      : null;
+    const blob = await flattenToPng(img, step.annotations, step.crop, marker);
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    latest = await window.shotai.projects.updateStep(projectPath, step.id, {}, bytes);
+    latest = await window.shotai.projects.updateStep(
+      projectPath,
+      step.id,
+      { markerBaked: true },
+      bytes,
+    );
   }
   return latest;
 }

@@ -46,8 +46,11 @@ function StepFigure({
   // displayed image is the cropped flatten; hidden if outside the visible region.
   const offX = flattened && step.crop ? step.crop.x : 0;
   const offY = flattened && step.crop ? step.crop.y : 0;
+  // When the render is marker-baked the ring is already in the pixels — don't
+  // draw the CSS overlay on top (it would double). Pre-marker + un-flattened
+  // renders keep the overlay so the click is still shown.
   let marker: { left: string; top: string } | null = null;
-  if (dims && step.click && dims.w > 0 && dims.h > 0) {
+  if (dims && step.click && !step.markerBaked && dims.w > 0 && dims.h > 0) {
     const fx = (step.click.image.x - offX) / dims.w;
     const fy = (step.click.image.y - offY) / dims.h;
     if (fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1) {
@@ -285,8 +288,7 @@ export function Report({
   const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
   const [editingCapId, setEditingCapId] = React.useState<string | null>(null);
   const [editingNumId, setEditingNumId] = React.useState<string | null>(null);
-  // Per-screenshot instruction heading + subtext (like a text step, on a shot).
-  const [editingHeadId, setEditingHeadId] = React.useState<string | null>(null);
+  // Per-screenshot instruction text (the body), editable inline under the image.
   const [editingBodyId, setEditingBodyId] = React.useState<string | null>(null);
   const [insertMenuAt, setInsertMenuAt] = React.useState<number | null>(null);
   const [dragIdx, setDragIdx] = React.useState<number | null>(null);
@@ -376,20 +378,8 @@ export function Report({
     }
   };
 
-  // Per-screenshot instruction heading + subtext (reuses the step's heading/body
-  // fields). updateStep here carries no annotations/crop, so the render is untouched.
-  const saveHeading = async (step: ProjectStep, heading: string) => {
-    setEditingHeadId(null);
-    if (!projectPath || heading === (step.heading ?? '')) return;
-    try {
-      applyManifest(
-        await window.shotai.projects.updateStep(projectPath, step.id, { heading }),
-      );
-    } catch {
-      /* ignore */
-    }
-  };
-
+  // Per-screenshot instruction text (reuses the step's body field). updateStep here
+  // carries no annotations/crop, so the flattened render is untouched.
   const saveBody = async (step: ProjectStep, body: string) => {
     setEditingBodyId(null);
     if (!projectPath || body === (step.body ?? '')) return;
@@ -703,31 +693,6 @@ export function Report({
                   {controls(s, idx)}
                 </div>
               </div>
-              {editingHeadId === s.id ? (
-                <InlineInput
-                  initial={s.heading ?? ''}
-                  className="rep__heading-input"
-                  placeholder="Instruction heading…"
-                  onCommit={(v) => void saveHeading(s, v)}
-                  onCancel={() => setEditingHeadId(null)}
-                />
-              ) : s.heading ? (
-                <h4
-                  className="rep__shotheading"
-                  title="Click to edit heading"
-                  onClick={() => setEditingHeadId(s.id)}
-                >
-                  {s.heading}
-                </h4>
-              ) : (
-                <button
-                  type="button"
-                  className="rep__addline"
-                  onClick={() => setEditingHeadId(s.id)}
-                >
-                  + Add heading
-                </button>
-              )}
               <StepFigure projectId={projectId} step={s} onReframe={reframe} />
               {editingBodyId === s.id ? (
                 <InlineTextarea

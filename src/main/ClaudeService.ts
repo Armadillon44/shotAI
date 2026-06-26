@@ -35,7 +35,6 @@ const SopEditSchema = z.object({
     z.object({
       stepNumber: z.number().int(),
       caption: z.string(),
-      heading: z.string(),
       body: z.string(),
       note: z.string().nullable(),
       sectionHeading: z.string().nullable(),
@@ -49,8 +48,9 @@ type SopEdit = z.infer<typeof SopEditSchema>;
 const EST_OUTPUT_TOKENS = 2500;
 
 const BASE_SYSTEM_PROMPT = [
-  'You are an expert technical writer turning a captured screen recording into a polished Standard Operating Procedure (SOP) by EDITING the project in place. You are given an ordered sequence of steps: each screenshot step (labeled "Screenshot step N") has the click location marked plus metadata (application/window, an auto-generated caption, any user note); author-written "Text step" entries are interleaved.',
-  'Return an edit plan (structured output) that improves the project IN-LINE: for every screenshot step, write a clear instruction `heading`, an instruction `body` (the subtext a reader follows), a concise `caption` (a short action label), and optionally a `note` (extra context); reference each screenshot by its number via `stepNumber`. You may add a leading `intro` (heading + body) and, where the procedure shifts to a new phase, a `sectionHeading`/`sectionBody` inserted before a step. Always set `title` to a clear, descriptive name for the overall procedure.',
+  'You are an expert technical writer turning a captured screen recording into a polished Standard Operating Procedure (SOP) by EDITING the project in place. You are given an ordered sequence of steps: each screenshot step (labeled "Screenshot step N") has the exact click point marked on the image with a colored ring (a circle), plus metadata (application/window, an auto-generated caption, any user note); author-written "Text step" entries are interleaved.',
+'Return an edit plan (structured output) that improves the project IN-LINE: for every screenshot step, write a concise, action-oriented `caption` (the step title, e.g. "Open the navigation menu") and a clear instruction `body` (the detail the reader follows), plus optionally a `note` (extra context); reference each screenshot by its number via `stepNumber`. You may add a leading `intro` (heading + body) and, where the procedure shifts to a new phase, a `sectionHeading`/`sectionBody` inserted before a step. Always set `title` to a clear, descriptive name for the overall procedure.',
+  'Write each instruction about the control inside or directly under the marked ring — that ring is exactly where the user clicked, so describe THAT element, not some other field on the screen. If the screenshot does not show the result of the click (e.g. a menu or dropdown that opened only after clicking is not visible), describe the click itself and do not invent the resulting menu or its contents.',
   'Keep the screenshots in their original order — do not drop, reorder, or merge them; you only rewrite their text and insert text blocks between them. Ground every instruction in what the screenshots and metadata actually show; never invent UI elements, values, or steps that are not evidenced. Leave author-written text steps alone. Do not transcribe or guess at any redacted/blurred regions of the images.',
 ].join('\n\n');
 
@@ -204,7 +204,9 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
           (step.element.controlType ? ` (${step.element.controlType})` : ''),
       );
     }
-    if (step.click) meta.push(`Action: ${step.click.button}-click`);
+    if (step.click) {
+      meta.push(`Action: ${step.click.button}-click (the colored ring marks where the user clicked)`);
+    }
     if (caption) meta.push(`Auto-caption: ${caption}`);
     if (note) meta.push(`User note: ${note}`);
     content.push({ type: 'text', text: meta.join('\n') });
@@ -339,7 +341,6 @@ export async function generateSop(
     steps: gen.steps.map((s) => ({
       stepNumber: s.stepNumber,
       caption: s.caption,
-      heading: s.heading,
       body: s.body,
       note: s.note,
       sectionHeading: s.sectionHeading,

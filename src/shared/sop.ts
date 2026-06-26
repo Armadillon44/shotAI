@@ -111,11 +111,9 @@ export function coerceSopSettings(
 export interface SopStepEdit {
   /** 1-based number of the screenshot step (as shown to Claude) this applies to. */
   stepNumber: number;
-  /** Rewritten short caption (the click label). */
+  /** The step title (short, action-oriented) shown above the screenshot. */
   caption: string;
-  /** Instruction heading for this screenshot. */
-  heading: string;
-  /** Instruction subtext/body for this screenshot. */
+  /** Instruction text (the detail) shown under the screenshot. */
   body: string;
   /** Extra context for the step's note field, or null to leave it. */
   note: string | null;

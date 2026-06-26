@@ -198,6 +198,14 @@ export interface ProjectStep {
   flattened?: string | null;
   /** Bumped each time `flattened` is rewritten — used to cache-bust the <img>. */
   renderRev?: number;
+  /**
+   * True when the current `flattened` render was produced by the marker-aware
+   * flatten — i.e. any click marker is BAKED into the pixels (so Claude's vision
+   * and exports see it, and the report must NOT draw its CSS overlay on top).
+   * Falsy on pre-marker renders + un-flattened steps → report keeps the overlay
+   * and `ensureFlattened` re-bakes the render so the marker lands in it.
+   */
+  markerBaked?: boolean;
   /** Per-step DISPLAY zoom in the report (default 1); does not affect export. */
   reportZoom?: number;
   /** Report pan as a fraction 0..1 of the pannable range (0.5 = centered). */
@@ -218,6 +226,7 @@ export type StepPatch = Partial<
     | 'annotations'
     | 'click'
     | 'markerColor'
+    | 'markerBaked'
     | 'reportZoom'
     | 'reportPanX'
     | 'reportPanY'

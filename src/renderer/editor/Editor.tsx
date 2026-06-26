@@ -483,16 +483,22 @@ export function Editor({
     setSaving(true);
     setError(null);
     try {
-      const blob = await flattenToPng(img, annotations, crop);
-      const bytes = new Uint8Array(await blob.arrayBuffer());
       // clickImage is null when the step has no click marker OR the user removed
       // it → persist click:null so the marker is actually deleted (not kept).
       const click =
         step.click && clickImage ? { ...step.click, image: clickImage } : null;
+      // Bake the click ring into the render so Claude's vision + exports see it.
+      const blob = await flattenToPng(
+        img,
+        annotations,
+        crop,
+        click ? { x: click.image.x, y: click.image.y, color: markerColor } : null,
+      );
+      const bytes = new Uint8Array(await blob.arrayBuffer());
       const manifest = await window.shotai.projects.updateStep(
         projectPath,
         step.id,
-        { annotations, crop, click, markerColor },
+        { annotations, crop, click, markerColor, markerBaked: true },
         bytes,
       );
       onSaved(manifest);
