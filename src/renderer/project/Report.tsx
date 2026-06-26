@@ -223,6 +223,46 @@ function InlineInput({
   );
 }
 
+/** Multi-line inline editor (per-screenshot subtext). Commits on blur or
+ *  Ctrl/Cmd+Enter; Escape cancels. Enter inserts a newline. */
+function InlineTextarea({
+  initial,
+  className,
+  placeholder,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  className: string;
+  placeholder?: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}): React.JSX.Element {
+  const [value, setValue] = React.useState(initial);
+  const done = React.useRef(false);
+  const finish = (commit: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (commit) onCommit(value);
+    else onCancel();
+  };
+  return (
+    <textarea
+      className={className}
+      value={value}
+      autoFocus
+      rows={3}
+      placeholder={placeholder}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') finish(false);
+        else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) finish(true);
+      }}
+      onBlur={() => finish(true)}
+    />
+  );
+}
+
 export function Report({
   onEditStep,
   autoEditId,
@@ -245,6 +285,9 @@ export function Report({
   const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
   const [editingCapId, setEditingCapId] = React.useState<string | null>(null);
   const [editingNumId, setEditingNumId] = React.useState<string | null>(null);
+  // Per-screenshot instruction heading + subtext (like a text step, on a shot).
+  const [editingHeadId, setEditingHeadId] = React.useState<string | null>(null);
+  const [editingBodyId, setEditingBodyId] = React.useState<string | null>(null);
   const [insertMenuAt, setInsertMenuAt] = React.useState<number | null>(null);
   const [dragIdx, setDragIdx] = React.useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = React.useState<number | null>(null);
@@ -327,6 +370,32 @@ export function Report({
     try {
       applyManifest(
         await window.shotai.projects.updateStep(projectPath, step.id, { caption }),
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Per-screenshot instruction heading + subtext (reuses the step's heading/body
+  // fields). updateStep here carries no annotations/crop, so the render is untouched.
+  const saveHeading = async (step: ProjectStep, heading: string) => {
+    setEditingHeadId(null);
+    if (!projectPath || heading === (step.heading ?? '')) return;
+    try {
+      applyManifest(
+        await window.shotai.projects.updateStep(projectPath, step.id, { heading }),
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const saveBody = async (step: ProjectStep, body: string) => {
+    setEditingBodyId(null);
+    if (!projectPath || body === (step.body ?? '')) return;
+    try {
+      applyManifest(
+        await window.shotai.projects.updateStep(projectPath, step.id, { body }),
       );
     } catch {
       /* ignore */
@@ -582,9 +651,11 @@ export function Report({
                 </div>
                 {s.body ? (
                   <p className="rep__textbody">{s.body}</p>
-                ) : (
+                ) : !s.heading ? (
+                  // Only truly-empty (no heading AND no body) shows the prompt; a
+                  // heading-only step (e.g. an AI section divider) renders clean.
                   <p className="project__hint">Empty text step — click Edit.</p>
-                )}
+                ) : null}
               </>
             )
           ) : (
@@ -632,7 +703,57 @@ export function Report({
                   {controls(s, idx)}
                 </div>
               </div>
+              {editingHeadId === s.id ? (
+                <InlineInput
+                  initial={s.heading ?? ''}
+                  className="rep__heading-input"
+                  placeholder="Instruction heading…"
+                  onCommit={(v) => void saveHeading(s, v)}
+                  onCancel={() => setEditingHeadId(null)}
+                />
+              ) : s.heading ? (
+                <h4
+                  className="rep__shotheading"
+                  title="Click to edit heading"
+                  onClick={() => setEditingHeadId(s.id)}
+                >
+                  {s.heading}
+                </h4>
+              ) : (
+                <button
+                  type="button"
+                  className="rep__addline"
+                  onClick={() => setEditingHeadId(s.id)}
+                >
+                  + Add heading
+                </button>
+              )}
               <StepFigure projectId={projectId} step={s} onReframe={reframe} />
+              {editingBodyId === s.id ? (
+                <InlineTextarea
+                  initial={s.body ?? ''}
+                  className="rep__body-input"
+                  placeholder="Write the instruction for this screenshot…"
+                  onCommit={(v) => void saveBody(s, v)}
+                  onCancel={() => setEditingBodyId(null)}
+                />
+              ) : s.body ? (
+                <p
+                  className="rep__shotbody"
+                  title="Click to edit instructions"
+                  onClick={() => setEditingBodyId(s.id)}
+                >
+                  {s.body}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className="rep__addline"
+                  onClick={() => setEditingBodyId(s.id)}
+                >
+                  + Add instructions
+                </button>
+              )}
               {s.note && <p className="rep__note">{s.note}</p>}
               {s.window && (
                 <p className="rep__meta">

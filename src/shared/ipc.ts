@@ -12,7 +12,7 @@ import type {
   StepPatch,
   WindowInfo,
 } from './project';
-import type { SopSettings } from './sop';
+import type { SopModelId, SopSettings } from './sop';
 
 export interface AppInfo {
   name: string;
@@ -58,6 +58,22 @@ export interface TestKeyResult {
   error?: string;
 }
 
+/** Pre-send cost estimate for SOP generation (shown on the review screen). */
+export interface SopEstimate {
+  /** Input tokens for the assembled request (exact, via count_tokens). */
+  inputTokens: number;
+  model: SopModelId;
+  /** Estimated total USD (exact input + a rough output allowance). */
+  estCostUsd: number;
+}
+
+/** Progress event emitted during SOP generation (main → renderer). */
+export interface SopProgress {
+  stage: 'preparing' | 'thinking' | 'writing' | 'done';
+  /** Output characters streamed so far (during 'writing'). */
+  chars?: number;
+}
+
 /** IPC channel names — single source of truth. */
 export const IpcChannels = {
   getAppInfo: 'app:get-info',
@@ -78,6 +94,11 @@ export const IpcChannels = {
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
   claudeTestKey: 'claude:test-key',
+  claudeEstimate: 'claude:estimate',
+  claudeGenerateSop: 'claude:generate-sop',
+  revertSop: 'projects:revert-sop',
+  // main -> renderer: SOP generation progress
+  claudeSopProgress: 'claude:sop-progress',
   captureStart: 'capture:start',
   captureSingle: 'capture:single',
   capturePause: 'capture:pause',
@@ -136,6 +157,8 @@ export interface ShotaiApi {
     reorderSteps(projectPath: string, orderedIds: string[]): Promise<ProjectManifest>;
     /** Insert an empty text step at the given index. Returns the manifest. */
     addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
+    /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
+    revertSop(projectPath: string): Promise<ProjectManifest>;
   };
   settings: {
     /** Current SOP generation settings (non-secret; never includes the API key). */
@@ -152,6 +175,16 @@ export interface ShotaiApi {
     clearApiKey(): Promise<void>;
     /** Validate connectivity using the stored/env key + the selected model. */
     testKey(): Promise<TestKeyResult>;
+    /** Estimate the token count + cost of generating the SOP for this project. */
+    estimate(projectPath: string): Promise<SopEstimate>;
+    /**
+     * Generate the SOP (vision + structured output) and persist it. The renderer
+     * must flatten all shot steps first (so only redacted renders are sent).
+     * Returns the updated manifest. Progress arrives via onSopProgress.
+     */
+    generateSop(projectPath: string): Promise<ProjectManifest>;
+    /** Subscribe to SOP generation progress; returns an unsubscribe function. */
+    onSopProgress(cb: (p: SopProgress) => void): () => void;
   };
   capture: {
     /**

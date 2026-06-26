@@ -15,6 +15,10 @@ export default defineConfig({
         // requires; keep it external so main require()s it at runtime. The regex
         // also covers subpath helpers (e.g. @anthropic-ai/sdk/helpers/zod).
         /^@anthropic-ai\/sdk/,
+        // zod must be external too: the externalized SDK helper loads its own zod
+        // from node_modules, so bundling a second copy here would make
+        // zodOutputFormat fail to introspect our schema (dual-instance hazard).
+        /^zod(\/|$)/,
       ],
     },
   },

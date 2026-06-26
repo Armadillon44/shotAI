@@ -180,6 +180,20 @@ export function App(): React.JSX.Element {
     wasRecording.current = recording;
   }, [recording, openPath, openProjectInDetail]);
 
+  // Re-fetch recents whenever we return to the home screen, so changes made
+  // inside a project (e.g. an AI-refined title, new step count) show in the list.
+  React.useEffect(() => {
+    if (showHome) refresh().catch(fail);
+  }, [showHome, refresh]);
+
+  // A SOP generate/revert flips sopBackup and rewrites the manifest title/steps;
+  // refresh recents then (while still in the project) so the home list shows the
+  // new title immediately on return — not only on a later manual reload.
+  const sopBackup = useProjectStore((s) => s.sopBackup);
+  React.useEffect(() => {
+    refresh().catch(fail);
+  }, [sopBackup, refresh]);
+
   const onRecord = async (projectPath: string) => {
     try {
       // One open: seeds the recording HUD's step list and gives us the id +
@@ -240,7 +254,7 @@ export function App(): React.JSX.Element {
       )}
 
       <section
-        className={`project__body${showDetail ? ' project__body--detail' : ''}`}
+        className={`project__body${showDetail && !showSettings ? ' project__body--detail' : ''}`}
       >
         {error && <p className="project__error">Error: {error}</p>}
 
@@ -306,17 +320,16 @@ export function App(): React.JSX.Element {
           </div>
         )}
 
-        {showDetail && (
+        {showDetail && !showSettings && (
           <ProjectDetail
             onResumeCapture={
               openPath ? () => void onRecord(openPath) : undefined
             }
+            onOpenSettings={() => setShowSettings(true)}
           />
         )}
 
-        {showHome && showSettings && (
-          <Settings onBack={() => setShowSettings(false)} />
-        )}
+        {showSettings && <Settings onBack={() => setShowSettings(false)} />}
 
         {showHome && !showSettings && (
           <section className="capmode">

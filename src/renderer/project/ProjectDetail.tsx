@@ -5,13 +5,17 @@ import React from 'react';
 import type { ProjectStep } from '../../shared/project';
 import { useProjectStore } from './store';
 import { Report } from './Report';
+import { SopPanel } from './SopPanel';
 import { Editor } from '../editor/Editor';
 
 export function ProjectDetail({
   onResumeCapture,
+  onOpenSettings,
 }: {
   /** Resume capturing into this project (wired to App's capture flow). */
   onResumeCapture?: () => void;
+  /** Open the Settings panel without leaving the project (model/tone/key). */
+  onOpenSettings?: () => void;
 }): React.JSX.Element {
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
@@ -34,6 +38,16 @@ export function ProjectDetail({
   // null → append. Lets one hidden <input> serve both the header button and the
   // per-gap insert affordance.
   const pendingInsertRef = React.useRef<number | null>(null);
+
+  // Whether AI SOP generation is enabled (gates the Generate control). The SOP is
+  // applied IN-LINE to the steps, so the report below always renders the result.
+  const [sopEnabled, setSopEnabled] = React.useState(false);
+  React.useEffect(() => {
+    window.shotai.settings
+      .getSop()
+      .then((s) => setSopEnabled(s.enabled))
+      .catch(() => undefined);
+  }, []);
 
   // Only screenshot steps open the image editor (text steps edit inline in the report).
   const onEditStep = (step: ProjectStep) => {
@@ -114,53 +128,57 @@ export function ProjectDetail({
   return (
     <section className="detail">
       <div className="detail__bar">
-        <button type="button" className="btn btn--small" onClick={close}>
-          ← Back
-        </button>
-        <h2 className="detail__title" title={title}>
-          {title}
-        </h2>
-        {onResumeCapture && (
+        <div className="detail__barhead">
+          <button type="button" className="btn btn--small" onClick={close}>
+            ← Back
+          </button>
+          <h2 className="detail__title" title={title}>
+            {title}
+          </h2>
+          <span className="detail__count">
+            {steps.length} step{steps.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div className="detail__baractions">
+          {onOpenSettings && (
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={onOpenSettings}
+              title="Settings — Claude model, tone, API key"
+            >
+              ⚙ Settings
+            </button>
+          )}
+          {onResumeCapture && (
+            <button
+              type="button"
+              className="btn btn--small"
+              disabled={textEditing}
+              onClick={onResumeCapture}
+              title={
+                textEditing
+                  ? 'Finish editing the text step first'
+                  : 'Resume capturing — click through more steps; they append to this project'
+              }
+            >
+              ⏺ Resume capturing
+            </button>
+          )}
           <button
             type="button"
             className="btn btn--small"
-            disabled={textEditing}
-            onClick={onResumeCapture}
+            disabled={importing || textEditing}
+            onClick={() => pickImageAt(null)}
             title={
               textEditing
                 ? 'Finish editing the text step first'
-                : 'Resume capturing — click through more steps; they append to this project'
+                : 'Add your own PNG/JPEG image as a new step'
             }
           >
-            ⏺ Resume capturing
+            {importing ? 'Importing…' : 'Import image'}
           </button>
-        )}
-        <button
-          type="button"
-          className="btn btn--small"
-          disabled={textEditing}
-          onClick={() => void addTextAt(steps.length)}
-          title={
-            textEditing
-              ? 'Finish editing the text step first'
-              : 'Add a text-only step (heading + body) for instructions between screenshots'
-          }
-        >
-          + Text step
-        </button>
-        <button
-          type="button"
-          className="btn btn--small"
-          disabled={importing || textEditing}
-          onClick={() => pickImageAt(null)}
-          title={
-            textEditing
-              ? 'Finish editing the text step first'
-              : 'Add your own PNG/JPEG image as a new step'
-          }
-        >
-          {importing ? 'Importing…' : 'Import image'}
-        </button>
+        </div>
         <input
           ref={fileRef}
           type="file"
@@ -168,9 +186,6 @@ export function ProjectDetail({
           style={{ display: 'none' }}
           onChange={onImportFile}
         />
-        <span className="detail__count">
-          {steps.length} step{steps.length === 1 ? '' : 's'}
-        </span>
       </div>
 
       {importErr && <p className="project__error">Import failed: {importErr}</p>}
@@ -178,12 +193,15 @@ export function ProjectDetail({
       {loading ? (
         <p className="project__hint">Loading…</p>
       ) : (
-        <Report
-          onEditStep={onEditStep}
-          autoEditId={autoEditId}
-          onEditingChange={setTextEditing}
-          onInsert={onInsert}
-        />
+        <>
+          <SopPanel sopEnabled={sopEnabled} />
+          <Report
+            onEditStep={onEditStep}
+            autoEditId={autoEditId}
+            onEditingChange={setTextEditing}
+            onInsert={onInsert}
+          />
+        </>
       )}
 
       {editing && projectId && projectPath && (

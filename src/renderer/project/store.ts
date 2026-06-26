@@ -1,7 +1,11 @@
 // Zustand store for the project-detail / editor view. The home view (recents +
 // capture-mode picker) stays in App.tsx; this owns the currently-open project.
 import { create } from 'zustand';
-import type { ProjectManifest, ProjectStep } from '../../shared/project';
+import type {
+  ProjectManifest,
+  ProjectStep,
+  SopBackup,
+} from '../../shared/project';
 
 interface ProjectState {
   /** Opaque id used to build shot:// image URLs (never a filesystem path). */
@@ -10,6 +14,8 @@ interface ProjectState {
   projectPath: string | null;
   title: string;
   steps: ProjectStep[];
+  /** Pre-edit snapshot when Claude's inline SOP edits are applied; enables revert. */
+  sopBackup: SopBackup | null;
   /** Manifest updatedAt — also used to cache-bust re-saved flattened renders. */
   updatedAt: string;
   selectedStepId: string | null;
@@ -41,6 +47,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   projectPath: null,
   title: '',
   steps: [],
+  sopBackup: null,
   updatedAt: '',
   selectedStepId: null,
   loading: false,
@@ -56,6 +63,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         projectPath,
         title: manifest.title,
         steps: manifest.steps,
+        sopBackup: manifest.sopBackup,
         updatedAt: manifest.updatedAt,
         selectedStepId: null,
         loading: false,
@@ -74,6 +82,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       projectPath,
       title: manifest.title,
       steps: manifest.steps,
+      sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       selectedStepId: null,
       loading: false,
@@ -86,6 +95,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       projectPath: null,
       title: '',
       steps: [],
+      sopBackup: null,
       updatedAt: '',
       selectedStepId: null,
       error: null,
@@ -97,6 +107,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
     set({
       steps: manifest.steps,
       title: manifest.title,
+      sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
     }),
 }));

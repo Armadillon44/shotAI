@@ -110,3 +110,16 @@ De-risks: SDK-in-Electron-main, `safeStorage`, packaging, key hygiene, per-model
 7. **Cost surprises** → per-model `count_tokens` pre-count + explicit consent before any send.
 8. **Network / no-key / rate-limit** → typed-error handling surfaced to the UI; nothing fails silently (mirrors the capture `onError` banner).
 9. **`printToPDF` on the software-rendered VM** → verify on the user's box; HTML+MD are the always-works fallbacks.
+
+## Deferred to Phase 4 — automatic sensitive-data redaction (pre-scan)
+
+**Decision (2026-06-26):** auto-detect + redact sensitive data BEFORE sending to Claude is wanted, but **deferred to Phase 4** so 3b/3c ship on the manual-redaction + review-before-send gate first (that gate is the actual security guarantee; auto-scan is an assist on top of it, never a replacement).
+
+**Why it needs OCR:** captures are images (pixels), so the data is only readable by OCR — and "ask Claude to redact" is impossible (it requires sending the image first). The scan must be local + pre-send.
+
+**Design when built:**
+1. **OCR locally** — Tesseract.js (pure-JS/WASM, offline, word-level bounding boxes; no native dep / ABI concern). Faster later: Windows OCR API via a native addon.
+2. **Detectors (user-chosen set): SSN** (`\d{3}-\d{2}-\d{4}` + spacing variants), **credit cards** (13–19 digits passing the **Luhn** check + issuer prefixes), **API keys / tokens** (`sk-…`, AWS `AKIA…`, long hex/base64). (Email/phone explicitly NOT chosen — too noisy.)
+3. **Map matches → pixel rects** (union matched-word boxes + padding) → auto-create `BlurAnnotation`s → bake via the existing `flatten.ts` destructive path.
+4. **Surface as SUGGESTIONS in review-before-send** — pre-applied but user-confirmable/editable; what's reviewed == what's sent. Best-effort, never a guarantee (OCR misses stylized/low-res/overlapping text → a missed SSN is a leaked SSN), so the human gate stays authoritative.
+5. **Perf/UX:** OCR ~1–5s/image → run in a worker, scan only steps being sent, reuse smart-crop to shrink OCR area, show progress, Settings toggle + per-category checkboxes.

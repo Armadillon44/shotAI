@@ -7,6 +7,8 @@
  *     export/        (generated HTML / PDF / MD)
  */
 
+import type { SopTone } from './sop';
+
 export const PROJECT_SCHEMA_VERSION = 1;
 
 export type CaptureMode = 'auto' | 'window' | 'area' | 'screen' | 'all';
@@ -172,10 +174,16 @@ export interface ProjectStep {
   caption: string;
   /** User free-text note. */
   note: string;
-  /** Text step: optional heading. */
+  /** Optional heading. Text steps and (Phase 3) screenshot steps both use it. */
   heading?: string;
-  /** Text step: body (markdown). */
+  /** Optional body/subtext (markdown). Text steps and screenshot steps both use it. */
   body?: string;
+  /**
+   * True for a text step that Claude's SOP generation inserted (intro / section
+   * heading). Stripped + regenerated on the next run so they don't accumulate;
+   * author-written text steps (no flag) are always preserved.
+   */
+  aiInserted?: boolean;
   /** Optional crop rect, in image px (Phase 2 editor). */
   crop: Rect | null;
   /** Click-register marker color (editor-set); defaults to the accent if unset. */
@@ -216,6 +224,19 @@ export type StepPatch = Partial<
   >
 >;
 
+/**
+ * Pre-generation snapshot for one-click revert of Claude's inline SOP edits.
+ * Captured right before an edit plan is applied; cleared on revert.
+ */
+export interface SopBackup {
+  steps: ProjectStep[];
+  title: string;
+  /** Model + tone the (subsequent) generation used — for the "Revert" provenance label. */
+  model: string;
+  tone: SopTone;
+  at: string; // ISO 8601
+}
+
 export interface ProjectManifest {
   version: number;
   title: string;
@@ -224,7 +245,8 @@ export interface ProjectManifest {
   updatedAt: string; // ISO 8601
   captureSettings: CaptureTarget | null;
   steps: ProjectStep[];
-  sop: unknown | null; // Claude-generated SOP structure (Phase 3)
+  /** Pre-edit snapshot enabling revert of Claude's inline SOP edits (Phase 3). */
+  sopBackup: SopBackup | null;
 }
 
 /** Lightweight summary for the recent-projects list (no full manifest load). */

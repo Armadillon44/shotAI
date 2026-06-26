@@ -199,19 +199,20 @@ export function Settings({ onBack }: { onBack: () => void }): React.JSX.Element 
 
               <div className="settings__group">
                 <span className="project__label">Model</span>
-                <select
-                  className="capmode__select"
-                  value={sop.model}
-                  onChange={(e) =>
-                    void patch({ model: e.target.value as SopSettings['model'] })
-                  }
-                >
+                <div className="capmode__modes" role="radiogroup" aria-label="Model">
                   {SOP_MODELS.map((m) => (
-                    <option key={m.id} value={m.id}>
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={sop.model === m.id}
+                      className={`capmode__chip${sop.model === m.id ? ' capmode__chip--on' : ''}`}
+                      onClick={() => void patch({ model: m.id })}
+                    >
                       {m.label}
-                    </option>
+                    </button>
                   ))}
-                </select>
+                </div>
                 <p className="settings__hint">
                   {SOP_MODELS.find((m) => m.id === sop.model)?.blurb}
                 </p>
@@ -219,19 +220,20 @@ export function Settings({ onBack }: { onBack: () => void }): React.JSX.Element 
 
               <div className="settings__group">
                 <span className="project__label">Tone</span>
-                <select
-                  className="capmode__select"
-                  value={sop.tone}
-                  onChange={(e) =>
-                    void patch({ tone: e.target.value as SopSettings['tone'] })
-                  }
-                >
+                <div className="capmode__modes" role="radiogroup" aria-label="Tone">
                   {SOP_TONES.map((t) => (
-                    <option key={t.id} value={t.id}>
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={sop.tone === t.id}
+                      className={`capmode__chip${sop.tone === t.id ? ' capmode__chip--on' : ''}`}
+                      onClick={() => void patch({ tone: t.id })}
+                    >
                       {t.label}
-                    </option>
+                    </button>
                   ))}
-                </select>
+                </div>
                 <p className="settings__hint">
                   {SOP_TONES.find((t) => t.id === sop.tone)?.blurb}
                 </p>

@@ -28,14 +28,15 @@ export const MODEL_PARAMS: Record<SopModelId, ModelParams> = {
     effort: 'medium',
     inputPerMTok: 3,
     outputPerMTok: 15,
-    maxTokens: 16000,
+    // Generous cap (streamed) so long SOPs don't truncate; thinking draws from it too.
+    maxTokens: 32000,
   },
   'claude-opus-4-8': {
     thinking: { type: 'adaptive' },
     effort: 'high',
     inputPerMTok: 5,
     outputPerMTok: 25,
-    maxTokens: 16000,
+    maxTokens: 32000,
   },
 };
 

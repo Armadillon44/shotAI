@@ -27,7 +27,11 @@ import {
 } from '../shared/sop';
 import { getSopSettings, setSopSettings } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
-import { testKey as claudeTestKey } from './ClaudeService';
+import {
+  testKey as claudeTestKey,
+  estimate as claudeEstimate,
+  generateSop as claudeGenerateSop,
+} from './ClaudeService';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -359,6 +363,30 @@ export function registerIpcHandlers(
     devLog('ipc: claude:test-key');
     return claudeTestKey();
   });
+  ipcMain.handle(
+    IpcChannels.revertSop,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:revert-sop');
+      return projectStore.revertSop(asString(projectPath, 'projectPath'));
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.claudeEstimate,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: claude:estimate');
+      return claudeEstimate(asString(projectPath, 'projectPath'));
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.claudeGenerateSop,
+    (event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: claude:generate-sop');
+      const sender = event.sender;
+      return claudeGenerateSop(asString(projectPath, 'projectPath'), (p) => {
+        if (!sender.isDestroyed()) sender.send(IpcChannels.claudeSopProgress, p);
+      });
+    },
+  );
 
   ipcMain.handle(
     IpcChannels.captureStart,
