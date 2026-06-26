@@ -9,6 +9,7 @@ import type {
   ProjectStep,
   ProjectSummary,
   Rect,
+  StepPatch,
   WindowInfo,
 } from './project';
 
@@ -39,7 +40,13 @@ export const IpcChannels = {
   listRecentProjects: 'projects:list-recent',
   createProject: 'projects:create',
   openProject: 'projects:open',
+  updateStep: 'projects:update-step',
+  importStep: 'projects:import-step',
+  deleteStep: 'projects:delete-step',
+  reorderSteps: 'projects:reorder-steps',
+  addTextStep: 'projects:add-text-step',
   captureStart: 'capture:start',
+  captureSingle: 'capture:single',
   capturePause: 'capture:pause',
   captureResume: 'capture:resume',
   captureStop: 'capture:stop',
@@ -64,7 +71,38 @@ export interface ShotaiApi {
     chooseDir(): Promise<string | null>;
     listRecent(): Promise<ProjectSummary[]>;
     create(title: string): Promise<ProjectSummary>;
-    open(projectPath: string): Promise<ProjectManifest>;
+    /**
+     * Open a project: returns its manifest plus an opaque `projectId` the
+     * renderer uses to build shot:// image URLs (never a filesystem path).
+     */
+    open(projectPath: string): Promise<{ projectId: string; manifest: ProjectManifest }>;
+    /**
+     * Apply an editor patch to one step. `flattenedPng` (the baked render with
+     * redaction) is optional; when given it's written to the project's
+     * render-cache and referenced by step.flattened. Returns the updated manifest.
+     */
+    updateStep(
+      projectPath: string,
+      stepId: string,
+      patch: StepPatch,
+      flattenedPng?: Uint8Array | null,
+    ): Promise<ProjectManifest>;
+    /**
+     * Import a user-supplied PNG/JPEG as a new step. Main validates the bytes are
+     * actually an image (magic bytes). Inserts at `atIndex` (omitted → append).
+     * Returns the updated manifest.
+     */
+    importStep(
+      projectPath: string,
+      bytes: Uint8Array,
+      atIndex?: number,
+    ): Promise<ProjectManifest>;
+    /** Delete a step (leaves its files on disk); renumbers. Returns the manifest. */
+    deleteStep(projectPath: string, stepId: string): Promise<ProjectManifest>;
+    /** Reorder steps to match the given id order; renumbers. Returns the manifest. */
+    reorderSteps(projectPath: string, orderedIds: string[]): Promise<ProjectManifest>;
+    /** Insert an empty text step at the given index. Returns the manifest. */
+    addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
   };
   capture: {
     /**
@@ -72,6 +110,12 @@ export interface ShotaiApi {
      * `target` selects what each step captures; defaults to Auto (smart per-click).
      */
     start(projectPath: string, target?: CaptureTarget): Promise<CaptureState>;
+    /**
+     * Arm a one-shot capture: the next click is captured as a single step
+     * inserted at `atIndex`, then recording auto-stops. The main window hides
+     * while armed (so shotAI isn't in the shot).
+     */
+    captureSingle(projectPath: string, atIndex: number): Promise<CaptureState>;
     pause(): Promise<CaptureState>;
     resume(): Promise<CaptureState>;
     stop(): Promise<CaptureState>;

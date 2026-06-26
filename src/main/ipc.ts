@@ -9,7 +9,16 @@ import { IpcChannels, type AppInfo } from '../shared/ipc';
 import * as projectStore from './ProjectStore';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
-import type { CaptureMode, CaptureTarget } from '../shared/project';
+import type {
+  Annotation,
+  CaptureMode,
+  CaptureTarget,
+  Point,
+  Rect,
+  StepClick,
+  StepKind,
+  StepPatch,
+} from '../shared/project';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -61,6 +70,79 @@ function parseCaptureTarget(value: unknown): CaptureTarget | undefined {
     }
   }
   return target;
+}
+
+function parseRect(value: unknown): Rect | null {
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  if (isNum(r.x) && isNum(r.y) && isNum(r.width) && isNum(r.height)) {
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
+  return null;
+}
+
+function parsePoint(value: unknown): Point | null {
+  if (!value || typeof value !== 'object') return null;
+  const p = value as Record<string, unknown>;
+  return isNum(p.x) && isNum(p.y) ? { x: p.x, y: p.y } : null;
+}
+
+const CLICK_BUTTONS: ReadonlySet<StepClick['button']> = new Set<StepClick['button']>([
+  'left',
+  'right',
+  'middle',
+  'other',
+]);
+
+/** Validate a moved click (editor only repositions image coords). */
+function parseClick(value: unknown): StepClick | null {
+  if (!value || typeof value !== 'object') return null;
+  const c = value as Record<string, unknown>;
+  const global = parsePoint(c.global);
+  const image = parsePoint(c.image);
+  if (!global || !image) return null;
+  const button =
+    typeof c.button === 'string' && CLICK_BUTTONS.has(c.button as StepClick['button'])
+      ? (c.button as StepClick['button'])
+      : 'left';
+  return { global, image, button };
+}
+
+const STEP_KINDS: ReadonlySet<StepKind> = new Set<StepKind>(['shot', 'text']);
+
+/**
+ * Validate an editor step-patch arriving over IPC (types are erased at the
+ * boundary). Keeps only recognized fields; annotations are kept as-is when they
+ * look like annotations (object with string `type` + `id`) — they're the user's
+ * own project data, stored verbatim as JSON.
+ */
+function parseStepPatch(value: unknown): StepPatch {
+  if (!value || typeof value !== 'object') throw new Error('patch must be an object');
+  const v = value as Record<string, unknown>;
+  const patch: StepPatch = {};
+  if (typeof v.caption === 'string') patch.caption = v.caption;
+  if (typeof v.note === 'string') patch.note = v.note;
+  if (typeof v.heading === 'string') patch.heading = v.heading;
+  if (typeof v.body === 'string') patch.body = v.body;
+  if (typeof v.kind === 'string' && STEP_KINDS.has(v.kind as StepKind)) {
+    patch.kind = v.kind as StepKind;
+  }
+  if ('crop' in v) patch.crop = v.crop === null ? null : parseRect(v.crop);
+  if ('click' in v) patch.click = v.click === null ? null : parseClick(v.click);
+  if (typeof v.markerColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.markerColor)) {
+    patch.markerColor = v.markerColor;
+  }
+  if (isNum(v.reportZoom)) patch.reportZoom = Math.max(0.2, Math.min(6, v.reportZoom));
+  if (isNum(v.reportPanX)) patch.reportPanX = Math.max(0, Math.min(1, v.reportPanX));
+  if (isNum(v.reportPanY)) patch.reportPanY = Math.max(0, Math.min(1, v.reportPanY));
+  if (Array.isArray(v.annotations)) {
+    patch.annotations = v.annotations.filter((a: unknown): a is Annotation => {
+      if (!a || typeof a !== 'object') return false;
+      const o = a as Record<string, unknown>;
+      return typeof o.type === 'string' && typeof o.id === 'string';
+    });
+  }
+  return patch;
 }
 
 /** Register all main-process IPC handlers. Call once, after the app is ready. */
@@ -126,7 +208,93 @@ export function registerIpcHandlers(
     IpcChannels.openProject,
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: projects:open');
-      return projectStore.openProject(asString(projectPath, 'projectPath'));
+      return projectStore.openProjectWithId(asString(projectPath, 'projectPath'));
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.updateStep,
+    (
+      _event: IpcMainInvokeEvent,
+      projectPath: unknown,
+      stepId: unknown,
+      patch: unknown,
+      png: unknown,
+    ) => {
+      devLog('ipc: projects:update-step');
+      const buf =
+        png instanceof Uint8Array
+          ? Buffer.from(png)
+          : png instanceof ArrayBuffer
+            ? Buffer.from(new Uint8Array(png))
+            : null;
+      return projectStore.updateStep(
+        asString(projectPath, 'projectPath'),
+        asString(stepId, 'stepId'),
+        parseStepPatch(patch),
+        buf,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.importStep,
+    (
+      _event: IpcMainInvokeEvent,
+      projectPath: unknown,
+      bytes: unknown,
+      atIndex: unknown,
+    ) => {
+      devLog('ipc: projects:import-step');
+      const buf =
+        bytes instanceof Uint8Array
+          ? Buffer.from(bytes)
+          : bytes instanceof ArrayBuffer
+            ? Buffer.from(new Uint8Array(bytes))
+            : null;
+      if (!buf || buf.length === 0) throw new Error('No image data received');
+      if (buf.length > 60 * 1024 * 1024) throw new Error('Image too large (max 60 MB)');
+      return projectStore.importStep(
+        asString(projectPath, 'projectPath'),
+        buf,
+        isNum(atIndex) ? atIndex : null,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.deleteStep,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, stepId: unknown) => {
+      devLog('ipc: projects:delete-step');
+      return projectStore.deleteStep(
+        asString(projectPath, 'projectPath'),
+        asString(stepId, 'stepId'),
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.reorderSteps,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, orderedIds: unknown) => {
+      devLog('ipc: projects:reorder-steps');
+      if (!Array.isArray(orderedIds) || orderedIds.some((id) => typeof id !== 'string')) {
+        throw new Error('orderedIds must be an array of strings');
+      }
+      return projectStore.reorderSteps(
+        asString(projectPath, 'projectPath'),
+        orderedIds as string[],
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.addTextStep,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown) => {
+      devLog('ipc: projects:add-text-step');
+      return projectStore.addTextStep(
+        asString(projectPath, 'projectPath'),
+        isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+      );
     },
   );
 
@@ -137,6 +305,16 @@ export function registerIpcHandlers(
       return capture.start(asString(projectPath, 'projectPath'), {
         target: parseCaptureTarget(target),
       });
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.captureSingle,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown) => {
+      devLog('ipc: capture:single');
+      return capture.captureSingle(
+        asString(projectPath, 'projectPath'),
+        isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+      );
     },
   );
   ipcMain.handle(IpcChannels.captureListTargets, () => {

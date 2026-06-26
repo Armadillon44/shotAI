@@ -64,12 +64,34 @@ const SUBMENU_FOLLOWUP_WINDOW_MS = 6000;
 // and down (where menus/submenus open) but bounded so distant clicks disarm.
 const MENU_PROXIMITY_X = 640;
 const MENU_PROXIMITY_Y = 680;
-// While a menu is armed, we grab the monitor on mouse MOVE (throttled) so we
-// have a frame of the menu taken while it is STABLY open — capturing only at
-// the selection click races the menu's dismissal on mouse-up (on a slow/remote
-// display the click grab can land after the popup has cleared). The selection
-// step uses the most recent hover grab; this is how often (ms) we take one.
-const HOVER_GRAB_THROTTLE_MS = 200;
+// While a menu is armed we POLL the monitor on a timer, keeping the most recent
+// frame. The selection step uses that frame rather than grabbing at click-time,
+// which races the menu's dismissal on mouse-up (on a slow/remote display the
+// click grab lands after the popup clears). Polling on a TIMER — not on mouse
+// movement — is the key: the menu is captured even when the user clicks an item
+// right under the cursor without moving (an earlier mousemove-driven version
+// missed exactly that case). The menu stays open the whole time it's armed, so
+// any recent frame has it. Interval is kept ABOVE the per-capture latency
+// (~185ms emulated) so captures don't run back-to-back and saturate a core;
+// captures run off the main thread (async), so this is worker CPU, not UI jank.
+const MENU_POLL_MS = 400;
+// Cap the number of polled frames per armed menu so an abandoned/Esc-dismissed
+// menu (which never fires a disarming click) can't poll for the whole 30s
+// window. 32 frames at 400ms ≈ 13s of coverage — comfortably longer than a real
+// menu interaction (the slowest observed was ~10s) — then we stop and reuse the
+// last frame (the menu is static while open; the click-time grab is a backstop).
+const MAX_POLL_FRAMES = 32;
+// The right-click step is captured this long AFTER the click so the context menu
+// it opened has rendered and is in the shot (the menu opens on mouse-UP, ~150ms
+// later, then fades in). Past the fade — an earlier 300ms attempt caught menus
+// mid-fade. The menu stays open until the user selects, so a grab here isn't
+// racing dismissal (unlike the selection step). A selection faster than this
+// leaves the right-click step menu-less, but the selection step still catches it.
+const RIGHT_CLICK_MENU_DELAY_MS = 400;
+// A double-click fires two mousedowns; treat the second as part of the same
+// action (one step) when it lands within this time + distance of the first.
+const DOUBLE_CLICK_MS = 400;
+const DOUBLE_CLICK_DIST = 6; // logical px, scaled by the monitor factor
 
 type Natives = {
   uIOhook: typeof import('uiohook-napi').uIOhook;
@@ -96,6 +118,11 @@ type Session = {
   paused: boolean;
   stepCount: number;
   target: CaptureTarget;
+  // Single-shot mode: capture exactly one click, insert it at this manifest
+  // index (not append), then auto-stop. Used by the report's "insert one
+  // screenshot here" affordance. Absent for a normal recording session.
+  // `fired` guards against a fast second click being captured before stop.
+  single?: { insertAt: number; fired?: boolean };
 };
 
 type Broadcast = (channel: string, payload: unknown) => void;
@@ -162,46 +189,102 @@ export class CaptureController {
   // window's bounds (filled in by captureStep) so the selection shot can frame
   // the menu together with its window. `lastPoint` is the right-click (then each
   // menu selection) point — the proximity gate that decides whether the next
-  // click is still menu navigation. `hoverGrab` is the most recent monitor frame
-  // taken while the cursor hovers the open menu (see HOVER_GRAB_THROTTLE_MS); the
-  // selection step prefers it over grabbing at click-time, which races the
-  // dismissal. `lastHoverAt` throttles those grabs. null = unarmed.
+  // click is still menu navigation. `menuFrame` is the most recent monitor frame
+  // captured by the poll timer while the menu is open (see startMenuPolling); the
+  // selection step uses it instead of grabbing at click-time. null = unarmed.
   private menuFollowUp: {
     until: number;
     ownerBounds: Rect | null;
     lastPoint: Point;
-    hoverGrab: { image: NsImage; monitor: NsMonitor } | null;
-    lastHoverAt: number;
+    menuFrame: { image: NsImage; monitor: NsMonitor } | null;
   } | null = null;
+  // Interval that refreshes menuFollowUp.menuFrame while a menu is armed, plus an
+  // in-flight guard so slow async captures can't pile up.
+  private menuPollTimer: ReturnType<typeof setInterval> | null = null;
+  private menuPolling = false;
+  // Last left mousedown — used to collapse a double-click's two events into one
+  // step (see DOUBLE_CLICK_MS / DOUBLE_CLICK_DIST).
+  private lastLeftClick: { at: number; point: Point } | null = null;
 
   private readonly onMouseDown = (event: UiohookMouseEvent): void => {
     if (!this.session || this.session.paused) return;
     const point = { x: event.x, y: event.y };
     const button = mapButton(event.button);
 
+    // Single-shot insert: capture the first real click as ONE step inserted at
+    // the chosen index, then end the session. No double-click/menu machinery —
+    // this is an explicit one-screenshot grab, not a recording.
+    if (this.session.single) {
+      if (this.session.single.fired) return; // the one shot is already in flight
+      if (this.pointHitsOwnWindow(point)) return; // ignore clicks on shotAI's own UI
+      this.session.single.fired = true;
+      const insertAt = this.session.single.insertAt;
+      this.enqueue(async () => {
+        const step = await this.captureStep('click', point, button, { insertAt });
+        if (!step) {
+          captureLog.warn(
+            `single-shot: click at (${point.x},${point.y}) captured nothing — ending the session (the window is restored; retry the insert)`,
+          );
+        }
+        // Always end the session after the one click attempt, restoring the
+        // window. (Fire-and-forget: stop() awaits the capture queue, which
+        // contains THIS task — awaiting it here would deadlock.)
+        void this.stop();
+      });
+      return;
+    }
+
+    // Collapse a double-click (two left mousedowns at ~the same spot in quick
+    // succession) into a single step — capture the first, ignore the second.
+    if (button === 'left') {
+      const now = Date.now();
+      const last = this.lastLeftClick;
+      const isDouble =
+        !!last &&
+        now - last.at <= DOUBLE_CLICK_MS &&
+        this.withinDist(point, last.point, DOUBLE_CLICK_DIST);
+      this.lastLeftClick = { at: now, point };
+      if (isDouble) {
+        captureLog.debug(`double-click: ignoring 2nd click at (${point.x},${point.y})`);
+        return;
+      }
+    }
+
     if (button === 'right') {
-      // Record the right-click itself now (the target), and arm a window: the
-      // next click is almost certainly the menu selection. The menu opens AT the
-      // cursor, so subsequent selections cluster near this point — seed it as
-      // lastPoint for the proximity gate. ownerBounds is filled by captureStep.
+      // Arm the follow-up window (the next click is almost certainly the menu
+      // selection; the menu opens at the cursor, so selections cluster near this
+      // point — seed lastPoint for the proximity gate) and start polling for the
+      // selection step. ownerBounds is captured synchronously NOW (the focused
+      // window is the menu's owner; it won't be once the menu is open) so both
+      // this step and the selection step can frame the menu with its window.
       this.menuFollowUp = {
         until: Date.now() + MENU_FOLLOWUP_WINDOW_MS,
-        ownerBounds: null,
+        ownerBounds: this.focusedWindowBounds(),
         lastPoint: point,
-        hoverGrab: null,
-        lastHoverAt: 0,
+        menuFrame: null,
       };
+      this.startMenuPolling();
       captureLog.debug(`menu: armed by right-click at (${point.x},${point.y})`);
-      this.enqueue(() => this.captureStep('click', point, button));
+      // Capture the right-click step itself showing the OPEN menu: defer it
+      // ~RIGHT_CLICK_MENU_DELAY_MS (inside captureStep) so the menu has rendered,
+      // then crop to the owner window + a box around the click. The capture queue
+      // is FIFO, so this holds its slot — a following selection still orders after.
+      this.enqueue(() =>
+        this.captureStep('click', point, button, {
+          menuPopup: true,
+          menuOwnerBounds: this.menuFollowUp?.ownerBounds ?? null,
+          awaitMenuFrame: true,
+        }),
+      );
       return;
     }
 
     // A left-click within the armed window AND near the last menu point = a
-    // context-menu (or submenu) selection. Use the most recent hover grab — a
-    // frame taken while the menu was stably open (see onMouseMove). Capturing
-    // only here races the menu's dismissal on mouse-up; on a slow/remote display
-    // the grab lands after the popup clears. Fall back to a grab now only if the
-    // user clicked without moving (no hover grab was taken).
+    // context-menu (or submenu) selection. Use the most recent polled frame — a
+    // capture taken while the menu was open (see startMenuPolling). Grabbing only
+    // here races the menu's dismissal on mouse-up; on a slow/remote display the
+    // grab lands after the popup clears. Fall back to a grab now only if no
+    // polled frame exists yet (a selection faster than the first poll tick).
     const fu = this.menuFollowUp;
     const isMenuSelect =
       button === 'left' &&
@@ -211,22 +294,32 @@ export class CaptureController {
 
     if (isMenuSelect) {
       const ownerBounds = fu?.ownerBounds ?? null;
-      const usedHover = !!fu?.hoverGrab;
-      const preGrab = fu?.hoverGrab ?? this.grabClickMonitorSync(point);
-      captureLog.debug(
-        `menu: selection at (${point.x},${point.y}) — using ${usedHover ? 'hover grab' : preGrab ? 'click-time grab (no hover)' : 'NO grab'}`,
-      );
+      const usedPoll = !!fu?.menuFrame;
+      const preGrab = fu?.menuFrame ?? this.grabClickMonitorSync(point);
+      if (usedPoll) {
+        captureLog.debug(`menu: selection at (${point.x},${point.y}) — using polled frame`);
+      } else if (preGrab) {
+        captureLog.debug(
+          `menu: selection at (${point.x},${point.y}) — no polled frame yet, using click-time grab`,
+        );
+      } else {
+        // No polled frame and the synchronous grab also failed — captureStep will
+        // grab post-click, by which point the menu has likely dismissed.
+        captureLog.warn(
+          `menu: selection at (${point.x},${point.y}) — NO frame available; the menu will probably be missing from this step`,
+        );
+      }
       // Re-arm (shorter window) so the next click in a flyout/submenu chain is
       // also captured as a menu selection; the proximity gate disarms it once
-      // the user clicks away from the menu. Reset the hover grab so the next
-      // selection captures the (possibly changed) submenu, not this frame.
+      // the user clicks away from the menu. Reset menuFrame so the next selection
+      // captures the (possibly changed) submenu, not this frame.
       this.menuFollowUp = {
         until: Date.now() + SUBMENU_FOLLOWUP_WINDOW_MS,
         ownerBounds,
         lastPoint: point,
-        hoverGrab: null,
-        lastHoverAt: 0,
+        menuFrame: null,
       };
+      this.startMenuPolling();
       this.enqueue(() =>
         this.captureStep('click', point, button, {
           menuPopup: true,
@@ -248,26 +341,8 @@ export class CaptureController {
             : `too far from (${fu.lastPoint.x},${fu.lastPoint.y})`;
       captureLog.debug(`menu: disarmed — click at (${point.x},${point.y}) not a selection (${reason})`);
     }
-    this.menuFollowUp = null; // a non-menu click disarms the follow-up
+    this.disarmMenu(); // a non-menu click disarms the follow-up + stops polling
     this.enqueue(() => this.captureStep('click', point, button));
-  };
-
-  // While a menu is armed, keep a fresh monitor frame taken WHILE the cursor
-  // hovers the open menu. The selection click then uses this frame instead of
-  // grabbing at click-time (which races the menu's dismissal). Throttled, and
-  // gated to the menu's vicinity so wandering the cursor elsewhere doesn't churn
-  // captures or overwrite a good frame with one that no longer shows the menu.
-  private readonly onMouseMove = (event: UiohookMouseEvent): void => {
-    if (!this.session || this.session.paused) return;
-    const fu = this.menuFollowUp;
-    if (!fu) return;
-    const now = Date.now();
-    if (now >= fu.until || now - fu.lastHoverAt < HOVER_GRAB_THROTTLE_MS) return;
-    const point = { x: event.x, y: event.y };
-    if (!this.nearMenuPoint(point, fu.lastPoint)) return;
-    fu.lastHoverAt = now;
-    const grab = this.grabClickMonitorSync(point);
-    if (grab) fu.hoverGrab = grab;
   };
 
   /** True when a click is close enough to the previous menu point to still be
@@ -304,6 +379,107 @@ export class CaptureController {
       captureLog.warn('synchronous menu grab failed:', e);
       return null;
     }
+  }
+
+  /** True if two points are within `logicalPx` (scaled by the monitor factor). */
+  private withinDist(a: Point, b: Point, logicalPx: number): boolean {
+    let sf = 1;
+    try {
+      sf = this.natives?.Monitor.fromPoint(a.x, a.y)?.scaleFactor() ?? 1;
+    } catch {
+      /* fall back to 1× */
+    }
+    const max = logicalPx * sf;
+    return Math.abs(a.x - b.x) <= max && Math.abs(a.y - b.y) <= max;
+  }
+
+  /** The focused window's bounds in global physical px (the right-click owner). */
+  private focusedWindowBounds(): Rect | null {
+    if (!this.natives) return null;
+    try {
+      const w = this.natives.Window.all().find((x) => x.isFocused());
+      if (w && w.x() > -10000 && w.y() > -10000) {
+        return { x: w.x(), y: w.y(), width: w.width(), height: w.height() };
+      }
+    } catch {
+      /* no resolvable focused window */
+    }
+    return null;
+  }
+
+  /** Stop the menu poll timer (no-op if not running). */
+  private stopMenuPolling(): void {
+    if (this.menuPollTimer) {
+      clearInterval(this.menuPollTimer);
+      this.menuPollTimer = null;
+    }
+    // Clear the in-flight guard unconditionally: if a poll capture is still
+    // running when we stop, its (now stale-arm) resolve won't reset the flag, so
+    // without this a leaked `true` would silently suppress the NEXT arm's polling.
+    this.menuPolling = false;
+  }
+
+  /** Disarm the context-menu follow-up and stop polling. */
+  private disarmMenu(): void {
+    this.menuFollowUp = null;
+    this.stopMenuPolling();
+  }
+
+  /**
+   * While a menu is armed, poll the monitor under it on a timer and keep the
+   * latest frame in menuFollowUp.menuFrame. Timer-driven (NOT mouse-driven) so
+   * the menu is captured even when the user clicks an item without moving the
+   * cursor. Uses the async capture so the main thread isn't blocked; an in-flight
+   * guard prevents pile-up, and a same-arm check stops a late frame from landing
+   * on a newer arm. The timer self-cancels when disarmed, re-armed, paused, or
+   * the follow-up window elapses.
+   */
+  private startMenuPolling(): void {
+    this.stopMenuPolling();
+    const fu = this.menuFollowUp;
+    if (!fu || !this.natives) return;
+    const { Monitor } = this.natives;
+    let frames = 0; // bounded by MAX_POLL_FRAMES (per-arm; closure-local)
+    this.menuPollTimer = setInterval(() => {
+      const cur = this.menuFollowUp;
+      if (!cur || cur !== fu) {
+        this.stopMenuPolling(); // disarmed or re-armed since this timer started
+        return;
+      }
+      if (Date.now() >= cur.until || this.session?.paused) {
+        this.stopMenuPolling(); // window elapsed with no selection, or paused
+        return;
+      }
+      if (frames >= MAX_POLL_FRAMES) {
+        this.stopMenuPolling(); // enough coverage — reuse the last frame
+        return;
+      }
+      if (this.menuPolling) return; // previous async capture still in flight
+      let mon: NsMonitor | null;
+      try {
+        mon =
+          Monitor.fromPoint(cur.lastPoint.x, cur.lastPoint.y) ??
+          Monitor.all().find((m) => m.isPrimary()) ??
+          Monitor.all()[0] ??
+          null;
+      } catch {
+        mon = null;
+      }
+      if (!mon) return;
+      const m = mon;
+      this.menuPolling = true;
+      frames++;
+      m.captureImage()
+        .then((image) => {
+          if (this.menuFollowUp === cur) cur.menuFrame = { image, monitor: m };
+        })
+        .catch((e) => captureLog.warn('menu poll capture failed:', e))
+        .finally(() => {
+          // Only release the guard for the still-current arm; a stale capture
+          // resolving after re-arm must not clear the new arm's in-flight flag.
+          if (this.menuFollowUp === cur) this.menuPolling = false;
+        });
+    }, MENU_POLL_MS);
   }
 
   private readonly onHotkey = (): void => {
@@ -409,24 +585,68 @@ export class CaptureController {
     return this.getState();
   }
 
-  private attachTriggers(): void {
+  /**
+   * Arm a one-shot capture: the next real click captures a single step inserted
+   * at `insertAt` in the manifest, then the session auto-stops. Hides the main
+   * window (via onRecordingChange) so shotAI isn't in the shot, same as a normal
+   * recording. Rejects if a recording is already in progress.
+   */
+  async captureSingle(projectPath: string, insertAt: number): Promise<CaptureState> {
+    if (this.session) {
+      throw new Error('A recording is already in progress');
+    }
+    await this.loadNatives();
+    const manifest = await projectStore.openProject(projectPath);
+    const shotsDir = path.join(projectPath, 'shots');
+    await fs.mkdir(shotsDir, { recursive: true });
+
+    // Seed the filename counter past any shot on disk (deletes leave orphans).
+    let stepCount = manifest.steps.length;
+    try {
+      for (const f of await fs.readdir(shotsDir)) {
+        const m = /^step-(\d+)\.png$/i.exec(f);
+        if (m) stepCount = Math.max(stepCount, Number(m[1]));
+      }
+    } catch {
+      /* shots/ unreadable — fall back to manifest length */
+    }
+
+    const at = Math.max(0, Math.min(Math.round(insertAt), manifest.steps.length));
+    this.session = {
+      projectPath,
+      projectTitle: manifest.title,
+      paused: false,
+      stepCount,
+      target: DEFAULT_TARGET,
+      single: { insertAt: at },
+    };
+    captureLog.info(
+      `single-shot capture armed: insert at index ${at} into "${manifest.title}"`,
+    );
+    // No hotkey for single-shot: the hotkey path can't carry the insert index
+    // and wouldn't auto-stop, so the one shot is mouse-click only.
+    this.attachTriggers({ hotkey: false });
+    this.onRecordingChange?.(true);
+    this.emitState();
+    return this.getState();
+  }
+
+  private attachTriggers(opts: { hotkey?: boolean } = {}): void {
     const { uIOhook } = this.natives!;
     if (!this.hookAttached) {
       uIOhook.on('mousedown', this.onMouseDown);
-      uIOhook.on('mousemove', this.onMouseMove);
       uIOhook.start();
       this.hookAttached = true;
     }
-    if (!this.hotkeyRegistered) {
+    if ((opts.hotkey ?? true) && !this.hotkeyRegistered) {
       this.hotkeyRegistered = globalShortcut.register(DEFAULT_HOTKEY, this.onHotkey);
     }
   }
 
   private detachTriggers(): void {
-    this.menuFollowUp = null; // don't carry an armed menu window across sessions
+    this.disarmMenu(); // don't carry an armed menu window/poller across sessions
     if (this.hookAttached && this.natives) {
       this.natives.uIOhook.off('mousedown', this.onMouseDown);
-      this.natives.uIOhook.off('mousemove', this.onMouseMove);
       this.natives.uIOhook.stop();
       this.hookAttached = false;
     }
@@ -443,7 +663,7 @@ export class CaptureController {
 
   pause(): CaptureState {
     if (this.session) this.session.paused = true;
-    this.menuFollowUp = null;
+    this.disarmMenu();
     captureLog.info('recording paused');
     this.emitState();
     return this.getState();
@@ -451,7 +671,7 @@ export class CaptureController {
 
   resume(): CaptureState {
     if (this.session) this.session.paused = false;
-    this.menuFollowUp = null;
+    this.disarmMenu();
     captureLog.info('recording resumed');
     this.emitState();
     return this.getState();
@@ -573,6 +793,10 @@ export class CaptureController {
       menuPopup?: boolean;
       menuOwnerBounds?: Rect | null;
       preGrab?: { image: NsImage; monitor: NsMonitor } | null;
+      /** Right-click step: wait for the menu to render, then grab it fresh. */
+      awaitMenuFrame?: boolean;
+      /** Single-shot: insert at this manifest index (renumbered) instead of append. */
+      insertAt?: number | null;
     } = {},
   ): Promise<ProjectStep | null> {
     // Re-check here (not just at enqueue) so a pause/stop that lands while
@@ -609,6 +833,16 @@ export class CaptureController {
             height: focused.height(),
           }
         : null;
+    }
+
+    // Right-click step: wait for the context menu to render before grabbing, so
+    // this step shows the open menu (not the pre-menu target). active/focused
+    // above were resolved at click time (the owner), which is what we want; only
+    // the screenshot is delayed. The menu stays open until the user selects, so
+    // grabbing here doesn't race dismissal.
+    if (opts.menuPopup && opts.awaitMenuFrame && !opts.preGrab) {
+      await new Promise((r) => setTimeout(r, RIGHT_CLICK_MENU_DELAY_MS));
+      if (!this.session || this.session.paused) return null; // stopped while waiting
     }
 
     const target = this.session.target;
@@ -680,12 +914,20 @@ export class CaptureController {
                 ? target.area ?? null
                 : opts.menuOwnerBounds ?? null; // 'auto' → owner at right-click time
           if (point) {
+            // Center a generous, roughly symmetric box on the selection click so
+            // the menu is included no matter which way Windows flipped it: menus
+            // open UP near the screen bottom and LEFT near the right edge, so an
+            // asymmetric down/right box would crop a flipped menu off. The full
+            // monitor was already captured, so a larger crop only costs PNG size.
+            // This also covers 'area' mode and the case where ownerBounds is null
+            // (focus unresolved at right-click), where there's no owner to union.
             const sf = mon.scaleFactor() || 1;
+            const half = Math.round(620 * sf);
             const box: Rect = {
-              x: point.x - Math.round(48 * sf),
-              y: point.y - Math.round(56 * sf),
-              width: Math.round(620 * sf),
-              height: Math.round(760 * sf),
+              x: point.x - half,
+              y: point.y - half,
+              width: half * 2,
+              height: half * 2,
             };
             base = base ? unionRect(base, box) : box;
           }
@@ -861,10 +1103,10 @@ export class CaptureController {
       element: { available: false, name: null, controlType: null, bounds: null },
       caption:
         trigger === 'click'
-          ? opts.menuPopup
-            ? `Select from context menu in ${window?.app ?? 'screen'}`
-            : button === 'right'
-              ? `Right-click in ${window?.app ?? 'screen'}`
+          ? button === 'right'
+            ? `Right-click in ${window?.app ?? 'screen'}` // right-click step (now shows the menu)
+            : opts.menuPopup
+              ? `Select from context menu in ${window?.app ?? 'screen'}`
               : `Click in ${window?.app ?? 'screen'}`
           : `Capture: ${window?.title ?? 'screen'}`,
       note: '',
@@ -872,9 +1114,13 @@ export class CaptureController {
       annotations: [],
     };
 
-    await projectStore.addStep(this.session.projectPath, step);
+    if (opts.insertAt != null) {
+      await projectStore.insertStepAt(this.session.projectPath, step, opts.insertAt);
+    } else {
+      await projectStore.addStep(this.session.projectPath, step);
+    }
     captureLog.info(
-      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${opts.menuPopup ? ' menu-select' : button === 'right' ? ' right' : ''}] ${window?.app ?? 'screen'} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
+      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
     );
     this.broadcast(IpcChannels.captureStepAdded, step);
     this.emitState();

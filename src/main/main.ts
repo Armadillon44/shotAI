@@ -1,12 +1,91 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, protocol, session } from 'electron';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
+import { resolveProjectFile } from './ProjectStore';
 import { initLogging, mainLog } from './logger';
 
 initLogging();
+
+// Custom scheme the sandboxed renderer uses to load a project's screenshots
+// (it has no filesystem access). Must be registered before app `ready`.
+// `standard` so paths normalize predictably; `secure` so it's a secure context
+// (canvas can draw it CORS-clean for the flatten step). Resolution is confined
+// to a project's own folder by an opaque id — see resolveProjectFile.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'shot',
+    // corsEnabled is REQUIRED with supportFetchAPI on Electron 42+: the editor
+    // loads screenshots with crossOrigin='anonymous' (a CORS-mode request) so the
+    // canvas stays untainted for flatten()/toBlob(); without corsEnabled the load
+    // is blocked before our handler runs (kCorsDisabledScheme) and Save breaks.
+    // The handler returns Access-Control-Allow-Origin:'*' to complete the dance.
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+    },
+  },
+]);
+
+const SHOT_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+};
+
+/** Serve shot://<projectId>/<relpath> from the registered project's folder. */
+const registerShotProtocol = (): void => {
+  protocol.handle('shot', async (request): Promise<Response> => {
+    try {
+      const url = new URL(request.url);
+      const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+      const mime = SHOT_MIME[path.extname(rel).toLowerCase()];
+      if (!mime) return new Response('Unsupported type', { status: 403 });
+      const abs = resolveProjectFile(url.hostname, rel);
+      if (!abs) return new Response('Not found', { status: 404 });
+      const data = await readFile(abs);
+      return new Response(data, {
+        headers: {
+          'Content-Type': mime,
+          // CORS-clean so the renderer can draw these into a canvas for the
+          // flatten/redaction step (2b) without tainting it.
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache',
+        },
+      });
+    } catch (e) {
+      mainLog.error('shot:// handler error:', e);
+      return new Response('Error', { status: 500 });
+    }
+  });
+  mainLog.info('shot:// protocol registered');
+};
+
+/**
+ * Lock down what the packaged renderer can load. Skipped in dev so the Vite dev
+ * server (inline scripts, HMR websocket) keeps working; the shipped app gets the
+ * strict policy. `shot:`/`data:`/`blob:` are allowed for images (originals +
+ * Konva-rendered previews).
+ */
+const applyContentSecurityPolicy = (): void => {
+  if (!app.isPackaged) return;
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; img-src 'self' shot: data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self'",
+        ],
+      },
+    });
+  });
+};
 
 // Windows-on-ARM VMs (this dev box) and headless/CI environments can't create
 // a GPU context, which otherwise aborts startup ("GPU process isn't usable").
@@ -177,6 +256,8 @@ app.whenReady().then(async () => {
     },
   });
   const region = new RegionService(preloadPath);
+  registerShotProtocol();
+  applyContentSecurityPolicy();
   registerIpcHandlers(capture, region);
   createWindows();
 });
