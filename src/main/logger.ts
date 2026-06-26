@@ -35,5 +35,6 @@ export const mainLog = log.scope('main');
 export const captureLog = log.scope('capture');
 export const ipcLog = log.scope('ipc');
 export const projectsLog = log.scope('projects');
+export const claudeLog = log.scope('claude');
 
 export default log;

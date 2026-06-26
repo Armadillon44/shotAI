@@ -11,6 +11,7 @@ import type {
 } from '../../shared/project';
 import { useProjectStore } from './store';
 import { ProjectDetail } from './ProjectDetail';
+import { Settings } from './Settings';
 
 type Targets = { windows: WindowInfo[]; monitors: MonitorInfo[] };
 
@@ -44,6 +45,7 @@ export function App(): React.JSX.Element {
   const [error, setError] = React.useState<string | null>(null);
   const [capture, setCapture] = React.useState<CaptureState | null>(null);
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
+  const [showSettings, setShowSettings] = React.useState(false);
 
   // Capture-mode selection (applied to the next recording).
   const [mode, setMode] = React.useState<CaptureMode>('auto');
@@ -224,6 +226,16 @@ export function App(): React.JSX.Element {
             </span>
             <h1 className="project__title">shotAI</h1>
           </div>
+          {showHome && !showSettings && (
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={() => setShowSettings(true)}
+              title="Settings"
+            >
+              ⚙ Settings
+            </button>
+          )}
         </header>
       )}
 
@@ -302,7 +314,11 @@ export function App(): React.JSX.Element {
           />
         )}
 
-        {showHome && (
+        {showHome && showSettings && (
+          <Settings onBack={() => setShowSettings(false)} />
+        )}
+
+        {showHome && !showSettings && (
           <section className="capmode">
             <span className="project__label">Capture mode</span>
             <div
@@ -420,7 +436,7 @@ export function App(): React.JSX.Element {
           </section>
         )}
 
-        {showHome && (
+        {showHome && !showSettings && (
           <>
         <div className="project__row">
           <div className="project__dir">

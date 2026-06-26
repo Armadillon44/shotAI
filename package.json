@@ -50,6 +50,7 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.106.0",
     "electron-log": "^5.4.4",
     "electron-squirrel-startup": "^1.0.1",
     "get-windows": "^9.3.0",
@@ -59,6 +60,7 @@
     "react-dom": "^19.2.7",
     "react-konva": "^19.2.5",
     "uiohook-napi": "^1.5.5",
+    "zod": "^3.25.76",
     "zustand": "^5.0.14"
   },
   "optionalDependencies": {

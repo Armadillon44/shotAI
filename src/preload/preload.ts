@@ -5,6 +5,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import { IpcChannels, type CaptureState, type ShotaiApi } from '../shared/ipc';
 import type { CaptureTarget, ProjectStep, Rect, StepPatch } from '../shared/project';
+import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
@@ -37,6 +38,17 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.reorderSteps, projectPath, orderedIds),
     addTextStep: (projectPath: string, atIndex: number) =>
       ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex),
+  },
+  settings: {
+    getSop: () => ipcRenderer.invoke(IpcChannels.getSopSettings),
+    setSop: (patch: Partial<SopSettings>) =>
+      ipcRenderer.invoke(IpcChannels.setSopSettings, patch),
+  },
+  claude: {
+    keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),
+    setApiKey: (key: string) => ipcRenderer.invoke(IpcChannels.claudeSetKey, key),
+    clearApiKey: () => ipcRenderer.invoke(IpcChannels.claudeClearKey),
+    testKey: () => ipcRenderer.invoke(IpcChannels.claudeTestKey),
   },
   capture: {
     start: (projectPath: string, target?: CaptureTarget) =>

@@ -19,6 +19,15 @@ import type {
   StepKind,
   StepPatch,
 } from '../shared/project';
+import {
+  isSopModel,
+  isSopTone,
+  SOP_CUSTOM_INSTRUCTIONS_MAX,
+  type SopSettings,
+} from '../shared/sop';
+import { getSopSettings, setSopSettings } from './settings';
+import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
+import { testKey as claudeTestKey } from './ClaudeService';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -141,6 +150,26 @@ function parseStepPatch(value: unknown): StepPatch {
       const o = a as Record<string, unknown>;
       return typeof o.type === 'string' && typeof o.id === 'string';
     });
+  }
+  return patch;
+}
+
+/**
+ * Validate a SOP-settings patch from the renderer (types erased at the boundary).
+ * Whitelists known fields; unknown model/tone values are dropped (the store also
+ * coerces). customInstructions is length-capped here too (defense in depth).
+ */
+function parseSopPatch(value: unknown): Partial<SopSettings> {
+  if (!value || typeof value !== 'object') {
+    throw new Error('settings patch must be an object');
+  }
+  const v = value as Record<string, unknown>;
+  const patch: Partial<SopSettings> = {};
+  if (typeof v.enabled === 'boolean') patch.enabled = v.enabled;
+  if (isSopModel(v.model)) patch.model = v.model;
+  if (isSopTone(v.tone)) patch.tone = v.tone;
+  if (typeof v.customInstructions === 'string') {
+    patch.customInstructions = v.customInstructions.slice(0, SOP_CUSTOM_INSTRUCTIONS_MAX);
   }
   return patch;
 }
@@ -297,6 +326,39 @@ export function registerIpcHandlers(
       );
     },
   );
+
+  // --- SOP settings + Claude key management (Phase 3) ---
+  ipcMain.handle(IpcChannels.getSopSettings, () => {
+    devLog('ipc: settings:get-sop');
+    return getSopSettings();
+  });
+  ipcMain.handle(
+    IpcChannels.setSopSettings,
+    (_event: IpcMainInvokeEvent, patch: unknown) => {
+      devLog('ipc: settings:set-sop');
+      return setSopSettings(parseSopPatch(patch));
+    },
+  );
+  ipcMain.handle(IpcChannels.claudeKeyStatus, () => {
+    devLog('ipc: claude:key-status');
+    return getApiKeyStatus();
+  });
+  ipcMain.handle(
+    IpcChannels.claudeSetKey,
+    (_event: IpcMainInvokeEvent, key: unknown) => {
+      // NOTE: log the channel only — never the key value.
+      devLog('ipc: claude:set-key');
+      return setApiKey(asString(key, 'apiKey'));
+    },
+  );
+  ipcMain.handle(IpcChannels.claudeClearKey, () => {
+    devLog('ipc: claude:clear-key');
+    return clearApiKey();
+  });
+  ipcMain.handle(IpcChannels.claudeTestKey, () => {
+    devLog('ipc: claude:test-key');
+    return claudeTestKey();
+  });
 
   ipcMain.handle(
     IpcChannels.captureStart,

@@ -12,6 +12,7 @@ import type {
   StepPatch,
   WindowInfo,
 } from './project';
+import type { SopSettings } from './sop';
 
 export interface AppInfo {
   name: string;
@@ -32,6 +33,31 @@ export interface CaptureState {
   stepCount: number;
 }
 
+/** How an Anthropic API key is available (if at all). */
+export type ApiKeySource = 'stored' | 'env' | 'none';
+
+/** Whether a key is available and how — the key itself is NEVER sent to the renderer. */
+export interface ApiKeyStatus {
+  hasKey: boolean;
+  source: ApiKeySource;
+  /** safeStorage availability — when false, a key cannot be saved on this system. */
+  encryptionAvailable: boolean;
+  /**
+   * Whether encrypted ciphertext exists on disk, even if it can't currently be
+   * decrypted (e.g. moved machine / OS keychain change). Lets the UI offer Clear.
+   */
+  hasStoredCiphertext: boolean;
+}
+
+/** Result of a connectivity test (expected failures are returned, not thrown). */
+export interface TestKeyResult {
+  ok: boolean;
+  /** Model the test validated against (on success). */
+  model?: string;
+  /** Friendly failure reason (on failure). */
+  error?: string;
+}
+
 /** IPC channel names — single source of truth. */
 export const IpcChannels = {
   getAppInfo: 'app:get-info',
@@ -45,6 +71,13 @@ export const IpcChannels = {
   deleteStep: 'projects:delete-step',
   reorderSteps: 'projects:reorder-steps',
   addTextStep: 'projects:add-text-step',
+  // SOP settings + Claude key management (Phase 3)
+  getSopSettings: 'settings:get-sop',
+  setSopSettings: 'settings:set-sop',
+  claudeKeyStatus: 'claude:key-status',
+  claudeSetKey: 'claude:set-key',
+  claudeClearKey: 'claude:clear-key',
+  claudeTestKey: 'claude:test-key',
   captureStart: 'capture:start',
   captureSingle: 'capture:single',
   capturePause: 'capture:pause',
@@ -103,6 +136,22 @@ export interface ShotaiApi {
     reorderSteps(projectPath: string, orderedIds: string[]): Promise<ProjectManifest>;
     /** Insert an empty text step at the given index. Returns the manifest. */
     addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
+  };
+  settings: {
+    /** Current SOP generation settings (non-secret; never includes the API key). */
+    getSop(): Promise<SopSettings>;
+    /** Patch SOP settings; returns the full coerced settings. */
+    setSop(patch: Partial<SopSettings>): Promise<SopSettings>;
+  };
+  claude: {
+    /** Whether an API key is available and how — never returns the key itself. */
+    keyStatus(): Promise<ApiKeyStatus>;
+    /** Store an API key, encrypted via safeStorage. Throws if storage is unavailable. */
+    setApiKey(key: string): Promise<void>;
+    /** Remove the stored API key. */
+    clearApiKey(): Promise<void>;
+    /** Validate connectivity using the stored/env key + the selected model. */
+    testKey(): Promise<TestKeyResult>;
   };
   capture: {
     /**

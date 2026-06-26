@@ -11,6 +11,10 @@ export default defineConfig({
         'node-screenshots',
         'get-windows',
         /^electron-log/,
+        // Claude SDK (Phase 3) — large, pulls in node built-ins + dynamic
+        // requires; keep it external so main require()s it at runtime. The regex
+        // also covers subpath helpers (e.g. @anthropic-ai/sdk/helpers/zod).
+        /^@anthropic-ai\/sdk/,
       ],
     },
   },
