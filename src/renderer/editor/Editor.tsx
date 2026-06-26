@@ -485,8 +485,10 @@ export function Editor({
     try {
       const blob = await flattenToPng(img, annotations, crop);
       const bytes = new Uint8Array(await blob.arrayBuffer());
+      // clickImage is null when the step has no click marker OR the user removed
+      // it → persist click:null so the marker is actually deleted (not kept).
       const click =
-        step.click && clickImage ? { ...step.click, image: clickImage } : step.click;
+        step.click && clickImage ? { ...step.click, image: clickImage } : null;
       const manifest = await window.shotai.projects.updateStep(
         projectPath,
         step.id,
@@ -577,8 +579,20 @@ export function Editor({
           </button>
         )}
         {selectedId && (
-          <button type="button" className="btn btn--small" onClick={() => remove(selectedId)}>
-            Delete
+          <button
+            type="button"
+            className="btn btn--small"
+            onClick={() => {
+              if (selectedId === CLICK_ID) {
+                // Remove the click marker; onSave persists click:null.
+                setClickImage(null);
+                setSelectedId(null);
+              } else {
+                remove(selectedId);
+              }
+            }}
+          >
+            {selectedId === CLICK_ID ? 'Remove marker' : 'Delete'}
           </button>
         )}
         <button type="button" className="btn btn--small" onClick={onClose} disabled={saving}>
@@ -981,7 +995,7 @@ export function Editor({
 
       <p className="ed__hint">
         {tool === 'select'
-          ? 'Click to select; drag to move; handles to resize. The red ring is the click point — drag it too.'
+          ? 'Click to select; drag to move; handles to resize. The ring is the click point — drag it, or select it and use Remove marker to delete it.'
           : tool === 'crop'
             ? 'Drag to set the crop region. Reset crop to clear.'
             : tool === 'stamp'
