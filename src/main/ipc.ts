@@ -5,8 +5,9 @@ import {
   ipcMain,
   type IpcMainInvokeEvent,
 } from 'electron';
-import { IpcChannels, type AppInfo } from '../shared/ipc';
+import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
 import * as projectStore from './ProjectStore';
+import { exportProject } from './export';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
 import type {
@@ -19,6 +20,19 @@ import type {
   StepKind,
   StepPatch,
 } from '../shared/project';
+import {
+  isSopModel,
+  isSopTone,
+  SOP_CUSTOM_INSTRUCTIONS_MAX,
+  type SopSettings,
+} from '../shared/sop';
+import { getSopSettings, setSopSettings } from './settings';
+import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
+import {
+  testKey as claudeTestKey,
+  estimate as claudeEstimate,
+  generateSop as claudeGenerateSop,
+} from './ClaudeService';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -108,6 +122,19 @@ function parseClick(value: unknown): StepClick | null {
   return { global, image, button };
 }
 
+const EXPORT_FORMATS: ReadonlySet<ExportFormat> = new Set<ExportFormat>([
+  'html',
+  'pdf',
+  'markdown',
+]);
+
+function parseExportFormat(value: unknown): ExportFormat {
+  if (typeof value !== 'string' || !EXPORT_FORMATS.has(value as ExportFormat)) {
+    throw new Error('format must be one of: html, pdf, markdown');
+  }
+  return value as ExportFormat;
+}
+
 const STEP_KINDS: ReadonlySet<StepKind> = new Set<StepKind>(['shot', 'text']);
 
 /**
@@ -141,6 +168,26 @@ function parseStepPatch(value: unknown): StepPatch {
       const o = a as Record<string, unknown>;
       return typeof o.type === 'string' && typeof o.id === 'string';
     });
+  }
+  return patch;
+}
+
+/**
+ * Validate a SOP-settings patch from the renderer (types erased at the boundary).
+ * Whitelists known fields; unknown model/tone values are dropped (the store also
+ * coerces). customInstructions is length-capped here too (defense in depth).
+ */
+function parseSopPatch(value: unknown): Partial<SopSettings> {
+  if (!value || typeof value !== 'object') {
+    throw new Error('settings patch must be an object');
+  }
+  const v = value as Record<string, unknown>;
+  const patch: Partial<SopSettings> = {};
+  if (typeof v.enabled === 'boolean') patch.enabled = v.enabled;
+  if (isSopModel(v.model)) patch.model = v.model;
+  if (isSopTone(v.tone)) patch.tone = v.tone;
+  if (typeof v.customInstructions === 'string') {
+    patch.customInstructions = v.customInstructions.slice(0, SOP_CUSTOM_INSTRUCTIONS_MAX);
   }
   return patch;
 }
@@ -295,6 +342,74 @@ export function registerIpcHandlers(
         asString(projectPath, 'projectPath'),
         isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
       );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.exportProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+      devLog('ipc: projects:export');
+      return exportProject(
+        asString(projectPath, 'projectPath'),
+        parseExportFormat(format),
+      );
+    },
+  );
+
+  // --- SOP settings + Claude key management (Phase 3) ---
+  ipcMain.handle(IpcChannels.getSopSettings, () => {
+    devLog('ipc: settings:get-sop');
+    return getSopSettings();
+  });
+  ipcMain.handle(
+    IpcChannels.setSopSettings,
+    (_event: IpcMainInvokeEvent, patch: unknown) => {
+      devLog('ipc: settings:set-sop');
+      return setSopSettings(parseSopPatch(patch));
+    },
+  );
+  ipcMain.handle(IpcChannels.claudeKeyStatus, () => {
+    devLog('ipc: claude:key-status');
+    return getApiKeyStatus();
+  });
+  ipcMain.handle(
+    IpcChannels.claudeSetKey,
+    (_event: IpcMainInvokeEvent, key: unknown) => {
+      // NOTE: log the channel only — never the key value.
+      devLog('ipc: claude:set-key');
+      return setApiKey(asString(key, 'apiKey'));
+    },
+  );
+  ipcMain.handle(IpcChannels.claudeClearKey, () => {
+    devLog('ipc: claude:clear-key');
+    return clearApiKey();
+  });
+  ipcMain.handle(IpcChannels.claudeTestKey, () => {
+    devLog('ipc: claude:test-key');
+    return claudeTestKey();
+  });
+  ipcMain.handle(
+    IpcChannels.revertSop,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:revert-sop');
+      return projectStore.revertSop(asString(projectPath, 'projectPath'));
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.claudeEstimate,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: claude:estimate');
+      return claudeEstimate(asString(projectPath, 'projectPath'));
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.claudeGenerateSop,
+    (event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: claude:generate-sop');
+      const sender = event.sender;
+      return claudeGenerateSop(asString(projectPath, 'projectPath'), (p) => {
+        if (!sender.isDestroyed()) sender.send(IpcChannels.claudeSopProgress, p);
+      });
     },
   );
 

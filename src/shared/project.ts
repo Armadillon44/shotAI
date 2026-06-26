@@ -7,6 +7,8 @@
  *     export/        (generated HTML / PDF / MD)
  */
 
+import type { SopTone } from './sop';
+
 export const PROJECT_SCHEMA_VERSION = 1;
 
 export type CaptureMode = 'auto' | 'window' | 'area' | 'screen' | 'all';
@@ -172,10 +174,16 @@ export interface ProjectStep {
   caption: string;
   /** User free-text note. */
   note: string;
-  /** Text step: optional heading. */
+  /** Optional heading. Text steps and (Phase 3) screenshot steps both use it. */
   heading?: string;
-  /** Text step: body (markdown). */
+  /** Optional body/subtext (markdown). Text steps and screenshot steps both use it. */
   body?: string;
+  /**
+   * True for a text step that Claude's SOP generation inserted (intro / section
+   * heading). Stripped + regenerated on the next run so they don't accumulate;
+   * author-written text steps (no flag) are always preserved.
+   */
+  aiInserted?: boolean;
   /** Optional crop rect, in image px (Phase 2 editor). */
   crop: Rect | null;
   /** Click-register marker color (editor-set); defaults to the accent if unset. */
@@ -190,6 +198,14 @@ export interface ProjectStep {
   flattened?: string | null;
   /** Bumped each time `flattened` is rewritten — used to cache-bust the <img>. */
   renderRev?: number;
+  /**
+   * True when the current `flattened` render was produced by the marker-aware
+   * flatten — i.e. any click marker is BAKED into the pixels (so Claude's vision
+   * and exports see it, and the report must NOT draw its CSS overlay on top).
+   * Falsy on pre-marker renders + un-flattened steps → report keeps the overlay
+   * and `ensureFlattened` re-bakes the render so the marker lands in it.
+   */
+  markerBaked?: boolean;
   /** Per-step DISPLAY zoom in the report (default 1); does not affect export. */
   reportZoom?: number;
   /** Report pan as a fraction 0..1 of the pannable range (0.5 = centered). */
@@ -210,11 +226,25 @@ export type StepPatch = Partial<
     | 'annotations'
     | 'click'
     | 'markerColor'
+    | 'markerBaked'
     | 'reportZoom'
     | 'reportPanX'
     | 'reportPanY'
   >
 >;
+
+/**
+ * Pre-generation snapshot for one-click revert of Claude's inline SOP edits.
+ * Captured right before an edit plan is applied; cleared on revert.
+ */
+export interface SopBackup {
+  steps: ProjectStep[];
+  title: string;
+  /** Model + tone the (subsequent) generation used — for the "Revert" provenance label. */
+  model: string;
+  tone: SopTone;
+  at: string; // ISO 8601
+}
 
 export interface ProjectManifest {
   version: number;
@@ -224,7 +254,8 @@ export interface ProjectManifest {
   updatedAt: string; // ISO 8601
   captureSettings: CaptureTarget | null;
   steps: ProjectStep[];
-  sop: unknown | null; // Claude-generated SOP structure (Phase 3)
+  /** Pre-edit snapshot enabling revert of Claude's inline SOP edits (Phase 3). */
+  sopBackup: SopBackup | null;
 }
 
 /** Lightweight summary for the recent-projects list (no full manifest load). */

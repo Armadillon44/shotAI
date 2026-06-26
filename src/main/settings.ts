@@ -8,10 +8,18 @@ import { app } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { projectsLog } from './logger';
+import { writeFileAtomic } from './atomicWrite';
+import {
+  coerceSopSettings,
+  DEFAULT_SOP_SETTINGS,
+  type SopSettings,
+} from '../shared/sop';
 
 export interface Settings {
   projectsDir: string;
   recents: string[];
+  /** SOP generation settings (Phase 3; NON-SECRET — the API key is in secrets.ts). */
+  sop: SopSettings;
 }
 
 const MAX_RECENTS = 20;
@@ -36,46 +44,23 @@ async function load(): Promise<Settings> {
       recents: Array.isArray(parsed.recents)
         ? parsed.recents.filter((p): p is string => typeof p === 'string')
         : [],
+      sop: coerceSopSettings(parsed.sop),
     };
   } catch {
-    return { projectsDir: defaultProjectsDir(), recents: [] };
-  }
-}
-
-// Windows transiently fails rename-over-an-existing-file with EPERM/EACCES/EBUSY
-// when antivirus, the search indexer, or another reader briefly holds the
-// destination open. The lock virtually always clears within a few hundred ms, so
-// retry with backoff before giving up (the same approach as write-file-atomic).
-const RENAME_RETRY_DELAYS_MS = [10, 25, 50, 100, 200, 350, 600];
-
-async function renameWithRetry(from: string, to: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await fs.rename(from, to);
-      return;
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      const retriable = code === 'EPERM' || code === 'EACCES' || code === 'EBUSY';
-      if (!retriable || attempt >= RENAME_RETRY_DELAYS_MS.length) throw e;
-      if (attempt === 0) {
-        projectsLog.warn(`settings rename ${code} — retrying (lock likely transient)`);
-      }
-      await new Promise((r) => setTimeout(r, RENAME_RETRY_DELAYS_MS[attempt]));
-    }
+    return {
+      projectsDir: defaultProjectsDir(),
+      recents: [],
+      sop: DEFAULT_SOP_SETTINGS,
+    };
   }
 }
 
 async function save(settings: Settings): Promise<void> {
-  const file = settingsFile();
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(settings, null, 2), 'utf8');
-  try {
-    await renameWithRetry(tmp, file); // atomic replace (retried on Windows locks)
-  } catch (e) {
-    await fs.rm(tmp, { force: true }).catch(() => undefined); // don't leak the tmp
-    throw e;
-  }
+  // Atomic, Windows-lock-tolerant write (see atomicWrite.ts).
+  await writeFileAtomic(settingsFile(), JSON.stringify(settings, null, 2), {
+    onRetry: (code) =>
+      projectsLog.warn(`settings rename ${code} — retrying (lock likely transient)`),
+  });
 }
 
 // Serialize read-modify-write so concurrent mutators can't lose updates.
@@ -130,5 +115,20 @@ export async function addRecent(projectPath: string): Promise<void> {
 export function setRecents(recents: string[]): Promise<void> {
   return mutate((s) => {
     s.recents = recents;
+  });
+}
+
+export async function getSopSettings(): Promise<SopSettings> {
+  return (await load()).sop;
+}
+
+/**
+ * Patch SOP settings (validated/coerced onto the current values) and persist.
+ * Returns the full, coerced settings so the renderer resyncs without a re-read.
+ */
+export function setSopSettings(patch: Partial<SopSettings>): Promise<SopSettings> {
+  return mutate((s) => {
+    s.sop = coerceSopSettings({ ...s.sop, ...patch }, s.sop);
+    return s.sop;
   });
 }

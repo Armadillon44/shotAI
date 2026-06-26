@@ -21,11 +21,24 @@ function finite(v: number): number {
   return Number.isFinite(v) ? v : 0;
 }
 
+/**
+ * The click-register marker to bake into the output, in image (uncropped) px.
+ * Baking it (vs. an overlay) means the Claude vision pass and exports both see
+ * exactly where the user clicked — otherwise Claude has no idea and guesses.
+ */
+export interface FlattenMarker {
+  x: number;
+  y: number;
+  /** Ring color (CSS color string). */
+  color: string;
+}
+
 /** Flatten to a PNG Blob. `crop` (image px) selects the region; null = whole image. */
 export async function flattenToPng(
   image: HTMLImageElement,
   annotations: Annotation[],
   crop: Rect | null,
+  marker: FlattenMarker | null = null,
 ): Promise<Blob> {
   const nw = image.naturalWidth;
   const nh = image.naturalHeight;
@@ -67,6 +80,9 @@ export async function flattenToPng(
   ctx.translate(-cx, -cy);
   for (const a of annotations) drawVector(ctx, a);
   ctx.restore();
+  // 4) click-register marker, baked on top so Claude's vision + exports see the
+  //    clicked spot. Off-canvas (outside the crop) draws harmlessly clipped.
+  if (marker) drawClickMarker(ctx, marker, clickMarkerRadius(nw, nh), cx, cy);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -136,6 +152,34 @@ function bakeRedaction(
   ctx.drawImage(tmp, 0, 0, sw, sh, x0, y0, w, h);
   ctx.restore(); // also resets filter + smoothing + clip
   return true;
+}
+
+/** Marker ring radius from image size — mirror of clickMarkerRadius() in annotations.ts. */
+function clickMarkerRadius(naturalW: number, naturalH: number): number {
+  return Math.max(14, Math.min(60, Math.round(Math.min(naturalW, naturalH) * 0.02)));
+}
+
+/** Draw the click ring (translucent fill + solid stroke) at the click point. */
+function drawClickMarker(
+  ctx: CanvasRenderingContext2D,
+  marker: FlattenMarker,
+  radius: number,
+  cropX: number,
+  cropY: number,
+): void {
+  const x = finite(marker.x) - cropX;
+  const y = finite(marker.y) - cropY;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = marker.color;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = Math.max(2, Math.round(radius * 0.22));
+  ctx.strokeStyle = marker.color;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function roundRectPath(
