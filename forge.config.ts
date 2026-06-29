@@ -9,7 +9,14 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    // Keep asar, but UNPACK native binaries (.node) — uiohook-napi,
+    // node-screenshots, get-windows, and koffi (+ its @koromix/* binary) can't be
+    // loaded from inside an asar archive.
+    asar: { unpack: '**/*.node' },
+    // Ship the native UI-element-locator dll into the app's resources/ (loaded by
+    // koffi at runtime via ElementLocator). It's a plain .dll, not a .node, so the
+    // unpack rule above doesn't cover it — extraResource places it in resources/.
+    extraResource: ['./native/element-locator/element_locator.dll'],
   },
   // Our native deps (uiohook-napi, node-screenshots, get-windows) are all N-API
   // (ABI-stable) and ship/carry x64 prebuilts, which are resolved at runtime by

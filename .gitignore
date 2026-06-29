@@ -90,3 +90,6 @@ typings/
 
 # Electron-Forge
 out/
+
+# Rust native addon build output (the built .dll is published separately)
+native/**/target/

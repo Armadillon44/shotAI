@@ -31,11 +31,13 @@ import type {
   ProjectStep,
   Rect,
   StepClick,
+  StepElement,
   WindowInfo,
 } from '../shared/project';
 import type { CaptureState } from '../shared/ipc';
 import { IpcChannels } from '../shared/ipc';
 import { captureLog } from './logger';
+import { getElementAtPoint } from './ElementLocator';
 
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+S';
 const OWN_WINDOW_TITLES = new Set(['shotAI', 'shotAI — Capture']);
@@ -199,6 +201,65 @@ function captureModeFor(active: ActiveLike): 'window' | 'region' | 'fullscreen' 
   return 'window';
 }
 
+/** A friendly noun for a UIA control type, for captions ('' = omit the noun). */
+function controlWord(ct: string | null | undefined): string {
+  switch (ct) {
+    case 'Button':
+    case 'SplitButton':
+      return 'button';
+    case 'Hyperlink':
+      return 'link';
+    case 'CheckBox':
+      return 'checkbox';
+    case 'RadioButton':
+      return 'option';
+    case 'Tab':
+    case 'TabItem':
+      return 'tab';
+    case 'Edit':
+      return 'field';
+    case 'ComboBox':
+      return 'dropdown';
+    case 'ListItem':
+    case 'TreeItem':
+    case 'DataItem':
+      return 'item';
+    case 'Slider':
+      return 'slider';
+    case 'Spinner':
+      return 'spinner';
+    default:
+      return '';
+  }
+}
+
+/** Auto-caption for a click step. Names the clicked UI element when one
+ *  resolved (e.g. "Click 'OK' button in <app>"); otherwise falls back to the
+ *  window-only phrasing. */
+function buildClickCaption(
+  button: StepClick['button'],
+  isMenuSelect: boolean,
+  appName: string,
+  element: StepElement | null,
+): string {
+  const name = element?.name;
+  if (name) {
+    // Only call it a menu selection when the clicked element really IS a menu
+    // item. The proximity gate sometimes flags a click in a dialog the menu
+    // opened (e.g. an OK button in a Properties dialog) as a "selection" — caption
+    // it as the actual control instead of "Select from context menu".
+    if (element?.controlType === 'MenuItem') return `Select '${name}' in ${appName}`;
+    const word = controlWord(element?.controlType);
+    const tail = word ? ` ${word}` : '';
+    return button === 'right'
+      ? `Right-click '${name}'${tail} in ${appName}`
+      : `Click '${name}'${tail} in ${appName}`;
+  }
+  if (button === 'right') return `Right-click in ${appName}`;
+  if (isMenuSelect) return `Select from context menu in ${appName}`;
+  return `Click in ${appName}`;
+}
+
 export class CaptureController {
   private readonly broadcast: Broadcast;
   private readonly onRecordingChange?: (recording: boolean) => void;
@@ -237,6 +298,12 @@ export class CaptureController {
     const point = { x: event.x, y: event.y };
     const button = mapButton(event.button);
 
+    // Resolve the UI element under the cursor NOW (at mousedown), before the
+    // click's effect changes the UI — closing a dialog, minimizing a window, or
+    // dismissing the menu would otherwise make a later query hit whatever is
+    // underneath. Best-effort + off-thread; threaded into captureStep below.
+    const elementPromise = getElementAtPoint(point.x, point.y);
+
     // Single-shot insert: capture the first real click as ONE step inserted at
     // the chosen index, then end the session. No double-click/menu machinery —
     // this is an explicit one-screenshot grab, not a recording.
@@ -246,7 +313,7 @@ export class CaptureController {
       this.session.single.fired = true;
       const insertAt = this.session.single.insertAt;
       this.enqueue(async () => {
-        const step = await this.captureStep('click', point, button, { insertAt });
+        const step = await this.captureStep('click', point, button, { insertAt, elementPromise });
         if (!step) {
           captureLog.warn(
             `single-shot: click at (${point.x},${point.y}) captured nothing — ending the session (the window is restored; retry the insert)`,
@@ -298,7 +365,7 @@ export class CaptureController {
       // NEXT click (the selection), grabbed on mouse-DOWN while the menu is still
       // on screen. The two can then be merged in the report (the right-click step
       // is discarded, its click carried onto the menu screenshot as a marker).
-      this.enqueue(() => this.captureStep('click', point, button));
+      this.enqueue(() => this.captureStep('click', point, button, { elementPromise }));
       return;
     }
 
@@ -357,6 +424,7 @@ export class CaptureController {
           menuPopup: true,
           menuOwnerBounds: ownerBounds,
           preGrab,
+          elementPromise,
         }),
       );
       return;
@@ -374,7 +442,7 @@ export class CaptureController {
       captureLog.debug(`menu: disarmed — click at (${point.x},${point.y}) not a selection (${reason})`);
     }
     this.disarmMenu(); // a non-menu click disarms the follow-up + stops polling
-    this.enqueue(() => this.captureStep('click', point, button));
+    this.enqueue(() => this.captureStep('click', point, button, { elementPromise }));
   };
 
   /** True when a click is close enough to the previous menu point to still be
@@ -827,6 +895,9 @@ export class CaptureController {
       preGrab?: { image: NsImage; monitor: NsMonitor } | null;
       /** Single-shot: insert at this manifest index (renumbered) instead of append. */
       insertAt?: number | null;
+      /** UI element resolved AT mousedown (started in onMouseDown, before the
+       *  click's effect changes the UI). Falls back to a query here if absent. */
+      elementPromise?: Promise<StepElement | null>;
     } = {},
   ): Promise<ProjectStep | null> {
     // Re-check here (not just at enqueue) so a pause/stop that lands while
@@ -864,6 +935,14 @@ export class CaptureController {
           }
         : null;
     }
+
+    // Resolve the UI element under the click (best-effort, off the main thread).
+    // Prefer the query started at MOUSEDOWN (opts.elementPromise) — by the time
+    // this step runs, the click may have closed a dialog / minimized the window /
+    // dismissed the menu, so a query now would hit whatever is underneath. Fall
+    // back to a query here for callers that don't pre-resolve (hotkey, tests).
+    const elementPromise: Promise<StepElement | null> =
+      opts.elementPromise ?? (point ? getElementAtPoint(point.x, point.y) : Promise.resolve(null));
 
     const target = this.session.target;
     const mode = target.mode;
@@ -1027,13 +1106,14 @@ export class CaptureController {
       }
       if (!mon) return null;
 
-      // REGION — 'auto' shell element (taskbar/Start/tray): a tight crop around
-      // the click, avoiding the giant black shell-window capture.
+      // REGION — 'auto' shell element (taskbar/Start/tray): a crop around the
+      // click, avoiding the giant black shell-window capture. Sized generously so
+      // a Start-menu tile / flyout has context (the old 520x400 was too tight).
       if (autoMode === 'region' && point) {
         try {
           const sf = mon.scaleFactor() || 1;
-          const boxW = Math.min(Math.round(520 * sf), mon.width());
-          const boxH = Math.min(Math.round(400 * sf), mon.height());
+          const boxW = Math.min(Math.round(820 * sf), mon.width());
+          const boxH = Math.min(Math.round(640 * sf), mon.height());
           const cx = point.x - mon.x();
           const cy = point.y - mon.y();
           const cropX = Math.max(0, Math.min(cx - Math.floor(boxW / 2), mon.width() - boxW));
@@ -1082,6 +1162,15 @@ export class CaptureController {
         }
       : null;
 
+    // The UI element under the click (resolved off-thread, started above).
+    const element = (await elementPromise) ?? {
+      available: false,
+      name: null,
+      controlType: null,
+      bounds: null,
+    };
+    const appName = window?.app ?? 'screen';
+
     const step: ProjectStep = {
       id: randomUUID(),
       order,
@@ -1107,14 +1196,10 @@ export class CaptureController {
           }
         : null,
       window,
-      element: { available: false, name: null, controlType: null, bounds: null },
+      element,
       caption:
         trigger === 'click'
-          ? button === 'right'
-            ? `Right-click in ${window?.app ?? 'screen'}` // plain target; the menu shows on the next (selection) step
-            : opts.menuPopup
-              ? `Select from context menu in ${window?.app ?? 'screen'}`
-              : `Click in ${window?.app ?? 'screen'}`
+          ? buildClickCaption(button, !!opts.menuPopup, appName, element)
           : `Capture: ${window?.title ?? 'screen'}`,
       note: '',
       crop: null,
@@ -1127,7 +1212,7 @@ export class CaptureController {
       await projectStore.addStep(this.session.projectPath, step);
     }
     captureLog.info(
-      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
+      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'}${element.name ? ` el='${element.name}'(${element.controlType})` : ''} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
     );
     this.broadcast(IpcChannels.captureStepAdded, step);
     this.emitState();
