@@ -73,6 +73,8 @@ export interface StepClick {
   /** Click position relative to the captured screenshot (calibration pending). */
   image: Point;
   button: 'left' | 'right' | 'middle' | 'other';
+  /** Click-marker ring radius (image px). Omitted = derive from image size. */
+  radius?: number;
 }
 
 /** UI element at the click point — forward-compat; populated in Phase 4. */
@@ -156,6 +158,8 @@ export interface MarkerAnnotation extends AnnotationBase {
   x: number; // center, image px
   y: number;
   color: string;
+  /** Ring radius (image px). Omitted = derive from image size (legacy markers). */
+  radius?: number;
 }
 export type Annotation =
   | RectAnnotation

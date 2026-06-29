@@ -45,10 +45,45 @@ import {
 import { MIN_REDACT_BLOCK, flattenToPng } from './flatten';
 
 const CLICK_ID = '__click__'; // pseudo-selection id for the click marker
+const CROP_ID = '__crop__'; // pseudo-selection id for the (resizable) crop box
 
 const VIEW_W = 940;
 const VIEW_H = 540;
 const MIN_DRAG = 6; // image px — ignore accidental micro-drags
+
+// A glyph per tool + the tool-rail grouping by job (draw / mark / crop), so the
+// rail is scannable rather than a row of identical text chips.
+const TOOL_ICON: Record<Tool, string> = {
+  select: '⬚',
+  rect: '▢',
+  arrow: '↗',
+  blur: '░',
+  stamp: '①',
+  marker: '◎',
+  text: 'T',
+  crop: '⛶',
+};
+const TOOL_GROUPS: { label: string; tools: Tool[] }[] = [
+  { label: 'Draw', tools: ['select', 'rect', 'arrow', 'blur'] },
+  { label: 'Mark', tools: ['stamp', 'marker', 'text'] },
+  { label: 'Crop', tools: ['crop'] },
+];
+const TOOL_BY_ID = Object.fromEntries(TOOLS.map((t) => [t.tool, t])) as Record<
+  Tool,
+  (typeof TOOLS)[number]
+>;
+
+/** Clamp a rectangle (image px) to lie fully within the image bounds. */
+function clampRectToImage(r: Rect, w: number, h: number): Rect {
+  const x = Math.max(0, Math.min(r.x, w));
+  const y = Math.max(0, Math.min(r.y, h));
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(r.width, w - x)),
+    height: Math.max(1, Math.min(r.height, h - y)),
+  };
+}
 
 type Props = {
   projectId: string;
@@ -177,6 +212,10 @@ export function Editor({
   const [clickImage, setClickImage] = React.useState<Point | null>(
     step.click ? { ...step.click.image } : null,
   );
+  // Click-marker ring radius (image px); null = use the image-derived default.
+  const [clickRadius, setClickRadius] = React.useState<number | null>(
+    step.click?.radius ?? null,
+  );
   const [tool, setTool] = React.useState<Tool>('select');
   const [strokeWidth, setStrokeWidth] = React.useState(DEFAULT_STROKE_WIDTH);
   const [blockSize, setBlockSize] = React.useState(DEFAULT_BLOCK_SIZE);
@@ -268,23 +307,32 @@ export function Editor({
 
   const selected = annotations.find((a) => a.id === selectedId) ?? null;
 
-  // Attach the Transformer to the selected resizable shape (rect/blur only).
+  // Attach the Transformer to the selected resizable shape. Resizable: rect,
+  // blur, arrow, stamp, marker annotations + the click marker + the crop box.
   React.useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
     const node = selectedId ? shapeRefs.current.get(selectedId) : undefined;
-    if (
-      tool === 'select' &&
-      node &&
-      selected &&
-      (selected.type === 'rect' || selected.type === 'blur')
-    ) {
+    const annResizable =
+      !!selected &&
+      (selected.type === 'rect' ||
+        selected.type === 'blur' ||
+        selected.type === 'arrow' ||
+        selected.type === 'stamp' ||
+        selected.type === 'marker');
+    const pseudoResizable = selectedId === CLICK_ID || selectedId === CROP_ID;
+    // Lock ratio only for circular things (stamp/marker/click ring) so they stay
+    // round; rect / blur / crop / arrow resize freely on every handle.
+    const circular =
+      selectedId === CLICK_ID || selected?.type === 'stamp' || selected?.type === 'marker';
+    tr.keepRatio(circular);
+    if (tool === 'select' && node && (annResizable || pseudoResizable)) {
       tr.nodes([node]);
     } else {
       tr.nodes([]);
     }
     tr.getLayer()?.batchDraw();
-  }, [selectedId, tool, annotations, selected]);
+  }, [selectedId, tool, annotations, selected, crop, clickImage, clickRadius]);
 
   const update = (id: string, patch: Partial<Annotation>) =>
     setAnnotations((prev) =>
@@ -316,15 +364,16 @@ export function Editor({
       const a = createStamp(p.x, p.y, n, defaultStampRadius(natW, natH), color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
-      // Stay in the stamp tool to place more; Escape or the toolbar switches it.
+      setTool('select'); // drop to Select so the new stamp can be recolored/resized
       return;
     }
     if (tool === 'marker') {
-      // Place a click-register ring at the click point; recolor/move via Select.
+      // Place a click-register ring at the click point; recolor/resize via Select.
       const a = createMarker(p.x, p.y, color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
-      return; // stay in the marker tool
+      setTool('select'); // drop to Select so the new marker can be recolored/resized
+      return;
     }
     if (tool === 'text') {
       setSelectedId(null);
@@ -343,12 +392,18 @@ export function Editor({
     else setDraft({ x: p.x, y: p.y, width: 0, height: 0 });
   };
 
-  const onStageMouseMove = () => {
-    const start = dragStart.current;
-    const p = pointer();
-    if (!start || !p) return;
-    if (tool === 'arrow') setArrowDraft([start.x, start.y, p.x, p.y]);
-    else setDraft(dragRect(start.x, start.y, p.x, p.y));
+  // Map a window mouse event to IMAGE px via the live stage transform — lets a
+  // drag continue (and clamp) even when the cursor roams outside the stage.
+  const eventImagePoint = (e: MouseEvent): { x: number; y: number } | null => {
+    const stage = stageRef.current;
+    if (!stage) return null;
+    const rect = stage.container().getBoundingClientRect();
+    const sx = stage.scaleX() || 1;
+    const sy = stage.scaleY() || 1;
+    return {
+      x: (e.clientX - rect.left - stage.x()) / sx,
+      y: (e.clientY - rect.top - stage.y()) / sy,
+    };
   };
 
   // Finalize from the last drafted geometry (NOT a fresh pointer read), so a
@@ -363,31 +418,48 @@ export function Editor({
         const a = createArrow(pts[0], pts[1], pts[2], pts[3], strokeWidth, color);
         setAnnotations((prev) => [...prev, a]);
         setSelectedId(a.id);
+        setTool('select'); // so it can be recolored/resized right away
       }
-      return; // stay in the arrow tool
+      return;
     }
     const r = draft;
     setDraft(null);
     // A misclick (sub-MIN_DRAG) leaves you in the current drawing tool.
     if (!r || r.width < MIN_DRAG || r.height < MIN_DRAG) return;
     if (tool === 'crop') {
-      setCrop(r);
-      setTool('select'); // crop is one-shot — drop back to Select after cropping
+      // Clamp to the image so overshooting the edges while dragging is fine.
+      setCrop(clampRectToImage(r, natW, natH));
+      setTool('select'); // drop to Select; the crop box stays adjustable
     } else if (tool === 'rect') {
       const a = createRect(r.x, r.y, r.width, r.height, strokeWidth, color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
+      setTool('select');
     } else if (tool === 'blur') {
       const a = createBlur(r.x, r.y, r.width, r.height, redactMode, blockSize);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
+      setTool('select');
     }
-    // rect/blur: stay active for repeated drawing.
   };
 
+  // Track the drag on the WINDOW (not just the stage) so the cursor can roam
+  // past the image edge while drawing — no more fiddly stop-exactly-at-the-edge.
   React.useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const start = dragStart.current;
+      if (!start) return;
+      const p = eventImagePoint(e);
+      if (!p) return;
+      if (tool === 'arrow') setArrowDraft([start.x, start.y, p.x, p.y]);
+      else setDraft(dragRect(start.x, start.y, p.x, p.y));
+    };
+    window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', finishDrag);
-    return () => window.removeEventListener('mouseup', finishDrag);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', finishDrag);
+    };
   });
 
   const onTransformEnd = (id: string) => {
@@ -397,12 +469,58 @@ export function Editor({
     const sy = Math.abs(node.scaleY());
     node.scaleX(1);
     node.scaleY(1);
-    update(id, {
-      x: node.x(),
-      y: node.y(),
-      width: Math.max(4, node.width() * sx),
-      height: Math.max(4, node.height() * sy),
-    } as Partial<Annotation>);
+
+    // Crop box: resize/move the (uncommitted) crop region, clamped to the image.
+    if (id === CROP_ID) {
+      setCrop(
+        clampRectToImage(
+          {
+            x: node.x(),
+            y: node.y(),
+            width: Math.max(8, node.width() * sx),
+            height: Math.max(8, node.height() * sy),
+          },
+          natW,
+          natH,
+        ),
+      );
+      return;
+    }
+    // Click marker: a circle — scale uniformly into a new radius.
+    if (id === CLICK_ID) {
+      const s = Math.max(sx, sy);
+      setClickRadius((r) => Math.max(6, Math.round((r ?? markerR) * s)));
+      setClickImage({ x: node.x(), y: node.y() });
+      return;
+    }
+    const ann = annotations.find((a) => a.id === id);
+    if (!ann) return;
+    if (ann.type === 'rect' || ann.type === 'blur') {
+      update(id, {
+        x: node.x(),
+        y: node.y(),
+        width: Math.max(4, node.width() * sx),
+        height: Math.max(4, node.height() * sy),
+      } as Partial<Annotation>);
+    } else if (ann.type === 'stamp' || ann.type === 'marker') {
+      // Circles — uniform radius from the larger scale.
+      const s = Math.max(sx, sy);
+      const baseR = ann.type === 'stamp' ? ann.radius : (ann.radius ?? markerR);
+      update(id, {
+        x: node.x(),
+        y: node.y(),
+        radius: Math.max(6, Math.round(baseR * s)),
+      } as Partial<Annotation>);
+    } else if (ann.type === 'arrow') {
+      // Scale both endpoints about the node's (possibly Transformer-shifted) origin.
+      const ox = node.x();
+      const oy = node.y();
+      const p = ann.points;
+      update(id, {
+        points: [ox + p[0] * sx, oy + p[1] * sy, ox + p[2] * sx, oy + p[3] * sy],
+      } as Partial<Annotation>);
+      node.position({ x: 0, y: 0 });
+    }
   };
 
   React.useEffect(() => {
@@ -411,7 +529,15 @@ export function Editor({
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
         e.preventDefault();
-        remove(selectedId);
+        if (selectedId === CLICK_ID) {
+          setClickImage(null);
+          setSelectedId(null);
+        } else if (selectedId === CROP_ID) {
+          setCrop(null);
+          setSelectedId(null);
+        } else {
+          remove(selectedId);
+        }
       } else if (e.key === 'Escape') {
         setSelectedId(null);
         setTool('select');
@@ -433,21 +559,10 @@ export function Editor({
   // Selection outline for arrow/stamp/text (rect/blur already show the
   // Transformer's handles). Measured from the node so it fits any shape.
   React.useEffect(() => {
-    if (selectedId === CLICK_ID) {
-      setSelBox(
-        clickImage
-          ? {
-              x: clickImage.x - markerR,
-              y: clickImage.y - markerR,
-              width: markerR * 2,
-              height: markerR * 2,
-            }
-          : null,
-      );
-      return;
-    }
+    // Only free text shows a dashed outline; every other selectable element now
+    // uses the Transformer's handles, so a separate outline would double up.
     const sel = annotations.find((a) => a.id === selectedId);
-    if (!selectedId || !sel || sel.type === 'rect' || sel.type === 'blur') {
+    if (!selectedId || !sel || sel.type !== 'text') {
       setSelBox(null);
       return;
     }
@@ -459,7 +574,7 @@ export function Editor({
     } else {
       setSelBox(null);
     }
-  }, [selectedId, annotations, clickImage, markerR]);
+  }, [selectedId, annotations]);
 
   const setRef = (id: string) => (node: Konva.Node | null) => {
     if (node) shapeRefs.current.set(id, node);
@@ -479,6 +594,7 @@ export function Editor({
       const a = createText(entry.imageX, entry.imageY, value, entry.fontSize, color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
+      setTool('select');
     }
   };
 
@@ -541,13 +657,26 @@ export function Editor({
       // clickImage is null when the step has no click marker OR the user removed
       // it → persist click:null so the marker is actually deleted (not kept).
       const click =
-        step.click && clickImage ? { ...step.click, image: clickImage } : null;
+        step.click && clickImage
+          ? {
+              ...step.click,
+              image: clickImage,
+              ...(clickRadius != null ? { radius: clickRadius } : {}),
+            }
+          : null;
       // Bake the click ring into the render so Claude's vision + exports see it.
       const blob = await flattenToPng(
         img,
         annotations,
         crop,
-        click ? { x: click.image.x, y: click.image.y, color: markerColor } : null,
+        click
+          ? {
+              x: click.image.x,
+              y: click.image.y,
+              color: markerColor,
+              radius: clickRadius ?? undefined,
+            }
+          : null,
       );
       const bytes = new Uint8Array(await blob.arrayBuffer());
       const manifest = await window.shotai.projects.updateStep(
@@ -591,97 +720,39 @@ export function Editor({
 
   return (
     <div className="ed">
-      <div className="ed__toolbar">
-        <div className="ed__tools" role="toolbar" aria-label="Editor tools">
-          {TOOLS.map((t) => (
-            <button
-              key={t.tool}
-              type="button"
-              className={`ed__tool${tool === t.tool ? ' ed__tool--on' : ''}`}
-              title={t.hint}
-              aria-pressed={tool === t.tool}
-              onClick={() => {
-                setTool(t.tool);
-                if (t.tool !== 'select') setSelectedId(null);
-                if (t.tool === 'crop') {
-                  setViewCropped(false); // re-crop on the full image
-                  setEditorZoom(1);
-                }
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="ed__spacer" />
-
-        {crop && (
-          <button
-            type="button"
-            className="btn btn--small"
-            onClick={() => {
-              setViewCropped((v) => !v);
-              setEditorZoom(1);
-            }}
-            title="Work on just the cropped region (non-destructive)"
-          >
-            {viewCropped ? 'Show full' : 'Apply crop'}
-          </button>
-        )}
-        {crop && (
-          <button
-            type="button"
-            className="btn btn--small"
-            onClick={() => {
-              setCrop(null);
-              setViewCropped(false);
-            }}
-          >
-            Reset crop
-          </button>
-        )}
-        {selectedId && (
-          <button
-            type="button"
-            className="btn btn--small"
-            onClick={() => {
-              if (selectedId === CLICK_ID) {
-                // Remove the click marker; onSave persists click:null.
-                setClickImage(null);
-                setSelectedId(null);
-              } else {
-                remove(selectedId);
-              }
-            }}
-          >
-            {selectedId === CLICK_ID ? 'Remove marker' : 'Delete'}
-          </button>
-        )}
-        <button
-          type="button"
-          className="btn btn--small"
-          onClick={() => void autoRedact()}
-          disabled={scanning || saving || !img}
-          title="Scan this screenshot for SSNs, credit cards, and API keys, and add redaction boxes to review"
-        >
-          {scanning ? 'Scanning…' : 'Auto-redact'}
-        </button>
-        <button type="button" className="btn btn--small" onClick={onClose} disabled={saving}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="btn btn--primary btn--small"
-          onClick={() => void onSave()}
-          disabled={saving || !img}
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-      </div>
-
-      {/* Properties row — reserved height so the modal doesn't reflow/grow. */}
-      <div className="ed__props">
+      {/* Left tool rail — grouped by job, icon + label, zoom pinned at the base. */}
+      <div className="ed__rail" role="toolbar" aria-label="Editor tools">
+        {TOOL_GROUPS.map((g) => (
+          <div className="ed__railgroup" key={g.label}>
+            <span className="ed__raillabel">{g.label}</span>
+            {g.tools.map((tl) => {
+              const info = TOOL_BY_ID[tl];
+              return (
+                <button
+                  key={tl}
+                  type="button"
+                  className={`ed__tool${tool === tl ? ' ed__tool--on' : ''}`}
+                  title={info.hint}
+                  aria-pressed={tool === tl}
+                  onClick={() => {
+                    setTool(tl);
+                    if (tl !== 'select') setSelectedId(null);
+                    if (tl === 'crop') {
+                      setViewCropped(false); // re-crop on the full image
+                      setEditorZoom(1);
+                    }
+                  }}
+                >
+                  <span className="ed__tool-ico" aria-hidden="true">
+                    {TOOL_ICON[tl]}
+                  </span>
+                  <span className="ed__tool-lbl">{info.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+        <div className="ed__railspace" />
         <div className="ed__zoom" title="Zoom the canvas for precise editing">
           <button
             type="button"
@@ -706,60 +777,160 @@ export function Editor({
             +
           </button>
         </div>
-        {showColorCtl && (
-          <label className="ed__opt ed__opt--color" title="Color">
-            Color
-            <input
-              type="color"
-              value={colorVal}
-              onChange={(e) => changeColor(e.target.value)}
-            />
-          </label>
-        )}
-        {showStrokeCtl && (
-          <label className="ed__opt" title="Line width">
-            Width
-            <input
-              type="range"
-              min={1}
-              max={80}
-              value={strokeVal}
-              onChange={(e) => changeStroke(Number(e.target.value))}
-            />
-          </label>
-        )}
-        {showBlurCtl && (
-          <>
-            <label className="ed__opt" title="How redaction is baked in">
-              Redact
-              <select value={modeVal} onChange={(e) => changeMode(e.target.value as 'pixelate' | 'solid')}>
-                <option value="pixelate">Blur</option>
-                <option value="solid">Black box</option>
-              </select>
-            </label>
-            {modeVal === 'pixelate' && (
-              <label
-                className="ed__opt"
-                title="Blur strength — higher is stronger; the minimum keeps text unreadable"
-              >
-                Strength
+      </div>
+
+      <div className="ed__main">
+        {/* A stable top bar: contextual buttons on the left, Cancel + Save pinned
+            to the right so Save never reflows as the cluster changes. */}
+        <div className="ed__topbar">
+          {crop && (
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={() => {
+                setViewCropped((v) => !v);
+                setEditorZoom(1);
+              }}
+              title="Work on just the cropped region (non-destructive)"
+            >
+              {viewCropped ? 'Show full' : 'Apply crop'}
+            </button>
+          )}
+          {crop && (
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={() => {
+                setCrop(null);
+                setViewCropped(false);
+              }}
+            >
+              Reset crop
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn--small"
+            onClick={() => void autoRedact()}
+            disabled={scanning || saving || !img}
+            title="Scan this screenshot for SSNs, credit cards, and API keys, and add redaction boxes to review"
+          >
+            {scanning ? 'Scanning…' : 'Auto-redact'}
+          </button>
+          <div className="ed__spacer" />
+          <button type="button" className="btn btn--small" onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary btn--small"
+            onClick={() => void onSave()}
+            disabled={saving || !img}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+
+        {/* Properties bar — ALWAYS present with a reserved height, so toggling a
+            selection never reflows/resizes the canvas. Empty shows a quiet hint;
+            Delete is the lone destructive control, anchored here with the selection. */}
+        <div className="ed__props">
+          {selectedId ? (
+            <>
+            {showColorCtl && (
+              <label className="ed__opt ed__opt--color" title="Color">
+                Color
                 <input
-                  type="range"
-                  min={MIN_REDACT_BLOCK}
-                  max={60}
-                  value={blockVal}
-                  onChange={(e) => changeBlock(Number(e.target.value))}
+                  type="color"
+                  value={colorVal}
+                  onChange={(e) => changeColor(e.target.value)}
                 />
               </label>
             )}
-          </>
-        )}
-        {!showColorCtl && !showStrokeCtl && !showBlurCtl && (
-          <span className="ed__props-hint">
-            Select an element to change its color, width, or blur.
-          </span>
-        )}
-      </div>
+            {showStrokeCtl && (
+              <label className="ed__opt" title="Line width">
+                Width
+                <input
+                  type="range"
+                  min={1}
+                  max={80}
+                  value={strokeVal}
+                  onChange={(e) => changeStroke(Number(e.target.value))}
+                />
+              </label>
+            )}
+            {showBlurCtl && (
+              <>
+                <div className="ed__opt" title="How redaction is baked in">
+                  Redact
+                  <div className="ed__seg" role="radiogroup" aria-label="Redaction style">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={modeVal === 'pixelate'}
+                      className={`ed__seg-btn${modeVal === 'pixelate' ? ' ed__seg-btn--on' : ''}`}
+                      onClick={() => changeMode('pixelate')}
+                    >
+                      Blur
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={modeVal === 'solid'}
+                      className={`ed__seg-btn${modeVal === 'solid' ? ' ed__seg-btn--on' : ''}`}
+                      onClick={() => changeMode('solid')}
+                    >
+                      Black box
+                    </button>
+                  </div>
+                </div>
+                {modeVal === 'pixelate' && (
+                  <label
+                    className="ed__opt"
+                    title="Blur strength — higher is stronger; the minimum keeps text unreadable"
+                  >
+                    Strength
+                    <input
+                      type="range"
+                      min={MIN_REDACT_BLOCK}
+                      max={60}
+                      value={blockVal}
+                      onChange={(e) => changeBlock(Number(e.target.value))}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+            <div className="ed__spacer" />
+            <button
+              type="button"
+              className="btn btn--small btn--danger"
+              onClick={() => {
+                if (selectedId === CLICK_ID) {
+                  // Remove the click marker; onSave persists click:null.
+                  setClickImage(null);
+                  setSelectedId(null);
+                } else if (selectedId === CROP_ID) {
+                  setCrop(null);
+                  setSelectedId(null);
+                } else {
+                  remove(selectedId);
+                }
+              }}
+            >
+              {selectedId === CLICK_ID
+                ? 'Remove marker'
+                : selectedId === CROP_ID
+                  ? 'Remove crop'
+                  : 'Delete element'}
+            </button>
+            </>
+          ) : (
+            <span className="ed__props-hint">
+              Select an element to change its color or size, or to delete it.
+            </span>
+          )}
+        </div>
 
       {error && <p className="project__error">Error: {error}</p>}
 
@@ -826,7 +997,6 @@ export function Editor({
             x={cropView.x}
             y={cropView.y}
             onMouseDown={onStageMouseDown}
-            onMouseMove={onStageMouseMove}
             style={{ cursor: selectable ? 'default' : 'crosshair' }}
           >
             <Layer listening={false}>
@@ -908,6 +1078,7 @@ export function Editor({
                           ),
                         );
                       }}
+                      onTransformEnd={() => onTransformEnd(a.id)}
                     />
                   );
                 }
@@ -918,6 +1089,7 @@ export function Editor({
                       x={a.x}
                       y={a.y}
                       onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
+                      onTransformEnd={() => onTransformEnd(a.id)}
                     >
                       <Circle radius={a.radius} fill={a.fill} />
                       <KText
@@ -943,11 +1115,12 @@ export function Editor({
                       {...common}
                       x={a.x}
                       y={a.y}
-                      radius={markerR}
+                      radius={a.radius ?? markerR}
                       stroke={a.color}
-                      strokeWidth={Math.max(2, Math.round(markerR * 0.22))}
+                      strokeWidth={Math.max(2, Math.round((a.radius ?? markerR) * 0.22))}
                       fill={`${a.color}2e`}
                       onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
+                      onTransformEnd={() => onTransformEnd(a.id)}
                     />
                   );
                 }
@@ -974,20 +1147,22 @@ export function Editor({
                 );
               })}
 
-              {/* movable click-register marker */}
+              {/* movable + resizable click-register marker */}
               {clickImage && (
                 <Circle
+                  ref={setRef(CLICK_ID)}
                   x={clickImage.x}
                   y={clickImage.y}
-                  radius={markerR}
+                  radius={clickRadius ?? markerR}
                   stroke={markerColor}
-                  strokeWidth={Math.max(2, Math.round(markerR * 0.22))}
+                  strokeWidth={Math.max(2, Math.round((clickRadius ?? markerR) * 0.22))}
                   fill={`${markerColor}2e`}
                   draggable={selectable}
                   onClick={() => selectable && setSelectedId(CLICK_ID)}
                   onTap={() => selectable && setSelectedId(CLICK_ID)}
                   onDragStart={() => setSelBox(null)}
                   onDragEnd={(e) => setClickImage({ x: e.target.x(), y: e.target.y() })}
+                  onTransformEnd={() => onTransformEnd(CLICK_ID)}
                 />
               )}
 
@@ -1029,6 +1204,7 @@ export function Editor({
 
               {crop && (
                 <KRect
+                  ref={setRef(CROP_ID)}
                   x={crop.x}
                   y={crop.y}
                   width={crop.width}
@@ -1036,7 +1212,24 @@ export function Editor({
                   stroke="#2563eb"
                   strokeWidth={3}
                   dash={[10, 6]}
-                  listening={false}
+                  // A faint fill makes the whole crop region grab-able to move it;
+                  // the Transformer handles resize. Inert while viewing the crop.
+                  fill={!viewCropped && selectable ? 'rgba(37,99,235,0.06)' : undefined}
+                  listening={!viewCropped && selectable}
+                  draggable={!viewCropped && selectable}
+                  onClick={() => selectable && setSelectedId(CROP_ID)}
+                  onTap={() => selectable && setSelectedId(CROP_ID)}
+                  onDragStart={() => setSelBox(null)}
+                  onDragEnd={(e) =>
+                    setCrop(
+                      clampRectToImage(
+                        { x: e.target.x(), y: e.target.y(), width: crop.width, height: crop.height },
+                        natW,
+                        natH,
+                      ),
+                    )
+                  }
+                  onTransformEnd={() => onTransformEnd(CROP_ID)}
                 />
               )}
 
@@ -1093,6 +1286,7 @@ export function Editor({
                 : 'Drag to draw.'}{' '}
         Redactions are baked into the exported image on save.
       </p>
+      </div>
     </div>
   );
 }

@@ -120,7 +120,11 @@ function parseClick(value: unknown): StepClick | null {
     typeof c.button === 'string' && CLICK_BUTTONS.has(c.button as StepClick['button'])
       ? (c.button as StepClick['button'])
       : 'left';
-  return { global, image, button };
+  const radius =
+    typeof c.radius === 'number' && Number.isFinite(c.radius) && c.radius > 0
+      ? c.radius
+      : undefined;
+  return { global, image, button, ...(radius != null ? { radius } : {}) };
 }
 
 const EXPORT_FORMATS = ['html', 'html-plain', 'pdf', 'markdown'] as const satisfies readonly ExportFormat[];

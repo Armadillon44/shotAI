@@ -31,6 +31,8 @@ export interface FlattenMarker {
   y: number;
   /** Ring color (CSS color string). */
   color: string;
+  /** Ring radius (image px). Omitted = derive from image size. */
+  radius?: number;
 }
 
 /** Flatten to a PNG Blob. `crop` (image px) selects the region; null = whole image. */
@@ -84,10 +86,17 @@ export async function flattenToPng(
   //    clicked spot(s). Off-canvas (outside the crop) draws harmlessly clipped.
   //    The step's own click marker (param) plus any 'marker' annotations (e.g. a
   //    second click brought in by merging two steps) all render with one style.
-  const markerRadius = clickMarkerRadius(nw, nh);
-  if (marker) drawClickMarker(ctx, marker, markerRadius, cx, cy);
+  const defaultMarkerRadius = clickMarkerRadius(nw, nh);
+  if (marker) drawClickMarker(ctx, marker, marker.radius ?? defaultMarkerRadius, cx, cy);
   for (const a of annotations) {
-    if (a.type === 'marker') drawClickMarker(ctx, { x: a.x, y: a.y, color: a.color }, markerRadius, cx, cy);
+    if (a.type === 'marker')
+      drawClickMarker(
+        ctx,
+        { x: a.x, y: a.y, color: a.color },
+        a.radius ?? defaultMarkerRadius,
+        cx,
+        cy,
+      );
   }
 
   return await new Promise<Blob>((resolve, reject) => {

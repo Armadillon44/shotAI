@@ -13,6 +13,7 @@ export function App(): React.JSX.Element {
 
   const status = state?.status ?? 'idle';
   const count = state?.stepCount ?? 0;
+  const active = status === 'recording' || status === 'paused';
 
   // Capture is started from the main window (pick/create a project there);
   // the pill controls the in-progress session.
@@ -34,60 +35,44 @@ export function App(): React.JSX.Element {
       <div className="toolbar__drag" title="Drag to move">
         <span className="toolbar__grip" aria-hidden="true" />
         <span className="toolbar__label">
-          {status === 'recording' && (
-            <span className="toolbar__rec-dot" aria-hidden="true" />
-          )}
+          {active && <span className="toolbar__rec-dot" aria-hidden="true" />}
           {status === 'idle'
             ? 'shotAI'
             : `${status === 'paused' ? 'Paused' : 'Capturing'} · ${count}`}
         </span>
       </div>
-      <div className="toolbar__controls">
-        {status === 'idle' && (
+      {/* Idle shows no controls (capture starts from the main window); the pill
+          only carries controls while a session is active. */}
+      {active && (
+        <div className="toolbar__controls">
+          {status === 'recording' ? (
+            <button
+              type="button"
+              className="toolbar__btn toolbar__btn--label"
+              title="Pause"
+              onClick={onPause}
+            >
+              ❚❚ Pause
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="toolbar__btn toolbar__btn--label"
+              title="Resume"
+              onClick={onResume}
+            >
+              ▶ Resume
+            </button>
+          )}
           <button
             type="button"
-            className="toolbar__btn toolbar__btn--rec"
-            title="Start a capture from the shotAI window"
-            aria-label="Start a capture from the shotAI window"
-            disabled
-          >
-            <span className="toolbar__dot" aria-hidden="true" />
-          </button>
-        )}
-        {status === 'recording' && (
-          <button
-            type="button"
-            className="toolbar__btn"
-            title="Pause"
-            aria-label="Pause"
-            onClick={onPause}
-          >
-            ❚❚
-          </button>
-        )}
-        {status === 'paused' && (
-          <button
-            type="button"
-            className="toolbar__btn"
-            title="Resume"
-            aria-label="Resume"
-            onClick={onResume}
-          >
-            ▶
-          </button>
-        )}
-        {(status === 'recording' || status === 'paused') && (
-          <button
-            type="button"
-            className="toolbar__btn toolbar__btn--stop"
+            className="toolbar__btn toolbar__btn--label toolbar__btn--stop"
             title="Stop &amp; finish"
-            aria-label="Stop and finish"
             onClick={onStop}
           >
-            ■
+            ■ Stop
           </button>
-        )}
-        {(status === 'recording' || status === 'paused') && (
+          <span className="toolbar__divider" aria-hidden="true" />
           <button
             type="button"
             className="toolbar__btn toolbar__btn--discard"
@@ -97,8 +82,8 @@ export function App(): React.JSX.Element {
           >
             ✕
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
