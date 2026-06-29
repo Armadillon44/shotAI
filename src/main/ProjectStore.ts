@@ -353,6 +353,52 @@ export function updateStep(
   return run;
 }
 
+/**
+ * Merge two steps into one: apply `patch` (+ optional re-baked render) to the
+ * KEPT step, then delete the DROPPED step, then renumber — all in a single
+ * writeQueue task so the pair can't be observed half-merged. Used by the report
+ * to fold a right-click step into its menu-selection step: the selection
+ * screenshot (which shows the open menu) is kept, and the right-click's click is
+ * carried in as a marker annotation (baked into `flattenedPng`). The merged step
+ * stays at the DROPPED step's position (the flow reads in the original order).
+ */
+export function mergeSteps(
+  projectPath: string,
+  keepId: string,
+  dropId: string,
+  patch: StepPatch,
+  flattenedPng?: Buffer | null,
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    if (keepId === dropId) throw new Error('cannot merge a step into itself');
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const keep = manifest.steps.find((s) => s.id === keepId);
+    if (!keep) throw new Error(`step ${keepId} not found`);
+    const dropIdx = manifest.steps.findIndex((s) => s.id === dropId);
+    if (dropIdx === -1) throw new Error(`step ${dropId} not found`);
+
+    Object.assign(keep, patch);
+    if (flattenedPng && flattenedPng.length) {
+      const renderDir = path.join(resolved, 'export', '.render');
+      await fs.mkdir(renderDir, { recursive: true });
+      await fs.writeFile(path.join(renderDir, `${keepId}.png`), flattenedPng);
+      keep.flattened = path.posix.join('export', '.render', `${keepId}.png`);
+      keep.renderRev = (keep.renderRev ?? 0) + 1;
+    }
+    manifest.steps.splice(dropIdx, 1);
+    renumber(manifest.steps);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return manifest;
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 /** Reassign step.order to 1..N in array order. */
 function renumber(steps: ProjectStep[]): void {
   steps.forEach((s, i) => {

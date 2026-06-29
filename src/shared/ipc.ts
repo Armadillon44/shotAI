@@ -96,6 +96,7 @@ export const IpcChannels = {
   importStep: 'projects:import-step',
   deleteStep: 'projects:delete-step',
   reorderSteps: 'projects:reorder-steps',
+  mergeSteps: 'projects:merge-steps',
   addTextStep: 'projects:add-text-step',
   exportProject: 'projects:export',
   // SOP settings + Claude key management (Phase 3)
@@ -166,6 +167,18 @@ export interface ShotaiApi {
     deleteStep(projectPath: string, stepId: string): Promise<ProjectManifest>;
     /** Reorder steps to match the given id order; renumbers. Returns the manifest. */
     reorderSteps(projectPath: string, orderedIds: string[]): Promise<ProjectManifest>;
+    /**
+     * Merge two steps into one: apply `patch` (+ optional re-baked render) to the
+     * KEPT step, then delete the DROPPED step, then renumber. Used to fold a
+     * right-click step into its menu-selection step. Returns the updated manifest.
+     */
+    mergeSteps(
+      projectPath: string,
+      keepId: string,
+      dropId: string,
+      patch: StepPatch,
+      flattenedPng?: Uint8Array | null,
+    ): Promise<ProjectManifest>;
     /** Insert an empty text step at the given index. Returns the manifest. */
     addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */

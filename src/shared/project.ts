@@ -144,12 +144,26 @@ export interface TextAnnotation extends AnnotationBase {
   fontSize: number;
   fill: string;
 }
+/**
+ * A click-register ring — the same visual as a step's baked click marker, but as
+ * a movable annotation. Created when two steps are MERGED (the discarded step's
+ * click is mapped onto the kept screenshot as a second marker) and freely
+ * placeable in the editor. Radius is derived from the image size (mirrors the
+ * click marker), so only the center + color are stored.
+ */
+export interface MarkerAnnotation extends AnnotationBase {
+  type: 'marker';
+  x: number; // center, image px
+  y: number;
+  color: string;
+}
 export type Annotation =
   | RectAnnotation
   | ArrowAnnotation
   | BlurAnnotation
   | StampAnnotation
-  | TextAnnotation;
+  | TextAnnotation
+  | MarkerAnnotation;
 
 /**
  * A step is either a captured screenshot ('shot') or an authored text block

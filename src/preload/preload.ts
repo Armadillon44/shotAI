@@ -42,6 +42,21 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.deleteStep, projectPath, stepId),
     reorderSteps: (projectPath: string, orderedIds: string[]) =>
       ipcRenderer.invoke(IpcChannels.reorderSteps, projectPath, orderedIds),
+    mergeSteps: (
+      projectPath: string,
+      keepId: string,
+      dropId: string,
+      patch: StepPatch,
+      flattenedPng?: Uint8Array | null,
+    ) =>
+      ipcRenderer.invoke(
+        IpcChannels.mergeSteps,
+        projectPath,
+        keepId,
+        dropId,
+        patch,
+        flattenedPng ?? null,
+      ),
     addTextStep: (projectPath: string, atIndex: number) =>
       ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex),
     revertSop: (projectPath: string) =>

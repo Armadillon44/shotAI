@@ -6,6 +6,7 @@
 import React from 'react';
 import type { ProjectStep } from '../../shared/project';
 import { shotUrl, useProjectStore } from './store';
+import { canMergeInto, mergeStepInto } from './merge';
 
 // Base display box for report images (display only — export is full-res).
 const REPORT_BASE_W = 800;
@@ -421,6 +422,29 @@ export function Report({
     }
   };
 
+  // Fold the step at `idx` into the one after it: keep the NEXT step's screenshot
+  // (e.g. the one showing the open menu) and carry this step's click in as a
+  // second marker ring. Used to discard a redundant right-click step after its
+  // menu selection was captured. Re-bakes both rings, then deletes this step.
+  const [merging, setMerging] = React.useState<string | null>(null);
+  const merge = async (idx: number) => {
+    if (busyRef.current || !projectId || !projectPath || !canMergeInto(steps, idx)) return;
+    const drop = steps[idx];
+    const keep = steps[idx + 1];
+    busyRef.current = true;
+    setMerging(drop.id);
+    try {
+      applyManifest(await mergeStepInto(projectId, projectPath, keep, drop));
+    } catch (e) {
+      window.alert(
+        `Could not merge these steps: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setMerging(null);
+      busyRef.current = false;
+    }
+  };
+
   const saveText = async (step: ProjectStep, heading: string, body: string) => {
     if (!projectPath) return;
     try {
@@ -598,6 +622,17 @@ export function Report({
       >
         Edit
       </button>
+      {canMergeInto(steps, idx) && (
+        <button
+          type="button"
+          className="btn btn--small"
+          disabled={merging !== null}
+          title="Merge into the next step (keeps the next screenshot, adds this step's click as a marker)"
+          onClick={() => void merge(idx)}
+        >
+          Merge ↓
+        </button>
+      )}
       <button type="button" className="btn btn--small" onClick={() => void del(s)}>
         Delete
       </button>
@@ -693,6 +728,22 @@ export function Report({
                   {controls(s, idx)}
                 </div>
               </div>
+              {s.click?.button === 'right' && canMergeInto(steps, idx) && (
+                <div className="rep__merge-suggest">
+                  <span>
+                    This right-click likely opened a menu — merge it into the next step (the
+                    menu selection) to keep one screenshot showing the menu.
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn--small"
+                    disabled={merging !== null}
+                    onClick={() => void merge(idx)}
+                  >
+                    {merging === s.id ? 'Merging…' : 'Merge ↓'}
+                  </button>
+                </div>
+              )}
               <StepFigure projectId={projectId} step={s} onReframe={reframe} />
               {editingBodyId === s.id ? (
                 <InlineTextarea

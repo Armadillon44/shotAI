@@ -33,6 +33,7 @@ import {
   clickMarkerRadius,
   createArrow,
   createBlur,
+  createMarker,
   createRect,
   createStamp,
   createText,
@@ -295,6 +296,14 @@ export function Editor({
       setTool('select');
       return;
     }
+    if (tool === 'marker') {
+      // Place a click-register ring at the click point; recolor/move via Select.
+      const a = createMarker(p.x, p.y, color);
+      setAnnotations((prev) => [...prev, a]);
+      setSelectedId(a.id);
+      setTool('select');
+      return;
+    }
     if (tool === 'text') {
       setSelectedId(null);
       setTextEntry({
@@ -475,6 +484,8 @@ export function Editor({
       update(selected.id, { stroke: c } as Partial<Annotation>);
     } else if (selected?.type === 'text' || selected?.type === 'stamp') {
       update(selected.id, { fill: c } as Partial<Annotation>);
+    } else if (selected?.type === 'marker') {
+      update(selected.id, { color: c } as Partial<Annotation>);
     }
   };
 
@@ -529,7 +540,9 @@ export function Editor({
       ? s.fill
       : s.type === 'rect' || s.type === 'arrow'
         ? s.stroke
-        : color;
+        : s.type === 'marker'
+          ? s.color
+          : color;
   const colorVal = selectedIsClick ? markerColor : selected ? colorOf(selected) : color;
 
   return (
@@ -867,6 +880,22 @@ export function Editor({
                         verticalAlign="middle"
                       />
                     </Group>
+                  );
+                }
+                if (a.type === 'marker') {
+                  // A second click-register ring (e.g. brought in by merging two
+                  // steps). Same visual as the step's own click marker; movable.
+                  return (
+                    <Circle
+                      {...common}
+                      x={a.x}
+                      y={a.y}
+                      radius={markerR}
+                      stroke={a.color}
+                      strokeWidth={Math.max(2, Math.round(markerR * 0.22))}
+                      fill={`${a.color}2e`}
+                      onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
+                    />
                   );
                 }
                 // text

@@ -6,7 +6,7 @@ import type { ProjectManifest, ProjectStep } from '../../shared/project';
 import { flattenToPng } from '../editor/flatten';
 import { shotUrl } from './store';
 
-function loadImage(url: string): Promise<HTMLImageElement> {
+export function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     // shot:// returns Access-Control-Allow-Origin:* so the canvas stays untainted

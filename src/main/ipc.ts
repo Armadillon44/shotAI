@@ -159,6 +159,7 @@ function parseStepPatch(value: unknown): StepPatch {
   if (typeof v.markerColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.markerColor)) {
     patch.markerColor = v.markerColor;
   }
+  if (typeof v.markerBaked === 'boolean') patch.markerBaked = v.markerBaked;
   if (isNum(v.reportZoom)) patch.reportZoom = Math.max(0.2, Math.min(6, v.reportZoom));
   if (isNum(v.reportPanX)) patch.reportPanX = Math.max(0, Math.min(1, v.reportPanX));
   if (isNum(v.reportPanY)) patch.reportPanY = Math.max(0, Math.min(1, v.reportPanY));
@@ -330,6 +331,33 @@ export function registerIpcHandlers(
       return projectStore.reorderSteps(
         asString(projectPath, 'projectPath'),
         orderedIds as string[],
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.mergeSteps,
+    (
+      _event: IpcMainInvokeEvent,
+      projectPath: unknown,
+      keepId: unknown,
+      dropId: unknown,
+      patch: unknown,
+      png: unknown,
+    ) => {
+      devLog('ipc: projects:merge-steps');
+      const buf =
+        png instanceof Uint8Array
+          ? Buffer.from(png)
+          : png instanceof ArrayBuffer
+            ? Buffer.from(new Uint8Array(png))
+            : null;
+      return projectStore.mergeSteps(
+        asString(projectPath, 'projectPath'),
+        asString(keepId, 'keepId'),
+        asString(dropId, 'dropId'),
+        parseStepPatch(patch),
+        buf,
       );
     },
   );
