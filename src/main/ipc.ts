@@ -54,7 +54,6 @@ const CAPTURE_MODES: ReadonlySet<CaptureMode> = new Set<CaptureMode>([
   'window',
   'area',
   'screen',
-  'all',
 ]);
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);

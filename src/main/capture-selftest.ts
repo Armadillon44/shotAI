@@ -108,7 +108,7 @@ async function checkCapturePipeline(): Promise<boolean> {
 }
 
 /**
- * Verify listTargets() + the explicit capture modes (screen / all / area /
+ * Verify listTargets() + the explicit capture modes (screen / area /
  * window). Each mode records one step into its own temp project; we read the
  * written PNG's dimensions to confirm the right surface was captured. The area
  * check proves the crop math works ahead of the (not-yet-built) drag overlay.
@@ -165,9 +165,6 @@ async function checkCaptureModes(): Promise<boolean> {
 
     const screen = await runMode('screen', { mode: 'screen', monitorId: mon.id() });
     ok = ok && !!screen && screen.w === mon.width() && screen.h === mon.height();
-
-    const all = await runMode('all', { mode: 'all' });
-    ok = ok && !!all && all.w >= 1 && all.h >= 1;
 
     const area = await runMode('area', {
       mode: 'area',

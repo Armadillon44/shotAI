@@ -34,15 +34,13 @@ const MODE_OPTIONS: {
   { mode: 'auto', label: 'Auto', hint: 'Best-effort smart capture — may include extra/unintended context' },
   { mode: 'window', label: 'Window', hint: 'Capture one specific window each step' },
   { mode: 'area', label: 'Area', hint: 'Drag-select a fixed region to capture' },
-  { mode: 'all', label: 'All screens', hint: 'Capture every monitor each step' },
 ];
 
 const MODE_DESC: Record<CaptureMode, string> = {
   screen: 'Every step captures one full monitor (the primary, or the one you pick below).',
   auto: 'Best-effort smart capture — picks the app window, a region around OS elements (taskbar, Start, tray), or the full screen per click. Because it guesses per click, it can capture extra or unintended context.',
   window: 'Every step captures the window you pick below (re-found if it moves).',
-  area: 'Every step captures a fixed rectangle you drag-select on screen.',
-  all: 'Every step captures every monitor.',
+  area: 'Every step captures a fixed rectangle you drag-select on one monitor.',
 };
 
 export function App(): React.JSX.Element {
@@ -131,8 +129,6 @@ export function App(): React.JSX.Element {
         return pickedMonitorId != null
           ? { mode: 'screen', monitorId: pickedMonitorId }
           : { mode: 'screen' };
-      case 'all':
-        return { mode: 'all' };
       case 'area':
         return pickedArea ? { mode: 'area', area: pickedArea } : { mode: 'auto' };
       default:

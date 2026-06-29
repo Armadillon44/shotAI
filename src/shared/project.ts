@@ -11,7 +11,7 @@ import type { SopTone } from './sop';
 
 export const PROJECT_SCHEMA_VERSION = 1;
 
-export type CaptureMode = 'auto' | 'window' | 'area' | 'screen' | 'all';
+export type CaptureMode = 'auto' | 'window' | 'area' | 'screen';
 
 /** What each capture in a session targets (chosen before recording). */
 export interface CaptureTarget {
