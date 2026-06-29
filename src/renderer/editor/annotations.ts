@@ -4,6 +4,7 @@ import type {
   Annotation,
   ArrowAnnotation,
   BlurAnnotation,
+  MarkerAnnotation,
   RectAnnotation,
   StampAnnotation,
   TextAnnotation,
@@ -15,6 +16,7 @@ export type Tool =
   | 'arrow'
   | 'blur'
   | 'stamp'
+  | 'marker'
   | 'text'
   | 'crop';
 
@@ -24,6 +26,7 @@ export const TOOLS: { tool: Tool; label: string; hint: string }[] = [
   { tool: 'arrow', label: 'Arrow', hint: 'Arrow' },
   { tool: 'blur', label: 'Redact', hint: 'Blur / redact a region (baked into the export)' },
   { tool: 'stamp', label: 'Number', hint: 'Numbered step stamp' },
+  { tool: 'marker', label: 'Marker', hint: 'Click-point ring — click to place' },
   { tool: 'text', label: 'Text', hint: 'Text label' },
   { tool: 'crop', label: 'Crop', hint: 'Crop the screenshot' },
 ];
@@ -155,6 +158,12 @@ export function createText(
 /** Default text size, scaled to the image. */
 export function defaultFontSize(naturalW: number, naturalH: number): number {
   return Math.max(16, Math.min(96, Math.round(Math.min(naturalW, naturalH) * 0.022)));
+}
+
+/** A movable click-register ring. Radius is derived from the image at draw time
+ *  (mirrors the baked click marker), so only center + color are stored. */
+export function createMarker(x: number, y: number, color = ACCENT): MarkerAnnotation {
+  return { id: newId(), type: 'marker', x, y, color };
 }
 
 /** Normalize a drag (start/end points) to a top-left rect with positive size. */

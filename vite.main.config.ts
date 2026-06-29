@@ -10,6 +10,12 @@ export default defineConfig({
         'uiohook-napi',
         'node-screenshots',
         'get-windows',
+        // koffi (FFI) loads its own prebuilt .node + our element-locator dll at
+        // runtime — keep it external so it isn't bundled.
+        'koffi',
+        // tesseract.js (OCR) ships worker scripts + a WASM core it loads from
+        // node_modules at runtime; keep it external so Vite doesn't bundle it.
+        'tesseract.js',
         /^electron-log/,
         // Claude SDK (Phase 3) — large, pulls in node built-ins + dynamic
         // requires; keep it external so main require()s it at runtime. The regex

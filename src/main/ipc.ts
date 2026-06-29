@@ -26,8 +26,10 @@ import {
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../shared/sop';
+import path from 'node:path';
 import { getSopSettings, setSopSettings } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
+import { scanForSensitiveRects } from './ocr';
 import {
   testKey as claudeTestKey,
   estimate as claudeEstimate,
@@ -122,15 +124,12 @@ function parseClick(value: unknown): StepClick | null {
   return { global, image, button };
 }
 
-const EXPORT_FORMATS: ReadonlySet<ExportFormat> = new Set<ExportFormat>([
-  'html',
-  'pdf',
-  'markdown',
-]);
+const EXPORT_FORMATS = ['html', 'html-plain', 'pdf', 'markdown'] as const satisfies readonly ExportFormat[];
+const EXPORT_FORMAT_SET: ReadonlySet<string> = new Set(EXPORT_FORMATS);
 
 function parseExportFormat(value: unknown): ExportFormat {
-  if (typeof value !== 'string' || !EXPORT_FORMATS.has(value as ExportFormat)) {
-    throw new Error('format must be one of: html, pdf, markdown');
+  if (typeof value !== 'string' || !EXPORT_FORMAT_SET.has(value)) {
+    throw new Error(`format must be one of: ${EXPORT_FORMATS.join(', ')}`);
   }
   return value as ExportFormat;
 }
@@ -159,6 +158,7 @@ function parseStepPatch(value: unknown): StepPatch {
   if (typeof v.markerColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.markerColor)) {
     patch.markerColor = v.markerColor;
   }
+  if (typeof v.markerBaked === 'boolean') patch.markerBaked = v.markerBaked;
   if (isNum(v.reportZoom)) patch.reportZoom = Math.max(0.2, Math.min(6, v.reportZoom));
   if (isNum(v.reportPanX)) patch.reportPanX = Math.max(0, Math.min(1, v.reportPanX));
   if (isNum(v.reportPanY)) patch.reportPanY = Math.max(0, Math.min(1, v.reportPanY));
@@ -243,11 +243,44 @@ export function registerIpcHandlers(
     return projectStore.listRecentProjects();
   });
 
+  ipcMain.handle(IpcChannels.listProjects, () => {
+    devLog('ipc: projects:list');
+    return projectStore.listProjects();
+  });
+
   ipcMain.handle(
     IpcChannels.createProject,
     (_event: IpcMainInvokeEvent, title: unknown) => {
       devLog('ipc: projects:create');
-      return projectStore.createProject(asString(title, 'title'));
+      // Empty / non-string → undefined so the store applies the default name.
+      return projectStore.createProject(typeof title === 'string' ? title : undefined);
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.renameProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, title: unknown) => {
+      devLog('ipc: projects:rename');
+      return projectStore.renameProject(
+        asString(projectPath, 'projectPath'),
+        typeof title === 'string' ? title : '',
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.deleteProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:delete');
+      return projectStore.deleteProject(asString(projectPath, 'projectPath'));
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.revealProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:reveal');
+      return projectStore.revealProject(asString(projectPath, 'projectPath'));
     },
   );
 
@@ -335,13 +368,62 @@ export function registerIpcHandlers(
   );
 
   ipcMain.handle(
+    IpcChannels.mergeSteps,
+    (
+      _event: IpcMainInvokeEvent,
+      projectPath: unknown,
+      keepId: unknown,
+      dropId: unknown,
+      patch: unknown,
+      png: unknown,
+    ) => {
+      devLog('ipc: projects:merge-steps');
+      const buf =
+        png instanceof Uint8Array
+          ? Buffer.from(png)
+          : png instanceof ArrayBuffer
+            ? Buffer.from(new Uint8Array(png))
+            : null;
+      return projectStore.mergeSteps(
+        asString(projectPath, 'projectPath'),
+        asString(keepId, 'keepId'),
+        asString(dropId, 'dropId'),
+        parseStepPatch(patch),
+        buf,
+      );
+    },
+  );
+
+  ipcMain.handle(
     IpcChannels.addTextStep,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown) => {
+    (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown, callout: unknown) => {
       devLog('ipc: projects:add-text-step');
+      const c =
+        callout === 'note' || callout === 'caution' || callout === 'warning'
+          ? callout
+          : undefined;
       return projectStore.addTextStep(
         asString(projectPath, 'projectPath'),
         isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+        c,
       );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.redactScan,
+    async (_event: IpcMainInvokeEvent, projectPath: unknown, stepId: unknown) => {
+      devLog('ipc: projects:redact-scan');
+      const id = asString(stepId, 'stepId');
+      const { dir, manifest } = await projectStore.getProjectForRead(
+        asString(projectPath, 'projectPath'),
+      );
+      const step = manifest.steps.find((s) => s.id === id);
+      if (!step || !step.screenshot) return [];
+      // OCR the ORIGINAL capture (raw pixels) — the detected rects are in image
+      // px and become editable blur regions in the renderer. dir is confined to a
+      // known project; step.screenshot is our own relative manifest path.
+      return scanForSensitiveRects(path.join(dir, step.screenshot));
     },
   );
 
@@ -415,10 +497,11 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IpcChannels.captureStart,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown) => {
+    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown, createdThisSession: unknown) => {
       devLog('ipc: capture:start');
       return capture.start(asString(projectPath, 'projectPath'), {
         target: parseCaptureTarget(target),
+        createdThisSession: createdThisSession === true,
       });
     },
   );
@@ -466,6 +549,10 @@ export function registerIpcHandlers(
   ipcMain.handle(IpcChannels.captureStop, () => {
     devLog('ipc: capture:stop');
     return capture.stop();
+  });
+  ipcMain.handle(IpcChannels.captureDiscard, () => {
+    devLog('ipc: capture:discard');
+    return capture.discard();
   });
   ipcMain.handle(IpcChannels.captureGetState, () => {
     devLog('ipc: capture:get-state');

@@ -11,6 +11,7 @@
     "make": "electron-forge make --arch=x64",
     "publish": "electron-forge publish --arch=x64",
     "lint": "eslint --ext .ts,.tsx .",
+    "build:element-locator": "node scripts/build-element-locator.mjs",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "keywords": [
@@ -54,16 +55,19 @@
     "electron-log": "^5.4.4",
     "electron-squirrel-startup": "^1.0.1",
     "get-windows": "^9.3.0",
+    "koffi": "^3.1.0",
     "konva": "^10.3.0",
     "node-screenshots": "^0.2.8",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-konva": "^19.2.5",
+    "tesseract.js": "^7.0.0",
     "uiohook-napi": "^1.5.5",
     "zod": "^3.25.76",
     "zustand": "^5.0.14"
   },
   "optionalDependencies": {
+    "@koromix/koffi-win32-x64": "3.1.0",
     "node-screenshots-win32-x64-msvc": "0.2.8"
   }
 }

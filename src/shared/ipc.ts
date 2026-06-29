@@ -75,7 +75,7 @@ export interface SopProgress {
 }
 
 /** Output format for an exported report/SOP. */
-export type ExportFormat = 'html' | 'pdf' | 'markdown';
+export type ExportFormat = 'html' | 'html-plain' | 'pdf' | 'markdown';
 
 /** Result of an export — the file that was written (revealed in the OS file manager). */
 export interface ExportResult {
@@ -90,13 +90,19 @@ export const IpcChannels = {
   getProjectsDir: 'projects:get-dir',
   chooseProjectsDir: 'projects:choose-dir',
   listRecentProjects: 'projects:list-recent',
+  listProjects: 'projects:list',
   createProject: 'projects:create',
+  renameProject: 'projects:rename',
+  deleteProject: 'projects:delete',
+  revealProject: 'projects:reveal',
   openProject: 'projects:open',
   updateStep: 'projects:update-step',
   importStep: 'projects:import-step',
   deleteStep: 'projects:delete-step',
   reorderSteps: 'projects:reorder-steps',
+  mergeSteps: 'projects:merge-steps',
   addTextStep: 'projects:add-text-step',
+  redactScan: 'projects:redact-scan',
   exportProject: 'projects:export',
   // SOP settings + Claude key management (Phase 3)
   getSopSettings: 'settings:get-sop',
@@ -115,6 +121,7 @@ export const IpcChannels = {
   capturePause: 'capture:pause',
   captureResume: 'capture:resume',
   captureStop: 'capture:stop',
+  captureDiscard: 'capture:discard',
   captureGetState: 'capture:get-state',
   captureListTargets: 'capture:list-targets',
   // region selection overlay
@@ -125,17 +132,31 @@ export const IpcChannels = {
   captureStateChanged: 'capture:state-changed',
   captureStepAdded: 'capture:step-added',
   captureError: 'capture:error',
+  // Application menu → renderer
+  openSettings: 'menu:open-settings',
 } as const;
 
 /** The typed API exposed to the renderer on `window.shotai` via contextBridge. */
 export interface ShotaiApi {
   /** Runtime / app info from the main process. */
   getAppInfo(): Promise<AppInfo>;
+  /** Fires when the application menu's File → Settings is chosen. Returns an
+   *  unsubscribe fn. */
+  onOpenSettings(cb: () => void): () => void;
   projects: {
     getDir(): Promise<string>;
     chooseDir(): Promise<string | null>;
     listRecent(): Promise<ProjectSummary[]>;
+    /** All projects in the current projects folder (home screen sorts them). */
+    list(): Promise<ProjectSummary[]>;
+    /** Create a project; an empty title gets a timestamped default name. */
     create(title: string): Promise<ProjectSummary>;
+    /** Rename a project (title only; folder/path unchanged). */
+    rename(projectPath: string, title: string): Promise<ProjectSummary>;
+    /** Delete a project's folder and drop it from recents. */
+    delete(projectPath: string): Promise<void>;
+    /** Reveal a project's folder in the OS file manager (Explorer/Finder). */
+    reveal(projectPath: string): Promise<void>;
     /**
      * Open a project: returns its manifest plus an opaque `projectId` the
      * renderer uses to build shot:// image URLs (never a filesystem path).
@@ -166,8 +187,31 @@ export interface ShotaiApi {
     deleteStep(projectPath: string, stepId: string): Promise<ProjectManifest>;
     /** Reorder steps to match the given id order; renumbers. Returns the manifest. */
     reorderSteps(projectPath: string, orderedIds: string[]): Promise<ProjectManifest>;
+    /**
+     * Merge two steps into one: apply `patch` (+ optional re-baked render) to the
+     * KEPT step, then delete the DROPPED step, then renumber. Used to fold a
+     * right-click step into its menu-selection step. Returns the updated manifest.
+     */
+    mergeSteps(
+      projectPath: string,
+      keepId: string,
+      dropId: string,
+      patch: StepPatch,
+      flattenedPng?: Uint8Array | null,
+    ): Promise<ProjectManifest>;
     /** Insert an empty text step at the given index. Returns the manifest. */
-    addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
+    addTextStep(
+      projectPath: string,
+      atIndex: number,
+      callout?: 'note' | 'caution' | 'warning',
+    ): Promise<ProjectManifest>;
+    /**
+     * Auto-redaction pre-scan: OCR a step's screenshot locally and return
+     * image-px rects over likely-sensitive text (SSN / credit-card / API key).
+     * Best-effort — returns [] if nothing found or OCR is unavailable. The
+     * renderer turns these into editable blur regions for the user to review.
+     */
+    redactScan(projectPath: string, stepId: string): Promise<Rect[]>;
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
     revertSop(projectPath: string): Promise<ProjectManifest>;
     /**
@@ -208,8 +252,14 @@ export interface ShotaiApi {
     /**
      * Start (or append to) a recording session for the given project.
      * `target` selects what each step captures; defaults to Auto (smart per-click).
+     * `createdThisSession` marks a project freshly created for this session, so a
+     * Discard deletes the whole project (vs. only this session's steps).
      */
-    start(projectPath: string, target?: CaptureTarget): Promise<CaptureState>;
+    start(
+      projectPath: string,
+      target?: CaptureTarget,
+      opts?: { createdThisSession?: boolean },
+    ): Promise<CaptureState>;
     /**
      * Arm a one-shot capture: the next click is captured as a single step
      * inserted at `atIndex`, then recording auto-stops. The main window hides
@@ -219,6 +269,12 @@ export interface ShotaiApi {
     pause(): Promise<CaptureState>;
     resume(): Promise<CaptureState>;
     stop(): Promise<CaptureState>;
+    /**
+     * Discard the active session: stop capture and remove this session's work —
+     * the whole project if it was created this session, else only the steps/shots
+     * added during the session. Returns whether the project folder was deleted.
+     */
+    discard(): Promise<{ state: CaptureState; projectDeleted: boolean }>;
     getState(): Promise<CaptureState>;
     /** Enumerate pickable windows + monitors for the Window/Screen choosers. */
     listTargets(): Promise<{ windows: WindowInfo[]; monitors: MonitorInfo[] }>;

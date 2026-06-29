@@ -144,12 +144,26 @@ export interface TextAnnotation extends AnnotationBase {
   fontSize: number;
   fill: string;
 }
+/**
+ * A click-register ring — the same visual as a step's baked click marker, but as
+ * a movable annotation. Created when two steps are MERGED (the discarded step's
+ * click is mapped onto the kept screenshot as a second marker) and freely
+ * placeable in the editor. Radius is derived from the image size (mirrors the
+ * click marker), so only the center + color are stored.
+ */
+export interface MarkerAnnotation extends AnnotationBase {
+  type: 'marker';
+  x: number; // center, image px
+  y: number;
+  color: string;
+}
 export type Annotation =
   | RectAnnotation
   | ArrowAnnotation
   | BlurAnnotation
   | StampAnnotation
-  | TextAnnotation;
+  | TextAnnotation
+  | MarkerAnnotation;
 
 /**
  * A step is either a captured screenshot ('shot') or an authored text block
@@ -157,6 +171,10 @@ export type Annotation =
  * Defaults to 'shot' when absent (older manifests).
  */
 export type StepKind = 'shot' | 'text';
+
+/** A pre-formatted callout style for a text step: note (green), caution
+ *  (yellow), warning (red). Absent = a plain text step. */
+export type CalloutKind = 'note' | 'caution' | 'warning';
 
 export interface ProjectStep {
   id: string;
@@ -178,6 +196,8 @@ export interface ProjectStep {
   heading?: string;
   /** Optional body/subtext (markdown). Text steps and screenshot steps both use it. */
   body?: string;
+  /** When set, a text step renders as a colored callout box (note/caution/warning). */
+  callout?: CalloutKind;
   /**
    * True for a text step that Claude's SOP generation inserted (intro / section
    * heading). Stripped + regenerated on the next run so they don't accumulate;
@@ -221,6 +241,7 @@ export type StepPatch = Partial<
     | 'note'
     | 'heading'
     | 'body'
+    | 'callout'
     | 'kind'
     | 'crop'
     | 'annotations'
@@ -248,6 +269,12 @@ export interface SopBackup {
 
 export interface ProjectManifest {
   version: number;
+  /**
+   * Stable random identity (uuid), assigned at creation and back-filled on open
+   * for older projects. Decouples identity from the (mutable, possibly duplicate)
+   * title and folder name — so two projects can share a display name.
+   */
+  id: string;
   title: string;
   createdWith: 'shotAI';
   createdAt: string; // ISO 8601 (project metadata, not per-step capture data)
@@ -258,8 +285,10 @@ export interface ProjectManifest {
   sopBackup: SopBackup | null;
 }
 
-/** Lightweight summary for the recent-projects list (no full manifest load). */
+/** Lightweight summary for the project list (no full manifest load). */
 export interface ProjectSummary {
+  /** Stable project id (may be '' for an older project not yet opened/migrated). */
+  id: string;
   title: string;
   /** Absolute path to the project folder. */
   path: string;

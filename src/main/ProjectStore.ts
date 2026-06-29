@@ -4,8 +4,10 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { shell } from 'electron';
 import {
   PROJECT_SCHEMA_VERSION,
+  type CalloutKind,
   type ProjectManifest,
   type ProjectStep,
   type ProjectSummary,
@@ -27,10 +29,6 @@ import {
 } from './settings';
 
 const MANIFEST = 'project.json';
-// Characters not allowed in Windows/macOS file names.
-const RESERVED_CHARS = '<>:"/\\|?*';
-// Windows reserved device names that can't be used as folder names.
-const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
 export { getProjectsDir };
 
@@ -38,26 +36,6 @@ export { getProjectsDir };
 export async function setProjectsDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
   await persistProjectsDir(dir);
-}
-
-/** Turn a project title into a safe Windows/macOS folder name. */
-function toFolderName(title: string): string {
-  const cleaned = Array.from(title)
-    // Drop control chars (code point <= 0x1F) and filesystem-reserved chars;
-    // keep spaces and hyphens so "Invoice Flow - Q1" stays readable.
-    .filter(
-      (ch) => (ch.codePointAt(0) ?? 0) > 0x1f && !RESERVED_CHARS.includes(ch),
-    )
-    .join('')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[.\s]+$/, ''); // Windows: no trailing dot/space
-  if (!cleaned) return 'Untitled Project';
-  // Avoid reserved device names and leading-dot (hidden) folders.
-  if (RESERVED_NAME.test(cleaned) || cleaned.startsWith('.')) {
-    return `_${cleaned}`;
-  }
-  return cleaned;
 }
 
 /**
@@ -111,6 +89,7 @@ async function readManifest(projectPath: string): Promise<ProjectManifest> {
       typeof parsed.version === 'number'
         ? parsed.version
         : PROJECT_SCHEMA_VERSION,
+    id: typeof parsed.id === 'string' ? parsed.id : '',
     title:
       typeof parsed.title === 'string' && parsed.title
         ? parsed.title
@@ -140,6 +119,7 @@ function summarize(
   projectPath: string,
 ): ProjectSummary {
   return {
+    id: manifest.id,
     title: manifest.title,
     path: projectPath,
     createdAt: manifest.createdAt,
@@ -148,35 +128,37 @@ function summarize(
   };
 }
 
-/** Atomically claim a non-colliding folder under `parent` for `base`. */
-async function claimDir(parent: string, base: string): Promise<string> {
-  for (let n = 1; ; n++) {
-    const candidate =
-      n === 1 ? path.join(parent, base) : path.join(parent, `${base} (${n})`);
-    try {
-      await fs.mkdir(candidate, { recursive: false }); // claim it atomically
-      return candidate;
-    } catch (e) {
-      const err = e as NodeJS.ErrnoException;
-      if (err.code === 'EEXIST') continue; // taken — try the next suffix
-      throw e;
-    }
-  }
+/** Default project title when the user doesn't name one:
+ *  "Project yyyy/MM/dd HH:mm:ss" (local time). */
+function defaultTitle(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return (
+    `Project ${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ` +
+    `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+  );
 }
 
-/** Create a new, empty project folder and write its v1 manifest. */
-export async function createProject(title: string): Promise<ProjectSummary> {
+/** Create a new, empty project folder and write its v1 manifest. An empty title
+ *  gets a timestamped default ("Project yyyy/MM/dd HH:mm:ss"). */
+export async function createProject(title?: string): Promise<ProjectSummary> {
   const root = await getProjectsDir();
   await fs.mkdir(root, { recursive: true });
 
-  const dir = await claimDir(root, toFolderName(title));
+  const id = randomUUID();
+  const name = (title ?? '').trim() || defaultTitle();
+  // The folder is named by the project's UUID — opaque, collision-free, and
+  // immutable. The human title lives only in the manifest, so two projects can
+  // share a display name and renaming never moves the folder.
+  const dir = path.join(root, id);
   await fs.mkdir(path.join(dir, 'shots'), { recursive: true });
   await fs.mkdir(path.join(dir, 'export'), { recursive: true });
 
   const now = new Date().toISOString();
   const manifest: ProjectManifest = {
     version: PROJECT_SCHEMA_VERSION,
-    title: title.trim() || 'Untitled Project',
+    id,
+    title: name,
     createdWith: 'shotAI',
     createdAt: now,
     updatedAt: now,
@@ -200,6 +182,11 @@ async function loadProject(
 ): Promise<{ resolved: string; manifest: ProjectManifest }> {
   const resolved = await resolveKnownProject(projectPath);
   const manifest = await readManifest(resolved);
+  // Back-fill a stable id for older projects, persisted once on open.
+  if (!manifest.id) {
+    manifest.id = randomUUID();
+    await writeManifest(resolved, manifest).catch(() => undefined);
+  }
   await addRecent(resolved);
   return { resolved, manifest };
 }
@@ -281,6 +268,93 @@ export async function listRecentProjects(): Promise<ProjectSummary[]> {
   return summaries;
 }
 
+/** All projects for the home screen: every subfolder of the current projects
+ *  root with a valid manifest, PLUS any still-valid recents outside that root
+ *  (so changing the projects directory doesn't hide previously-created
+ *  projects). Deduped by resolved path; unsorted — the UI sorts. */
+export async function listProjects(): Promise<ProjectSummary[]> {
+  const root = path.resolve(await getProjectsDir());
+  const summaries: ProjectSummary[] = [];
+  const seen = new Set<string>();
+
+  let names: string[] = [];
+  try {
+    const entries = await fs.readdir(root, { withFileTypes: true });
+    names = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    /* projects root missing — fall through to recents */
+  }
+  for (const name of names) {
+    const dir = path.join(root, name);
+    try {
+      summaries.push(summarize(await readManifest(dir), dir));
+      seen.add(path.resolve(dir));
+    } catch {
+      // not a project folder (no/invalid manifest) — skip
+    }
+  }
+
+  // Recents recorded under a previous root (or otherwise outside the current
+  // one) — include them so they stay reachable on the home screen.
+  for (const recent of await getRecents()) {
+    const abs = path.resolve(recent);
+    if (seen.has(abs)) continue;
+    try {
+      summaries.push(summarize(await readManifest(abs), abs));
+      seen.add(abs);
+    } catch {
+      // gone / unreadable — skip (listRecentProjects prunes these elsewhere)
+    }
+  }
+
+  return summaries;
+}
+
+/** Rename a project (title only — the folder is left in place so the path,
+ *  recents, and any open references stay valid). Serialized via the writeQueue.
+ *  Returns the updated summary. */
+export function renameProject(
+  projectPath: string,
+  title: string,
+): Promise<ProjectSummary> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    if (!manifest.id) manifest.id = randomUUID();
+    manifest.title = title.trim() || defaultTitle();
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return summarize(manifest, resolved);
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Reveal a project's folder in the OS file manager (Explorer/Finder). Confined
+ *  to a known project so the renderer can't reveal arbitrary paths. */
+export async function revealProject(projectPath: string): Promise<void> {
+  const resolved = await resolveKnownProject(projectPath);
+  shell.showItemInFolder(resolved);
+}
+
+/** Delete a project: remove its folder (originals included) and drop it from
+ *  recents + the session id registry. Confined to a known project. */
+export async function deleteProject(projectPath: string): Promise<void> {
+  const resolved = await resolveKnownProject(projectPath);
+  await fs.rm(resolved, { recursive: true, force: true });
+  const recents = await getRecents();
+  const pruned = recents.filter((r) => path.resolve(r) !== resolved);
+  if (pruned.length !== recents.length) await setRecents(pruned);
+  const id = dirToId.get(resolved);
+  if (id) {
+    idToDir.delete(id);
+    dirToId.delete(resolved);
+  }
+}
+
 // Serialize manifest writes so rapid captures can't interleave read-modify-write.
 let writeQueue: Promise<unknown> = Promise.resolve();
 
@@ -353,6 +427,52 @@ export function updateStep(
   return run;
 }
 
+/**
+ * Merge two steps into one: apply `patch` (+ optional re-baked render) to the
+ * KEPT step, then delete the DROPPED step, then renumber — all in a single
+ * writeQueue task so the pair can't be observed half-merged. Used by the report
+ * to fold a right-click step into its menu-selection step: the selection
+ * screenshot (which shows the open menu) is kept, and the right-click's click is
+ * carried in as a marker annotation (baked into `flattenedPng`). The merged step
+ * stays at the DROPPED step's position (the flow reads in the original order).
+ */
+export function mergeSteps(
+  projectPath: string,
+  keepId: string,
+  dropId: string,
+  patch: StepPatch,
+  flattenedPng?: Buffer | null,
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    if (keepId === dropId) throw new Error('cannot merge a step into itself');
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const keep = manifest.steps.find((s) => s.id === keepId);
+    if (!keep) throw new Error(`step ${keepId} not found`);
+    const dropIdx = manifest.steps.findIndex((s) => s.id === dropId);
+    if (dropIdx === -1) throw new Error(`step ${dropId} not found`);
+
+    Object.assign(keep, patch);
+    if (flattenedPng && flattenedPng.length) {
+      const renderDir = path.join(resolved, 'export', '.render');
+      await fs.mkdir(renderDir, { recursive: true });
+      await fs.writeFile(path.join(renderDir, `${keepId}.png`), flattenedPng);
+      keep.flattened = path.posix.join('export', '.render', `${keepId}.png`);
+      keep.renderRev = (keep.renderRev ?? 0) + 1;
+    }
+    manifest.steps.splice(dropIdx, 1);
+    renumber(manifest.steps);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return manifest;
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 /** Reassign step.order to 1..N in array order. */
 function renumber(steps: ProjectStep[]): void {
   steps.forEach((s, i) => {
@@ -375,6 +495,37 @@ export function deleteStep(
     renumber(manifest.steps);
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
+    return manifest;
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Delete multiple steps by id (e.g. discarding a capture session's additions):
+ *  removes them from the manifest, renumbers, and best-effort deletes each one's
+ *  screenshot + flattened render from disk. Serialized via the writeQueue. */
+export function deleteSteps(
+  projectPath: string,
+  stepIds: string[],
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const idSet = new Set(stepIds);
+    const removed = manifest.steps.filter((s) => idSet.has(s.id));
+    manifest.steps = manifest.steps.filter((s) => !idSet.has(s.id));
+    renumber(manifest.steps);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    for (const s of removed) {
+      for (const rel of [s.screenshot, s.flattened]) {
+        if (!rel) continue;
+        await fs.rm(path.join(resolved, rel), { force: true }).catch(() => undefined);
+      }
+    }
     return manifest;
   });
   writeQueue = run.then(
@@ -416,10 +567,12 @@ export function reorderSteps(
   return run;
 }
 
-/** Insert an empty text step at `atIndex` (clamped) and renumber. */
+/** Insert an empty text step at `atIndex` (clamped) and renumber. When `callout`
+ *  is given, the text step renders as a colored note/caution/warning box. */
 export function addTextStep(
   projectPath: string,
   atIndex: number,
+  callout?: CalloutKind,
 ): Promise<ProjectManifest> {
   const run = writeQueue.then(async () => {
     const resolved = await resolveKnownProject(projectPath);
@@ -438,6 +591,7 @@ export function addTextStep(
       note: '',
       heading: '',
       body: '',
+      ...(callout ? { callout } : {}),
       crop: null,
       annotations: [],
     };

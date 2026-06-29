@@ -2,16 +2,17 @@
 // in-app report, plus the inline Konva editor as an overlay when a step is being
 // edited. Shown when a project is open (store.projectPath set).
 import React from 'react';
-import type { ProjectStep } from '../../shared/project';
+import type { CalloutKind, ProjectStep } from '../../shared/project';
 import type { ExportFormat } from '../../shared/ipc';
 import { useProjectStore } from './store';
 import { ensureFlattened } from './sop-prepare';
-import { Report } from './Report';
+import { Report, type InsertKind } from './Report';
 import { SopPanel } from './SopPanel';
 import { Editor } from '../editor/Editor';
 
 const EXPORT_LABEL: Record<ExportFormat, string> = {
   html: 'HTML',
+  'html-plain': 'HTML (for Word)',
   pdf: 'PDF',
   markdown: 'Markdown',
 };
@@ -119,11 +120,11 @@ export function ProjectDetail({
     setEditing(step);
   };
 
-  const addTextAt = async (atIndex: number) => {
+  const addTextAt = async (atIndex: number, callout?: CalloutKind) => {
     if (!projectPath) return;
     setImportErr(null);
     try {
-      const manifest = await window.shotai.projects.addTextStep(projectPath, atIndex);
+      const manifest = await window.shotai.projects.addTextStep(projectPath, atIndex, callout);
       applyManifest(manifest);
       // Identify the inserted step deterministically from the RETURNED manifest:
       // the store clamps the insert index to the old length, so the new step sits
@@ -183,10 +184,11 @@ export function ProjectDetail({
     }
   };
 
-  const onInsert = (atIndex: number, kind: 'text' | 'image' | 'shot') => {
+  const onInsert = (atIndex: number, kind: InsertKind) => {
     if (kind === 'text') void addTextAt(atIndex);
     else if (kind === 'image') pickImageAt(atIndex);
-    else void captureSingleAt(atIndex);
+    else if (kind === 'shot') void captureSingleAt(atIndex);
+    else void addTextAt(atIndex, kind); // 'note' | 'caution' | 'warning'
   };
 
   return (
@@ -268,6 +270,16 @@ export function ProjectDetail({
                   onClick={() => void doExport('html')}
                 >
                   HTML <span className="export__hint">single self-contained file</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="export__item"
+                  disabled={exporting !== null}
+                  onClick={() => void doExport('html-plain')}
+                >
+                  HTML (for Word){' '}
+                  <span className="export__hint">minimal formatting — paste into a doc</span>
                 </button>
                 <button
                   type="button"

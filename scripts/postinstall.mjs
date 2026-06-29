@@ -8,16 +8,41 @@ import { execFileSync, execSync } from 'node:child_process';
 import {
   existsSync,
   readFileSync,
-  readdirSync,
+  writeFileSync,
   mkdirSync,
   rmSync,
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 import path from 'node:path';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const nm = path.join(root, 'node_modules');
 const log = (m) => console.log(`[postinstall] ${m}`);
+
+// Fetch an npm tarball straight from the registry into a folder, stripping the
+// leading "package/" path. We download the FULL buffer (not `npm pack`, which
+// has repeatedly truncated on this host) and sanity-check the size before
+// extracting. `tgzName` is the unscoped "<name>-<version>.tgz".
+async function fetchNpmTarball(pkg, version, tgzName, destDir) {
+  const url = `https://registry.npmjs.org/${pkg}/-/${tgzName}`;
+  // Use a LOCAL temp dir, not node_modules: this repo can live on a mapped drive
+  // where tar's temp-file handling fails (os error 87), which is why download +
+  // extract must stage on a normal local disk.
+  const tmp = path.join(os.tmpdir(), 'shotai-fetch-tmp');
+  rmSync(tmp, { recursive: true, force: true });
+  mkdirSync(tmp, { recursive: true });
+  const tgz = path.join(tmp, tgzName);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`download failed (${res.status}) for ${url}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length < 1024) throw new Error(`download too small (${buf.length} B) for ${url}`);
+  writeFileSync(tgz, buf);
+  rmSync(destDir, { recursive: true, force: true });
+  mkdirSync(destDir, { recursive: true });
+  execSync(`tar -xzf "${tgz}" -C "${destDir}" --strip-components=1`, { stdio: 'inherit' });
+  rmSync(tmp, { recursive: true, force: true });
+}
 
 // 1. Electron — force the x64 binary (its own postinstall is gated by npm 11).
 const electronInstaller = path.join(nm, 'electron', 'install.js');
@@ -58,20 +83,34 @@ if (existsSync(nsDir) && !existsSync(nsX64Node)) {
     readFileSync(path.join(nsDir, 'package.json'), 'utf8'),
   );
   log(`fetching node-screenshots-win32-x64-msvc@${version}...`);
-  const tmp = path.join(nm, '.shotai-ns-x64-tmp');
-  rmSync(tmp, { recursive: true, force: true });
-  mkdirSync(tmp, { recursive: true });
-  execSync(`npm pack node-screenshots-win32-x64-msvc@${version}`, {
-    cwd: tmp,
-    stdio: 'inherit',
-  });
-  const tgz = readdirSync(tmp).find((f) => f.endsWith('.tgz'));
-  mkdirSync(nsX64Dir, { recursive: true });
-  execSync(`tar -xzf "${path.join(tmp, tgz)}" -C "${nsX64Dir}" --strip-components=1`, {
-    stdio: 'inherit',
-  });
-  rmSync(tmp, { recursive: true, force: true });
+  await fetchNpmTarball(
+    'node-screenshots-win32-x64-msvc',
+    version,
+    `node-screenshots-win32-x64-msvc-${version}.tgz`,
+    nsX64Dir,
+  );
   log('node-screenshots x64 ready.');
+}
+
+// 4. koffi — its native binary ships as the per-platform package
+//    @koromix/koffi-win32-x64 (an optionalDependency). On an arm64 host npm
+//    skips the win32-x64 binary (cpu mismatch) AND there is no win32-arm64
+//    koffi package, so npm tries to build it (no CMake here) — fetch the x64
+//    binary directly instead. shotAI runs x64 (emulated), so this is the one we
+//    need. Used by ElementLocator (UI-element-at-point).
+const koffiDir = path.join(nm, 'koffi');
+const koffiX64Dir = path.join(nm, '@koromix', 'koffi-win32-x64');
+const koffiX64Node = path.join(koffiX64Dir, 'win32_x64', 'koffi.node');
+if (existsSync(koffiDir) && !existsSync(koffiX64Node)) {
+  const { version } = JSON.parse(readFileSync(path.join(koffiDir, 'package.json'), 'utf8'));
+  log(`fetching @koromix/koffi-win32-x64@${version}...`);
+  await fetchNpmTarball(
+    '@koromix/koffi-win32-x64',
+    version,
+    `koffi-win32-x64-${version}.tgz`,
+    koffiX64Dir,
+  );
+  log('koffi x64 ready.');
 }
 
 log('native x64 binaries ready.');

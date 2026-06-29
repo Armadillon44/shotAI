@@ -80,9 +80,15 @@ export async function flattenToPng(
   ctx.translate(-cx, -cy);
   for (const a of annotations) drawVector(ctx, a);
   ctx.restore();
-  // 4) click-register marker, baked on top so Claude's vision + exports see the
-  //    clicked spot. Off-canvas (outside the crop) draws harmlessly clipped.
-  if (marker) drawClickMarker(ctx, marker, clickMarkerRadius(nw, nh), cx, cy);
+  // 4) click-register markers, baked on top so Claude's vision + exports see the
+  //    clicked spot(s). Off-canvas (outside the crop) draws harmlessly clipped.
+  //    The step's own click marker (param) plus any 'marker' annotations (e.g. a
+  //    second click brought in by merging two steps) all render with one style.
+  const markerRadius = clickMarkerRadius(nw, nh);
+  if (marker) drawClickMarker(ctx, marker, markerRadius, cx, cy);
+  for (const a of annotations) {
+    if (a.type === 'marker') drawClickMarker(ctx, { x: a.x, y: a.y, color: a.color }, markerRadius, cx, cy);
+  }
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -257,5 +263,7 @@ function drawVector(ctx: CanvasRenderingContext2D, a: Annotation): void {
     }
     case 'blur':
       break; // already baked in step 2
+    case 'marker':
+      break; // drawn in step 4 (click-marker style), after the vector pass
   }
 }

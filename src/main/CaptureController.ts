@@ -31,11 +31,13 @@ import type {
   ProjectStep,
   Rect,
   StepClick,
+  StepElement,
   WindowInfo,
 } from '../shared/project';
 import type { CaptureState } from '../shared/ipc';
 import { IpcChannels } from '../shared/ipc';
 import { captureLog } from './logger';
+import { getElementAtPoint } from './ElementLocator';
 
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+S';
 const OWN_WINDOW_TITLES = new Set(['shotAI', 'shotAI — Capture']);
@@ -81,13 +83,12 @@ const MENU_POLL_MS = 400;
 // menu interaction (the slowest observed was ~10s) — then we stop and reuse the
 // last frame (the menu is static while open; the click-time grab is a backstop).
 const MAX_POLL_FRAMES = 32;
-// The right-click step is captured this long AFTER the click so the context menu
-// it opened has rendered and is in the shot (the menu opens on mouse-UP, ~150ms
-// later, then fades in). Past the fade — an earlier 300ms attempt caught menus
-// mid-fade. The menu stays open until the user selects, so a grab here isn't
-// racing dismissal (unlike the selection step). A selection faster than this
-// leaves the right-click step menu-less, but the selection step still catches it.
-const RIGHT_CLICK_MENU_DELAY_MS = 400;
+// Cap how many times one right-click can re-arm for a submenu chain. A real
+// flyout (e.g. View → Sort by → Name) is only a few levels deep, so this both
+// supports flyouts AND bounds the old runaway where, after a selection, every
+// further click within the proximity/window got swallowed as a "Select…" step.
+// Once the cap is hit we disarm; a deeper chain just captures the leaf normally.
+const MAX_MENU_CHAIN = 4;
 // A double-click fires two mousedowns; treat the second as part of the same
 // action (one step) when it lands within this time + distance of the first.
 const DOUBLE_CLICK_MS = 400;
@@ -118,6 +119,12 @@ type Session = {
   paused: boolean;
   stepCount: number;
   target: CaptureTarget;
+  // Manifest step count when the session began (BEFORE orphan-seeding bumps
+  // stepCount). With createdThisSession + addedStepIds this lets a Discard delete
+  // the whole project (new + was empty) or just this session's steps.
+  stepCountAtStart: number;
+  createdThisSession: boolean;
+  addedStepIds: string[];
   // Single-shot mode: capture exactly one click, insert it at this manifest
   // index (not append), then auto-stop. Used by the report's "insert one
   // screenshot here" affordance. Absent for a normal recording session.
@@ -166,6 +173,30 @@ function unionRect(a: Rect, b: Rect): Rect {
   return { x, y, width: right - x, height: bottom - y };
 }
 
+/** Crop a full-monitor capture to a global-px region, clamped to the monitor. */
+function cropToRegion(mon: NsMonitor, full: NsImage, region: Rect): Grab {
+  const lx = Math.round(region.x - mon.x());
+  const ly = Math.round(region.y - mon.y());
+  const cropX = Math.max(0, Math.min(lx, mon.width() - 1));
+  const cropY = Math.max(0, Math.min(ly, mon.height() - 1));
+  const cropW = Math.max(1, Math.min(lx + Math.round(region.width), mon.width()) - cropX);
+  const cropH = Math.max(1, Math.min(ly + Math.round(region.height), mon.height()) - cropY);
+  return {
+    png: full.cropSync(cropX, cropY, cropW, cropH).toPngSync(),
+    originX: mon.x() + cropX,
+    originY: mon.y() + cropY,
+    monitor: mon,
+  };
+}
+
+/** A box of half-size `620·scaleFactor` centered on a point — the generous,
+ *  roughly symmetric crop used to frame a click together with any menu/dropdown
+ *  it opened (menus flip up/left near screen edges, so the box is symmetric). */
+function clickBox(point: Point, mon: NsMonitor): Rect {
+  const half = Math.round(620 * (mon.scaleFactor() || 1));
+  return { x: point.x - half, y: point.y - half, width: half * 2, height: half * 2 };
+}
+
 function captureModeFor(active: ActiveLike): 'window' | 'region' | 'fullscreen' {
   if (!active) return 'fullscreen'; // unknown focus → full context, never a guessed crop
   const app = active.owner.name;
@@ -174,6 +205,65 @@ function captureModeFor(active: ActiveLike): 'window' | 'region' | 'fullscreen' 
   if (app === 'Windows Explorer' && title.trim() === '') return 'region'; // taskbar / system tray
   if (SHELL_HOST_RE.test(app)) return 'region'; // Start / Search / Shell hosts
   return 'window';
+}
+
+/** A friendly noun for a UIA control type, for captions ('' = omit the noun). */
+function controlWord(ct: string | null | undefined): string {
+  switch (ct) {
+    case 'Button':
+    case 'SplitButton':
+      return 'button';
+    case 'Hyperlink':
+      return 'link';
+    case 'CheckBox':
+      return 'checkbox';
+    case 'RadioButton':
+      return 'option';
+    case 'Tab':
+    case 'TabItem':
+      return 'tab';
+    case 'Edit':
+      return 'field';
+    case 'ComboBox':
+      return 'dropdown';
+    case 'ListItem':
+    case 'TreeItem':
+    case 'DataItem':
+      return 'item';
+    case 'Slider':
+      return 'slider';
+    case 'Spinner':
+      return 'spinner';
+    default:
+      return '';
+  }
+}
+
+/** Auto-caption for a click step. Names the clicked UI element when one
+ *  resolved (e.g. "Click 'OK' button in <app>"); otherwise falls back to the
+ *  window-only phrasing. */
+function buildClickCaption(
+  button: StepClick['button'],
+  isMenuSelect: boolean,
+  appName: string,
+  element: StepElement | null,
+): string {
+  const name = element?.name;
+  if (name) {
+    // Only call it a menu selection when the clicked element really IS a menu
+    // item. The proximity gate sometimes flags a click in a dialog the menu
+    // opened (e.g. an OK button in a Properties dialog) as a "selection" — caption
+    // it as the actual control instead of "Select from context menu".
+    if (element?.controlType === 'MenuItem') return `Select '${name}' in ${appName}`;
+    const word = controlWord(element?.controlType);
+    const tail = word ? ` ${word}` : '';
+    return button === 'right'
+      ? `Right-click '${name}'${tail} in ${appName}`
+      : `Click '${name}'${tail} in ${appName}`;
+  }
+  if (button === 'right') return `Right-click in ${appName}`;
+  if (isMenuSelect) return `Select from context menu in ${appName}`;
+  return `Click in ${appName}`;
 }
 
 export class CaptureController {
@@ -197,6 +287,9 @@ export class CaptureController {
     ownerBounds: Rect | null;
     lastPoint: Point;
     menuFrame: { image: NsImage; monitor: NsMonitor } | null;
+    // How many selections deep this menu chain is (0 = the initial right-click
+    // arm). Bounded by MAX_MENU_CHAIN to stop the runaway re-arm.
+    chain: number;
   } | null = null;
   // Interval that refreshes menuFollowUp.menuFrame while a menu is armed, plus an
   // in-flight guard so slow async captures can't pile up.
@@ -211,6 +304,12 @@ export class CaptureController {
     const point = { x: event.x, y: event.y };
     const button = mapButton(event.button);
 
+    // Resolve the UI element under the cursor NOW (at mousedown), before the
+    // click's effect changes the UI — closing a dialog, minimizing a window, or
+    // dismissing the menu would otherwise make a later query hit whatever is
+    // underneath. Best-effort + off-thread; threaded into captureStep below.
+    const elementPromise = getElementAtPoint(point.x, point.y);
+
     // Single-shot insert: capture the first real click as ONE step inserted at
     // the chosen index, then end the session. No double-click/menu machinery —
     // this is an explicit one-screenshot grab, not a recording.
@@ -220,7 +319,7 @@ export class CaptureController {
       this.session.single.fired = true;
       const insertAt = this.session.single.insertAt;
       this.enqueue(async () => {
-        const step = await this.captureStep('click', point, button, { insertAt });
+        const step = await this.captureStep('click', point, button, { insertAt, elementPromise });
         if (!step) {
           captureLog.warn(
             `single-shot: click at (${point.x},${point.y}) captured nothing — ending the session (the window is restored; retry the insert)`,
@@ -255,27 +354,24 @@ export class CaptureController {
       // selection; the menu opens at the cursor, so selections cluster near this
       // point — seed lastPoint for the proximity gate) and start polling for the
       // selection step. ownerBounds is captured synchronously NOW (the focused
-      // window is the menu's owner; it won't be once the menu is open) so both
-      // this step and the selection step can frame the menu with its window.
+      // window is the menu's owner; it won't be once the menu is open) so the
+      // selection step can frame the menu with its window.
       this.menuFollowUp = {
         until: Date.now() + MENU_FOLLOWUP_WINDOW_MS,
         ownerBounds: this.focusedWindowBounds(),
         lastPoint: point,
         menuFrame: null,
+        chain: 0,
       };
       this.startMenuPolling();
       captureLog.debug(`menu: armed by right-click at (${point.x},${point.y})`);
-      // Capture the right-click step itself showing the OPEN menu: defer it
-      // ~RIGHT_CLICK_MENU_DELAY_MS (inside captureStep) so the menu has rendered,
-      // then crop to the owner window + a box around the click. The capture queue
-      // is FIFO, so this holds its slot — a following selection still orders after.
-      this.enqueue(() =>
-        this.captureStep('click', point, button, {
-          menuPopup: true,
-          menuOwnerBounds: this.menuFollowUp?.ownerBounds ?? null,
-          awaitMenuFrame: true,
-        }),
-      );
+      // The right-click step is captured PLAINLY (its target window) — we no
+      // longer try to grab the just-opened menu on the right-click itself, which
+      // raced the menu's render and was unreliable. The reliable capture is the
+      // NEXT click (the selection), grabbed on mouse-DOWN while the menu is still
+      // on screen. The two can then be merged in the report (the right-click step
+      // is discarded, its click carried onto the menu screenshot as a marker).
+      this.enqueue(() => this.captureStep('click', point, button, { elementPromise }));
       return;
     }
 
@@ -312,19 +408,29 @@ export class CaptureController {
       // Re-arm (shorter window) so the next click in a flyout/submenu chain is
       // also captured as a menu selection; the proximity gate disarms it once
       // the user clicks away from the menu. Reset menuFrame so the next selection
-      // captures the (possibly changed) submenu, not this frame.
-      this.menuFollowUp = {
-        until: Date.now() + SUBMENU_FOLLOWUP_WINDOW_MS,
-        ownerBounds,
-        lastPoint: point,
-        menuFrame: null,
-      };
-      this.startMenuPolling();
+      // captures the (possibly changed) submenu, not this frame. BOUNDED by
+      // MAX_MENU_CHAIN so a stream of ordinary clicks after a selection can't keep
+      // re-arming (the old runaway, where one right-click spawned ~10 false steps).
+      const chain = (fu?.chain ?? 0) + 1;
+      if (chain < MAX_MENU_CHAIN) {
+        this.menuFollowUp = {
+          until: Date.now() + SUBMENU_FOLLOWUP_WINDOW_MS,
+          ownerBounds,
+          lastPoint: point,
+          menuFrame: null,
+          chain,
+        };
+        this.startMenuPolling();
+      } else {
+        captureLog.debug(`menu: chain limit (${MAX_MENU_CHAIN}) reached — disarming`);
+        this.disarmMenu();
+      }
       this.enqueue(() =>
         this.captureStep('click', point, button, {
           menuPopup: true,
           menuOwnerBounds: ownerBounds,
           preGrab,
+          elementPromise,
         }),
       );
       return;
@@ -342,7 +448,7 @@ export class CaptureController {
       captureLog.debug(`menu: disarmed — click at (${point.x},${point.y}) not a selection (${reason})`);
     }
     this.disarmMenu(); // a non-menu click disarms the follow-up + stops polling
-    this.enqueue(() => this.captureStep('click', point, button));
+    this.enqueue(() => this.captureStep('click', point, button, { elementPromise }));
   };
 
   /** True when a click is close enough to the previous menu point to still be
@@ -533,7 +639,11 @@ export class CaptureController {
    */
   async start(
     projectPath: string,
-    opts: { attachHook?: boolean; target?: CaptureTarget } = {},
+    opts: {
+      attachHook?: boolean;
+      target?: CaptureTarget;
+      createdThisSession?: boolean;
+    } = {},
   ): Promise<CaptureState> {
     const attachHook = opts.attachHook ?? true;
     const target = opts.target ?? DEFAULT_TARGET;
@@ -556,6 +666,10 @@ export class CaptureController {
     const shotsDir = path.join(projectPath, 'shots');
     await fs.mkdir(shotsDir, { recursive: true });
 
+    // Manifest step count before orphan-seeding bumps the filename counter — used
+    // by discard() to decide whole-project vs. session-only deletion.
+    const stepCountAtStart = manifest.steps.length;
+
     // Seed the step counter past any existing shot on disk so we never
     // overwrite a prior capture (steps may have been deleted/reordered).
     let stepCount = manifest.steps.length;
@@ -574,6 +688,9 @@ export class CaptureController {
       paused: false,
       stepCount,
       target,
+      stepCountAtStart,
+      createdThisSession: opts.createdThisSession ?? false,
+      addedStepIds: [],
     };
 
     captureLog.info(
@@ -618,6 +735,9 @@ export class CaptureController {
       paused: false,
       stepCount,
       target: DEFAULT_TARGET,
+      stepCountAtStart: manifest.steps.length,
+      createdThisSession: false,
+      addedStepIds: [],
       single: { insertAt: at },
     };
     captureLog.info(
@@ -687,6 +807,41 @@ export class CaptureController {
     if (wasRecording) this.onRecordingChange?.(false); // e.g. restore the main window
     this.emitState();
     return this.getState();
+  }
+
+  /**
+   * Discard the active session: stop capture and remove this session's work. If
+   * the project was created this session AND was empty when capture began, delete
+   * the whole project folder; otherwise delete only the steps added this session.
+   */
+  async discard(): Promise<{ state: CaptureState; projectDeleted: boolean }> {
+    const s = this.session;
+    this.detachTriggers();
+    await this.queue.catch(() => undefined); // in-flight captures finish (session still set → ids recorded)
+    this.session = null;
+    let projectDeleted = false;
+    if (s) {
+      const whole = s.createdThisSession && s.stepCountAtStart === 0 && !s.single;
+      try {
+        if (whole) {
+          await projectStore.deleteProject(s.projectPath);
+          projectDeleted = true;
+          captureLog.info(`capture discarded — deleted new project at ${s.projectPath}`);
+        } else if (s.addedStepIds.length) {
+          await projectStore.deleteSteps(s.projectPath, s.addedStepIds);
+          captureLog.info(
+            `capture discarded — removed ${s.addedStepIds.length} session step(s) from ${s.projectPath}`,
+          );
+        } else {
+          captureLog.info('capture discarded — nothing was captured this session');
+        }
+      } catch (e) {
+        captureLog.warn('discard cleanup failed:', e);
+      }
+      this.onRecordingChange?.(false); // restore the main window
+    }
+    this.emitState();
+    return { state: this.getState(), projectDeleted };
   }
 
   private enqueue(fn: () => Promise<unknown>): void {
@@ -793,10 +948,11 @@ export class CaptureController {
       menuPopup?: boolean;
       menuOwnerBounds?: Rect | null;
       preGrab?: { image: NsImage; monitor: NsMonitor } | null;
-      /** Right-click step: wait for the menu to render, then grab it fresh. */
-      awaitMenuFrame?: boolean;
       /** Single-shot: insert at this manifest index (renumbered) instead of append. */
       insertAt?: number | null;
+      /** UI element resolved AT mousedown (started in onMouseDown, before the
+       *  click's effect changes the UI). Falls back to a query here if absent. */
+      elementPromise?: Promise<StepElement | null>;
     } = {},
   ): Promise<ProjectStep | null> {
     // Re-check here (not just at enqueue) so a pause/stop that lands while
@@ -835,15 +991,13 @@ export class CaptureController {
         : null;
     }
 
-    // Right-click step: wait for the context menu to render before grabbing, so
-    // this step shows the open menu (not the pre-menu target). active/focused
-    // above were resolved at click time (the owner), which is what we want; only
-    // the screenshot is delayed. The menu stays open until the user selects, so
-    // grabbing here doesn't race dismissal.
-    if (opts.menuPopup && opts.awaitMenuFrame && !opts.preGrab) {
-      await new Promise((r) => setTimeout(r, RIGHT_CLICK_MENU_DELAY_MS));
-      if (!this.session || this.session.paused) return null; // stopped while waiting
-    }
+    // Resolve the UI element under the click (best-effort, off the main thread).
+    // Prefer the query started at MOUSEDOWN (opts.elementPromise) — by the time
+    // this step runs, the click may have closed a dialog / minimized the window /
+    // dismissed the menu, so a query now would hit whatever is underneath. Fall
+    // back to a query here for callers that don't pre-resolve (hotkey, tests).
+    const elementPromise: Promise<StepElement | null> =
+      opts.elementPromise ?? (point ? getElementAtPoint(point.x, point.y) : Promise.resolve(null));
 
     const target = this.session.target;
     const mode = target.mode;
@@ -914,21 +1068,12 @@ export class CaptureController {
                 ? target.area ?? null
                 : opts.menuOwnerBounds ?? null; // 'auto' → owner at right-click time
           if (point) {
-            // Center a generous, roughly symmetric box on the selection click so
-            // the menu is included no matter which way Windows flipped it: menus
-            // open UP near the screen bottom and LEFT near the right edge, so an
-            // asymmetric down/right box would crop a flipped menu off. The full
-            // monitor was already captured, so a larger crop only costs PNG size.
-            // This also covers 'area' mode and the case where ownerBounds is null
-            // (focus unresolved at right-click), where there's no owner to union.
-            const sf = mon.scaleFactor() || 1;
-            const half = Math.round(620 * sf);
-            const box: Rect = {
-              x: point.x - half,
-              y: point.y - half,
-              width: half * 2,
-              height: half * 2,
-            };
+            // A generous, roughly symmetric box around the selection click so the
+            // menu is included no matter which way Windows flipped it (menus open
+            // UP near the screen bottom, LEFT near the right edge). Also covers
+            // 'area' mode and the case where ownerBounds is null (focus unresolved
+            // at right-click), where there's no owner rect to union.
+            const box = clickBox(point, mon);
             base = base ? unionRect(base, box) : box;
           }
           region = base;
@@ -936,25 +1081,9 @@ export class CaptureController {
 
         try {
           if (!region) {
-            return {
-              png: full.toPngSync(),
-              originX: mon.x(),
-              originY: mon.y(),
-              monitor: mon,
-            };
+            return { png: full.toPngSync(), originX: mon.x(), originY: mon.y(), monitor: mon };
           }
-          const lx = Math.round(region.x - mon.x());
-          const ly = Math.round(region.y - mon.y());
-          const cropX = Math.max(0, Math.min(lx, mon.width() - 1));
-          const cropY = Math.max(0, Math.min(ly, mon.height() - 1));
-          const cropW = Math.max(1, Math.min(lx + Math.round(region.width), mon.width()) - cropX);
-          const cropH = Math.max(1, Math.min(ly + Math.round(region.height), mon.height()) - cropY);
-          return {
-            png: full.cropSync(cropX, cropY, cropW, cropH).toPngSync(),
-            originX: mon.x() + cropX,
-            originY: mon.y() + cropY,
-            monitor: mon,
-          };
+          return cropToRegion(mon, full, region);
         } catch (e) {
           captureLog.warn('menu-popup crop failed:', e);
           return null;
@@ -963,19 +1092,30 @@ export class CaptureController {
 
       // WINDOW — an explicitly picked window, or 'auto' classified the click as
       // a normal app window (the focused window, already confirmed not ours).
+      // Capture the MONITOR and crop to the window's bounds rather than
+      // PrintWindow (win.captureImageSync): PrintWindow grabs only the app's
+      // CLIENT area, so it misses the DWM-drawn title bar AND any popup/dropdown
+      // (a separate top-level window). The monitor BitBlt is WYSIWYG — it includes
+      // the title bar and any dropdown that paints within the window's rectangle.
       if (mode === 'window' || autoMode === 'window') {
         const win =
           mode === 'window' ? this.resolveWindow(Window, target.window) : focused;
-        if (win && win.x() > -10000 && win.y() > -10000) {
-          try {
-            return {
-              png: win.captureImageSync().toPngSync(),
-              originX: win.x(),
-              originY: win.y(),
-              monitor: Monitor.fromPoint(win.x(), win.y()) ?? clickMonitor,
-            };
-          } catch (e) {
-            captureLog.warn('window capture failed, falling back to monitor:', e);
+        const winRect: Rect | null =
+          win && win.x() > -10000 && win.y() > -10000
+            ? { x: win.x(), y: win.y(), width: win.width(), height: win.height() }
+            : null;
+        if (winRect) {
+          const mon = Monitor.fromPoint(winRect.x, winRect.y) ?? clickMonitor;
+          if (mon) {
+            try {
+              const full = mon.captureImageSync();
+              // Crop tightly to the window bounds — NO generous click box here
+              // (that bloated normal captures and pulled in neighboring windows).
+              // The menu-popup path keeps its box to catch flipped/overflowing menus.
+              return cropToRegion(mon, full, winRect);
+            } catch (e) {
+              captureLog.warn('window capture failed, falling back to monitor:', e);
+            }
           }
         } else if (mode === 'window') {
           captureLog.warn('picked window not found — falling back to monitor capture');
@@ -1020,13 +1160,14 @@ export class CaptureController {
       }
       if (!mon) return null;
 
-      // REGION — 'auto' shell element (taskbar/Start/tray): a tight crop around
-      // the click, avoiding the giant black shell-window capture.
+      // REGION — 'auto' shell element (taskbar/Start/tray): a crop around the
+      // click, avoiding the giant black shell-window capture. Sized generously so
+      // a Start-menu tile / flyout has context (the old 520x400 was too tight).
       if (autoMode === 'region' && point) {
         try {
           const sf = mon.scaleFactor() || 1;
-          const boxW = Math.min(Math.round(520 * sf), mon.width());
-          const boxH = Math.min(Math.round(400 * sf), mon.height());
+          const boxW = Math.min(Math.round(820 * sf), mon.width());
+          const boxH = Math.min(Math.round(640 * sf), mon.height());
           const cx = point.x - mon.x();
           const cy = point.y - mon.y();
           const cropX = Math.max(0, Math.min(cx - Math.floor(boxW / 2), mon.width() - boxW));
@@ -1075,6 +1216,15 @@ export class CaptureController {
         }
       : null;
 
+    // The UI element under the click (resolved off-thread, started above).
+    const element = (await elementPromise) ?? {
+      available: false,
+      name: null,
+      controlType: null,
+      bounds: null,
+    };
+    const appName = window?.app ?? 'screen';
+
     const step: ProjectStep = {
       id: randomUUID(),
       order,
@@ -1100,14 +1250,10 @@ export class CaptureController {
           }
         : null,
       window,
-      element: { available: false, name: null, controlType: null, bounds: null },
+      element,
       caption:
         trigger === 'click'
-          ? button === 'right'
-            ? `Right-click in ${window?.app ?? 'screen'}` // right-click step (now shows the menu)
-            : opts.menuPopup
-              ? `Select from context menu in ${window?.app ?? 'screen'}`
-              : `Click in ${window?.app ?? 'screen'}`
+          ? buildClickCaption(button, !!opts.menuPopup, appName, element)
           : `Capture: ${window?.title ?? 'screen'}`,
       note: '',
       crop: null,
@@ -1119,8 +1265,10 @@ export class CaptureController {
     } else {
       await projectStore.addStep(this.session.projectPath, step);
     }
+    // Track this session's additions so a Discard can remove exactly them.
+    this.session?.addedStepIds.push(step.id);
     captureLog.info(
-      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
+      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'}${element.name ? ` el='${element.name}'(${element.controlType})` : ''} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
     );
     this.broadcast(IpcChannels.captureStepAdded, step);
     this.emitState();

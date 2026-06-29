@@ -15,12 +15,24 @@ import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
+  onOpenSettings: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on(IpcChannels.openSettings, listener);
+    return () => ipcRenderer.removeListener(IpcChannels.openSettings, listener);
+  },
   projects: {
     getDir: () => ipcRenderer.invoke(IpcChannels.getProjectsDir),
     chooseDir: () => ipcRenderer.invoke(IpcChannels.chooseProjectsDir),
     listRecent: () => ipcRenderer.invoke(IpcChannels.listRecentProjects),
+    list: () => ipcRenderer.invoke(IpcChannels.listProjects),
     create: (title: string) =>
       ipcRenderer.invoke(IpcChannels.createProject, title),
+    rename: (projectPath: string, title: string) =>
+      ipcRenderer.invoke(IpcChannels.renameProject, projectPath, title),
+    delete: (projectPath: string) =>
+      ipcRenderer.invoke(IpcChannels.deleteProject, projectPath),
+    reveal: (projectPath: string) =>
+      ipcRenderer.invoke(IpcChannels.revealProject, projectPath),
     open: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.openProject, projectPath),
     updateStep: (
@@ -42,8 +54,28 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.deleteStep, projectPath, stepId),
     reorderSteps: (projectPath: string, orderedIds: string[]) =>
       ipcRenderer.invoke(IpcChannels.reorderSteps, projectPath, orderedIds),
-    addTextStep: (projectPath: string, atIndex: number) =>
-      ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex),
+    mergeSteps: (
+      projectPath: string,
+      keepId: string,
+      dropId: string,
+      patch: StepPatch,
+      flattenedPng?: Uint8Array | null,
+    ) =>
+      ipcRenderer.invoke(
+        IpcChannels.mergeSteps,
+        projectPath,
+        keepId,
+        dropId,
+        patch,
+        flattenedPng ?? null,
+      ),
+    addTextStep: (
+      projectPath: string,
+      atIndex: number,
+      callout?: 'note' | 'caution' | 'warning',
+    ) => ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex, callout),
+    redactScan: (projectPath: string, stepId: string) =>
+      ipcRenderer.invoke(IpcChannels.redactScan, projectPath, stepId),
     revertSop: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),
     export: (projectPath: string, format: ExportFormat) =>
@@ -71,13 +103,19 @@ const api: ShotaiApi = {
     },
   },
   capture: {
-    start: (projectPath: string, target?: CaptureTarget) =>
-      ipcRenderer.invoke(IpcChannels.captureStart, projectPath, target),
+    start: (projectPath: string, target?: CaptureTarget, opts?: { createdThisSession?: boolean }) =>
+      ipcRenderer.invoke(
+        IpcChannels.captureStart,
+        projectPath,
+        target,
+        opts?.createdThisSession ?? false,
+      ),
     captureSingle: (projectPath: string, atIndex: number) =>
       ipcRenderer.invoke(IpcChannels.captureSingle, projectPath, atIndex),
     pause: () => ipcRenderer.invoke(IpcChannels.capturePause),
     resume: () => ipcRenderer.invoke(IpcChannels.captureResume),
     stop: () => ipcRenderer.invoke(IpcChannels.captureStop),
+    discard: () => ipcRenderer.invoke(IpcChannels.captureDiscard),
     getState: () => ipcRenderer.invoke(IpcChannels.captureGetState),
     listTargets: () => ipcRenderer.invoke(IpcChannels.captureListTargets),
     onStateChanged: (cb: (state: CaptureState) => void) => {

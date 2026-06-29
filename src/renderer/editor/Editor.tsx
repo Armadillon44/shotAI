@@ -33,6 +33,7 @@ import {
   clickMarkerRadius,
   createArrow,
   createBlur,
+  createMarker,
   createRect,
   createStamp,
   createText,
@@ -190,7 +191,13 @@ export function Editor({
   const [textEntry, setTextEntry] = React.useState<TextEntry | null>(null);
   const [selBox, setSelBox] = React.useState<Rect | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [scanning, setScanning] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // The canvas viewport size — measured from the (flex-grown) container so the
+  // stage fills as much of the window as feasible. Seeded with the old fixed
+  // defaults until the ResizeObserver reports the real size.
+  const [viewport, setViewport] = React.useState({ w: VIEW_W, h: VIEW_H });
+  const canvasRef = React.useRef<HTMLDivElement | null>(null);
 
   const stageRef = React.useRef<Konva.Stage | null>(null);
   const trRef = React.useRef<Konva.Transformer | null>(null);
@@ -222,9 +229,24 @@ export function Editor({
     };
   }, [projectId, step.screenshot]);
 
+  // Measure the canvas container so the stage fills the available window space.
+  React.useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = Math.floor(el.clientWidth);
+      const h = Math.floor(el.clientHeight);
+      if (w > 0 && h > 0) setViewport({ w, h });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const natW = img?.naturalWidth ?? 0;
   const natH = img?.naturalHeight ?? 0;
-  const scale = natW && natH ? Math.min(VIEW_W / natW, VIEW_H / natH, 1) : 1;
+  const scale = natW && natH ? Math.min(viewport.w / natW, viewport.h / natH, 1) : 1;
   const markerR = natW && natH ? clickMarkerRadius(natW, natH) : 20;
   // Stage transform: the visible region (whole image, or — when crop is applied
   // in-line — just the crop) fit to the canvas, times the editing zoom. Pointer
@@ -232,7 +254,9 @@ export function Editor({
   const region =
     viewCropped && crop ? crop : { x: 0, y: 0, width: natW, height: natH };
   const baseScale =
-    viewCropped && crop ? Math.min(VIEW_W / crop.width, VIEW_H / crop.height, 8) : scale;
+    viewCropped && crop
+      ? Math.min(viewport.w / crop.width, viewport.h / crop.height, 8)
+      : scale;
   const stageScale = baseScale * editorZoom;
   const cropView = {
     scale: stageScale,
@@ -292,8 +316,15 @@ export function Editor({
       const a = createStamp(p.x, p.y, n, defaultStampRadius(natW, natH), color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
-      setTool('select');
+      // Stay in the stamp tool to place more; Escape or the toolbar switches it.
       return;
+    }
+    if (tool === 'marker') {
+      // Place a click-register ring at the click point; recolor/move via Select.
+      const a = createMarker(p.x, p.y, color);
+      setAnnotations((prev) => [...prev, a]);
+      setSelectedId(a.id);
+      return; // stay in the marker tool
     }
     if (tool === 'text') {
       setSelectedId(null);
@@ -333,17 +364,15 @@ export function Editor({
         setAnnotations((prev) => [...prev, a]);
         setSelectedId(a.id);
       }
-      setTool('select');
-      return;
+      return; // stay in the arrow tool
     }
     const r = draft;
     setDraft(null);
-    if (!r || r.width < MIN_DRAG || r.height < MIN_DRAG) {
-      setTool('select');
-      return;
-    }
+    // A misclick (sub-MIN_DRAG) leaves you in the current drawing tool.
+    if (!r || r.width < MIN_DRAG || r.height < MIN_DRAG) return;
     if (tool === 'crop') {
       setCrop(r);
+      setTool('select'); // crop is one-shot — drop back to Select after cropping
     } else if (tool === 'rect') {
       const a = createRect(r.x, r.y, r.width, r.height, strokeWidth, color);
       setAnnotations((prev) => [...prev, a]);
@@ -353,7 +382,7 @@ export function Editor({
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
     }
-    setTool('select');
+    // rect/blur: stay active for repeated drawing.
   };
 
   React.useEffect(() => {
@@ -475,6 +504,32 @@ export function Editor({
       update(selected.id, { stroke: c } as Partial<Annotation>);
     } else if (selected?.type === 'text' || selected?.type === 'stamp') {
       update(selected.id, { fill: c } as Partial<Annotation>);
+    } else if (selected?.type === 'marker') {
+      update(selected.id, { color: c } as Partial<Annotation>);
+    }
+  };
+
+  // Auto-redaction pre-scan: OCR the screenshot (in main), then drop a solid
+  // redaction box over each detected SSN / credit-card / API-key region. They're
+  // ordinary blur annotations — the user reviews/adjusts/deletes them and Saves,
+  // which bakes them via the existing fail-closed flatten path. Best-effort.
+  const autoRedact = async () => {
+    if (!img || scanning) return;
+    setScanning(true);
+    setError(null);
+    try {
+      const rects = await window.shotai.projects.redactScan(projectPath, step.id);
+      if (!rects.length) {
+        setError('No sensitive data detected (best-effort — redact manually if needed).');
+        return;
+      }
+      const added = rects.map((r) => createBlur(r.x, r.y, r.width, r.height, 'solid'));
+      setAnnotations((prev) => [...prev, ...added]);
+      setSelectedId(added[added.length - 1].id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -529,7 +584,9 @@ export function Editor({
       ? s.fill
       : s.type === 'rect' || s.type === 'arrow'
         ? s.stroke
-        : color;
+        : s.type === 'marker'
+          ? s.color
+          : color;
   const colorVal = selectedIsClick ? markerColor : selected ? colorOf(selected) : color;
 
   return (
@@ -601,6 +658,15 @@ export function Editor({
             {selectedId === CLICK_ID ? 'Remove marker' : 'Delete'}
           </button>
         )}
+        <button
+          type="button"
+          className="btn btn--small"
+          onClick={() => void autoRedact()}
+          disabled={scanning || saving || !img}
+          title="Scan this screenshot for SSNs, credit cards, and API keys, and add redaction boxes to review"
+        >
+          {scanning ? 'Scanning…' : 'Auto-redact'}
+        </button>
         <button type="button" className="btn btn--small" onClick={onClose} disabled={saving}>
           Cancel
         </button>
@@ -747,7 +813,7 @@ export function Editor({
         </div>
       )}
 
-      <div className="ed__canvas" style={{ width: VIEW_W, height: VIEW_H }}>
+      <div className="ed__canvas" ref={canvasRef}>
         {!img ? (
           <p className="project__hint">Loading screenshot…</p>
         ) : (
@@ -867,6 +933,22 @@ export function Editor({
                         verticalAlign="middle"
                       />
                     </Group>
+                  );
+                }
+                if (a.type === 'marker') {
+                  // A second click-register ring (e.g. brought in by merging two
+                  // steps). Same visual as the step's own click marker; movable.
+                  return (
+                    <Circle
+                      {...common}
+                      x={a.x}
+                      y={a.y}
+                      radius={markerR}
+                      stroke={a.color}
+                      strokeWidth={Math.max(2, Math.round(markerR * 0.22))}
+                      fill={`${a.color}2e`}
+                      onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
+                    />
                   );
                 }
                 // text
