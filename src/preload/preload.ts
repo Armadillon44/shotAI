@@ -15,12 +15,24 @@ import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
+  onOpenSettings: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on(IpcChannels.openSettings, listener);
+    return () => ipcRenderer.removeListener(IpcChannels.openSettings, listener);
+  },
   projects: {
     getDir: () => ipcRenderer.invoke(IpcChannels.getProjectsDir),
     chooseDir: () => ipcRenderer.invoke(IpcChannels.chooseProjectsDir),
     listRecent: () => ipcRenderer.invoke(IpcChannels.listRecentProjects),
+    list: () => ipcRenderer.invoke(IpcChannels.listProjects),
     create: (title: string) =>
       ipcRenderer.invoke(IpcChannels.createProject, title),
+    rename: (projectPath: string, title: string) =>
+      ipcRenderer.invoke(IpcChannels.renameProject, projectPath, title),
+    delete: (projectPath: string) =>
+      ipcRenderer.invoke(IpcChannels.deleteProject, projectPath),
+    reveal: (projectPath: string) =>
+      ipcRenderer.invoke(IpcChannels.revealProject, projectPath),
     open: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.openProject, projectPath),
     updateStep: (

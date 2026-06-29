@@ -90,7 +90,11 @@ export const IpcChannels = {
   getProjectsDir: 'projects:get-dir',
   chooseProjectsDir: 'projects:choose-dir',
   listRecentProjects: 'projects:list-recent',
+  listProjects: 'projects:list',
   createProject: 'projects:create',
+  renameProject: 'projects:rename',
+  deleteProject: 'projects:delete',
+  revealProject: 'projects:reveal',
   openProject: 'projects:open',
   updateStep: 'projects:update-step',
   importStep: 'projects:import-step',
@@ -127,17 +131,31 @@ export const IpcChannels = {
   captureStateChanged: 'capture:state-changed',
   captureStepAdded: 'capture:step-added',
   captureError: 'capture:error',
+  // Application menu → renderer
+  openSettings: 'menu:open-settings',
 } as const;
 
 /** The typed API exposed to the renderer on `window.shotai` via contextBridge. */
 export interface ShotaiApi {
   /** Runtime / app info from the main process. */
   getAppInfo(): Promise<AppInfo>;
+  /** Fires when the application menu's File → Settings is chosen. Returns an
+   *  unsubscribe fn. */
+  onOpenSettings(cb: () => void): () => void;
   projects: {
     getDir(): Promise<string>;
     chooseDir(): Promise<string | null>;
     listRecent(): Promise<ProjectSummary[]>;
+    /** All projects in the current projects folder (home screen sorts them). */
+    list(): Promise<ProjectSummary[]>;
+    /** Create a project; an empty title gets a timestamped default name. */
     create(title: string): Promise<ProjectSummary>;
+    /** Rename a project (title only; folder/path unchanged). */
+    rename(projectPath: string, title: string): Promise<ProjectSummary>;
+    /** Delete a project's folder and drop it from recents. */
+    delete(projectPath: string): Promise<void>;
+    /** Reveal a project's folder in the OS file manager (Explorer/Finder). */
+    reveal(projectPath: string): Promise<void>;
     /**
      * Open a project: returns its manifest plus an opaque `projectId` the
      * renderer uses to build shot:// image URLs (never a filesystem path).

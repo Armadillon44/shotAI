@@ -262,6 +262,12 @@ export interface SopBackup {
 
 export interface ProjectManifest {
   version: number;
+  /**
+   * Stable random identity (uuid), assigned at creation and back-filled on open
+   * for older projects. Decouples identity from the (mutable, possibly duplicate)
+   * title and folder name — so two projects can share a display name.
+   */
+  id: string;
   title: string;
   createdWith: 'shotAI';
   createdAt: string; // ISO 8601 (project metadata, not per-step capture data)
@@ -272,8 +278,10 @@ export interface ProjectManifest {
   sopBackup: SopBackup | null;
 }
 
-/** Lightweight summary for the recent-projects list (no full manifest load). */
+/** Lightweight summary for the project list (no full manifest load). */
 export interface ProjectSummary {
+  /** Stable project id (may be '' for an older project not yet opened/migrated). */
+  id: string;
   title: string;
   /** Absolute path to the project folder. */
   path: string;

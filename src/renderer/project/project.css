@@ -421,6 +421,118 @@ body {
   display: flex;
   gap: 0.4rem;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Home project-manager: list header + sort controls */
+.project__list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.project__sort {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.project__sort-label {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.project__sort-chip {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.project__sort-chip--on {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+.project__rename-input {
+  font-weight: 600;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid #4f46e5;
+  border-radius: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Per-card export dropdown */
+.project__export {
+  position: relative;
+}
+
+.project__export-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+.btn--danger {
+  color: #b91c1c;
+  border-color: #f0c2c2;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+/* Right-click context menu on a project row */
+.project__ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.project__ctx {
+  position: fixed;
+  z-index: 51;
+  min-width: 180px;
+  padding: 0.3rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.project__ctx-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: #1f2937;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.project__ctx-item:hover {
+  background: #eef2ff;
 }
 
 /* Project-detail view */

@@ -6,6 +6,7 @@ import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
 import { resolveProjectFile } from './ProjectStore';
+import { installAppMenu } from './menu';
 import { initLogging, mainLog } from './logger';
 
 initLogging();
@@ -259,6 +260,9 @@ app.whenReady().then(async () => {
   registerShotProtocol();
   applyContentSecurityPolicy();
   registerIpcHandlers(capture, region);
+  installAppMenu(() =>
+    projectWindow && !projectWindow.isDestroyed() ? projectWindow : null,
+  );
   createWindows();
 });
 

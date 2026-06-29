@@ -246,11 +246,44 @@ export function registerIpcHandlers(
     return projectStore.listRecentProjects();
   });
 
+  ipcMain.handle(IpcChannels.listProjects, () => {
+    devLog('ipc: projects:list');
+    return projectStore.listProjects();
+  });
+
   ipcMain.handle(
     IpcChannels.createProject,
     (_event: IpcMainInvokeEvent, title: unknown) => {
       devLog('ipc: projects:create');
-      return projectStore.createProject(asString(title, 'title'));
+      // Empty / non-string → undefined so the store applies the default name.
+      return projectStore.createProject(typeof title === 'string' ? title : undefined);
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.renameProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, title: unknown) => {
+      devLog('ipc: projects:rename');
+      return projectStore.renameProject(
+        asString(projectPath, 'projectPath'),
+        typeof title === 'string' ? title : '',
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.deleteProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:delete');
+      return projectStore.deleteProject(asString(projectPath, 'projectPath'));
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.revealProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:reveal');
+      return projectStore.revealProject(asString(projectPath, 'projectPath'));
     },
   );
 
