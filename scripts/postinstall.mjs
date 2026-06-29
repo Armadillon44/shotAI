@@ -13,6 +13,7 @@ import {
   rmSync,
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 import path from 'node:path';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -25,7 +26,10 @@ const log = (m) => console.log(`[postinstall] ${m}`);
 // extracting. `tgzName` is the unscoped "<name>-<version>.tgz".
 async function fetchNpmTarball(pkg, version, tgzName, destDir) {
   const url = `https://registry.npmjs.org/${pkg}/-/${tgzName}`;
-  const tmp = path.join(nm, '.shotai-fetch-tmp');
+  // Use a LOCAL temp dir, not node_modules: this repo can live on a mapped drive
+  // where tar's temp-file handling fails (os error 87), which is why download +
+  // extract must stage on a normal local disk.
+  const tmp = path.join(os.tmpdir(), 'shotai-fetch-tmp');
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
   const tgz = path.join(tmp, tgzName);

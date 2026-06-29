@@ -26,8 +26,10 @@ import {
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../shared/sop';
+import path from 'node:path';
 import { getSopSettings, setSopSettings } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
+import { scanForSensitiveRects } from './ocr';
 import {
   testKey as claudeTestKey,
   estimate as claudeEstimate,
@@ -370,6 +372,23 @@ export function registerIpcHandlers(
         asString(projectPath, 'projectPath'),
         isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
       );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.redactScan,
+    async (_event: IpcMainInvokeEvent, projectPath: unknown, stepId: unknown) => {
+      devLog('ipc: projects:redact-scan');
+      const id = asString(stepId, 'stepId');
+      const { dir, manifest } = await projectStore.getProjectForRead(
+        asString(projectPath, 'projectPath'),
+      );
+      const step = manifest.steps.find((s) => s.id === id);
+      if (!step || !step.screenshot) return [];
+      // OCR the ORIGINAL capture (raw pixels) — the detected rects are in image
+      // px and become editable blur regions in the renderer. dir is confined to a
+      // known project; step.screenshot is our own relative manifest path.
+      return scanForSensitiveRects(path.join(dir, step.screenshot));
     },
   );
 

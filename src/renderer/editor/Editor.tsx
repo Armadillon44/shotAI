@@ -191,6 +191,7 @@ export function Editor({
   const [textEntry, setTextEntry] = React.useState<TextEntry | null>(null);
   const [selBox, setSelBox] = React.useState<Rect | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [scanning, setScanning] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const stageRef = React.useRef<Konva.Stage | null>(null);
@@ -489,6 +490,30 @@ export function Editor({
     }
   };
 
+  // Auto-redaction pre-scan: OCR the screenshot (in main), then drop a solid
+  // redaction box over each detected SSN / credit-card / API-key region. They're
+  // ordinary blur annotations — the user reviews/adjusts/deletes them and Saves,
+  // which bakes them via the existing fail-closed flatten path. Best-effort.
+  const autoRedact = async () => {
+    if (!img || scanning) return;
+    setScanning(true);
+    setError(null);
+    try {
+      const rects = await window.shotai.projects.redactScan(projectPath, step.id);
+      if (!rects.length) {
+        setError('No sensitive data detected (best-effort — redact manually if needed).');
+        return;
+      }
+      const added = rects.map((r) => createBlur(r.x, r.y, r.width, r.height, 'solid'));
+      setAnnotations((prev) => [...prev, ...added]);
+      setSelectedId(added[added.length - 1].id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const onSave = async () => {
     if (!img) return;
     setSaving(true);
@@ -614,6 +639,15 @@ export function Editor({
             {selectedId === CLICK_ID ? 'Remove marker' : 'Delete'}
           </button>
         )}
+        <button
+          type="button"
+          className="btn btn--small"
+          onClick={() => void autoRedact()}
+          disabled={scanning || saving || !img}
+          title="Scan this screenshot for SSNs, credit cards, and API keys, and add redaction boxes to review"
+        >
+          {scanning ? 'Scanning…' : 'Auto-redact'}
+        </button>
         <button type="button" className="btn btn--small" onClick={onClose} disabled={saving}>
           Cancel
         </button>

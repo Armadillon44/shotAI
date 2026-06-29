@@ -59,6 +59,8 @@ const api: ShotaiApi = {
       ),
     addTextStep: (projectPath: string, atIndex: number) =>
       ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex),
+    redactScan: (projectPath: string, stepId: string) =>
+      ipcRenderer.invoke(IpcChannels.redactScan, projectPath, stepId),
     revertSop: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),
     export: (projectPath: string, format: ExportFormat) =>

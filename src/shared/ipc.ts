@@ -98,6 +98,7 @@ export const IpcChannels = {
   reorderSteps: 'projects:reorder-steps',
   mergeSteps: 'projects:merge-steps',
   addTextStep: 'projects:add-text-step',
+  redactScan: 'projects:redact-scan',
   exportProject: 'projects:export',
   // SOP settings + Claude key management (Phase 3)
   getSopSettings: 'settings:get-sop',
@@ -181,6 +182,13 @@ export interface ShotaiApi {
     ): Promise<ProjectManifest>;
     /** Insert an empty text step at the given index. Returns the manifest. */
     addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
+    /**
+     * Auto-redaction pre-scan: OCR a step's screenshot locally and return
+     * image-px rects over likely-sensitive text (SSN / credit-card / API key).
+     * Best-effort — returns [] if nothing found or OCR is unavailable. The
+     * renderer turns these into editable blur regions for the user to review.
+     */
+    redactScan(projectPath: string, stepId: string): Promise<Rect[]>;
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
     revertSop(projectPath: string): Promise<ProjectManifest>;
     /**
