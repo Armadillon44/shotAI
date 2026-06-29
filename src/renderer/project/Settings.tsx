@@ -124,7 +124,7 @@ export function Settings({ onBack }: { onBack: () => void }): React.JSX.Element 
             <span className="settings__toggle-text">
               <strong>AI SOP generation</strong>
               <span className="settings__hint">
-                Use Claude to write a step-by-step guide from your recording. When
+                Use Claude to write a step-by-step guide from your capture. When
                 off, no Claude features appear and nothing ever leaves your machine.
               </span>
             </span>

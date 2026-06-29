@@ -119,6 +119,12 @@ type Session = {
   paused: boolean;
   stepCount: number;
   target: CaptureTarget;
+  // Manifest step count when the session began (BEFORE orphan-seeding bumps
+  // stepCount). With createdThisSession + addedStepIds this lets a Discard delete
+  // the whole project (new + was empty) or just this session's steps.
+  stepCountAtStart: number;
+  createdThisSession: boolean;
+  addedStepIds: string[];
   // Single-shot mode: capture exactly one click, insert it at this manifest
   // index (not append), then auto-stop. Used by the report's "insert one
   // screenshot here" affordance. Absent for a normal recording session.
@@ -633,7 +639,11 @@ export class CaptureController {
    */
   async start(
     projectPath: string,
-    opts: { attachHook?: boolean; target?: CaptureTarget } = {},
+    opts: {
+      attachHook?: boolean;
+      target?: CaptureTarget;
+      createdThisSession?: boolean;
+    } = {},
   ): Promise<CaptureState> {
     const attachHook = opts.attachHook ?? true;
     const target = opts.target ?? DEFAULT_TARGET;
@@ -656,6 +666,10 @@ export class CaptureController {
     const shotsDir = path.join(projectPath, 'shots');
     await fs.mkdir(shotsDir, { recursive: true });
 
+    // Manifest step count before orphan-seeding bumps the filename counter — used
+    // by discard() to decide whole-project vs. session-only deletion.
+    const stepCountAtStart = manifest.steps.length;
+
     // Seed the step counter past any existing shot on disk so we never
     // overwrite a prior capture (steps may have been deleted/reordered).
     let stepCount = manifest.steps.length;
@@ -674,6 +688,9 @@ export class CaptureController {
       paused: false,
       stepCount,
       target,
+      stepCountAtStart,
+      createdThisSession: opts.createdThisSession ?? false,
+      addedStepIds: [],
     };
 
     captureLog.info(
@@ -718,6 +735,9 @@ export class CaptureController {
       paused: false,
       stepCount,
       target: DEFAULT_TARGET,
+      stepCountAtStart: manifest.steps.length,
+      createdThisSession: false,
+      addedStepIds: [],
       single: { insertAt: at },
     };
     captureLog.info(
@@ -787,6 +807,41 @@ export class CaptureController {
     if (wasRecording) this.onRecordingChange?.(false); // e.g. restore the main window
     this.emitState();
     return this.getState();
+  }
+
+  /**
+   * Discard the active session: stop capture and remove this session's work. If
+   * the project was created this session AND was empty when capture began, delete
+   * the whole project folder; otherwise delete only the steps added this session.
+   */
+  async discard(): Promise<{ state: CaptureState; projectDeleted: boolean }> {
+    const s = this.session;
+    this.detachTriggers();
+    await this.queue.catch(() => undefined); // in-flight captures finish (session still set → ids recorded)
+    this.session = null;
+    let projectDeleted = false;
+    if (s) {
+      const whole = s.createdThisSession && s.stepCountAtStart === 0 && !s.single;
+      try {
+        if (whole) {
+          await projectStore.deleteProject(s.projectPath);
+          projectDeleted = true;
+          captureLog.info(`capture discarded — deleted new project at ${s.projectPath}`);
+        } else if (s.addedStepIds.length) {
+          await projectStore.deleteSteps(s.projectPath, s.addedStepIds);
+          captureLog.info(
+            `capture discarded — removed ${s.addedStepIds.length} session step(s) from ${s.projectPath}`,
+          );
+        } else {
+          captureLog.info('capture discarded — nothing was captured this session');
+        }
+      } catch (e) {
+        captureLog.warn('discard cleanup failed:', e);
+      }
+      this.onRecordingChange?.(false); // restore the main window
+    }
+    this.emitState();
+    return { state: this.getState(), projectDeleted };
   }
 
   private enqueue(fn: () => Promise<unknown>): void {
@@ -1037,11 +1092,11 @@ export class CaptureController {
 
       // WINDOW — an explicitly picked window, or 'auto' classified the click as
       // a normal app window (the focused window, already confirmed not ours).
-      // Capture the MONITOR and crop to the window's bounds (∪ a box around the
-      // click) rather than PrintWindow (win.captureImageSync): PrintWindow grabs
-      // only the app's CLIENT area, so it misses the DWM-drawn title bar AND any
-      // popup/dropdown (a separate top-level window). The monitor BitBlt is
-      // WYSIWYG — it includes the title bar and any dropdown over/near the window.
+      // Capture the MONITOR and crop to the window's bounds rather than
+      // PrintWindow (win.captureImageSync): PrintWindow grabs only the app's
+      // CLIENT area, so it misses the DWM-drawn title bar AND any popup/dropdown
+      // (a separate top-level window). The monitor BitBlt is WYSIWYG — it includes
+      // the title bar and any dropdown that paints within the window's rectangle.
       if (mode === 'window' || autoMode === 'window') {
         const win =
           mode === 'window' ? this.resolveWindow(Window, target.window) : focused;
@@ -1054,11 +1109,10 @@ export class CaptureController {
           if (mon) {
             try {
               const full = mon.captureImageSync();
-              // Union the window bounds with a click box so a dropdown that
-              // opened just beyond the window edge is still framed. For a click
-              // inside a large window the box is interior → region == the window.
-              const region = point ? unionRect(winRect, clickBox(point, mon)) : winRect;
-              return cropToRegion(mon, full, region);
+              // Crop tightly to the window bounds — NO generous click box here
+              // (that bloated normal captures and pulled in neighboring windows).
+              // The menu-popup path keeps its box to catch flipped/overflowing menus.
+              return cropToRegion(mon, full, winRect);
             } catch (e) {
               captureLog.warn('window capture failed, falling back to monitor:', e);
             }
@@ -1211,6 +1265,8 @@ export class CaptureController {
     } else {
       await projectStore.addStep(this.session.projectPath, step);
     }
+    // Track this session's additions so a Discard can remove exactly them.
+    this.session?.addedStepIds.push(step.id);
     captureLog.info(
       `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'}${element.name ? ` el='${element.name}'(${element.controlType})` : ''} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
     );

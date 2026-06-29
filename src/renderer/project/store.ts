@@ -69,9 +69,22 @@ export const useProjectStore = create<ProjectState>((set) => ({
         loading: false,
       });
     } catch (e) {
+      // Failed open (e.g. the project was deleted — a discarded brand-new
+      // project) must NOT leave a stale project rendered: clear it so the view
+      // falls back to Home instead of a phantom detail view with dead shot:// imgs.
+      const msg = e instanceof Error ? e.message : String(e);
+      // A project that's simply gone (discarded) isn't an error worth a banner.
+      const gone = /ENOENT|no such file|not found/i.test(msg);
       set({
+        projectId: null,
+        projectPath: null,
+        title: '',
+        steps: [],
+        sopBackup: null,
+        updatedAt: '',
+        selectedStepId: null,
         loading: false,
-        error: e instanceof Error ? e.message : String(e),
+        error: gone ? null : msg,
       });
     }
   },

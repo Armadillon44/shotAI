@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { shell } from 'electron';
 import {
   PROJECT_SCHEMA_VERSION,
+  type CalloutKind,
   type ProjectManifest,
   type ProjectStep,
   type ProjectSummary,
@@ -503,6 +504,37 @@ export function deleteStep(
   return run;
 }
 
+/** Delete multiple steps by id (e.g. discarding a capture session's additions):
+ *  removes them from the manifest, renumbers, and best-effort deletes each one's
+ *  screenshot + flattened render from disk. Serialized via the writeQueue. */
+export function deleteSteps(
+  projectPath: string,
+  stepIds: string[],
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    const idSet = new Set(stepIds);
+    const removed = manifest.steps.filter((s) => idSet.has(s.id));
+    manifest.steps = manifest.steps.filter((s) => !idSet.has(s.id));
+    renumber(manifest.steps);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    for (const s of removed) {
+      for (const rel of [s.screenshot, s.flattened]) {
+        if (!rel) continue;
+        await fs.rm(path.join(resolved, rel), { force: true }).catch(() => undefined);
+      }
+    }
+    return manifest;
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 /** Reorder steps to match `orderedIds` (any unmentioned steps keep their
  *  relative order at the end), then renumber. Serialized via the writeQueue. */
 export function reorderSteps(
@@ -535,10 +567,12 @@ export function reorderSteps(
   return run;
 }
 
-/** Insert an empty text step at `atIndex` (clamped) and renumber. */
+/** Insert an empty text step at `atIndex` (clamped) and renumber. When `callout`
+ *  is given, the text step renders as a colored note/caution/warning box. */
 export function addTextStep(
   projectPath: string,
   atIndex: number,
+  callout?: CalloutKind,
 ): Promise<ProjectManifest> {
   const run = writeQueue.then(async () => {
     const resolved = await resolveKnownProject(projectPath);
@@ -557,6 +591,7 @@ export function addTextStep(
       note: '',
       heading: '',
       body: '',
+      ...(callout ? { callout } : {}),
       crop: null,
       annotations: [],
     };

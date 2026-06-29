@@ -4,9 +4,12 @@
 // redaction) over the raw screenshot once a step has been edited. Each image is
 // constrained to ~REPORT_BASE (800x600), with a per-step report zoom to enlarge.
 import React from 'react';
-import type { ProjectStep } from '../../shared/project';
+import type { CalloutKind, ProjectStep } from '../../shared/project';
 import { shotUrl, useProjectStore } from './store';
 import { canMergeInto, mergeStepInto } from './merge';
+
+/** What the hover-"+" insert menu can add between steps. */
+export type InsertKind = 'text' | 'image' | 'shot' | CalloutKind;
 
 // Base display box for report images (display only — export is full-res).
 const REPORT_BASE_W = 800;
@@ -280,7 +283,7 @@ export function Report({
    *  (so it can disable structural actions that would discard the draft). */
   onEditingChange?: (editing: boolean) => void;
   /** Insert a step at a manifest index (from the hover-"+" between steps). */
-  onInsert?: (atIndex: number, kind: 'text' | 'image' | 'shot') => void;
+  onInsert?: (atIndex: number, kind: InsertKind) => void;
 }): React.JSX.Element | null {
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
@@ -404,7 +407,7 @@ export function Report({
     setDragOverIdx(null);
   };
 
-  const doInsert = (atIndex: number, kind: 'text' | 'image' | 'shot') => {
+  const doInsert = (atIndex: number, kind: InsertKind) => {
     setInsertMenuAt(null);
     onInsert?.(atIndex, kind);
   };
@@ -465,7 +468,9 @@ export function Report({
     const wasFresh = freshTextIdRef.current === step.id;
     freshTextIdRef.current = null;
     setEditingTextId(null);
-    if (wasFresh && !step.heading && !step.body && projectPath) {
+    // A callout is meaningful even when empty (its colored box + label), so don't
+    // auto-delete it on Cancel — only a truly-blank plain text step.
+    if (wasFresh && !step.heading && !step.body && !step.callout && projectPath) {
       try {
         applyManifest(await window.shotai.projects.deleteStep(projectPath, step.id));
       } catch {
@@ -504,6 +509,27 @@ export function Report({
               onClick={() => doInsert(atIndex, 'shot')}
             >
               + Screenshot
+            </button>
+            <button
+              type="button"
+              className="btn btn--small rep__insert-callout rep__insert-callout--note"
+              onClick={() => doInsert(atIndex, 'note')}
+            >
+              + Note
+            </button>
+            <button
+              type="button"
+              className="btn btn--small rep__insert-callout rep__insert-callout--caution"
+              onClick={() => doInsert(atIndex, 'caution')}
+            >
+              + Caution
+            </button>
+            <button
+              type="button"
+              className="btn btn--small rep__insert-callout rep__insert-callout--warning"
+              onClick={() => doInsert(atIndex, 'warning')}
+            >
+              + Warning
             </button>
             <button
               type="button"
@@ -668,6 +694,22 @@ export function Report({
                 onSave={(h, b) => void saveText(s, h, b)}
                 onCancel={() => void cancelText(s)}
               />
+            ) : s.callout ? (
+              // Callout: the box COLOR conveys the type (note/caution/warning) —
+              // no text label. The optional heading + body live inside the box.
+              <>
+                <div className="rep__caprow rep__caprow--callout">
+                  <div className="rep__actions">{controls(s, idx)}</div>
+                </div>
+                <div className={`rep__callout rep__callout--${s.callout}`}>
+                  {s.heading ? <strong className="rep__callout-h">{s.heading}</strong> : null}
+                  {s.body ? (
+                    <p className="rep__callout-b">{s.body}</p>
+                  ) : !s.heading ? (
+                    <p className="rep__callout-b rep__callout-empty">Empty — click Edit to add text.</p>
+                  ) : null}
+                </div>
+              </>
             ) : (
               <>
                 <div className="rep__caprow">

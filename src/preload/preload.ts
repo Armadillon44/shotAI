@@ -69,8 +69,11 @@ const api: ShotaiApi = {
         patch,
         flattenedPng ?? null,
       ),
-    addTextStep: (projectPath: string, atIndex: number) =>
-      ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex),
+    addTextStep: (
+      projectPath: string,
+      atIndex: number,
+      callout?: 'note' | 'caution' | 'warning',
+    ) => ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex, callout),
     redactScan: (projectPath: string, stepId: string) =>
       ipcRenderer.invoke(IpcChannels.redactScan, projectPath, stepId),
     revertSop: (projectPath: string) =>
@@ -100,13 +103,19 @@ const api: ShotaiApi = {
     },
   },
   capture: {
-    start: (projectPath: string, target?: CaptureTarget) =>
-      ipcRenderer.invoke(IpcChannels.captureStart, projectPath, target),
+    start: (projectPath: string, target?: CaptureTarget, opts?: { createdThisSession?: boolean }) =>
+      ipcRenderer.invoke(
+        IpcChannels.captureStart,
+        projectPath,
+        target,
+        opts?.createdThisSession ?? false,
+      ),
     captureSingle: (projectPath: string, atIndex: number) =>
       ipcRenderer.invoke(IpcChannels.captureSingle, projectPath, atIndex),
     pause: () => ipcRenderer.invoke(IpcChannels.capturePause),
     resume: () => ipcRenderer.invoke(IpcChannels.captureResume),
     stop: () => ipcRenderer.invoke(IpcChannels.captureStop),
+    discard: () => ipcRenderer.invoke(IpcChannels.captureDiscard),
     getState: () => ipcRenderer.invoke(IpcChannels.captureGetState),
     listTargets: () => ipcRenderer.invoke(IpcChannels.captureListTargets),
     onStateChanged: (cb: (state: CaptureState) => void) => {

@@ -124,15 +124,12 @@ function parseClick(value: unknown): StepClick | null {
   return { global, image, button };
 }
 
-const EXPORT_FORMATS: ReadonlySet<ExportFormat> = new Set<ExportFormat>([
-  'html',
-  'pdf',
-  'markdown',
-]);
+const EXPORT_FORMATS = ['html', 'html-plain', 'pdf', 'markdown'] as const satisfies readonly ExportFormat[];
+const EXPORT_FORMAT_SET: ReadonlySet<string> = new Set(EXPORT_FORMATS);
 
 function parseExportFormat(value: unknown): ExportFormat {
-  if (typeof value !== 'string' || !EXPORT_FORMATS.has(value as ExportFormat)) {
-    throw new Error('format must be one of: html, pdf, markdown');
+  if (typeof value !== 'string' || !EXPORT_FORMAT_SET.has(value)) {
+    throw new Error(`format must be one of: ${EXPORT_FORMATS.join(', ')}`);
   }
   return value as ExportFormat;
 }
@@ -399,11 +396,16 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IpcChannels.addTextStep,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown) => {
+    (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown, callout: unknown) => {
       devLog('ipc: projects:add-text-step');
+      const c =
+        callout === 'note' || callout === 'caution' || callout === 'warning'
+          ? callout
+          : undefined;
       return projectStore.addTextStep(
         asString(projectPath, 'projectPath'),
         isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+        c,
       );
     },
   );
@@ -495,10 +497,11 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IpcChannels.captureStart,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown) => {
+    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown, createdThisSession: unknown) => {
       devLog('ipc: capture:start');
       return capture.start(asString(projectPath, 'projectPath'), {
         target: parseCaptureTarget(target),
+        createdThisSession: createdThisSession === true,
       });
     },
   );
@@ -546,6 +549,10 @@ export function registerIpcHandlers(
   ipcMain.handle(IpcChannels.captureStop, () => {
     devLog('ipc: capture:stop');
     return capture.stop();
+  });
+  ipcMain.handle(IpcChannels.captureDiscard, () => {
+    devLog('ipc: capture:discard');
+    return capture.discard();
   });
   ipcMain.handle(IpcChannels.captureGetState, () => {
     devLog('ipc: capture:get-state');

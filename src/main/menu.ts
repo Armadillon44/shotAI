@@ -5,10 +5,12 @@ import {
   app,
   Menu,
   dialog,
+  nativeImage,
   BrowserWindow,
   type MenuItemConstructorOptions,
 } from 'electron';
 import { IpcChannels } from '../shared/ipc';
+import { appIconPath } from './paths';
 
 /** Build + install the application menu. `getProjectWindow` returns the main
  *  project window — the target for File → Settings and the About dialog parent. */
@@ -17,15 +19,17 @@ export function installAppMenu(getProjectWindow: () => BrowserWindow | null): vo
 
   const showAbout = (): void => {
     const win = getProjectWindow();
+    const icon = nativeImage.createFromPath(appIconPath()).resize({ width: 64, height: 64 });
     const options: Electron.MessageBoxOptions = {
       type: 'info',
       title: 'About shotAI',
       message: `${app.getName()} ${app.getVersion()}`,
       detail:
-        'Local-first SOP builder — record a process and let Claude write the guide.\n\n' +
+        'Local-first SOP builder — capture a process and let Claude write the guide.\n\n' +
         `Electron ${process.versions.electron} · Chromium ${process.versions.chrome}\n` +
         `${process.platform}/${process.arch}`,
       buttons: ['OK'],
+      ...(icon.isEmpty() ? {} : { icon }),
     };
     if (win) void dialog.showMessageBox(win, options);
     else void dialog.showMessageBox(options);

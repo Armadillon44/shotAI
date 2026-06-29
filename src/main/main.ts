@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol, session } from 'electron';
+import { app, BrowserWindow, protocol, screen, session } from 'electron';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
@@ -7,6 +7,7 @@ import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
 import { resolveProjectFile } from './ProjectStore';
 import { installAppMenu } from './menu';
+import { appIconPath } from './paths';
 import { initLogging, mainLog } from './logger';
 
 initLogging();
@@ -117,6 +118,26 @@ const preloadPath = path.join(__dirname, 'preload.js');
 // can hide the main window and show the pill while recording (and the inverse).
 let projectWindow: BrowserWindow | null = null;
 let toolbarWindow: BrowserWindow | null = null;
+// The pill auto-docks to the top-center of the screen the first time it's shown;
+// after that the user's drag position is respected (don't re-dock on resume).
+let toolbarPositioned = false;
+
+/** Dock the toolbar pill to the top-center of the work area of the display under
+ *  the main window (DIP coords). Called once per show; the user can drag it after. */
+const dockToolbarTopCenter = (win: BrowserWindow): void => {
+  try {
+    const display = projectWindow && !projectWindow.isDestroyed()
+      ? screen.getDisplayMatching(projectWindow.getBounds())
+      : screen.getPrimaryDisplay();
+    const area = display.workArea;
+    const { width } = win.getBounds();
+    const x = Math.round(area.x + (area.width - width) / 2);
+    const y = area.y + 8; // a small gap below the top edge
+    win.setPosition(x, y, false);
+  } catch {
+    /* positioning is best-effort */
+  }
+};
 
 /** Surface renderer load success/failure in the terminal (load failures are otherwise console-only). */
 const wireLoadDiagnostics = (win: BrowserWindow, label: string): void => {
@@ -145,6 +166,7 @@ const createProjectWindow = (): BrowserWindow => {
     minHeight: 560,
     show: false,
     title: 'shotAI',
+    icon: appIconPath(),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -187,7 +209,7 @@ const createProjectWindow = (): BrowserWindow => {
 const createToolbarWindow = (): BrowserWindow => {
   const win = new BrowserWindow({
     width: 300,
-    height: 68,
+    height: 44,
     show: false,
     frame: false,
     resizable: false,
@@ -207,6 +229,7 @@ const createToolbarWindow = (): BrowserWindow => {
   win.setContentProtection(true); // keep shotAI out of its own screenshots
   wireLoadDiagnostics(win, 'toolbar');
   toolbarWindow = win;
+  toolbarPositioned = false; // a fresh pill re-docks on its next show
   win.on('closed', () => {
     toolbarWindow = null;
   });
@@ -255,6 +278,10 @@ app.whenReady().then(async () => {
         toolbarWindow && !toolbarWindow.isDestroyed() ? toolbarWindow : null;
       if (recording) {
         proj?.hide();
+        if (pill && !toolbarPositioned) {
+          dockToolbarTopCenter(pill); // top-center on first show; drag respected after
+          toolbarPositioned = true;
+        }
         pill?.show(); // pill only appears while recording
       } else {
         pill?.hide();

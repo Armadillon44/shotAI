@@ -172,6 +172,10 @@ export type Annotation =
  */
 export type StepKind = 'shot' | 'text';
 
+/** A pre-formatted callout style for a text step: note (green), caution
+ *  (yellow), warning (red). Absent = a plain text step. */
+export type CalloutKind = 'note' | 'caution' | 'warning';
+
 export interface ProjectStep {
   id: string;
   order: number;
@@ -192,6 +196,8 @@ export interface ProjectStep {
   heading?: string;
   /** Optional body/subtext (markdown). Text steps and screenshot steps both use it. */
   body?: string;
+  /** When set, a text step renders as a colored callout box (note/caution/warning). */
+  callout?: CalloutKind;
   /**
    * True for a text step that Claude's SOP generation inserted (intro / section
    * heading). Stripped + regenerated on the next run so they don't accumulate;
@@ -235,6 +241,7 @@ export type StepPatch = Partial<
     | 'note'
     | 'heading'
     | 'body'
+    | 'callout'
     | 'kind'
     | 'crop'
     | 'annotations'

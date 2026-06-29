@@ -1,4 +1,5 @@
 import React from 'react';
+import logoUrl from '../../../shotAI.png';
 import type { AppInfo, CaptureState, ExportFormat } from '../../shared/ipc';
 import type {
   CaptureMode,
@@ -29,19 +30,19 @@ const MODE_OPTIONS: {
   hint: string;
   disabled?: boolean;
 }[] = [
-  { mode: 'auto', label: 'Auto', hint: 'Smart per-click: app window, OS element, or desktop' },
+  { mode: 'screen', label: 'Screen', hint: 'Capture one full monitor each step' },
+  { mode: 'auto', label: 'Auto', hint: 'Best-effort smart capture — may include extra/unintended context' },
   { mode: 'window', label: 'Window', hint: 'Capture one specific window each step' },
   { mode: 'area', label: 'Area', hint: 'Drag-select a fixed region to capture' },
-  { mode: 'screen', label: 'Screen', hint: 'Capture one monitor each step' },
-  { mode: 'all', label: 'All screens', hint: 'Capture the whole screen each step' },
+  { mode: 'all', label: 'All screens', hint: 'Capture every monitor each step' },
 ];
 
 const MODE_DESC: Record<CaptureMode, string> = {
-  auto: 'Smart capture — picks the app window, a tight region around OS elements (taskbar, Start, tray), or the full screen on the desktop.',
+  screen: 'Every step captures one full monitor (the primary, or the one you pick below).',
+  auto: 'Best-effort smart capture — picks the app window, a region around OS elements (taskbar, Start, tray), or the full screen per click. Because it guesses per click, it can capture extra or unintended context.',
   window: 'Every step captures the window you pick below (re-found if it moves).',
   area: 'Every step captures a fixed rectangle you drag-select on screen.',
-  screen: 'Every step captures the monitor you pick below.',
-  all: 'Every step captures the entire screen.',
+  all: 'Every step captures every monitor.',
 };
 
 export function App(): React.JSX.Element {
@@ -64,7 +65,7 @@ export function App(): React.JSX.Element {
   const [showSettings, setShowSettings] = React.useState(false);
 
   // Capture-mode selection (applied to the next recording).
-  const [mode, setMode] = React.useState<CaptureMode>('auto');
+  const [mode, setMode] = React.useState<CaptureMode>('screen');
   const [targets, setTargets] = React.useState<Targets | null>(null);
   const [targetsLoading, setTargetsLoading] = React.useState(false);
   const [pickedWindow, setPickedWindow] = React.useState<WindowInfo | null>(null);
@@ -161,6 +162,12 @@ export function App(): React.JSX.Element {
     refresh().catch(fail);
   }, [refresh]);
 
+  // Screen is the default mode → load monitors so the picker shows the primary
+  // preselected (selectMode only lazy-loads on a click).
+  React.useEffect(() => {
+    if (mode === 'screen' && !targets) void loadTargets();
+  }, [mode, targets, loadTargets]);
+
   // Application menu: File → Settings opens the Settings view. Ignored while
   // recording — the project window is hidden then, so Settings would open
   // invisibly/overlap the recording panel. recordingRef avoids a stale closure.
@@ -250,14 +257,18 @@ export function App(): React.JSX.Element {
     refresh().catch(fail);
   }, [sopBackup, refresh]);
 
-  const onRecord = async (projectPath: string) => {
+  // `createdThisSession` marks a freshly-created project so a Discard from the
+  // pill deletes the whole project (vs. only this session's steps).
+  const onRecord = async (projectPath: string, createdThisSession = false) => {
     try {
       // One open: seeds the recording HUD's step list and gives us the id +
       // manifest to mark the project "open" in the detail store (no second,
       // fallible IPC). A failure here throws → caught → capture never starts.
       const { projectId, manifest } = await window.shotai.projects.open(projectPath);
       setSteps(manifest.steps);
-      const state = await window.shotai.capture.start(projectPath, buildTarget());
+      const state = await window.shotai.capture.start(projectPath, buildTarget(), {
+        createdThisSession,
+      });
       setCapture(state); // recording → detail/home both hidden, so no view flash
       // While recording the detail view stays hidden; when capture stops the
       // user lands in its report and the capture-end effect reloads the
@@ -268,6 +279,7 @@ export function App(): React.JSX.Element {
     }
   };
 
+  // Create + immediately start capturing (the primary flow).
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy || !modeReady) return; // empty title is allowed → default name
@@ -276,7 +288,24 @@ export function App(): React.JSX.Element {
       const summary = await window.shotai.projects.create(title.trim());
       setTitle('');
       await refresh();
-      await onRecord(summary.path);
+      await onRecord(summary.path, true); // new project → discard deletes it
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Create an EMPTY project and open it (no capture) — for building a greenfield
+  // project from imported images / text without recording first.
+  const onCreateEmpty = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const summary = await window.shotai.projects.create(title.trim());
+      setTitle('');
+      await refresh();
+      await openProjectInDetail(summary.path);
     } catch (err) {
       fail(err);
     } finally {
@@ -359,9 +388,7 @@ export function App(): React.JSX.Element {
       {!showDetail && (
         <header className="project__header">
           <div className="project__brand">
-            <span className="project__logo" aria-hidden="true">
-              ◎
-            </span>
+            <img className="project__logo-img" src={logoUrl} alt="" aria-hidden="true" />
             <h1 className="project__title">shotAI</h1>
           </div>
           {showHome && !showSettings && (
@@ -387,7 +414,7 @@ export function App(): React.JSX.Element {
             <div className="rec__head">
               <span className="rec__dot" aria-hidden="true" />
               <span className="rec__label">
-                {capture.status === 'paused' ? 'Paused' : 'Recording'} ·{' '}
+                {capture.status === 'paused' ? 'Paused' : 'Capturing'} ·{' '}
                 {capture.projectTitle}
               </span>
               <span className="rec__count">{capture.stepCount} steps</span>
@@ -482,6 +509,12 @@ export function App(): React.JSX.Element {
               ))}
             </div>
             <p className="capmode__desc">{MODE_DESC[mode]}</p>
+            {mode === 'auto' && (
+              <p className="capmode__warn">
+                ⚠ Auto is best-effort — it guesses per click and may capture extra or
+                unintended context. Pick Screen, Window, or Area for predictable results.
+              </p>
+            )}
 
             {(mode === 'window' || mode === 'screen') && (
               <div className="capmode__picker">
@@ -564,11 +597,11 @@ export function App(): React.JSX.Element {
             )}
             {mode === 'window' && !pickedWindow && (
               <p className="capmode__warn">
-                Pick a window above to enable recording.
+                Pick a window above to enable capture.
               </p>
             )}
             {mode === 'area' && !pickedArea && !selectingArea && (
-              <p className="capmode__warn">Select an area to enable recording.</p>
+              <p className="capmode__warn">Select an area to enable capture.</p>
             )}
           </section>
         )}
@@ -613,7 +646,16 @@ export function App(): React.JSX.Element {
             className="btn btn--primary"
             disabled={busy || recording || !modeReady}
           >
-            {busy ? 'Creating…' : 'New project + record'}
+            {busy ? 'Creating…' : 'New project + capture'}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || recording}
+            onClick={() => void onCreateEmpty()}
+            title="Create an empty project and open it — add images, screenshots, or text without capturing"
+          >
+            New empty project
           </button>
         </form>
 
@@ -643,7 +685,7 @@ export function App(): React.JSX.Element {
         </div>
         {sortedProjects.length === 0 ? (
           <p className="project__hint">
-            No projects yet. Create one above to start recording.
+            No projects yet. Create one above to start capturing.
           </p>
         ) : (
           <ul className="project__list">
@@ -710,14 +752,21 @@ export function App(): React.JSX.Element {
                       </button>
                       {exportMenuPath === p.path && (
                         <div className="project__export-menu" role="menu">
-                          {(['html', 'pdf', 'markdown'] as ExportFormat[]).map((f) => (
+                          {(
+                            [
+                              ['html', 'HTML'],
+                              ['html-plain', 'HTML (for Word)'],
+                              ['pdf', 'PDF'],
+                              ['markdown', 'Markdown'],
+                            ] as [ExportFormat, string][]
+                          ).map(([f, label]) => (
                             <button
                               key={f}
                               type="button"
                               className="btn btn--small"
                               onClick={() => void doExport(p, f)}
                             >
-                              {f === 'markdown' ? 'Markdown' : f.toUpperCase()}
+                              {label}
                             </button>
                           ))}
                         </div>

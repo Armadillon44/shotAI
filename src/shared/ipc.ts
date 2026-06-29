@@ -75,7 +75,7 @@ export interface SopProgress {
 }
 
 /** Output format for an exported report/SOP. */
-export type ExportFormat = 'html' | 'pdf' | 'markdown';
+export type ExportFormat = 'html' | 'html-plain' | 'pdf' | 'markdown';
 
 /** Result of an export — the file that was written (revealed in the OS file manager). */
 export interface ExportResult {
@@ -121,6 +121,7 @@ export const IpcChannels = {
   capturePause: 'capture:pause',
   captureResume: 'capture:resume',
   captureStop: 'capture:stop',
+  captureDiscard: 'capture:discard',
   captureGetState: 'capture:get-state',
   captureListTargets: 'capture:list-targets',
   // region selection overlay
@@ -199,7 +200,11 @@ export interface ShotaiApi {
       flattenedPng?: Uint8Array | null,
     ): Promise<ProjectManifest>;
     /** Insert an empty text step at the given index. Returns the manifest. */
-    addTextStep(projectPath: string, atIndex: number): Promise<ProjectManifest>;
+    addTextStep(
+      projectPath: string,
+      atIndex: number,
+      callout?: 'note' | 'caution' | 'warning',
+    ): Promise<ProjectManifest>;
     /**
      * Auto-redaction pre-scan: OCR a step's screenshot locally and return
      * image-px rects over likely-sensitive text (SSN / credit-card / API key).
@@ -247,8 +252,14 @@ export interface ShotaiApi {
     /**
      * Start (or append to) a recording session for the given project.
      * `target` selects what each step captures; defaults to Auto (smart per-click).
+     * `createdThisSession` marks a project freshly created for this session, so a
+     * Discard deletes the whole project (vs. only this session's steps).
      */
-    start(projectPath: string, target?: CaptureTarget): Promise<CaptureState>;
+    start(
+      projectPath: string,
+      target?: CaptureTarget,
+      opts?: { createdThisSession?: boolean },
+    ): Promise<CaptureState>;
     /**
      * Arm a one-shot capture: the next click is captured as a single step
      * inserted at `atIndex`, then recording auto-stops. The main window hides
@@ -258,6 +269,12 @@ export interface ShotaiApi {
     pause(): Promise<CaptureState>;
     resume(): Promise<CaptureState>;
     stop(): Promise<CaptureState>;
+    /**
+     * Discard the active session: stop capture and remove this session's work —
+     * the whole project if it was created this session, else only the steps/shots
+     * added during the session. Returns whether the project folder was deleted.
+     */
+    discard(): Promise<{ state: CaptureState; projectDeleted: boolean }>;
     getState(): Promise<CaptureState>;
     /** Enumerate pickable windows + monitors for the Window/Screen choosers. */
     listTargets(): Promise<{ windows: WindowInfo[]; monitors: MonitorInfo[] }>;

@@ -40,7 +40,7 @@ body {
 
 .toolbar__grip {
   width: 10px;
-  height: 18px;
+  height: 14px;
   background-image: radial-gradient(#6b7280 1px, transparent 1px);
   background-size: 4px 4px;
   opacity: 0.8;
@@ -63,13 +63,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #2c3142;
   color: #f4f5f7;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   cursor: pointer;
 }
 
@@ -91,6 +91,15 @@ body {
 
 .toolbar__btn--stop:hover {
   background: #7f1d1d;
+}
+
+.toolbar__btn--discard {
+  color: #fca5a5;
+}
+
+.toolbar__btn--discard:hover {
+  background: #7f1d1d;
+  color: #fff;
 }
 
 /* Recording/paused status indicator in the drag label */
