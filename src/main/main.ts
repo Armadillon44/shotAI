@@ -158,6 +158,13 @@ const createProjectWindow = (): BrowserWindow => {
   projectWindow = win;
   win.on('closed', () => {
     projectWindow = null;
+    // The toolbar pill is a hidden, skipTaskbar helper window — on its own it
+    // keeps the app alive (and out of the taskbar) after the main window's X is
+    // clicked, so the process lingers invisibly. Tear it down so window-all-closed
+    // fires and the app fully exits (which still honors the macOS convention).
+    if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+      toolbarWindow.destroy();
+    }
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
