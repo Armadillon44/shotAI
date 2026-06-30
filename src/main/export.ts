@@ -14,7 +14,9 @@ import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './ProjectStore';
 import { mainLog } from './logger';
 
-// Windows/macOS filesystem-reserved characters + device names (mirror ProjectStore).
+// Windows/macOS filesystem-reserved characters + device names. Used to derive a
+// safe EXPORT filename from the project title (project folders themselves are
+// UUID-named in ProjectStore, so there's nothing to mirror there).
 const RESERVED_CHARS = '<>:"/\\|?*';
 const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 

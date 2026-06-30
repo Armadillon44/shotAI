@@ -1,8 +1,7 @@
 /**
  * ClaudeService — the main-process boundary to the Anthropic API for SOP
- * generation. Phase 3a ships the key-connectivity test plus the system-prompt /
- * request-param helpers; the actual generation (vision + structured output +
- * streaming) lands in 3b and will build on `buildSystemPrompt` + `shapeParams`.
+ * generation. Ships the key-connectivity test, the system-prompt helper
+ * (`buildSystemPrompt`), and the streaming vision/structured-output generation.
  *
  * The API key never leaves main (read here via secrets.getApiKey) and is never
  * logged. Model + tone come from the user's SOP settings.
@@ -19,7 +18,7 @@ import type { SopEstimate, SopProgress, TestKeyResult } from '../shared/ipc';
 import { getApiKey } from './secrets';
 import { getSopSettings } from './settings';
 import { getProjectForRead, applySopEdits } from './ProjectStore';
-import { MODEL_PARAMS, TONE_PROMPT, type ModelParams } from './claude-models';
+import { MODEL_PARAMS, TONE_PROMPT } from './claude-models';
 import { claudeLog } from './logger';
 
 /**
@@ -99,11 +98,6 @@ export async function buildSystemPrompt(): Promise<string> {
   const custom = sop.customInstructions.trim();
   if (custom) parts.push(`Additional instructions from the user:\n${custom}`);
   return parts.join('\n\n');
-}
-
-/** Per-model request parameters (thinking/effort/max_tokens/pricing). */
-export function shapeParams(model: SopModelId): ModelParams {
-  return MODEL_PARAMS[model];
 }
 
 /** Confine a project-relative path to the project folder (defense in depth). */

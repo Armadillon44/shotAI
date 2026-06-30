@@ -1,7 +1,6 @@
 // Editor tool types, default styles, and annotation factories. Geometry is in
 // IMAGE (screenshot) pixel coordinates — see shared/project.ts.
 import type {
-  Annotation,
   ArrowAnnotation,
   BlurAnnotation,
   MarkerAnnotation,
@@ -179,8 +178,4 @@ export function dragRect(
     width: Math.abs(x2 - x1),
     height: Math.abs(y2 - y1),
   };
-}
-
-export function isAnnotation(a: unknown): a is Annotation {
-  return !!a && typeof a === 'object' && typeof (a as { type?: unknown }).type === 'string';
 }
