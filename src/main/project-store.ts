@@ -24,12 +24,12 @@ import {
 } from './settings';
 import { confinePath } from './path-confine';
 import { applyPatchAndInvalidate, writeStepRender } from './step-render';
-import { writeFileAtomic } from './atomicWrite';
+import { writeFileAtomic } from './atomic-write';
 
 const MANIFEST = 'project.json';
 
 export { getProjectsDir };
-// Re-export the path-confinement boundary so existing `from './ProjectStore'`
+// Re-export the path-confinement boundary so existing `from './project-store'`
 // callers (ClaudeService, export, ipc) keep a stable import while the impl lives
 // in the dependency-free path-confine module (unit-testable without electron).
 export { confinePath };

@@ -5,7 +5,7 @@ import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
-import { resolveProjectFile } from './ProjectStore';
+import { resolveProjectFile } from './project-store';
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
 import { initLogging, mainLog } from './logger';

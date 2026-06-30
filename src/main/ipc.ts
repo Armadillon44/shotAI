@@ -6,7 +6,7 @@ import {
   type IpcMainInvokeEvent,
 } from 'electron';
 import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
-import * as projectStore from './ProjectStore';
+import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
 import { exportProject } from './export';
 import type { CaptureController } from './CaptureController';
@@ -33,7 +33,7 @@ import {
   testKey as claudeTestKey,
   estimate as claudeEstimate,
   generateSop as claudeGenerateSop,
-} from './ClaudeService';
+} from './claude-service';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {

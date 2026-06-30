@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import type { UiohookMouseEvent } from 'uiohook-napi';
-import * as projectStore from './ProjectStore';
+import * as projectStore from './project-store';
 import type {
   CapturedWindow,
   CaptureTarget,
@@ -35,7 +35,7 @@ import type {
 import type { CaptureState } from '../shared/ipc';
 import { IpcChannels } from '../shared/ipc';
 import { captureLog } from './logger';
-import { getElementAtPoint } from './ElementLocator';
+import { getElementAtPoint } from './element-locator';
 
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+S';
 const OWN_WINDOW_TITLES = new Set(['shotAI', 'shotAI — Capture']);

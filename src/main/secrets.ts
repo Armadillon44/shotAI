@@ -11,7 +11,7 @@ import { app, safeStorage } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { ApiKeyStatus } from '../shared/ipc';
-import { writeFileAtomic } from './atomicWrite';
+import { writeFileAtomic } from './atomic-write';
 import { claudeLog } from './logger';
 
 interface SecretsFile {

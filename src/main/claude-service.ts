@@ -16,7 +16,7 @@ import type { ProjectManifest } from '../shared/project';
 import type { SopEstimate, SopProgress, TestKeyResult } from '../shared/ipc';
 import { getApiKey } from './secrets';
 import { getSopSettings } from './settings';
-import { getProjectForRead } from './ProjectStore';
+import { getProjectForRead } from './project-store';
 import { applySopEdits } from './sop-apply';
 import { resolveSendableRender } from './render-gate';
 import { MODEL_PARAMS, TONE_PROMPT } from './claude-models';

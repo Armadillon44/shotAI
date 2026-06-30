@@ -4,7 +4,7 @@
 import { app } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import * as ps from './ProjectStore';
+import * as ps from './project-store';
 import { getRecents, persistProjectsDir, setRecents } from './settings';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

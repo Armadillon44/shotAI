@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ProjectManifest, ProjectStep, SopBackup } from '../shared/project';
 import type { SopEditPlan, SopTone } from '../shared/sop';
-import { mutate, renumber, normalizeSteps } from './ProjectStore';
+import { mutate, renumber, normalizeSteps } from './project-store';
 
 /** Build a fresh text step. `aiInserted` marks SOP-generated intro/section steps. */
 function makeTextStep(heading: string, body: string, aiInserted = false): ProjectStep {

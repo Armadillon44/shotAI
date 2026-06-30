@@ -9,7 +9,7 @@
 import { app } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import * as ps from './ProjectStore';
+import * as ps from './project-store';
 import { CaptureController } from './CaptureController';
 import type { CaptureTarget } from '../shared/project';
 import { getRecents, persistProjectsDir, setRecents } from './settings';

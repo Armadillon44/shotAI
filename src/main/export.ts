@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { BrowserWindow, shell } from 'electron';
 import type { CalloutKind, ProjectManifest } from '../shared/project';
 import type { ExportFormat, ExportResult } from '../shared/ipc';
-import { getProjectForRead } from './ProjectStore';
+import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
 import { mainLog } from './logger';
 
