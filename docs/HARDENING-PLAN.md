@@ -99,3 +99,28 @@ S1→P5, S2→P3, S3→P2, S4→P3, S5→P1, S6→P1, S7→P5, S8→P3, S9→P3,
 - [ ] **P7** (split CaptureController / Editor / App→Home) — DEFERRED: behavior-preserving but needs live capture/editor/home testing; to be done together.
 
 Verified for the landed phases: `tsc --noEmit` + eslint clean (only the pre-existing CaptureController non-null warning), 33 vitest tests green, selftest PASS. Pending hardware/live checks (flagged in commits): sandbox-ON launch on real x64 (S2), live redaction fail-closed in the editor (S3/T1a), bogus `ANTHROPIC_BASE_URL` negative (S10), live SOP apply/revert + concurrent-write serialization (P6).
+
+## Testing on a physical x64 Windows machine
+
+This is **much simpler than the arm64 dev VM** — no Rust/MSVC/Python needed (the `element_locator.dll` is committed; native deps are x64 prebuilts npm installs directly), and none of the `SHOTAI_NO_SANDBOX` / arm64-repair steps apply. Prereqs: **Node 24 LTS + Git**.
+
+```sh
+git clone https://github.com/Armadillon44/shotAI.git
+cd shotAI && git checkout hardening
+npm install        # installs x64 binaries natively; if koffi/get-windows don't load: node scripts/postinstall.mjs
+npm start          # real Electron + real main.ts → OS sandbox ON (no env vars) = the shipped default
+```
+
+Three levels of testing, easiest first:
+1. **`npm start`** (dev) — fastest; verifies the sandbox-on default + lets you run all the live UI checks. (GPU is disabled by default even here — a VM workaround that currently ships to all users; `set SHOTAI_ENABLE_GPU=1 && npm start` to see HW accel. Doesn't affect the sandbox check.)
+2. **`npm run package`** then run `.\out\shotAI-win32-x64\shotAI.exe` — the real **packaged** app (asar, `resources/tessdata`, `.ico`, fuses, sandbox) without needing the Squirrel installer. Best single check for S7's packaging path + the exe icon.
+3. **`npm run make`** — full Squirrel installer (`out\make\squirrel.windows\x64\*Setup.exe`). Never run end-to-end; `electron-winstaller` will likely need an npm-11 allow-scripts approval first. Do last, for release.
+
+Notes: don't copy `node_modules` from the arm64 VM (install fresh on x64); paste a Claude API key into Settings for the SOP checks.
+
+### Pending-verification checklist (do on the x64 machine)
+- [ ] **S2 — sandbox on**: `npm start` with NO env vars; confirm the window paints + renderers run (i.e. the OS sandbox doesn't break startup on real hardware).
+- [ ] **S3 / T1a — redaction fail-closed**: open a step, add a blur, **Save** (bakes the render); confirm SOP-send + all export formats show the redacted image. Then add/change a blur or crop and **don't** re-save → both SOP-send and export must **refuse** (not emit raw pixels).
+- [ ] **S10 — egress pin**: set `ANTHROPIC_BASE_URL` to a junk host (e.g. `http://127.0.0.1:1`), run a SOP generate + key test + estimate; all must still reach api.anthropic.com (not the junk host).
+- [ ] **P6 — SOP apply/revert + atomic writes**: generate a SOP, Revert (restores the pristine pre-AI snapshot), regenerate twice (first snapshot preserved, no compounding); capture rapidly while editing to sanity-check serialization.
+- [ ] **S7 / packaging** (via `npm run package`): first-run **Auto-redact** OCR works with the network off (reads the vendored `resources/tessdata` model); the packaged `.exe` shows the shotAI icon.
