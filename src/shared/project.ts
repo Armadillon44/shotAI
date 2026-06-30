@@ -53,6 +53,30 @@ export interface Rect {
   height: number;
 }
 
+const isFiniteNum = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * Validate/normalize an untrusted Rect (types are erased at the IPC boundary, and
+ * the area overlay reports one too). Returns null if any field is missing/non-finite.
+ * Co-located with the Rect type so the two main-side validators don't drift apart.
+ */
+export function parseRect(value: unknown): Rect | null {
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  if (isFiniteNum(r.x) && isFiniteNum(r.y) && isFiniteNum(r.width) && isFiniteNum(r.height)) {
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
+  return null;
+}
+
+/** Validate/normalize an untrusted Point. Returns null if invalid. */
+export function parsePoint(value: unknown): Point | null {
+  if (!value || typeof value !== 'object') return null;
+  const p = value as Record<string, unknown>;
+  return isFiniteNum(p.x) && isFiniteNum(p.y) ? { x: p.x, y: p.y } : null;
+}
+
 export interface CapturedWindow {
   /** App / executable name, e.g. "chrome.exe". */
   app: string;

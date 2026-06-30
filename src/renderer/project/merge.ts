@@ -7,19 +7,13 @@
 // captions, re-bakes both rings into the render, and deletes the right-click
 // step — all atomically (ProjectStore.mergeSteps).
 import type { MarkerAnnotation, ProjectManifest, ProjectStep } from '../../shared/project';
-import { createMarker } from '../editor/annotations';
+import { createMarker, markerColorFor } from '../editor/annotations';
 import { flattenToPng } from '../editor/flatten';
 import { loadImage } from './sop-prepare';
 import { shotUrl } from './store';
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(v, hi));
-}
-
-/** The click-ring color for a step (matches the report/ensureFlattened default):
- *  right-clicks are blue, everything else rose. */
-function markerColorFor(step: ProjectStep): string {
-  return step.markerColor ?? (step.click?.button === 'right' ? '#2563eb' : '#e11d48');
 }
 
 /** Join two text fields, dropping empties; '' when both are empty. */

@@ -14,12 +14,11 @@ import type {
   Annotation,
   CaptureMode,
   CaptureTarget,
-  Point,
-  Rect,
   StepClick,
   StepKind,
   StepPatch,
 } from '../shared/project';
+import { parseRect, parsePoint } from '../shared/project';
 import {
   isSopModel,
   isSopTone,
@@ -84,21 +83,6 @@ function parseCaptureTarget(value: unknown): CaptureTarget | undefined {
     }
   }
   return target;
-}
-
-function parseRect(value: unknown): Rect | null {
-  if (!value || typeof value !== 'object') return null;
-  const r = value as Record<string, unknown>;
-  if (isNum(r.x) && isNum(r.y) && isNum(r.width) && isNum(r.height)) {
-    return { x: r.x, y: r.y, width: r.width, height: r.height };
-  }
-  return null;
-}
-
-function parsePoint(value: unknown): Point | null {
-  if (!value || typeof value !== 'object') return null;
-  const p = value as Record<string, unknown>;
-  return isNum(p.x) && isNum(p.y) ? { x: p.x, y: p.y } : null;
 }
 
 const CLICK_BUTTONS: ReadonlySet<StepClick['button']> = new Set<StepClick['button']>([

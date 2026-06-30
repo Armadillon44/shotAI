@@ -7,6 +7,7 @@ import React from 'react';
 import type { CalloutKind, ProjectStep } from '../../shared/project';
 import { shotUrl, useProjectStore } from './store';
 import { canMergeInto, mergeStepInto } from './merge';
+import { markerColorFor } from '../editor/annotations';
 import { OverflowMenu, type MenuItem } from './OverflowMenu';
 
 /** What the hover-"+" insert menu can add between steps. */
@@ -45,8 +46,7 @@ function StepFigure({
   const baseW = dims ? dims.w * baseScale : 0;
   const baseH = dims ? dims.h * baseScale : 0;
   const boxScale = Math.min(zoom, 1);
-  const markerColor =
-    step.markerColor ?? (step.click?.button === 'right' ? '#2563eb' : '#e11d48');
+  const markerColor = markerColorFor(step);
   // Marker as a fraction of the displayed image; subtract crop origin when the
   // displayed image is the cropped flatten; hidden if outside the visible region.
   const offX = flattened && step.crop ? step.crop.x : 0;

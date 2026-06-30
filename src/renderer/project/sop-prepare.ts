@@ -4,6 +4,7 @@
 // editor's pure flatten so redaction is baked identically to an export.
 import type { ProjectManifest, ProjectStep } from '../../shared/project';
 import { flattenToPng } from '../editor/flatten';
+import { markerColorFor } from '../editor/annotations';
 import { shotUrl } from './store';
 
 export function loadImage(url: string): Promise<HTMLImageElement> {
@@ -49,7 +50,7 @@ export async function ensureFlattened(
         ? {
             x: step.click.image.x,
             y: step.click.image.y,
-            color: step.markerColor ?? (step.click.button === 'right' ? '#2563eb' : '#e11d48'),
+            color: markerColorFor(step),
           }
         : null;
       const blob = await flattenToPng(img, step.annotations, step.crop, marker);
