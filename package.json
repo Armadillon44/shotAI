@@ -11,6 +11,8 @@
     "make": "electron-forge make --arch=x64",
     "publish": "electron-forge publish --arch=x64",
     "lint": "eslint --ext .ts,.tsx .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build:element-locator": "node scripts/build-element-locator.mjs",
     "postinstall": "node scripts/postinstall.mjs"
   },
@@ -48,7 +50,8 @@
     "eslint": "^8.57.1",
     "eslint-plugin-import": "^2.32.0",
     "typescript": "^6.0.3",
-    "vite": "^5.4.21"
+    "vite": "^5.4.21",
+    "vitest": "^2.1.9"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
