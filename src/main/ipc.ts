@@ -7,6 +7,7 @@ import {
 } from 'electron';
 import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
 import * as projectStore from './ProjectStore';
+import { revertSop } from './sop-apply';
 import { exportProject } from './export';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
@@ -463,7 +464,7 @@ export function registerIpcHandlers(
     IpcChannels.revertSop,
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: projects:revert-sop');
-      return projectStore.revertSop(asString(projectPath, 'projectPath'));
+      return revertSop(asString(projectPath, 'projectPath'));
     },
   );
   ipcMain.handle(
