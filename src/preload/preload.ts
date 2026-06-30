@@ -104,12 +104,10 @@ const api: ShotaiApi = {
   },
   capture: {
     start: (projectPath: string, target?: CaptureTarget, opts?: { createdThisSession?: boolean }) =>
-      ipcRenderer.invoke(
-        IpcChannels.captureStart,
-        projectPath,
-        target,
-        opts?.createdThisSession ?? false,
-      ),
+      // Pass the opts object through verbatim (isomorphic to the ShotaiApi shape)
+      // rather than flattening one field to a positional bool — adding a future
+      // opts field then can't silently drop at the bridge.
+      ipcRenderer.invoke(IpcChannels.captureStart, projectPath, target, opts),
     captureSingle: (projectPath: string, atIndex: number) =>
       ipcRenderer.invoke(IpcChannels.captureSingle, projectPath, atIndex),
     pause: () => ipcRenderer.invoke(IpcChannels.capturePause),

@@ -43,6 +43,7 @@ import {
   dragRect,
 } from './annotations';
 import { MIN_REDACT_BLOCK, flattenToPng } from './flatten';
+import './editor.css';
 
 const CLICK_ID = '__click__'; // pseudo-selection id for the click marker
 const CROP_ID = '__crop__'; // pseudo-selection id for the (resizable) crop box

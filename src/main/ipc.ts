@@ -62,6 +62,12 @@ const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFin
  * boundary). Returns undefined for a missing target (→ defaults to Auto). Only
  * keeps the fields relevant to the chosen mode.
  */
+/** Coerce capture.start's opts object from IPC (missing/invalid → all-false). */
+function parseStartOpts(value: unknown): { createdThisSession: boolean } {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  return { createdThisSession: v.createdThisSession === true };
+}
+
 function parseCaptureTarget(value: unknown): CaptureTarget | undefined {
   if (value == null) return undefined;
   if (typeof value !== 'object') throw new Error('target must be an object');
@@ -487,11 +493,11 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IpcChannels.captureStart,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown, createdThisSession: unknown) => {
+    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown, opts: unknown) => {
       devLog('ipc: capture:start');
       return capture.start(asString(projectPath, 'projectPath'), {
         target: parseCaptureTarget(target),
-        createdThisSession: createdThisSession === true,
+        ...parseStartOpts(opts),
       });
     },
   );
