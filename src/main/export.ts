@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { BrowserWindow, shell } from 'electron';
 import type { CalloutKind, ProjectManifest } from '../shared/project';
 import type { ExportFormat, ExportResult } from '../shared/ipc';
-import { getProjectForRead } from './ProjectStore';
+import { getProjectForRead, confinePath } from './ProjectStore';
 import { mainLog } from './logger';
 
 // Windows/macOS filesystem-reserved characters + device names. Used to derive a
@@ -34,14 +34,6 @@ function safeFileBase(title: string): string {
   if (!cleaned) return 'shotAI SOP';
   if (RESERVED_NAME.test(cleaned) || cleaned.startsWith('.')) return `_${cleaned}`;
   return cleaned;
-}
-
-/** Confine a project-relative path to the project folder (defense in depth). */
-function confineProjectFile(dir: string, rel: string): string | null {
-  const abs = path.resolve(dir, rel);
-  const within = path.relative(dir, abs);
-  if (within === '' || within.startsWith('..') || path.isAbsolute(within)) return null;
-  return abs;
 }
 
 function escapeHtml(s: string): string {
@@ -104,7 +96,7 @@ async function collectSteps(
       );
     }
     const relToRead = rel ?? step.screenshot;
-    const abs = relToRead ? confineProjectFile(dir, relToRead) : null;
+    const abs = relToRead ? confinePath(dir, relToRead) : null;
     if (!abs) throw new Error(`Step ${shotNo} has no readable screenshot to export.`);
     // Fail fast (and clearly) if the render was deleted off disk after the
     // manifest was written — better than an opaque ENOENT mid-export.

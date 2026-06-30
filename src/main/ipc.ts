@@ -26,7 +26,6 @@ import {
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../shared/sop';
-import path from 'node:path';
 import { getSopSettings, setSopSettings } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
@@ -424,9 +423,12 @@ export function registerIpcHandlers(
       const step = manifest.steps.find((s) => s.id === id);
       if (!step || !step.screenshot) return [];
       // OCR the ORIGINAL capture (raw pixels) — the detected rects are in image
-      // px and become editable blur regions in the renderer. dir is confined to a
-      // known project; step.screenshot is our own relative manifest path.
-      return scanForSensitiveRects(path.join(dir, step.screenshot));
+      // px and become editable blur regions in the renderer. Confine the path to
+      // the project folder before reading (a hand-edited manifest could carry a
+      // traversal screenshot path).
+      const abs = projectStore.confinePath(dir, step.screenshot);
+      if (!abs) return [];
+      return scanForSensitiveRects(abs);
     },
   );
 

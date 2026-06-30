@@ -17,7 +17,7 @@ import type { ProjectManifest } from '../shared/project';
 import type { SopEstimate, SopProgress, TestKeyResult } from '../shared/ipc';
 import { getApiKey } from './secrets';
 import { getSopSettings } from './settings';
-import { getProjectForRead, applySopEdits } from './ProjectStore';
+import { getProjectForRead, applySopEdits, confinePath } from './ProjectStore';
 import { MODEL_PARAMS, TONE_PROMPT } from './claude-models';
 import { claudeLog } from './logger';
 
@@ -100,14 +100,6 @@ export async function buildSystemPrompt(): Promise<string> {
   return parts.join('\n\n');
 }
 
-/** Confine a project-relative path to the project folder (defense in depth). */
-function confineProjectFile(dir: string, rel: string): string | null {
-  const abs = path.resolve(dir, rel);
-  const within = path.relative(dir, abs);
-  if (within === '' || within.startsWith('..') || path.isAbsolute(within)) return null;
-  return abs;
-}
-
 interface AssembledRequest {
   system: Anthropic.TextBlockParam[];
   messages: Anthropic.MessageParam[];
@@ -176,7 +168,7 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
       );
     }
     const relToRead = rel ?? step.screenshot;
-    const abs = relToRead ? confineProjectFile(dir, relToRead) : null;
+    const abs = relToRead ? confinePath(dir, relToRead) : null;
     if (!abs) throw new Error(`Step ${n} has no readable screenshot.`);
     const bytes = await fs.readFile(abs);
     const ext = path.extname(relToRead).toLowerCase();

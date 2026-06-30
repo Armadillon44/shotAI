@@ -27,10 +27,15 @@ import {
   persistProjectsDir,
   setRecents,
 } from './settings';
+import { confinePath } from './path-confine';
 
 const MANIFEST = 'project.json';
 
 export { getProjectsDir };
+// Re-export the path-confinement boundary so existing `from './ProjectStore'`
+// callers (ClaudeService, export, ipc) keep a stable import while the impl lives
+// in the dependency-free path-confine module (unit-testable without electron).
+export { confinePath };
 
 /** Change the projects directory (creating it if needed) and persist it. */
 export async function setProjectsDir(dir: string): Promise<void> {
@@ -236,12 +241,7 @@ export function resolveProjectFile(
 ): string | null {
   const dir = idToDir.get(projectId);
   if (!dir) return null;
-  const abs = path.resolve(dir, rel);
-  const within = path.relative(dir, abs);
-  if (within === '' || within.startsWith('..') || path.isAbsolute(within)) {
-    return null; // escapes the project folder
-  }
-  return abs;
+  return confinePath(dir, rel);
 }
 
 /** Recent projects, most-recently-touched first; prunes entries gone from disk. */
@@ -397,11 +397,15 @@ export function updateStep(
     if (!step) throw new Error(`step ${stepId} not found`);
     Object.assign(step, patch);
     if (flattenedPng && flattenedPng.length) {
-      const renderDir = path.join(resolved, 'export', '.render');
-      await fs.mkdir(renderDir, { recursive: true });
-      await fs.writeFile(path.join(renderDir, `${stepId}.png`), flattenedPng);
       // posix separators for the shot:// URL the renderer builds from this.
-      step.flattened = path.posix.join('export', '.render', `${stepId}.png`);
+      const rel = path.posix.join('export', '.render', `${stepId}.png`);
+      // Confine the write path: stepId equals a manifest step's id, but a
+      // hand-edited manifest could carry a traversal id — never write outside.
+      const abs = confinePath(resolved, rel);
+      if (!abs) throw new Error(`refusing to write render for step "${stepId}" — path escapes the project folder`);
+      await fs.mkdir(path.dirname(abs), { recursive: true });
+      await fs.writeFile(abs, flattenedPng);
+      step.flattened = rel;
       // Bump only on a real re-render so the report cache-busts the <img> then —
       // but NOT on display-only patches (e.g. reportZoom), avoiding a reload.
       step.renderRev = (step.renderRev ?? 0) + 1;
@@ -454,10 +458,12 @@ export function mergeSteps(
 
     Object.assign(keep, patch);
     if (flattenedPng && flattenedPng.length) {
-      const renderDir = path.join(resolved, 'export', '.render');
-      await fs.mkdir(renderDir, { recursive: true });
-      await fs.writeFile(path.join(renderDir, `${keepId}.png`), flattenedPng);
-      keep.flattened = path.posix.join('export', '.render', `${keepId}.png`);
+      const rel = path.posix.join('export', '.render', `${keepId}.png`);
+      const abs = confinePath(resolved, rel);
+      if (!abs) throw new Error(`refusing to write render for step "${keepId}" — path escapes the project folder`);
+      await fs.mkdir(path.dirname(abs), { recursive: true });
+      await fs.writeFile(abs, flattenedPng);
+      keep.flattened = rel;
       keep.renderRev = (keep.renderRev ?? 0) + 1;
     }
     manifest.steps.splice(dropIdx, 1);
@@ -523,7 +529,11 @@ export function deleteSteps(
     for (const s of removed) {
       for (const rel of [s.screenshot, s.flattened]) {
         if (!rel) continue;
-        await fs.rm(path.join(resolved, rel), { force: true }).catch(() => undefined);
+        // Confine: a manifest-sourced path must stay inside the project folder
+        // before we rm it (defends against a hand-edited traversal path).
+        const abs = confinePath(resolved, rel);
+        if (!abs) continue;
+        await fs.rm(abs, { force: true }).catch(() => undefined);
       }
     }
     return manifest;
