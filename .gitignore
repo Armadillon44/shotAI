@@ -93,3 +93,8 @@ out/
 
 # Rust native addon build output (the built .dll is published separately)
 native/**/target/
+
+# OS-generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini

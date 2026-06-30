@@ -1,5 +1,5 @@
 import React from 'react';
-import logoUrl from '../../../shotAI.png';
+import logoUrl from '../../../assets/shotAI_icon.png';
 import type { CaptureState, ExportFormat } from '../../shared/ipc';
 import type {
   CaptureMode,
