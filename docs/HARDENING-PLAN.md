@@ -93,5 +93,9 @@ Land all zero-behavioral-risk tidy fixes so later phases start clean.
 ## Coverage
 S1→P5, S2→P3, S3→P2, S4→P3, S5→P1, S6→P1, S7→P5, S8→P3, S9→P3, S10→P2 · T1a→P2, T1b→P1, T1c→P6 · T2a/b/c→P7, T2d→P6 · T3a/b→P4, T3c/d/e/f→P0, T3g→P9, T3h/j→P8, T3i/k→deferred · DOC→P0.
 
-## Status
-- [ ] P0.5 vitest · [ ] P0 · [ ] P1 · [ ] P2 · [ ] P3 · [ ] P4 · [ ] P5 · [ ] P6 · [ ] P7 · [ ] P8 · [ ] P9
+## Status (branch `hardening`, as of 2026-06-30)
+- [x] P0.5 vitest · [x] P0 · [x] P1 · [x] P2 · [x] P3 · [x] P4 · [x] P5/S1 · [x] P6 · [x] P8 · [x] P9
+- [ ] **P5/S7** (vendor Tesseract model) — DEFERRED: permanent ~10 MB binary in git + packaging change for a LOW-severity finding; awaiting a go/no-go decision.
+- [ ] **P7** (split CaptureController / Editor / App→Home) — DEFERRED: behavior-preserving but needs live capture/editor/home testing; to be done together.
+
+Verified for the landed phases: `tsc --noEmit` + eslint clean (only the pre-existing CaptureController non-null warning), 33 vitest tests green, selftest PASS. Pending hardware/live checks (flagged in commits): sandbox-ON launch on real x64 (S2), live redaction fail-closed in the editor (S3/T1a), bogus `ANTHROPIC_BASE_URL` negative (S10), live SOP apply/revert + concurrent-write serialization (P6).
