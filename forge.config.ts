@@ -9,14 +9,18 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
   packagerConfig: {
+    // Packaged-app/exe icon. Extension omitted on purpose — electron-packager
+    // auto-completes it per platform (.ico on Windows, .icns on macOS).
+    icon: './assets/shotAI_icon',
     // Keep asar, but UNPACK native binaries (.node) — uiohook-napi,
     // node-screenshots, get-windows, and koffi (+ its @koromix/* binary) can't be
     // loaded from inside an asar archive.
     asar: { unpack: '**/*.node' },
-    // Ship the native UI-element-locator dll into the app's resources/ (loaded by
-    // koffi at runtime via ElementLocator). It's a plain .dll, not a .node, so the
-    // unpack rule above doesn't cover it — extraResource places it in resources/.
-    extraResource: ['./native/element-locator/element_locator.dll', './shotAI.png'],
+    // Ship the native UI-element-locator dll AND the runtime app icon (PNG, used
+    // for the window/taskbar icon + About dialog via appIconPath) into the app's
+    // resources/. Neither is a .node, so the unpack rule doesn't cover them —
+    // extraResource places each at resources/<basename>.
+    extraResource: ['./native/element-locator/element_locator.dll', './assets/shotAI_icon.png'],
   },
   // Our native deps (uiohook-napi, node-screenshots, get-windows) are all N-API
   // (ABI-stable) and ship/carry x64 prebuilts, which are resolved at runtime by
@@ -24,7 +28,7 @@ const config: ForgeConfig = {
   // build, and source-building here would fail (no Python/MSVC on this box).
   rebuildConfig: { onlyModules: [] },
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({ setupIcon: './assets/shotAI_icon.ico' }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),
     new MakerDeb({}),
