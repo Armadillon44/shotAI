@@ -20,7 +20,13 @@ const config: ForgeConfig = {
     // for the window/taskbar icon + About dialog via appIconPath) into the app's
     // resources/. Neither is a .node, so the unpack rule doesn't cover them —
     // extraResource places each at resources/<basename>.
-    extraResource: ['./native/element-locator/element_locator.dll', './assets/shotAI_icon.png'],
+    // Also ship the vendored Tesseract eng model dir → resources/tessdata, so
+    // auto-redaction OCR reads it locally (offline, CDN-free) via ocr.ts langPath.
+    extraResource: [
+      './native/element-locator/element_locator.dll',
+      './assets/shotAI_icon.png',
+      './vendor/tessdata',
+    ],
   },
   // Our native deps (uiohook-napi, node-screenshots, get-windows) are all N-API
   // (ABI-stable) and ship/carry x64 prebuilts, which are resolved at runtime by
