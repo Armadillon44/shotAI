@@ -6,6 +6,68 @@ import { MakerRpm } from '@electron-forge/maker-rpm';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+
+/**
+ * Copy the PRODUCTION node_modules closure into the packaged app.
+ *
+ * @electron-forge/plugin-vite packages only the Vite build output (.vite/) +
+ * package.json and does NOT copy node_modules — it assumes Vite bundles every
+ * dependency. But our main/preload builds intentionally EXTERNALIZE the runtime
+ * deps that can't (or shouldn't) be bundled: the native capture/hotkey/element +
+ * OCR modules (uiohook-napi, node-screenshots, get-windows, koffi + the optional
+ * *-win32-x64* binary packages), tesseract.js (ships worker + wasm files), and
+ * electron-log / @anthropic-ai/sdk / zod. Without their node_modules the packaged
+ * app crashes at launch (`Cannot find module 'electron-log/main'`).
+ *
+ * We WALK THE ACTUAL RUNTIME CLOSURE (each package.json's dependencies +
+ * optionalDependencies, breadth-first from the root's prod deps) rather than
+ * trusting package-lock's dev/devOptional flags — npm marks some genuinely-needed
+ * transitive deps (e.g. readable-stream, reached via get-windows → node-pre-gyp →
+ * npmlog → are-we-there-yet) as devOptional, which a flag-based filter would
+ * wrongly drop. Each package dir is copied recursively (so its NESTED node_modules
+ * for version conflicts ride along); .node binaries are then unpacked from the
+ * asar by packagerConfig.asar.unpack.
+ */
+function copyProductionNodeModules(buildPath: string): void {
+  const projectRoot = process.cwd();
+  const nm = path.join(projectRoot, 'node_modules');
+  const readPkg = (dir: string): { dependencies?: Record<string, string>; optionalDependencies?: Record<string, string> } | null => {
+    try {
+      return JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    } catch {
+      return null;
+    }
+  };
+  const root = readPkg(projectRoot) ?? {};
+  const queue: string[] = [
+    ...Object.keys(root.dependencies ?? {}),
+    ...Object.keys(root.optionalDependencies ?? {}),
+  ];
+  const visited = new Set<string>();
+  let copied = 0;
+  while (queue.length) {
+    const name = queue.shift() as string;
+    if (visited.has(name)) continue;
+    visited.add(name);
+    const from = path.join(nm, name);
+    if (!existsSync(from)) continue; // optional/peer not installed, or only nested (rides via parent copy)
+    const to = path.join(buildPath, 'node_modules', name);
+    mkdirSync(path.dirname(to), { recursive: true });
+    cpSync(from, to, { recursive: true });
+    copied++;
+    const pkg = readPkg(from);
+    for (const dep of [
+      ...Object.keys(pkg?.dependencies ?? {}),
+      ...Object.keys(pkg?.optionalDependencies ?? {}),
+    ]) {
+      if (!visited.has(dep)) queue.push(dep);
+    }
+  }
+  // eslint-disable-next-line no-console
+  console.log(`[forge] packageAfterCopy: copied ${copied} production node_modules into the package`);
+}
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -33,6 +95,13 @@ const config: ForgeConfig = {
   // the x64 (emulated) Electron. Skip Forge's auto-rebuild — there's nothing to
   // build, and source-building here would fail (no Python/MSVC on this box).
   rebuildConfig: { onlyModules: [] },
+  hooks: {
+    // The Vite plugin omits node_modules; copy the production closure back in so
+    // the externalized runtime deps resolve in the packaged app. See the helper.
+    packageAfterCopy: async (_forgeConfig, buildPath) => {
+      copyProductionNodeModules(buildPath);
+    },
+  },
   makers: [
     new MakerSquirrel({ setupIcon: './assets/shotAI_icon.ico' }),
     new MakerZIP({}, ['darwin']),
