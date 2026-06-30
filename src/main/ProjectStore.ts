@@ -28,6 +28,7 @@ import {
   setRecents,
 } from './settings';
 import { confinePath } from './path-confine';
+import { applyPatchAndInvalidate, writeStepRender } from './step-render';
 
 const MANIFEST = 'project.json';
 
@@ -395,29 +396,9 @@ export function updateStep(
     const manifest = await readManifest(resolved);
     const step = manifest.steps.find((s) => s.id === stepId);
     if (!step) throw new Error(`step ${stepId} not found`);
-    Object.assign(step, patch);
+    applyPatchAndInvalidate(step, patch, !!(flattenedPng && flattenedPng.length));
     if (flattenedPng && flattenedPng.length) {
-      // posix separators for the shot:// URL the renderer builds from this.
-      const rel = path.posix.join('export', '.render', `${stepId}.png`);
-      // Confine the write path: stepId equals a manifest step's id, but a
-      // hand-edited manifest could carry a traversal id — never write outside.
-      const abs = confinePath(resolved, rel);
-      if (!abs) throw new Error(`refusing to write render for step "${stepId}" — path escapes the project folder`);
-      await fs.mkdir(path.dirname(abs), { recursive: true });
-      await fs.writeFile(abs, flattenedPng);
-      step.flattened = rel;
-      // Bump only on a real re-render so the report cache-busts the <img> then —
-      // but NOT on display-only patches (e.g. reportZoom), avoiding a reload.
-      step.renderRev = (step.renderRev ?? 0) + 1;
-    } else if ('annotations' in patch || 'crop' in patch) {
-      // Annotations/crop changed without a fresh bake → the cached render no longer
-      // reflects the step (a new/changed redaction or crop isn't applied). Invalidate
-      // it so it MUST be re-flattened before any send: redaction is enforced by
-      // FRESHNESS, not mere existence (Phase-3b review). The shipping editor always
-      // co-sends a PNG so this branch only fires on annotations/crop-only patches.
-      step.flattened = null;
-      // The dropped render also carried the baked marker; the next bake must redo it.
-      step.markerBaked = false;
+      await writeStepRender(resolved, step, stepId, flattenedPng);
     }
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
@@ -456,15 +437,12 @@ export function mergeSteps(
     const dropIdx = manifest.steps.findIndex((s) => s.id === dropId);
     if (dropIdx === -1) throw new Error(`step ${dropId} not found`);
 
-    Object.assign(keep, patch);
+    // Same fresh-render-or-invalidate rule as updateStep (S3): a merge patch that
+    // changes annotations/crop without co-sending a re-baked PNG must drop the
+    // stale render so an unbaked redaction can't ride a stale flattened to egress.
+    applyPatchAndInvalidate(keep, patch, !!(flattenedPng && flattenedPng.length));
     if (flattenedPng && flattenedPng.length) {
-      const rel = path.posix.join('export', '.render', `${keepId}.png`);
-      const abs = confinePath(resolved, rel);
-      if (!abs) throw new Error(`refusing to write render for step "${keepId}" — path escapes the project folder`);
-      await fs.mkdir(path.dirname(abs), { recursive: true });
-      await fs.writeFile(abs, flattenedPng);
-      keep.flattened = rel;
-      keep.renderRev = (keep.renderRev ?? 0) + 1;
+      await writeStepRender(resolved, keep, keepId, flattenedPng);
     }
     manifest.steps.splice(dropIdx, 1);
     renumber(manifest.steps);

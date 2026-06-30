@@ -11,7 +11,8 @@ import { randomUUID } from 'node:crypto';
 import { BrowserWindow, shell } from 'electron';
 import type { CalloutKind, ProjectManifest } from '../shared/project';
 import type { ExportFormat, ExportResult } from '../shared/ipc';
-import { getProjectForRead, confinePath } from './ProjectStore';
+import { getProjectForRead } from './ProjectStore';
+import { resolveSendableRender } from './render-gate';
 import { mainLog } from './logger';
 
 // Windows/macOS filesystem-reserved characters + device names. Used to derive a
@@ -87,30 +88,18 @@ async function collectSteps(
     }
     // Shot step.
     shotNo++;
-    const hasBlur = step.annotations.some((a) => a.type === 'blur');
-    const rel = step.flattened ?? null;
-    if (!rel && (hasBlur || step.crop)) {
-      throw new Error(
-        `Step ${shotNo} has a redaction or crop that hasn't been baked into a render yet — ` +
-          `refusing to export the raw screenshot. Open it in the editor and save, then export again.`,
-      );
-    }
-    const relToRead = rel ?? step.screenshot;
-    const abs = relToRead ? confinePath(dir, relToRead) : null;
-    if (!abs) throw new Error(`Step ${shotNo} has no readable screenshot to export.`);
+    // Fail-closed redaction gate (shared with the Claude send path).
+    const { abs, mediaType, ext } = resolveSendableRender(dir, step, `Step ${shotNo}`, 'export');
     // Fail fast (and clearly) if the render was deleted off disk after the
     // manifest was written — better than an opaque ENOENT mid-export.
     try {
       await fs.stat(abs);
     } catch {
       throw new Error(
-        `Step ${shotNo}'s screenshot render is missing from disk (${relToRead}). ` +
+        `Step ${shotNo}'s screenshot render is missing from disk (${step.flattened ?? step.screenshot}). ` +
           `Open it in the editor and save to re-bake the render, then export again.`,
       );
     }
-    const ext = path.extname(relToRead).toLowerCase();
-    const mediaType: 'image/png' | 'image/jpeg' =
-      ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
     items.push({
       kind: 'shot',
       n: shotNo,

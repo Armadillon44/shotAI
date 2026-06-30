@@ -11,13 +11,13 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 // The SDK's zod helper targets zod v4's type shape; zod 3.25 ships it at `zod/v4`.
 import { z } from 'zod/v4';
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import type { SopEditPlan, SopModelId } from '../shared/sop';
 import type { ProjectManifest } from '../shared/project';
 import type { SopEstimate, SopProgress, TestKeyResult } from '../shared/ipc';
 import { getApiKey } from './secrets';
 import { getSopSettings } from './settings';
-import { getProjectForRead, applySopEdits, confinePath } from './ProjectStore';
+import { getProjectForRead, applySopEdits } from './ProjectStore';
+import { resolveSendableRender } from './render-gate';
 import { MODEL_PARAMS, TONE_PROMPT } from './claude-models';
 import { claudeLog } from './logger';
 
@@ -70,6 +70,15 @@ function friendlyError(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// Pin the Anthropic egress host. Without an explicit baseURL the SDK defaults to
+// process.env.ANTHROPIC_BASE_URL, which would let a poisoned environment redirect
+// the API key (x-api-key header) AND the captured screenshots to an attacker host.
+// shotAI only ever talks to the real API.
+const ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
+function makeClient(apiKey: string): Anthropic {
+  return new Anthropic({ apiKey, baseURL: ANTHROPIC_BASE_URL });
+}
+
 /**
  * Validate the configured key + model with a cheap, free call (Models API). Does
  * NOT run when SOP generation is disabled (no network when the feature is off).
@@ -80,7 +89,7 @@ export async function testKey(): Promise<TestKeyResult> {
   const key = await getApiKey();
   if (!key) return { ok: false, error: 'No API key set.' };
   try {
-    const client = new Anthropic({ apiKey: key });
+    const client = makeClient(key);
     await client.models.retrieve(sop.model);
     claudeLog.info(`API key validated against ${sop.model}.`);
     return { ok: true, model: sop.model };
@@ -156,24 +165,9 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
       continue;
     }
 
-    const hasBlur = step.annotations.some((a) => a.type === 'blur');
-    const rel = step.flattened ?? null;
-    // Fail closed: a blur OR a crop that hasn't been baked into a render must not
-    // fall back to the raw (un-redacted / uncropped) screenshot. Only a step with
-    // neither may use the original shot.
-    if (!rel && (hasBlur || step.crop)) {
-      throw new Error(
-        `Step ${n} has a redaction or crop that hasn't been baked into a render yet — ` +
-          `refusing to send the raw screenshot. Open it in the editor and save, then retry.`,
-      );
-    }
-    const relToRead = rel ?? step.screenshot;
-    const abs = relToRead ? confinePath(dir, relToRead) : null;
-    if (!abs) throw new Error(`Step ${n} has no readable screenshot.`);
+    // Fail-closed redaction gate (shared with the export path).
+    const { abs, mediaType } = resolveSendableRender(dir, step, `Step ${n}`, 'send');
     const bytes = await fs.readFile(abs);
-    const ext = path.extname(relToRead).toLowerCase();
-    const mediaType: 'image/png' | 'image/jpeg' =
-      ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
     content.push({
       type: 'image',
       source: { type: 'base64', media_type: mediaType, data: bytes.toString('base64') },
@@ -222,7 +216,7 @@ export async function estimate(projectPath: string): Promise<SopEstimate> {
   const key = await getApiKey();
   if (!key) throw new Error('No API key set.');
   const { system, messages } = await assembleRequest(projectPath);
-  const client = new Anthropic({ apiKey: key });
+  const client = makeClient(key);
   const params = MODEL_PARAMS[settings.model];
   let inputTokens: number;
   try {
@@ -254,7 +248,7 @@ export async function generateSop(
   onProgress?.({ stage: 'preparing' });
   const { system, messages } = await assembleRequest(projectPath);
   const params = MODEL_PARAMS[settings.model];
-  const client = new Anthropic({ apiKey: key });
+  const client = makeClient(key);
 
   const CUTOFF_MSG =
     'The SOP was cut off at the output limit. Try again, or split the project into fewer steps.';
