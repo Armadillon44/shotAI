@@ -12,6 +12,7 @@ import type {
 } from '../../shared/project';
 import { useProjectStore } from './store';
 import { ProjectDetail } from './ProjectDetail';
+import { Notice } from '../Notice';
 import { Settings } from './Settings';
 import { OverflowMenu, type MenuItem } from './OverflowMenu';
 import { ensureFlattened } from './sop-prepare';
@@ -379,7 +380,13 @@ export function App(): React.JSX.Element {
       <section
         className={`project__body${showDetail && !showSettings ? ' project__body--detail' : ''}`}
       >
-        {error && <p className="project__error">Error: {error}</p>}
+        {error && (
+          <div className="notice-stack">
+            <Notice kind="error" onDismiss={() => setError(null)}>
+              {error}
+            </Notice>
+          </div>
+        )}
 
         {recording && capture && (
           <div className={`rec rec--${capture.status}`}>

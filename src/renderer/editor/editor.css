@@ -158,6 +158,16 @@
   color: #fff;
 }
 
+/* Relative wrapper so a hovering .notice-stack pins to the top of the canvas
+   area without scrolling with the (overflow:auto) canvas or shifting layout. */
+.ed__canvaswrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
 .ed__canvas {
   display: flex;
   /* Absorb the remaining modal height/width so the stage fills the window. */

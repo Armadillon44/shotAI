@@ -9,6 +9,7 @@ import { ensureFlattened } from './sop-prepare';
 import { Report, type InsertKind } from './Report';
 import { SopPanel } from './SopPanel';
 import { Editor } from '../editor/Editor';
+import { Notice } from '../Notice';
 
 const EXPORT_LABEL: Record<ExportFormat, string> = {
   html: 'HTML',
@@ -315,9 +316,25 @@ export function ProjectDetail({
         />
       </div>
 
-      {importErr && <p className="project__error">Import failed: {importErr}</p>}
-      {exportErr && <p className="project__error">Export failed: {exportErr}</p>}
-      {error && <p className="project__error">Error: {error}</p>}
+      {(importErr || exportErr || error) && (
+        <div className="notice-stack">
+          {importErr && (
+            <Notice kind="error" onDismiss={() => setImportErr(null)}>
+              Import failed: {importErr}
+            </Notice>
+          )}
+          {exportErr && (
+            <Notice kind="error" onDismiss={() => setExportErr(null)}>
+              Export failed: {exportErr}
+            </Notice>
+          )}
+          {error && (
+            <Notice kind="error" onDismiss={() => useProjectStore.setState({ error: null })}>
+              Error: {error}
+            </Notice>
+          )}
+        </div>
+      )}
       {loading ? (
         <p className="project__hint">Loading…</p>
       ) : (

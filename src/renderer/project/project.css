@@ -116,6 +116,8 @@ body {
   flex: 1;
   padding: 1.75rem 2rem;
   overflow-y: auto;
+  /* Anchor for the hovering .notice-stack (home/capture errors float, no shift). */
+  position: relative;
 }
 
 /* Detail/edit view: no banner above, so drop the top padding and let the
@@ -917,6 +919,8 @@ body {
 .detail {
   display: flex;
   flex-direction: column;
+  /* Anchor for the hovering .notice-stack (errors float over content here). */
+  position: relative;
 }
 
 .detail__bar {

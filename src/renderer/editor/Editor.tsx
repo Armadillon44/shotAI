@@ -43,6 +43,7 @@ import {
   dragRect,
 } from './annotations';
 import { MIN_REDACT_BLOCK, flattenToPng } from './flatten';
+import { Notice, type NoticeData } from '../Notice';
 import './editor.css';
 
 const CLICK_ID = '__click__'; // pseudo-selection id for the click marker
@@ -232,7 +233,7 @@ export function Editor({
   const [selBox, setSelBox] = React.useState<Rect | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [scanning, setScanning] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<NoticeData | null>(null);
   // The canvas viewport size — measured from the (flex-grown) container so the
   // stage fills as much of the window as feasible. Seeded with the old fixed
   // defaults until the ResizeObserver reports the real size.
@@ -259,7 +260,7 @@ export function Editor({
       setStrokeWidth(defaultStrokeWidth(im.naturalWidth, im.naturalHeight));
     };
     im.onerror = () => {
-      if (!cancelled) setError('Could not load the screenshot.');
+      if (!cancelled) setNotice({ kind: 'error', text: 'Could not load the screenshot.' });
     };
     im.src = shotUrl(projectId, step.screenshot);
     return () => {
@@ -633,18 +634,21 @@ export function Editor({
   const autoRedact = async () => {
     if (!img || scanning) return;
     setScanning(true);
-    setError(null);
+    setNotice(null);
     try {
       const rects = await window.shotai.projects.redactScan(projectPath, step.id);
       if (!rects.length) {
-        setError('No sensitive data detected (best-effort — redact manually if needed).');
+        setNotice({
+          kind: 'info',
+          text: 'No sensitive data detected (best-effort — redact manually if needed).',
+        });
         return;
       }
       const added = rects.map((r) => createBlur(r.x, r.y, r.width, r.height, 'solid'));
       setAnnotations((prev) => [...prev, ...added]);
       setSelectedId(added[added.length - 1].id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     } finally {
       setScanning(false);
     }
@@ -653,7 +657,7 @@ export function Editor({
   const onSave = async () => {
     if (!img) return;
     setSaving(true);
-    setError(null);
+    setNotice(null);
     try {
       // clickImage is null when the step has no click marker OR the user removed
       // it → persist click:null so the marker is actually deleted (not kept).
@@ -689,7 +693,7 @@ export function Editor({
       onSaved(manifest);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     } finally {
       setSaving(false);
     }
@@ -933,8 +937,6 @@ export function Editor({
           )}
         </div>
 
-      {error && <p className="project__error">Error: {error}</p>}
-
       {textEntry && (
         <div className="ed__textbar">
           <span className="ed__textlabel">
@@ -985,6 +987,14 @@ export function Editor({
         </div>
       )}
 
+      <div className="ed__canvaswrap">
+        {notice && (
+          <div className="notice-stack">
+            <Notice kind={notice.kind} onDismiss={() => setNotice(null)}>
+              {notice.text}
+            </Notice>
+          </div>
+        )}
       <div className="ed__canvas" ref={canvasRef}>
         {!img ? (
           <p className="project__hint">Loading screenshot…</p>
@@ -1273,6 +1283,7 @@ export function Editor({
             </Layer>
           </Stage>
         )}
+      </div>
       </div>
 
       <p className="ed__hint">
