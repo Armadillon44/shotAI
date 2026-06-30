@@ -237,18 +237,9 @@
   justify-content: center;
 }
 
-/* In-layout text entry (Electron has no window.prompt(); a focused-then-blurred
-   floating input was too fragile, so this stays put until Add/Enter/Cancel). */
-.ed__textbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid #c7d2fe;
-  border-radius: 8px;
-  background: #eef2ff;
-}
-
+/* Text entry (Electron has no window.prompt()). Lives in the .ed__props bar now
+   (E2) so it doesn't add a stacked banner that squishes the canvas; these style
+   the label + field rendered there for both Add and Edit. */
 .ed__textlabel {
   font-size: 0.8rem;
   font-weight: 650;

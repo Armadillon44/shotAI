@@ -101,6 +101,7 @@ type TextEntry = {
   id: string | null; // editing an existing text, or null = new
   value: string;
   fontSize: number;
+  color: string;
 };
 
 /**
@@ -378,6 +379,7 @@ export function Editor({
       return;
     }
     if (tool === 'text') {
+      if (textEntry) commitText(); // place any in-progress text before starting a new one
       setSelectedId(null);
       setTextEntry({
         imageX: p.x,
@@ -385,6 +387,7 @@ export function Editor({
         id: null,
         value: '',
         fontSize: defaultFontSize(natW, natH),
+        color,
       });
       return;
     }
@@ -590,10 +593,14 @@ export function Editor({
     const value = entry.value.trim();
     if (entry.id) {
       if (value)
-        update(entry.id, { text: value, fontSize: entry.fontSize } as Partial<Annotation>);
+        update(entry.id, {
+          text: value,
+          fontSize: entry.fontSize,
+          fill: entry.color,
+        } as Partial<Annotation>);
       else remove(entry.id);
     } else if (value) {
-      const a = createText(entry.imageX, entry.imageY, value, entry.fontSize, color);
+      const a = createText(entry.imageX, entry.imageY, value, entry.fontSize, entry.color);
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
       setTool('select');
@@ -658,6 +665,24 @@ export function Editor({
     if (!img) return;
     setSaving(true);
     setNotice(null);
+    // Fold any in-progress text entry into what we bake/persist, so clicking Save
+    // mid-type doesn't silently drop the label.
+    let anns = annotations;
+    if (textEntry && textEntry.value.trim()) {
+      const txt = textEntry.value.trim();
+      anns = textEntry.id
+        ? anns.map((a) =>
+            a.id === textEntry.id
+              ? ({ ...a, text: txt, fontSize: textEntry.fontSize, fill: textEntry.color } as Annotation)
+              : a,
+          )
+        : [
+            ...anns,
+            createText(textEntry.imageX, textEntry.imageY, txt, textEntry.fontSize, textEntry.color),
+          ];
+      setAnnotations(anns);
+      setTextEntry(null);
+    }
     try {
       // clickImage is null when the step has no click marker OR the user removed
       // it → persist click:null so the marker is actually deleted (not kept).
@@ -672,7 +697,7 @@ export function Editor({
       // Bake the click ring into the render so Claude's vision + exports see it.
       const blob = await flattenToPng(
         img,
-        annotations,
+        anns,
         crop,
         click
           ? {
@@ -687,7 +712,7 @@ export function Editor({
       const manifest = await window.shotai.projects.updateStep(
         projectPath,
         step.id,
-        { annotations, crop, click, markerColor, markerBaked: true },
+        { annotations: anns, crop, click, markerColor, markerBaked: true },
         bytes,
       );
       onSaved(manifest);
@@ -740,6 +765,7 @@ export function Editor({
                   title={info.hint}
                   aria-pressed={tool === tl}
                   onClick={() => {
+                    if (textEntry) commitText(); // don't lose in-progress text
                     setTool(tl);
                     if (tl !== 'select') setSelectedId(null);
                     if (tl === 'crop') {
@@ -838,9 +864,69 @@ export function Editor({
 
         {/* Properties bar — ALWAYS present with a reserved height, so toggling a
             selection never reflows/resizes the canvas. Empty shows a quiet hint;
-            Delete is the lone destructive control, anchored here with the selection. */}
+            Delete is the lone destructive control, anchored here with the selection.
+            Adding/editing text reuses THIS bar (no extra banner) — see E2. */}
         <div className="ed__props">
-          {selectedId ? (
+          {textEntry ? (
+            <>
+              <span className="ed__textlabel">
+                {textEntry.id ? 'Edit text' : 'Add text'}
+              </span>
+              <input
+                ref={textInputRef}
+                className="ed__textfield"
+                value={textEntry.value}
+                placeholder="Type the label, then press Enter…"
+                onChange={(e) =>
+                  setTextEntry((cur) => (cur ? { ...cur, value: e.target.value } : cur))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitText();
+                  else if (e.key === 'Escape') setTextEntry(null);
+                  e.stopPropagation();
+                }}
+              />
+              <label className="ed__opt" title="Text size">
+                Size
+                <input
+                  type="range"
+                  min={10}
+                  max={160}
+                  value={textEntry.fontSize}
+                  onChange={(e) =>
+                    setTextEntry((cur) =>
+                      cur ? { ...cur, fontSize: Number(e.target.value) } : cur,
+                    )
+                  }
+                />
+              </label>
+              <label className="ed__opt ed__opt--color" title="Text color">
+                Color
+                <input
+                  type="color"
+                  value={textEntry.color}
+                  onChange={(e) =>
+                    setTextEntry((cur) => (cur ? { ...cur, color: e.target.value } : cur))
+                  }
+                />
+              </label>
+              <div className="ed__spacer" />
+              <button
+                type="button"
+                className="btn btn--small btn--primary"
+                onClick={commitText}
+              >
+                {textEntry.id ? 'Save' : 'Add'}
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={() => setTextEntry(null)}
+              >
+                Cancel
+              </button>
+            </>
+          ) : selectedId ? (
             <>
             {showColorCtl && (
               <label className="ed__opt ed__opt--color" title="Color">
@@ -906,6 +992,25 @@ export function Editor({
                 )}
               </>
             )}
+            {selected?.type === 'text' && (
+              <button
+                type="button"
+                className="btn btn--small"
+                title="Edit this text label"
+                onClick={() =>
+                  setTextEntry({
+                    id: selected.id,
+                    value: selected.text,
+                    fontSize: selected.fontSize,
+                    imageX: selected.x,
+                    imageY: selected.y,
+                    color: selected.fill,
+                  })
+                }
+              >
+                Edit text
+              </button>
+            )}
             <div className="ed__spacer" />
             <button
               type="button"
@@ -932,60 +1037,10 @@ export function Editor({
             </>
           ) : (
             <span className="ed__props-hint">
-              Select an element to change its color or size, or to delete it.
+              Select an element to change its color or size, edit its text, or delete it.
             </span>
           )}
         </div>
-
-      {textEntry && (
-        <div className="ed__textbar">
-          <span className="ed__textlabel">
-            {textEntry.id ? 'Edit text' : 'Add text'}
-          </span>
-          <input
-            ref={textInputRef}
-            className="ed__textfield"
-            value={textEntry.value}
-            placeholder="Type the label, then Add (or Enter)…"
-            onChange={(e) =>
-              setTextEntry((cur) => (cur ? { ...cur, value: e.target.value } : cur))
-            }
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitText();
-              else if (e.key === 'Escape') setTextEntry(null);
-              e.stopPropagation();
-            }}
-          />
-          <label className="ed__opt" title="Text size">
-            Size
-            <input
-              type="range"
-              min={10}
-              max={160}
-              value={textEntry.fontSize}
-              onChange={(e) =>
-                setTextEntry((cur) =>
-                  cur ? { ...cur, fontSize: Number(e.target.value) } : cur,
-                )
-              }
-            />
-          </label>
-          <button
-            type="button"
-            className="btn btn--small btn--primary"
-            onClick={commitText}
-          >
-            Add
-          </button>
-          <button
-            type="button"
-            className="btn btn--small"
-            onClick={() => setTextEntry(null)}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
 
       <div className="ed__canvaswrap">
         {notice && (
@@ -1151,6 +1206,7 @@ export function Editor({
                         id: a.id,
                         value: a.text,
                         fontSize: a.fontSize,
+                        color: a.fill,
                       })
                     }
                     onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
@@ -1244,14 +1300,14 @@ export function Editor({
                 />
               )}
 
-              {/* live text preview: shows where the text will land + its size */}
+              {/* live text preview: shows where the text will land + its size/color */}
               {textEntry && (
                 <KText
                   x={textEntry.imageX}
                   y={textEntry.imageY}
                   text={textEntry.value || 'Text…'}
                   fontSize={textEntry.fontSize}
-                  fill={color}
+                  fill={textEntry.color}
                   opacity={0.65}
                   listening={false}
                 />
@@ -1294,7 +1350,7 @@ export function Editor({
             : tool === 'stamp'
               ? 'Click to place a numbered stamp.'
               : tool === 'text'
-                ? 'Click where the text should go, then type.'
+                ? 'Click where the text should go and type — it previews live; press Enter, switch tools, or Save to place it.'
                 : 'Drag to draw.'}{' '}
         Redactions are baked into the exported image on save.
       </p>
