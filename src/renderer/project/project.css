@@ -1,9 +1,57 @@
 :root {
   color-scheme: light dark;
+
+  /* ---- Type scale (one source of intent; see UX audit "two roots") ---- */
+  --fs-display: 1.75rem; /* 28 — app / brand */
+  --fs-section: 1.2rem;  /* ~19 — section headings */
+  --fs-title: 0.94rem;   /* 15 — item / step titles */
+  --fs-body: 0.875rem;   /* 14 — body */
+  --fs-meta: 0.8rem;     /* ~13 — metadata */
+  --fs-label: 0.69rem;   /* 11 — uppercase micro-labels */
+  --fw-display: 750;
+  --fw-section: 700;
+  --fw-title: 600;
+
+  /* ---- Color: one accent (indigo); neutrals biased toward it ---- */
+  --accent: #4f46e5;
+  --accent-press: #4338ca;
+  --accent-tint: #eef2ff;
+  --ink: #14161f;
+  --ink-2: #525a6e;
+  --ink-3: #8b91a3;
+  --hair: #dde1ec;
+  --hair-2: #e7eaf1;
+  --surface: #ffffff;
+  --ground: #f6f7f9;
+  /* destructive (reserved — never decoration) */
+  --danger: #dc2626;
+  --danger-ink: #b91c1c;
+  --danger-tint: #fef2f2;
+  --danger-bd: #f0c2c2;
+
+  /* Callout palette (note / caution / warning) */
+  --note-bg: #ecfdf5; --note-bd: #6ee7b7; --note-fg: #065f46;
+  --caut-bg: #fffbeb; --caut-bd: #fcd34d; --caut-fg: #92400e;
+  --warn-bg: #fef2f2; --warn-bd: #fca5a5; --warn-fg: #991b1b;
+
+  /* ---- Shape / depth ---- */
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 2px 8px rgba(20, 22, 31, 0.06);
+  --shadow: 0 10px 30px rgba(20, 22, 31, 0.1);
+  --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* One consistent keyboard-focus ring app-wide. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 html,
@@ -188,36 +236,50 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0; /* rows are separated by hairlines, not gaps */
 }
 
+/* A project row: title + meta stacked on the left, actions on the right,
+   separated by a hairline so boundaries don't depend on a card edge. */
 .project__item {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.15rem 0.75rem;
-  padding: 0.7rem 0.9rem;
-  border: 1px solid #e3e6ea;
-  border-radius: 10px;
-  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--hair-2);
+  border-radius: 0;
+  background: transparent;
+}
+
+.project__item:last-child {
+  border-bottom: 0;
+}
+
+.project__item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
 }
 
 .project__item-title {
-  font-weight: 600;
+  font-weight: var(--fw-title);
+  font-size: var(--fs-title);
 }
 
+/* Metadata reads as content, not a monospace file path. */
 .project__item-meta {
-  color: #6b7280;
-  font-size: 0.85rem;
-  text-align: right;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
 }
 
-.project__item-path {
-  grid-column: 1 / -1;
-  font-size: 0.78rem;
-  color: #9097a1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.project__item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
 }
 
 .project__footer {
@@ -232,6 +294,217 @@ body {
 .btn--small {
   padding: 0.3rem 0.7rem;
   font-size: 0.8rem;
+}
+
+/* ===== Home: create hero + compact mode control + projects list ===== */
+.home__create {
+  margin-bottom: 1.5rem;
+}
+
+.home__h {
+  margin: 0 0 0.7rem;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-section);
+  letter-spacing: -0.01em;
+}
+
+.home__createrow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.home__createrow .project__input {
+  flex: 1;
+}
+
+.home__mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.home__mode-label {
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-right: 0.15rem;
+}
+
+.home__mode-warn {
+  font-size: var(--fs-meta);
+  color: var(--caut-fg);
+  cursor: help;
+}
+
+.home__listhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 0.5rem;
+  flex-wrap: wrap;
+}
+
+.home__count {
+  color: var(--ink-3);
+  font-weight: 400;
+  font-size: var(--fs-meta);
+}
+
+/* Shared empty / placeholder pattern (no projects, etc.). */
+.empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--ink-2);
+}
+
+.empty__icon {
+  font-size: 2rem;
+  opacity: 0.75;
+}
+
+.empty__line {
+  margin: 0.5rem 0 0.2rem;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  color: var(--ink);
+}
+
+.empty__sub {
+  margin: 0 auto;
+  max-width: 44ch;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+}
+
+/* Capture-target picker (custom selectable list — replaces native <select>,
+   which is flaky on the software-render VM). */
+.home__dd {
+  position: relative;
+  display: inline-block;
+  margin-top: 0.6rem;
+  min-width: 280px;
+  max-width: 460px;
+}
+
+.home__dd-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #cbd1d9;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  text-align: left;
+}
+
+.home__dd-trigger:hover {
+  border-color: var(--accent);
+}
+
+.home__dd-current {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home__dd-caret {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.home__dd-pop {
+  position: absolute;
+  z-index: 51;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--menu-shadow);
+  overflow: hidden;
+}
+
+.home__dd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.4rem 0.7rem;
+  border-bottom: 1px solid var(--hair-2);
+  background: #f8f9fc;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.home__dd-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.home__picker-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid var(--hair-2);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.home__picker-item:last-child {
+  border-bottom: 0;
+}
+
+.home__picker-item:hover {
+  background: var(--accent-tint);
+}
+
+.home__picker-item--on {
+  background: var(--accent-tint);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.home__picker-app {
+  flex: none;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+.home__picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home__picker-empty {
+  margin: 0;
+  padding: 0.7rem;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
 }
 
 /* Capture-mode chooser */
@@ -424,14 +697,6 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Recent-project action buttons (Open / Record) */
-.project__item-actions {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
 
 /* Home project-manager: list header + sort controls */
 .project__list-head {
@@ -498,14 +763,119 @@ body {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
 }
 
+/* Destructive — reads red at rest so it never looks like Cancel. */
 .btn--danger {
-  color: #b91c1c;
-  border-color: #f0c2c2;
+  color: var(--danger-ink);
+  border-color: var(--danger-bd);
 }
 
 .btn--danger:hover:not(:disabled) {
-  background: #fef2f2;
-  border-color: #dc2626;
+  background: var(--danger-tint);
+  border-color: var(--danger);
+}
+
+/* Quiet / ghost — incidental actions (overflow ⋯, low-emphasis controls). */
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--accent-tint);
+  color: var(--ink);
+}
+
+/* Icon-only compact button (e.g. the ⋯ overflow trigger). */
+.btn--icon {
+  padding: 0.3rem 0.5rem;
+  line-height: 1;
+}
+
+/* ===== Shared overflow / dropdown menu — ONE implementation app-wide ===== */
+.menu {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Full-screen click-catcher that closes the menu. */
+.menu__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.menu__pop {
+  position: absolute;
+  z-index: 51;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 172px;
+}
+
+/* Opens upward when there isn't room below the trigger. */
+.menu__pop--up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.menu__pop,
+.menu__pop--up {
+  padding: 0.3rem;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--menu-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.42rem 0.6rem;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.menu__item:hover:not(:disabled) {
+  background: var(--accent-tint);
+}
+
+.menu__item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.menu__item--danger {
+  color: var(--danger-ink);
+}
+
+.menu__item--danger:hover:not(:disabled) {
+  background: var(--danger-tint);
+}
+
+.menu__sep {
+  height: 1px;
+  margin: 0.25rem 0.2rem;
+  background: var(--hair-2);
+}
+
+/* Thin divider used between list items / steps so boundaries don't rely on hover. */
+.hairline {
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--hair-2);
 }
 
 /* Right-click context menu on a project row */
@@ -657,6 +1027,17 @@ body {
   grid-template-columns: 2.4rem 1fr;
   gap: 0.85rem;
   position: relative;
+  padding-bottom: 1.1rem;
+  /* Persistent separator so step boundaries don't depend on hover. */
+  border-bottom: 1px solid var(--hair-2);
+}
+
+/* A trailing insert zone follows the last step (so it's the 2nd-to-last child);
+   drop that step's separator so no hairline dangles at the end of the list. */
+.rep__step:nth-last-child(2),
+.rep__step:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
 .rep__step--dragging {
@@ -833,14 +1214,22 @@ body {
   /* Above neighboring step rows (which sit at the default z-index) but below
      the sticky bar (z-index 5), so the lower buttons stay clickable. */
   z-index: 4;
+  /* Tiered: row 1 = content steps, row 2 = tinted callouts. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.4rem;
+  background: #ffffff;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  box-shadow: var(--menu-shadow);
+}
+
+.rep__insert-row {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.25rem 0.4rem;
-  background: #ffffff;
-  border: 1px solid #e3e6ea;
-  border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
 }
 
 .rep__insert-x {
@@ -997,6 +1386,22 @@ body {
   white-space: pre-wrap;
 }
 
+/* Click-to-edit affordances for text/callout steps (alongside the Edit button). */
+.rep__textheading--edit,
+.rep__textbody--edit,
+.rep__callout--clickable {
+  cursor: pointer;
+}
+
+.rep__textheading--edit:hover,
+.rep__textbody--edit:hover {
+  color: var(--accent);
+}
+
+.rep__callout--clickable:hover {
+  box-shadow: 0 0 0 2px var(--accent) inset;
+}
+
 /* Note / Caution / Warning callout boxes (styled text steps) */
 .rep__callout {
   margin: 0.3rem 0 0.5rem;
@@ -1105,86 +1510,146 @@ body {
 
 .ed {
   display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  flex-direction: row; /* left tool rail + main column */
+  gap: 0.7rem;
   /* Fill the overlay (minus its padding) for maximum editing workspace. */
   width: 100%;
   height: 100%;
   max-width: 100%;
   max-height: 100%;
   padding: 0.9rem;
-  border-radius: 12px;
-  background: #ffffff;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
 }
 
-.ed__toolbar {
+/* Left vertical tool rail — grouped by job (draw / mark / crop), icon + label;
+   stays put while the canvas fills the rest, with zoom pinned at the base. */
+.ed__rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: none;
+  width: 104px;
+  overflow-y: auto;
+  overflow-x: hidden; /* never a horizontal scrollbar */
+}
+
+.ed__railgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ed__raillabel {
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  padding: 0 0.2rem;
+}
+
+.ed__railspace {
+  flex: 1;
+}
+
+.ed__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* A stable top bar holds the pinned Cancel/Save (right) so Save never reflows. */
+.ed__topbar {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  /* nowrap + horizontal scroll so adding controls never grows the modal height;
-     overflow-y:hidden is explicit because overflow-x:auto would otherwise compute
-     overflow-y to auto and show a spurious 1px vertical scrollbar. */
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 
-/* Contextual property controls + the editor zoom live on their own reserved-
-   height row so they never reflow the tools row or expand the modal. */
+/* Contextual properties — rendered only when an element is selected, so it adds
+   no permanently-reserved height (the canvas reclaims it). */
 .ed__props {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  min-height: 2.6rem;
-  padding: 0 0.1rem;
+  /* Reserved, fixed height + flex:none so showing/hiding controls never
+     reflows the canvas below it. */
+  flex: none;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: #f8f9fc;
   overflow-x: auto;
   overflow-y: hidden;
 }
 
 .ed__props-hint {
-  color: #9097a1;
+  color: var(--ink-3);
   font-size: 0.8rem;
 }
 
-.ed__tools {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0.2rem;
-  background: #f3f4f6;
-  border-radius: 8px;
-}
-
+/* A tool button: icon + label, full rail width. */
 .ed__tool {
-  padding: 0.35rem 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: transparent;
-  color: #1d1f24;
-  font-size: 0.85rem;
+  color: var(--ink);
+  font-size: 0.82rem;
   cursor: pointer;
+  text-align: left;
 }
 
-.ed__tool:hover {
-  background: #e5e7eb;
+.ed__tool:hover:not(:disabled) {
+  background: var(--accent-tint);
 }
 
 .ed__tool--on {
-  background: #ffffff;
-  border-color: #cbd1d9;
+  background: var(--accent-tint);
+  border-color: var(--accent);
   font-weight: 600;
   color: #3730a3;
+}
+
+.ed__tool-ico {
+  width: 1.1rem;
+  flex: none;
+  text-align: center;
+  font-size: 0.95rem;
 }
 
 .ed__spacer {
   flex: 1;
 }
 
-.ed__opt select {
-  padding: 0.3rem 0.45rem;
+/* Segmented toggle (replaces the flaky native <select> for redaction style). */
+.ed__seg {
+  display: inline-flex;
   border: 1px solid #cbd1d9;
   border-radius: 6px;
-  font-size: 0.82rem;
+  overflow: hidden;
+}
+
+.ed__seg-btn {
+  padding: 0.2rem 0.6rem;
+  border: 0;
+  background: #fff;
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.ed__seg-btn--on {
+  background: var(--accent);
+  color: #fff;
 }
 
 .ed__canvas {
@@ -1239,12 +1704,21 @@ body {
 }
 
 .ed__zoom {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.2rem;
+  justify-content: center;
+  gap: 0.15rem;
   padding: 0.15rem;
   background: #f3f4f6;
-  border-radius: 8px;
+  border-radius: var(--radius);
+}
+
+/* Zoom uses .ed__tool buttons but they must stay compact, not rail-width. */
+.ed__zoom .ed__tool {
+  width: auto;
+  padding: 0.2rem 0.4rem;
+  justify-content: center;
 }
 
 /* In-layout text entry (Electron has no window.prompt(); a focused-then-blurred
@@ -1294,36 +1768,95 @@ body {
 
 .settings__title {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 650;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-section);
 }
 
+/* Master on/off — a card with the description on the left, a switch on the right. */
 .settings__toggle {
   display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid #e3e6ea;
-  border-radius: 10px;
-  background: #ffffff;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-lg);
+  background: #f8f9fc;
   cursor: pointer;
-}
-
-.settings__toggle input {
-  margin-top: 0.15rem;
-  width: 1rem;
-  height: 1rem;
-  flex: none;
 }
 
 .settings__toggle-text {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
+.settings__toggle-text strong {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  color: var(--ink);
+}
+
+/* The checkbox rendered as a switch. */
+.settings__switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: #cbd1d9;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.settings__switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: left 0.15s ease;
+}
+
+.settings__switch:checked {
+  background: var(--accent);
+}
+
+.settings__switch:checked::after {
+  left: 18px;
+}
+
+/* AI-off: an intentional placeholder line, not a stranded empty page. */
+.settings__off {
+  margin: 1rem 0 0;
+  padding: 0.9rem 1.1rem;
+  border: 1px dashed var(--hair);
+  border-radius: var(--radius-lg);
+  color: var(--ink-3);
+  font-size: var(--fs-body);
+}
+
+/* Every group shares one card shell + a uniform 1rem rhythm. */
 .settings__group {
-  margin-top: 1.5rem;
+  margin-top: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+/* Real group headings (replaced the 0.7rem uppercase micro-labels). */
+.settings__h {
+  margin: 0 0 0.6rem;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  color: var(--ink);
 }
 
 .settings__group .capmode__select {
@@ -1347,6 +1880,63 @@ body {
 
 .settings__row .project__input {
   flex: 1;
+}
+
+/* API key: a full-width field + ONE right-aligned action row (with a status chip). */
+.settings__keyfield {
+  width: 100%;
+  margin-top: 0.2rem;
+}
+
+.settings__keyactions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+/* Compact connection-status chip (Connected / Error) for the key test. */
+.settings__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: auto; /* sit at the left edge of the action row */
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.settings__chip--ok {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+}
+
+.settings__chip--err {
+  color: var(--danger-ink);
+  background: var(--danger-tint);
+  border-color: var(--danger-bd);
+}
+
+/* Projects-folder row (path + Change…) inside Settings. */
+.settings__dirrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.settings__dir {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .settings__textarea {
@@ -1685,20 +2275,25 @@ body {
 }
 
 /* --- SOP generate/revert banner (Phase 3b, inline) --- */
+/* Folded into the detail command bar: the wrapper itself adds no band — its
+   children (the generate/revert row + any error + the fixed modals) flow into
+   the bar's action row. */
 .sopbar {
-  margin: 0 auto 1rem;
-  max-width: 980px;
-  padding: 0.7rem 0.9rem;
-  border: 1px solid #e3e6ea;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #f7f6ff, #ffffff);
+  display: contents;
 }
 
 .sopbar__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
+}
+
+/* A SOP error folds into the command bar as its own full-width line (the bar
+   wraps) rather than squeezing in among the action buttons. */
+.sopbar__err {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .sopbar__prov {

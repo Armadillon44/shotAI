@@ -4,6 +4,7 @@
 // one-click revert. The polished result shows in the Report itself — there is no
 // separate SOP document.
 import React from 'react';
+import { createPortal } from 'react-dom';
 import type { ProjectStep } from '../../shared/project';
 import type { SopEstimate, SopProgress } from '../../shared/ipc';
 import { shotUrl, useProjectStore } from './store';
@@ -127,7 +128,7 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
 
   return (
     <section className="sopbar">
-      {error && <p className="project__error">{error}</p>}
+      {error && <p className="project__error sopbar__err">{error}</p>}
       <div className="sopbar__row">
         {sopEnabled && (
           <button
@@ -169,7 +170,7 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
         )}
       </div>
 
-      {phase === 'review' && estimate && (
+      {phase === 'review' && estimate && createPortal(
         <div className="sop__overlay" role="dialog" aria-label="Review before sending">
           <div className="sop__modal">
             <h3 className="sop__modal-title">Review what’s sent to Claude</h3>
@@ -221,17 +222,19 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {phase === 'generating' && (
+      {phase === 'generating' && createPortal(
         <div className="sop__overlay" role="dialog" aria-label="Generating SOP">
           <div className="sop__modal sop__modal--progress">
             <div className="sop__spinner" aria-hidden="true" />
             <p className="sop__progress">{progressText(progress)}</p>
             <p className="sop__hint">This can take up to a minute for longer projects.</p>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   );

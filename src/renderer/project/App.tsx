@@ -1,6 +1,6 @@
 import React from 'react';
 import logoUrl from '../../../shotAI.png';
-import type { AppInfo, CaptureState, ExportFormat } from '../../shared/ipc';
+import type { CaptureState, ExportFormat } from '../../shared/ipc';
 import type {
   CaptureMode,
   CaptureTarget,
@@ -13,6 +13,7 @@ import type {
 import { useProjectStore } from './store';
 import { ProjectDetail } from './ProjectDetail';
 import { Settings } from './Settings';
+import { OverflowMenu, type MenuItem } from './OverflowMenu';
 import { ensureFlattened } from './sop-prepare';
 
 type SortKey = 'name' | 'created' | 'modified';
@@ -34,20 +35,9 @@ const MODE_OPTIONS: {
   { mode: 'auto', label: 'Auto', hint: 'Best-effort smart capture — may include extra/unintended context' },
   { mode: 'window', label: 'Window', hint: 'Capture one specific window each step' },
   { mode: 'area', label: 'Area', hint: 'Drag-select a fixed region to capture' },
-  { mode: 'all', label: 'All screens', hint: 'Capture every monitor each step' },
 ];
 
-const MODE_DESC: Record<CaptureMode, string> = {
-  screen: 'Every step captures one full monitor (the primary, or the one you pick below).',
-  auto: 'Best-effort smart capture — picks the app window, a region around OS elements (taskbar, Start, tray), or the full screen per click. Because it guesses per click, it can capture extra or unintended context.',
-  window: 'Every step captures the window you pick below (re-found if it moves).',
-  area: 'Every step captures a fixed rectangle you drag-select on screen.',
-  all: 'Every step captures every monitor.',
-};
-
 export function App(): React.JSX.Element {
-  const [info, setInfo] = React.useState<AppInfo | null>(null);
-  const [projectsDir, setProjectsDir] = React.useState<string>('');
   const [projects, setProjects] = React.useState<ProjectSummary[]>([]);
   const [title, setTitle] = React.useState<string>('');
   const [busy, setBusy] = React.useState<boolean>(false);
@@ -56,9 +46,7 @@ export function App(): React.JSX.Element {
   const [sortAsc, setSortAsc] = React.useState(false);
   const [renamingPath, setRenamingPath] = React.useState<string | null>(null);
   const [renameValue, setRenameValue] = React.useState('');
-  const [exportMenuPath, setExportMenuPath] = React.useState<string | null>(null);
   const [rowBusyPath, setRowBusyPath] = React.useState<string | null>(null);
-  const [ctxMenu, setCtxMenu] = React.useState<{ path: string; x: number; y: number } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [capture, setCapture] = React.useState<CaptureState | null>(null);
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
@@ -72,18 +60,15 @@ export function App(): React.JSX.Element {
   const [pickedMonitorId, setPickedMonitorId] = React.useState<number | null>(null);
   const [pickedArea, setPickedArea] = React.useState<Rect | null>(null);
   const [selectingArea, setSelectingArea] = React.useState(false);
+  // Whether the window/monitor target dropdown is open.
+  const [pickerOpen, setPickerOpen] = React.useState(false);
 
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
 
   const refresh = React.useCallback(async () => {
     setError(null);
-    const [dir, all] = await Promise.all([
-      window.shotai.projects.getDir(),
-      window.shotai.projects.list(),
-    ]);
-    setProjectsDir(dir);
-    setProjects(all);
+    setProjects(await window.shotai.projects.list());
   }, []);
 
   const loadTargets = React.useCallback(async () => {
@@ -111,8 +96,26 @@ export function App(): React.JSX.Element {
 
   const selectMode = (m: CaptureMode) => {
     setMode(m);
+    setPickerOpen(false); // close the target dropdown when switching modes
     if ((m === 'window' || m === 'screen') && !targets) void loadTargets();
   };
+
+  // The label shown on the target dropdown's trigger (current window/monitor).
+  const pickerLabel =
+    mode === 'window'
+      ? pickedWindow
+        ? `${pickedWindow.app ? `${pickedWindow.app} — ` : ''}${pickedWindow.title || '(untitled)'}`
+        : targetsLoading
+          ? 'Loading…'
+          : 'Select a window…'
+      : (() => {
+          const m = targets?.monitors.find((mm) => mm.id === pickedMonitorId);
+          return m
+            ? `${m.name} · ${m.width}×${m.height}${m.isPrimary ? ' · primary' : ''}`
+            : targetsLoading
+              ? 'Loading…'
+              : 'Select a monitor…';
+        })();
 
   const buildTarget = (): CaptureTarget => {
     switch (mode) {
@@ -131,8 +134,6 @@ export function App(): React.JSX.Element {
         return pickedMonitorId != null
           ? { mode: 'screen', monitorId: pickedMonitorId }
           : { mode: 'screen' };
-      case 'all':
-        return { mode: 'all' };
       case 'area':
         return pickedArea ? { mode: 'area', area: pickedArea } : { mode: 'auto' };
       default:
@@ -157,7 +158,6 @@ export function App(): React.JSX.Element {
     mode === 'window' ? !!pickedWindow : mode === 'area' ? !!pickedArea : true;
 
   React.useEffect(() => {
-    window.shotai.getAppInfo().then(setInfo).catch(fail);
     window.shotai.capture.getState().then(setCapture).catch(fail);
     refresh().catch(fail);
   }, [refresh]);
@@ -176,33 +176,6 @@ export function App(): React.JSX.Element {
       if (!recordingRef.current) setShowSettings(true);
     });
   }, []);
-
-  // Dismiss the project context menu on Escape.
-  React.useEffect(() => {
-    if (!ctxMenu) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setCtxMenu(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [ctxMenu]);
-
-  // Dismiss the per-card Export dropdown on outside-click / Escape.
-  React.useEffect(() => {
-    if (!exportMenuPath) return;
-    const onDown = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.project__export')) setExportMenuPath(null);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExportMenuPath(null);
-    };
-    document.addEventListener('mousedown', onDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [exportMenuPath]);
 
   React.useEffect(() => {
     const offState = window.shotai.capture.onStateChanged(setCapture);
@@ -351,7 +324,6 @@ export function App(): React.JSX.Element {
   };
   const doExport = async (p: ProjectSummary, format: ExportFormat) => {
     if (rowBusyPath) return; // one row op at a time
-    setExportMenuPath(null);
     setRowBusyPath(p.path);
     setError(null);
     try {
@@ -480,97 +452,158 @@ export function App(): React.JSX.Element {
           />
         )}
 
-        {showSettings && !recording && <Settings onBack={() => setShowSettings(false)} />}
+        {showSettings && !recording && (
+          <Settings
+            onBack={() => setShowSettings(false)}
+            onProjectsDirChanged={() => void refresh()}
+          />
+        )}
 
         {showHome && !showSettings && (
-          <section className="capmode">
-            <span className="project__label">Capture mode</span>
-            <div
-              className="capmode__modes"
-              role="radiogroup"
-              aria-label="Capture mode"
-            >
+          <div className="home__create">
+            {/* Lead with the create action — the primary intent. */}
+            <h2 className="home__h">Start a project</h2>
+            <form className="home__createrow" onSubmit={onCreate}>
+              <input
+                className="project__input"
+                type="text"
+                placeholder="Name (optional — defaults to a timestamp)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={busy || recording}
+              />
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={busy || recording || !modeReady}
+              >
+                {busy ? 'Creating…' : 'Capture ▸'}
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={busy || recording}
+                onClick={() => void onCreateEmpty()}
+                title="Create an empty project and open it — add images, screenshots, or text without capturing"
+              >
+                Empty
+              </button>
+            </form>
+
+            {/* Capture mode — a compact inline control attached to the create action. */}
+            <div className="home__mode" role="radiogroup" aria-label="Capture mode">
+              <span className="home__mode-label">Mode</span>
               {MODE_OPTIONS.map((opt) => (
                 <button
                   key={opt.mode}
                   type="button"
                   role="radio"
                   aria-checked={mode === opt.mode}
-                  className={`capmode__chip${
-                    mode === opt.mode ? ' capmode__chip--on' : ''
-                  }`}
+                  className={`capmode__chip${mode === opt.mode ? ' capmode__chip--on' : ''}`}
                   disabled={opt.disabled}
                   title={opt.hint}
                   onClick={() => selectMode(opt.mode)}
                 >
                   {opt.label}
-                  {opt.disabled && <span className="capmode__soon">next</span>}
                 </button>
               ))}
+              {mode === 'auto' && (
+                <span
+                  className="home__mode-warn"
+                  title="Auto guesses per click and may capture extra or unintended context. Pick Screen, Window, or Area for predictable results."
+                >
+                  ⚠ Auto is best-effort
+                </span>
+              )}
             </div>
-            <p className="capmode__desc">{MODE_DESC[mode]}</p>
-            {mode === 'auto' && (
-              <p className="capmode__warn">
-                ⚠ Auto is best-effort — it guesses per click and may capture extra or
-                unintended context. Pick Screen, Window, or Area for predictable results.
-              </p>
-            )}
 
             {(mode === 'window' || mode === 'screen') && (
-              <div className="capmode__picker">
-                {mode === 'window' ? (
-                  <select
-                    className="capmode__select"
-                    aria-label="Window to capture"
-                    value={pickedWindow ? String(pickedWindow.id) : ''}
-                    onChange={(e) => {
-                      const id = Number(e.target.value);
-                      setPickedWindow(
-                        targets?.windows.find((w) => w.id === id) ?? null,
-                      );
-                    }}
-                  >
-                    {!targets?.windows.length && (
-                      <option value="">
-                        {targetsLoading ? 'Loading…' : 'No windows found'}
-                      </option>
-                    )}
-                    {targets?.windows.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.app ? `${w.app} — ` : ''}
-                        {w.title}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <select
-                    className="capmode__select"
-                    aria-label="Monitor to capture"
-                    value={pickedMonitorId != null ? String(pickedMonitorId) : ''}
-                    onChange={(e) => setPickedMonitorId(Number(e.target.value))}
-                  >
-                    {!targets?.monitors.length && (
-                      <option value="">
-                        {targetsLoading ? 'Loading…' : 'No monitors found'}
-                      </option>
-                    )}
-                    {targets?.monitors.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} · {m.width}×{m.height}
-                        {m.isPrimary ? ' · primary' : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
+              <div className="home__dd">
                 <button
                   type="button"
-                  className="btn btn--small"
-                  onClick={() => void loadTargets()}
-                  disabled={targetsLoading}
-                  title="Refresh the list"
+                  className="home__dd-trigger"
+                  aria-haspopup="listbox"
+                  aria-expanded={pickerOpen}
+                  onClick={() => setPickerOpen((o) => !o)}
                 >
-                  ↻
+                  <span className="home__dd-current">{pickerLabel}</span>
+                  <span className="home__dd-caret" aria-hidden="true">
+                    ▾
+                  </span>
                 </button>
+                {pickerOpen && (
+                  <>
+                    <div className="menu__backdrop" onClick={() => setPickerOpen(false)} />
+                    <div
+                      className="home__dd-pop"
+                      role="listbox"
+                      aria-label={mode === 'window' ? 'Window to capture' : 'Monitor to capture'}
+                    >
+                      <div className="home__dd-head">
+                        <span>{mode === 'window' ? 'Windows' : 'Monitors'}</span>
+                        <button
+                          type="button"
+                          className="btn btn--small btn--ghost"
+                          onClick={() => void loadTargets()}
+                          disabled={targetsLoading}
+                          title="Refresh the list"
+                        >
+                          ↻ Refresh
+                        </button>
+                      </div>
+                      <div className="home__dd-list">
+                        {mode === 'window' ? (
+                          targets?.windows.length ? (
+                            targets.windows.map((w) => (
+                              <button
+                                key={w.id}
+                                type="button"
+                                role="option"
+                                aria-selected={pickedWindow?.id === w.id}
+                                className={`home__picker-item${pickedWindow?.id === w.id ? ' home__picker-item--on' : ''}`}
+                                onClick={() => {
+                                  setPickedWindow(w);
+                                  setPickerOpen(false);
+                                }}
+                              >
+                                {w.app && <span className="home__picker-app">{w.app}</span>}
+                                <span className="home__picker-name">{w.title || '(untitled)'}</span>
+                              </button>
+                            ))
+                          ) : (
+                            <p className="home__picker-empty">
+                              {targetsLoading ? 'Loading…' : 'No windows found'}
+                            </p>
+                          )
+                        ) : targets?.monitors.length ? (
+                          targets.monitors.map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              role="option"
+                              aria-selected={pickedMonitorId === m.id}
+                              className={`home__picker-item${pickedMonitorId === m.id ? ' home__picker-item--on' : ''}`}
+                              onClick={() => {
+                                setPickedMonitorId(m.id);
+                                setPickerOpen(false);
+                              }}
+                            >
+                              <span className="home__picker-name">{m.name}</span>
+                              <span className="home__picker-app">
+                                {m.width}×{m.height}
+                                {m.isPrimary ? ' · primary' : ''}
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="home__picker-empty">
+                            {targetsLoading ? 'Loading…' : 'No monitors found'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {mode === 'area' && (
@@ -603,232 +636,131 @@ export function App(): React.JSX.Element {
             {mode === 'area' && !pickedArea && !selectingArea && (
               <p className="capmode__warn">Select an area to enable capture.</p>
             )}
-          </section>
+          </div>
         )}
 
         {showHome && !showSettings && (
           <>
-        <div className="project__row">
-          <div className="project__dir">
-            <span className="project__label">Projects folder</span>
-            <code className="project__dir-path" title={projectsDir}>
-              {projectsDir || '…'}
-            </code>
-          </div>
-          <button
-            type="button"
-            className="btn"
-            disabled={recording}
-            onClick={() =>
-              window.shotai.projects
-                .chooseDir()
-                .then((d) => {
-                  if (d) void refresh();
-                })
-                .catch(fail)
-            }
-          >
-            Change…
-          </button>
-        </div>
-
-        <form className="project__new" onSubmit={onCreate}>
-          <input
-            className="project__input"
-            type="text"
-            placeholder="New project name (optional — defaults to a timestamp)"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={busy || recording}
-          />
-          <button
-            type="submit"
-            className="btn btn--primary"
-            disabled={busy || recording || !modeReady}
-          >
-            {busy ? 'Creating…' : 'New project + capture'}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={busy || recording}
-            onClick={() => void onCreateEmpty()}
-            title="Create an empty project and open it — add images, screenshots, or text without capturing"
-          >
-            New empty project
-          </button>
-        </form>
-
-        <div className="project__list-head">
-          <h2 className="project__section-title">Projects</h2>
-          <div className="project__sort" role="group" aria-label="Sort projects">
-            <span className="project__sort-label">Sort:</span>
-            {SORT_LABELS.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                className={`project__sort-chip${sortKey === s.key ? ' project__sort-chip--on' : ''}`}
-                onClick={() => setSortKey(s.key)}
-              >
-                {s.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className="btn btn--small"
-              title={sortAsc ? 'Ascending' : 'Descending'}
-              onClick={() => setSortAsc((v) => !v)}
-            >
-              {sortAsc ? '▲' : '▼'}
-            </button>
-          </div>
-        </div>
-        {sortedProjects.length === 0 ? (
-          <p className="project__hint">
-            No projects yet. Create one above to start capturing.
-          </p>
-        ) : (
-          <ul className="project__list">
-            {sortedProjects.map((p) => {
-              const rowBusy = rowBusyPath === p.path;
-              const anyBusy = rowBusyPath !== null; // block other rows during an op
-              return (
-                <li
-                  key={p.path}
-                  className="project__item"
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setExportMenuPath(null);
-                    // Clamp so the menu stays on-screen near the right/bottom edge.
-                    setCtxMenu({
-                      path: p.path,
-                      x: Math.min(e.clientX, window.innerWidth - 200),
-                      y: Math.min(e.clientY, window.innerHeight - 60),
-                    });
-                  }}
+            <div className="home__listhead">
+              <h2 className="home__h">
+                Projects <span className="home__count">· {sortedProjects.length}</span>
+              </h2>
+              <div className="project__sort" role="group" aria-label="Sort projects">
+                <span className="project__sort-label">Sort:</span>
+                {SORT_LABELS.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    className={`project__sort-chip${sortKey === s.key ? ' project__sort-chip--on' : ''}`}
+                    onClick={() => setSortKey(s.key)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  title={sortAsc ? 'Ascending' : 'Descending'}
+                  onClick={() => setSortAsc((v) => !v)}
                 >
-                  {renamingPath === p.path ? (
-                    <input
-                      className="project__rename-input"
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void commitRename();
-                        else if (e.key === 'Escape') setRenamingPath(null);
-                      }}
-                      onBlur={() => void commitRename()}
-                    />
-                  ) : (
-                    <span className="project__item-title">{p.title}</span>
-                  )}
-                  <div className="project__item-actions">
-                    <button
-                      type="button"
-                      className="btn btn--small"
-                      disabled={anyBusy}
-                      onClick={() => void openProjectInDetail(p.path)}
-                    >
-                      Open
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--small"
-                      disabled={anyBusy}
-                      onClick={() => startRename(p)}
-                    >
-                      Rename
-                    </button>
-                    <div className="project__export">
-                      <button
-                        type="button"
-                        className="btn btn--small"
-                        disabled={anyBusy}
-                        onClick={() =>
-                          setExportMenuPath((cur) => (cur === p.path ? null : p.path))
-                        }
-                      >
-                        {rowBusy ? 'Working…' : 'Export ▾'}
-                      </button>
-                      {exportMenuPath === p.path && (
-                        <div className="project__export-menu" role="menu">
-                          {(
-                            [
-                              ['html', 'HTML'],
-                              ['html-plain', 'HTML (for Word)'],
-                              ['pdf', 'PDF'],
-                              ['markdown', 'Markdown'],
-                            ] as [ExportFormat, string][]
-                          ).map(([f, label]) => (
-                            <button
-                              key={f}
-                              type="button"
-                              className="btn btn--small"
-                              onClick={() => void doExport(p, f)}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn--small btn--danger"
-                      disabled={anyBusy}
-                      onClick={() => void doDelete(p)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                  <code className="project__item-path" title={p.path}>
-                    {p.stepCount} step{p.stepCount === 1 ? '' : 's'} · modified{' '}
-                    {p.updatedAt ? new Date(p.updatedAt).toLocaleString() : '—'}
-                  </code>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-          </>
-        )}
-
-        {ctxMenu && (
-          <>
-            <div
-              className="project__ctx-backdrop"
-              onClick={() => setCtxMenu(null)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setCtxMenu(null);
-              }}
-            />
-            <div
-              className="project__ctx"
-              role="menu"
-              style={{ left: ctxMenu.x, top: ctxMenu.y }}
-            >
-              <button
-                type="button"
-                className="project__ctx-item"
-                onClick={() => {
-                  const path = ctxMenu.path;
-                  setCtxMenu(null);
-                  window.shotai.projects.reveal(path).catch(fail);
-                }}
-              >
-                Reveal in Explorer
-              </button>
+                  {sortAsc ? '▲' : '▼'}
+                </button>
+              </div>
             </div>
+            {sortedProjects.length === 0 ? (
+              <div className="empty">
+                <div className="empty__icon" aria-hidden="true">
+                  🗂️
+                </div>
+                <p className="empty__line">No projects yet</p>
+                <p className="empty__sub">
+                  Start one above — capture a process, or build an empty project
+                  from images and text.
+                </p>
+              </div>
+            ) : (
+              <ul className="project__list">
+                {sortedProjects.map((p) => {
+                  const rowBusy = rowBusyPath === p.path;
+                  const anyBusy = rowBusyPath !== null; // block other rows during an op
+                  const exportItems: MenuItem[] = (
+                    [
+                      ['html', 'HTML'],
+                      ['html-plain', 'HTML (for Word)'],
+                      ['pdf', 'PDF'],
+                      ['markdown', 'Markdown'],
+                    ] as [ExportFormat, string][]
+                  ).map(([f, label]) => ({
+                    label: `Export → ${label}`,
+                    onClick: () => void doExport(p, f),
+                    disabled: anyBusy,
+                  }));
+                  return (
+                    <li key={p.path} className="project__item">
+                      <div className="project__item-main">
+                        {renamingPath === p.path ? (
+                          <input
+                            className="project__rename-input"
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void commitRename();
+                              else if (e.key === 'Escape') setRenamingPath(null);
+                            }}
+                            onBlur={() => void commitRename()}
+                          />
+                        ) : (
+                          <span className="project__item-title">{p.title}</span>
+                        )}
+                        <span className="project__item-meta">
+                          {rowBusy
+                            ? 'Working…'
+                            : `${p.stepCount} step${p.stepCount === 1 ? '' : 's'} · modified ${
+                                p.updatedAt
+                                  ? new Date(p.updatedAt).toLocaleDateString()
+                                  : '—'
+                              }`}
+                        </span>
+                      </div>
+                      <div className="project__item-actions">
+                        <button
+                          type="button"
+                          className="btn btn--small btn--primary"
+                          disabled={anyBusy}
+                          onClick={() => void openProjectInDetail(p.path)}
+                        >
+                          Open
+                        </button>
+                        <OverflowMenu
+                          disabled={anyBusy}
+                          items={[
+                            { label: 'Rename', onClick: () => startRename(p) },
+                            {
+                              label: 'Reveal in Explorer',
+                              onClick: () =>
+                                void window.shotai.projects.reveal(p.path).catch(fail),
+                            },
+                            { kind: 'sep' },
+                            ...exportItems,
+                            { kind: 'sep' },
+                            {
+                              label: 'Delete',
+                              danger: true,
+                              onClick: () => void doDelete(p),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </>
         )}
-      </section>
 
-      {info && (
-        <footer className="project__footer">
-          {info.name} · {info.platform}/{info.arch} · electron {info.electron}
-        </footer>
-      )}
+      </section>
     </main>
   );
 }

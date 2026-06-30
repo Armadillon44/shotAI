@@ -206,6 +206,9 @@ export function ProjectDetail({
           </span>
         </div>
         <div className="detail__baractions">
+          {/* SOP generate/revert folds into this one command bar (its review /
+              progress modals are fixed overlays, unaffected by placement). */}
+          <SopPanel sopEnabled={sopEnabled} />
           {onOpenSettings && (
             <button
               type="button"
@@ -318,15 +321,12 @@ export function ProjectDetail({
       {loading ? (
         <p className="project__hint">Loading…</p>
       ) : (
-        <>
-          <SopPanel sopEnabled={sopEnabled} />
-          <Report
-            onEditStep={onEditStep}
-            autoEditId={autoEditId}
-            onEditingChange={setTextEditing}
-            onInsert={onInsert}
-          />
-        </>
+        <Report
+          onEditStep={onEditStep}
+          autoEditId={autoEditId}
+          onEditingChange={setTextEditing}
+          onInsert={onInsert}
+        />
       )}
 
       {editing && projectId && projectPath && (

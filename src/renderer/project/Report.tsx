@@ -7,6 +7,7 @@ import React from 'react';
 import type { CalloutKind, ProjectStep } from '../../shared/project';
 import { shotUrl, useProjectStore } from './store';
 import { canMergeInto, mergeStepInto } from './merge';
+import { OverflowMenu, type MenuItem } from './OverflowMenu';
 
 /** What the hover-"+" insert menu can add between steps. */
 export type InsertKind = 'text' | 'image' | 'shot' | CalloutKind;
@@ -318,6 +319,17 @@ export function Report({
     onEditingChange?.(editingTextId !== null);
   }, [editingTextId, onEditingChange]);
 
+  // If the step being edited disappears (reorder/merge/SOP-gen reloads the
+  // manifest with new ids), clear the stale editing id — otherwise no editor
+  // renders yet every text step's Edit button stays disabled (looks like "can't
+  // edit any text step").
+  React.useEffect(() => {
+    if (editingTextId && !steps.some((s) => s.id === editingTextId)) {
+      setEditingTextId(null);
+      freshTextIdRef.current = null;
+    }
+  }, [steps, editingTextId]);
+
   const setZoom = async (step: ProjectStep, next: number) => {
     if (!projectPath) return;
     const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
@@ -448,6 +460,12 @@ export function Report({
     }
   };
 
+  // Open a text/callout step's inline editor (also the heading/body click
+  // target). Blocked while another draft is open so it can't be discarded.
+  const openTextEdit = (step: ProjectStep) => {
+    if (editingTextId === null) setEditingTextId(step.id);
+  };
+
   const saveText = async (step: ProjectStep, heading: string, body: string) => {
     if (!projectPath) return;
     try {
@@ -489,56 +507,62 @@ export function Report({
       <div className="rep__insert">
         {insertMenuAt === atIndex ? (
           <div className="rep__insert-menu" role="menu">
-            <button
-              type="button"
-              className="btn btn--small"
-              onClick={() => doInsert(atIndex, 'text')}
-            >
-              + Text
-            </button>
-            <button
-              type="button"
-              className="btn btn--small"
-              onClick={() => doInsert(atIndex, 'image')}
-            >
-              + Image
-            </button>
-            <button
-              type="button"
-              className="btn btn--small"
-              onClick={() => doInsert(atIndex, 'shot')}
-            >
-              + Screenshot
-            </button>
-            <button
-              type="button"
-              className="btn btn--small rep__insert-callout rep__insert-callout--note"
-              onClick={() => doInsert(atIndex, 'note')}
-            >
-              + Note
-            </button>
-            <button
-              type="button"
-              className="btn btn--small rep__insert-callout rep__insert-callout--caution"
-              onClick={() => doInsert(atIndex, 'caution')}
-            >
-              + Caution
-            </button>
-            <button
-              type="button"
-              className="btn btn--small rep__insert-callout rep__insert-callout--warning"
-              onClick={() => doInsert(atIndex, 'warning')}
-            >
-              + Warning
-            </button>
-            <button
-              type="button"
-              className="btn btn--small rep__insert-x"
-              title="Cancel"
-              onClick={() => setInsertMenuAt(null)}
-            >
-              ✕
-            </button>
+            {/* Row 1 — content steps. */}
+            <div className="rep__insert-row">
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={() => doInsert(atIndex, 'text')}
+              >
+                + Text
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={() => doInsert(atIndex, 'image')}
+              >
+                + Image
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={() => doInsert(atIndex, 'shot')}
+              >
+                + Screenshot
+              </button>
+              <button
+                type="button"
+                className="btn btn--small btn--icon rep__insert-x"
+                title="Cancel"
+                onClick={() => setInsertMenuAt(null)}
+              >
+                ✕
+              </button>
+            </div>
+            {/* Row 2 — tinted callouts. */}
+            <div className="rep__insert-row">
+              <button
+                type="button"
+                className="btn btn--small rep__insert-callout rep__insert-callout--note"
+                onClick={() => doInsert(atIndex, 'note')}
+              >
+                + Note
+              </button>
+              <button
+                type="button"
+                className="btn btn--small rep__insert-callout rep__insert-callout--caution"
+                onClick={() => doInsert(atIndex, 'caution')}
+              >
+                + Caution
+              </button>
+              <button
+                type="button"
+                className="btn btn--small rep__insert-callout rep__insert-callout--warning"
+                onClick={() => doInsert(atIndex, 'warning')}
+              >
+                + Warning
+              </button>
+            </div>
           </div>
         ) : (
           <button
@@ -613,57 +637,48 @@ export function Report({
     </div>
   );
 
-  const controls = (s: ProjectStep, idx: number) => (
-    <div className="rep__ctl">
-      <button
-        type="button"
-        className="btn btn--small"
-        disabled={idx === 0}
-        title="Move up"
-        onClick={() => move(idx, -1)}
-      >
-        ↑
-      </button>
-      <button
-        type="button"
-        className="btn btn--small"
-        disabled={idx === steps.length - 1}
-        title="Move down"
-        onClick={() => move(idx, 1)}
-      >
-        ↓
-      </button>
-      <button
-        type="button"
-        className="btn btn--small"
-        // While a text step is open in the inline editor, switching to edit
-        // another text step would discard the open draft — block it.
-        disabled={s.kind === 'text' && editingTextId !== null}
-        title={
-          s.kind === 'text' && editingTextId !== null
-            ? 'Finish editing the open text step first'
-            : 'Edit'
-        }
-        onClick={() => (s.kind === 'text' ? setEditingTextId(s.id) : onEditStep?.(s))}
-      >
-        Edit
-      </button>
-      {canMergeInto(steps, idx) && (
+  // Per-step controls: only Edit stays on the line; everything incidental
+  // (move / zoom / delete) lives in a ⋯ overflow. Merge is offered ONLY by the
+  // contextual banner below, not duplicated here.
+  const controls = (s: ProjectStep, idx: number) => {
+    const editDisabled = s.kind === 'text' && editingTextId !== null;
+    const items: MenuItem[] = [
+      { label: '↑ Move up', onClick: () => move(idx, -1), disabled: idx === 0 },
+      {
+        label: '↓ Move down',
+        onClick: () => move(idx, 1),
+        disabled: idx === steps.length - 1,
+      },
+    ];
+    if (s.kind !== 'text') {
+      items.push(
+        { kind: 'sep' },
+        { label: 'Zoom in', onClick: () => void setZoom(s, (s.reportZoom ?? 1) * 1.25) },
+        { label: 'Zoom out', onClick: () => void setZoom(s, (s.reportZoom ?? 1) / 1.25) },
+        { label: 'Reset zoom', onClick: () => void setZoom(s, 1) },
+      );
+    }
+    items.push(
+      { kind: 'sep' },
+      { label: 'Delete step', danger: true, onClick: () => void del(s) },
+    );
+    return (
+      <div className="rep__ctl">
         <button
           type="button"
           className="btn btn--small"
-          disabled={merging !== null}
-          title="Merge into the next step (keeps the next screenshot, adds this step's click as a marker)"
-          onClick={() => void merge(idx)}
+          // While a text step is open in the inline editor, switching to edit
+          // another text step would discard the open draft — block it.
+          disabled={editDisabled}
+          title={editDisabled ? 'Finish editing the open text step first' : 'Edit'}
+          onClick={() => (s.kind === 'text' ? setEditingTextId(s.id) : onEditStep?.(s))}
         >
-          Merge ↓
+          Edit
         </button>
-      )}
-      <button type="button" className="btn btn--small" onClick={() => void del(s)}>
-        Delete
-      </button>
-    </div>
-  );
+        <OverflowMenu items={items} title="More step actions" />
+      </div>
+    );
+  };
 
   const stepRow = (s: ProjectStep, idx: number) => {
     const cls =
@@ -701,27 +716,49 @@ export function Report({
                 <div className="rep__caprow rep__caprow--callout">
                   <div className="rep__actions">{controls(s, idx)}</div>
                 </div>
-                <div className={`rep__callout rep__callout--${s.callout}`}>
+                <div
+                  className={`rep__callout rep__callout--clickable rep__callout--${s.callout}`}
+                  title="Click to edit"
+                  onClick={() => openTextEdit(s)}
+                >
                   {s.heading ? <strong className="rep__callout-h">{s.heading}</strong> : null}
                   {s.body ? (
                     <p className="rep__callout-b">{s.body}</p>
                   ) : !s.heading ? (
-                    <p className="rep__callout-b rep__callout-empty">Empty — click Edit to add text.</p>
+                    <p className="rep__callout-b rep__callout-empty">Empty — click to add text.</p>
                   ) : null}
                 </div>
               </>
             ) : (
               <>
                 <div className="rep__caprow">
-                  <h3 className="rep__textheading">{s.heading || 'Text'}</h3>
+                  <h3
+                    className="rep__textheading rep__textheading--edit"
+                    title="Click to edit this text step"
+                    onClick={() => openTextEdit(s)}
+                  >
+                    {s.heading || 'Text'}
+                  </h3>
                   <div className="rep__actions">{controls(s, idx)}</div>
                 </div>
                 {s.body ? (
-                  <p className="rep__textbody">{s.body}</p>
+                  <p
+                    className="rep__textbody rep__textbody--edit"
+                    title="Click to edit"
+                    onClick={() => openTextEdit(s)}
+                  >
+                    {s.body}
+                  </p>
                 ) : !s.heading ? (
-                  // Only truly-empty (no heading AND no body) shows the prompt; a
-                  // heading-only step (e.g. an AI section divider) renders clean.
-                  <p className="project__hint">Empty text step — click Edit.</p>
+                  // Only truly-empty (no heading AND no body) shows a clear
+                  // affordance; a heading-only step (AI divider) renders clean.
+                  <button
+                    type="button"
+                    className="rep__addline"
+                    onClick={() => openTextEdit(s)}
+                  >
+                    + Add text
+                  </button>
                 ) : null}
               </>
             )
@@ -747,28 +784,7 @@ export function Report({
                     )}
                   </h3>
                 )}
-                <div className="rep__actions">
-                  <div className="rep__zoom" title="Zoom this image in the report">
-                    <button
-                      type="button"
-                      className="btn btn--small"
-                      onClick={() => void setZoom(s, (s.reportZoom ?? 1) / 1.25)}
-                    >
-                      −
-                    </button>
-                    <span className="rep__zoom-val">
-                      {Math.round((s.reportZoom ?? 1) * 100)}%
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn--small"
-                      onClick={() => void setZoom(s, (s.reportZoom ?? 1) * 1.25)}
-                    >
-                      +
-                    </button>
-                  </div>
-                  {controls(s, idx)}
-                </div>
+                <div className="rep__actions">{controls(s, idx)}</div>
               </div>
               {s.click?.button === 'right' && canMergeInto(steps, idx) && (
                 <div className="rep__merge-suggest">

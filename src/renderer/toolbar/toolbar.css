@@ -1,5 +1,19 @@
+/* Shared token layer — mirrors the app's :root so the pill and the app speak
+   one visual language (accent, radii, focus ring). */
+:root {
+  --accent: #4f46e5;
+  --accent-press: #4338ca;
+  --radius: 8px;
+}
+
 * {
   box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 html,
@@ -21,7 +35,9 @@ body {
   display: flex;
   align-items: center;
   height: 100%;
-  padding: 0 0.5rem;
+  /* A little breathing room so the controls aren't flush to the window edge
+     (the window is a few px taller to absorb the vertical padding). */
+  padding: 0.35rem 0.6rem;
   gap: 0.5rem;
   background: #1f2330;
   color: #f4f5f7;
@@ -33,6 +49,7 @@ body {
   align-items: center;
   gap: 0.5rem;
   flex: 1;
+  min-width: 0;
   height: 100%;
   padding-left: 0.25rem;
   -webkit-app-region: drag;
@@ -47,14 +64,19 @@ body {
 }
 
 .toolbar__label {
+  display: flex;
+  align-items: center;
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+  white-space: nowrap; /* keep the live dot + "Capturing · N" on one line */
 }
 
 .toolbar__controls {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
+  flex: none;
   gap: 0.35rem;
   -webkit-app-region: no-drag;
 }
@@ -82,15 +104,30 @@ body {
   cursor: default;
 }
 
-.toolbar__btn--rec .toolbar__dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ef4444;
+/* Labeled control (icon + short word) — there's room at ~300px wide. */
+.toolbar__btn--label {
+  width: auto;
+  padding: 0 0.6rem;
+  gap: 0.3rem;
+  font-weight: 600;
 }
 
-.toolbar__btn--stop:hover {
-  background: #7f1d1d;
+/* Stop is the labeled PRIMARY action (filled indigo) — clearly distinct from
+   the lone destructive Discard control. */
+.toolbar__btn--stop {
+  background: var(--accent);
+}
+
+.toolbar__btn--stop:hover:not(:disabled) {
+  background: var(--accent-press);
+}
+
+/* Vertical divider isolating the only destructive control (Discard). */
+.toolbar__divider {
+  width: 1px;
+  height: 16px;
+  background: #3a4159;
+  margin: 0 0.1rem;
 }
 
 .toolbar__btn--discard {
@@ -108,14 +145,25 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #ef4444;
+  background: #34d399; /* green = live */
   margin-right: 6px;
   vertical-align: middle;
   animation: tb-pulse 1.4s ease-in-out infinite;
 }
 
+/* Brand-tinted active state: a thin indigo top-bar ties the pill to the app. */
+.toolbar--recording,
+.toolbar--paused {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
 .toolbar--paused .toolbar__label {
   color: #fcd34d;
+}
+
+.toolbar--paused .toolbar__rec-dot {
+  background: #fcd34d; /* amber = paused */
+  animation: none;
 }
 
 @keyframes tb-pulse {

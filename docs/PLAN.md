@@ -16,7 +16,7 @@ Everything runs locally except the Claude API call. **Windows first**, **macOS**
 | Platform | **Electron + TypeScript**, **Electron Forge** (Vite + React + TS template) |
 | Product model | **Scribe clone**, local-first; Claude writes the SOP |
 | Capture scope | **System-wide** (any app) |
-| Capture region (user-selectable) | **a window** · **a user-drawn area** · **one screen** · **all screens** |
+| Capture region (user-selectable) | **a window** · **a user-drawn area** · **one screen** · **auto** (multi-monitor "all screens" is intentionally out of scope) |
 | Capture trigger | **Both** auto-on-click **and** a configurable global hotkey |
 | Per step | Screenshot, click coords, active app + window title, auto-caption, user note, vector annotations; UI-element name best-effort (phased) |
 | NOT captured | Keystrokes / typed text, timestamps |
@@ -28,7 +28,7 @@ Everything runs locally except the Claude API call. **Windows first**, **macOS**
 
 ## Application windows (UX)
 
-- **Capture toolbar** — a small, frameless, always-on-top, draggable window (Scribe's recorder pill). Controls: **Start / Pause-Resume**, **Stop & Process**, **Delete session**, plus the **capture-region selector** (window / area / screen / all). Stays out of the way during recording.
+- **Capture toolbar** — a small, frameless, always-on-top, draggable window (Scribe's recorder pill). Controls: **Start / Pause-Resume**, **Stop & Process**, **Delete session**, plus the **capture-region selector** (auto / window / area / screen). Stays out of the way during recording.
 - **Region-selector overlay** — a transparent, full-screen, always-on-top window (one per display) used to drag-select an **area** or click-pick a **window**; returns the chosen rect/window and closes.
 - **Main / project window** — recent-projects list, the step list, the **HTML report with the inline image editor**, SOP generation, and export. Where all editing happens.
 - **Tray icon** — quick start/stop and show-window.
@@ -48,7 +48,7 @@ Native work in **main**; UI/report/editor in **renderer** (sandboxed: `contextIs
 │     • screenshot via node-screenshots (Monitor/Window) +    │
 │       crop to region       • element-at-point [phased]      │
 │     • skip if active window is one of shotAI's own          │
-│ RegionService   → window/area/screen/all selection + overlay│
+│ RegionService   → window/area/screen selection + overlay    │
 │ HotkeyService   → register/rebind global hotkey             │
 │ ProjectStore    → user-chosen dir; project.json + shots/    │
 │ ClaudeService   → @anthropic-ai/sdk (vision → SOP)          │
@@ -69,7 +69,9 @@ Native work in **main**; UI/report/editor in **renderer** (sandboxed: `contextIs
 - **Window** — pick a window (list via `node-screenshots` `Window.all()`, or click-pick via overlay); capture that window's *current* bounds each step (re-resolve in case it moved).
 - **Area** — drag a rectangle on the overlay; capture the containing monitor and crop to the fixed rect each step.
 - **Screen** — capture the chosen monitor (`Monitor`), or the monitor where the click landed (`Monitor.fromPoint`).
-- **All screens** — capture every monitor and compose a virtual-desktop image (mixed-DPI stitching is fiddly — flagged as a risk).
+- **Auto** — smart per-click surface (app window / OS-shell region / desktop fullscreen), classified per click.
+
+> Multi-monitor **"all screens"** capture is intentionally **out of scope** — pick a single screen, or let auto/window/area handle it. (Area selection is always bound to a single monitor.)
 
 **Triggers:** auto-on-click via **uiohook-napi**; manual via Electron **`globalShortcut`** (rebindable at runtime). **Pause** detaches the click listener; **Stop & Process** finalizes; **Delete** discards the project folder.
 
@@ -100,7 +102,7 @@ User picks a projects directory (**default: `~/shotAI Projects/`**, configurable
 ```jsonc
 {
   "version": 1, "title": "…", "createdWith": "shotAI",
-  "captureSettings": { "region": "window|area|screen|all", "target": {…} },
+  "captureSettings": { "region": "auto|window|area|screen", "target": {…} },
   "steps": [{
     "id": "uuid", "order": 1,
     "screenshot": "shots/step-001.png",
@@ -183,7 +185,7 @@ shotAI lives in a **private** GitHub repo named `shotAI`. You'll use a **mix**: 
 ## Phased roadmap
 
 - **Phase 0 — Repo + scaffold + project model:** GitHub setup above (private `shotAI`, `.gitignore`, README, first commit); Forge (Vite+React+TS); capture-toolbar + project windows; sandboxed preload + typed IPC; `ProjectStore` (user-chosen dir default `~/shotAI Projects/`, discrete projects, recent list, create/open). No capture yet.
-- **Phase 1 — Capture engine (Windows MVP):** uiohook-napi + `globalShortcut`; region modes (window/area/screen/all) + region overlay; node-screenshots capture + crop; get-windows app/title; exclude own windows; pause/resume/stop/delete; auto-captions; write `project.json` + shots; live step list.
+- **Phase 1 — Capture engine (Windows MVP):** uiohook-napi + `globalShortcut`; region modes (auto/window/area/screen) + region overlay; node-screenshots capture + crop; get-windows app/title; exclude own windows; pause/resume/stop/delete; auto-captions; write `project.json` + shots; live step list.
 - **Phase 2 — Report + inline editor + edit-existing:** Konva editor (crop/pan/zoom/rounded-rect/arrow/blur-redact/numbered-stamp/text), non-destructive annotations + flatten-on-output; HTML report with click markers; open existing projects to add (recapture/import)/remove/reorder steps and edit screenshots.
 - **Phase 3 — Claude SOP + export:** `ClaudeService` (vision + Zod) on flattened/redacted images; review-before-send + redaction enforcement; smart crop + token pre-count; render/edit SOP; export HTML/PDF/Markdown (optional .docx).
 - **Phase 4 — Windows element-level + hardening:** napi-rs `uiautomation` addon; multi-monitor/DPI correctness; double-click debounce; capture-latency tuning; **automatic sensitive-data redaction pre-scan** (local OCR via Tesseract.js → SSN / credit-card-Luhn / API-key detectors → suggested redactions surfaced in review-before-send, baked via the existing flatten path; best-effort assist on top of the manual gate — see `docs/PHASE-3-PLAN.md`); Authenticode signing.
@@ -197,16 +199,15 @@ shotAI lives in a **private** GitHub repo named `shotAI`. You'll use a **mix**: 
 2. **macOS permissions/signing** — runtime-granted TCC permissions + notarization. Mitigation: dedicated Phase 5 + permissions wizard.
 3. **Redaction correctness** — a baking bug would leak sensitive pixels to Claude/exports. Mitigation: single flatten path; redaction destructive on the flattened render; tested.
 4. **Capture accuracy/latency** — fast, debounced synchronous gather; exact marker placement under multi-monitor/mixed-DPI and after crop.
-5. **All-screens stitching** under mixed DPI. Mitigation: prefer per-monitor capture; treat stitched all-screens as best-effort.
-6. **Cost & data sensitivity** of many screenshots. Mitigation: crop-to-window, token pre-count, redaction, review-before-send.
-7. **Native module / Electron ABI** churn. Mitigation: Forge auto-rebuild; prebuilt deps; pin Electron for the napi-rs addon.
+5. **Cost & data sensitivity** of many screenshots. Mitigation: crop-to-window, token pre-count, redaction, review-before-send.
+6. **Native module / Electron ABI** churn. Mitigation: Forge auto-rebuild; prebuilt deps; pin Electron for the napi-rs addon.
 
 ## Files to create first
 
 - [package.json](package.json) — name `shotai`; Electron + Forge (Vite+React+TS), `@anthropic-ai/sdk`, `zod`, `konva`/`react-konva`, `zustand`, uiohook-napi, node-screenshots, get-windows; native-addon build scripts.
 - [.gitignore](.gitignore) and [README.md](README.md) — committed before any code.
 - [src/main/CaptureController.ts](src/main/CaptureController.ts) — clicks + hotkey → region-aware synchronous capture, own-window filtering.
-- [src/main/RegionService.ts](src/main/RegionService.ts) — window/area/screen/all selection + the overlay window.
+- [src/main/RegionService.ts](src/main/RegionService.ts) — window/area/screen selection + the overlay window.
 - [src/main/ProjectStore.ts](src/main/ProjectStore.ts) — user-chosen dir, discrete project folders, `project.json` + shots, recent-projects, open/append.
 - [src/main/ClaudeService.ts](src/main/ClaudeService.ts) — vision + Zod structured-output SOP on flattened/redacted images; key via `safeStorage`.
 - [src/preload/index.ts](src/preload/index.ts) — typed `contextBridge` IPC.
@@ -217,7 +218,7 @@ shotAI lives in a **private** GitHub repo named `shotAI`. You'll use a **mix**: 
 
 ## Verification (end-to-end)
 
-1. **Capture (Phase 1):** Record with each region mode — pick a window, drag an area, one screen, all screens — clicking in a few apps plus one manual-hotkey step. Confirm `project.json` has correctly ordered steps with right app/title, PNGs in `shots/`, auto-captions, and that clicking the toolbar created no step. Confirm pause/resume/stop/delete and a save location under `~/shotAI Projects/`.
+1. **Capture (Phase 1):** Record with each region mode — pick a window, drag an area, one screen, auto — clicking in a few apps plus one manual-hotkey step. Confirm `project.json` has correctly ordered steps with right app/title, PNGs in `shots/`, auto-captions, and that clicking the toolbar created no step. Confirm pause/resume/stop/delete and a save location under `~/shotAI Projects/`.
 2. **Editor (Phase 2):** Add a rounded rect, arrow, numbered stamp, text, and a **redaction** to a screenshot; confirm non-destructive re-edit; confirm the flattened export PNG has redaction baked in and the marker is correctly placed. Open an existing project and add/remove/reorder steps and import a screenshot.
 3. **SOP (Phase 3):** With an API key set, generate the SOP; confirm review-before-send lists exactly what's transmitted, that **redacted** renders (not originals) are sent, the request streams, and a structured SOP renders to HTML and exports to HTML/PDF/Markdown.
 4. **Element (Phase 4):** Click a native Win32 control → `element.name`/`controlType` populate; click an Electron/custom-drawn app → graceful `null`.

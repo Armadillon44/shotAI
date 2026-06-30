@@ -11,10 +11,8 @@
 //   - 'auto'   → smart per-click: app window / OS-shell region / desktop
 //                fullscreen, classified by captureModeFor() (the default).
 //   - 'window' → a single picked window, re-resolved each step (handles moves).
-//   - 'area'   → a fixed user-dragged rectangle (global physical px).
+//   - 'area'   → a fixed user-dragged rectangle on one monitor (global physical px).
 //   - 'screen' → a single picked monitor.
-//   - 'all'    → every screen (best-effort: primary monitor for now; true
-//                multi-monitor stitching is a follow-up).
 //
 // Click-marker DPI calibration is follow-up work (Phase 2 markers).
 import { app, BrowserWindow, globalShortcut, screen } from 'electron';
@@ -1017,7 +1015,7 @@ export class CaptureController {
       // CONTEXT-MENU SELECTION — the menu is a separate top-level popup window
       // that per-window (PrintWindow) capture can't see, so grab the monitor
       // (BitBlt of the composited desktop includes the popup) and crop to frame
-      // the menu WITH what it belongs to. 'screen'/'all' keep the whole monitor
+      // the menu WITH what it belongs to. 'screen' keeps the whole monitor
       // (the user picked a monitor); 'auto'/'window'/'area' crop to the owner
       // window / picked window / chosen area, unioned with a box around the click
       // so a menu overflowing that region is still included.
@@ -1060,7 +1058,7 @@ export class CaptureController {
         }
 
         let region: Rect | null = null;
-        if (mode !== 'screen' && mode !== 'all') {
+        if (mode !== 'screen') {
           let base: Rect | null =
             mode === 'window'
               ? winRect
@@ -1149,14 +1147,6 @@ export class CaptureController {
       let mon = clickMonitor;
       if (mode === 'screen' && target.monitorId != null) {
         mon = Monitor.all().find((m) => m.id() === target.monitorId) ?? clickMonitor;
-      } else if (mode === 'all') {
-        const monitors = Monitor.all();
-        if (monitors.length > 1) {
-          captureLog.warn(
-            `'all screens': ${monitors.length} monitors — capturing primary only (multi-monitor stitching is a follow-up)`,
-          );
-        }
-        mon = monitors.find((m) => m.isPrimary()) ?? monitors[0] ?? clickMonitor;
       }
       if (!mon) return null;
 
@@ -1183,7 +1173,7 @@ export class CaptureController {
         }
       }
 
-      // FULLSCREEN — the whole monitor ('auto' desktop/fallback, 'screen', 'all').
+      // FULLSCREEN — the whole monitor ('auto' desktop/fallback, 'screen').
       try {
         return {
           png: mon.captureImageSync().toPngSync(),

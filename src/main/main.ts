@@ -208,8 +208,8 @@ const createProjectWindow = (): BrowserWindow => {
  */
 const createToolbarWindow = (): BrowserWindow => {
   const win = new BrowserWindow({
-    width: 300,
-    height: 44,
+    width: 380,
+    height: 52,
     show: false,
     frame: false,
     resizable: false,
