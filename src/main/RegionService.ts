@@ -102,12 +102,16 @@ export class RegionService {
 
   private finish(event: IpcMainEvent, cssRect: Rect | null): void {
     if (!this.pending) return;
+    // Only honor region:complete / region:cancel from an overlay window WE created
+    // for the in-flight selection — ignore any other renderer firing the channel
+    // (the same preload exposes region.* to every window).
+    const sender = BrowserWindow.fromWebContents(event.sender);
+    if (!sender || !this.pending.windows.includes(sender)) return;
     let result: Rect | null = null;
     if (cssRect && cssRect.width >= MIN_DRAG && cssRect.height >= MIN_DRAG) {
-      const win = BrowserWindow.fromWebContents(event.sender);
-      if (win && !win.isDestroyed()) {
-        const b = win.getBounds(); // DIP
-        const phys = screen.dipToScreenRect(win, {
+      if (!sender.isDestroyed()) {
+        const b = sender.getBounds(); // DIP
+        const phys = screen.dipToScreenRect(sender, {
           x: b.x + Math.round(cssRect.x),
           y: b.y + Math.round(cssRect.y),
           width: Math.round(cssRect.width),
