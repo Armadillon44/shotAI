@@ -235,19 +235,6 @@ export function ProjectDetail({
               ⏺ Resume capturing
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn--small"
-            disabled={importing || textEditing}
-            onClick={() => pickImageAt(null)}
-            title={
-              textEditing
-                ? 'Finish editing the text step first'
-                : 'Add your own PNG/JPEG image as a new step'
-            }
-          >
-            {importing ? 'Importing…' : 'Import image'}
-          </button>
           <div className="export" ref={exportRef}>
             <button
               type="button"
