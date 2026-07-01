@@ -1014,10 +1014,13 @@ body {
 }
 
 /* In-app report (step list with screenshots + click markers) */
-/* SOP overview preamble (E4) — a lead-in above the steps, NOT a numbered step. */
+/* SOP overview preamble (E4) — a lead-in above the steps, NOT a numbered step.
+   width:100% (not margin:auto) so it stretches to the report column like a step
+   row — margin:auto in the flex column would shrink it to its content width. */
 .rep__intro {
-  margin: 0 auto 0.4rem;
-  max-width: 880px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 0.4rem;
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--hair);
   border-left: 4px solid var(--accent, #4f46e5);

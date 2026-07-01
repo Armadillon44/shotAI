@@ -37,6 +37,22 @@ function safeFileBase(title: string): string {
   return cleaned;
 }
 
+/**
+ * First non-existent `<stem><ext>` in `exportDir`, appending " (1)", " (2)", …
+ * on collision. Serializes repeat exports so a second export never overwrites —
+ * or fails to write to — a previous export the user may have open (Windows lock).
+ */
+async function nextAvailableStem(exportDir: string, stem: string, ext: string): Promise<string> {
+  for (let n = 0; ; n++) {
+    const candidate = n === 0 ? stem : `${stem} (${n})`;
+    try {
+      await fs.access(path.join(exportDir, candidate + ext));
+    } catch {
+      return candidate; // ENOENT → this name is free
+    }
+  }
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -308,11 +324,13 @@ async function buildMarkdown(
   dir: string,
   manifest: ProjectManifest,
   items: ExportItem[],
-  base: string,
+  stem: string,
   generatedAt: string,
 ): Promise<string> {
-  const imagesDir = path.join(dir, 'export', 'images');
-  // Start clean so images from deleted/reordered steps don't linger as orphans.
+  // Per-export images dir (stem is already unique for the .md) so a serialized
+  // second markdown export doesn't clobber the first export's images.
+  const imagesDirName = `${stem}-images`;
+  const imagesDir = path.join(dir, 'export', imagesDirName);
   await fs.rm(imagesDir, { recursive: true, force: true }).catch(() => undefined);
   await fs.mkdir(imagesDir, { recursive: true });
   const lines: string[] = [
@@ -349,11 +367,12 @@ async function buildMarkdown(
     await fs.copyFile(it.abs, path.join(imagesDir, imgName));
     const heading = (it.caption || `Step ${it.n}`).replace(/\s*\n\s*/g, ' ');
     lines.push(`## ${it.n}. ${escapeMarkdown(heading)}`, '');
-    lines.push(`![Screenshot for step ${it.n}](images/${imgName})`, '');
+    // Angle-bracket the path: the serialized stem may contain spaces/parens.
+    lines.push(`![Screenshot for step ${it.n}](<${imagesDirName}/${imgName}>)`, '');
     if (it.body) lines.push(it.body, '');
     if (it.note) lines.push(`> ${it.note.replace(/\n/g, '\n> ')}`, '');
   }
-  const outputPath = path.join(dir, 'export', `${base}.md`);
+  const outputPath = path.join(dir, 'export', `${stem}.md`);
   await fs.writeFile(outputPath, lines.join('\n'), 'utf8');
   return outputPath;
 }
@@ -376,18 +395,22 @@ export async function exportProject(
 
   let outputPath: string;
   if (format === 'markdown') {
-    outputPath = await buildMarkdown(dir, manifest, items, base, generatedAt);
+    const stem = await nextAvailableStem(exportDir, base, '.md');
+    outputPath = await buildMarkdown(dir, manifest, items, stem, generatedAt);
   } else if (format === 'html-plain') {
     const html = await buildPlainHtmlDoc(manifest, items);
-    outputPath = path.join(exportDir, `${base}-plain.html`);
+    const stem = await nextAvailableStem(exportDir, `${base}-plain`, '.html');
+    outputPath = path.join(exportDir, `${stem}.html`);
     await fs.writeFile(outputPath, html, 'utf8');
   } else {
     const html = await buildHtmlDoc(manifest, items, generatedAt);
     if (format === 'html') {
-      outputPath = path.join(exportDir, `${base}.html`);
+      const stem = await nextAvailableStem(exportDir, base, '.html');
+      outputPath = path.join(exportDir, `${stem}.html`);
       await fs.writeFile(outputPath, html, 'utf8');
     } else {
-      outputPath = path.join(exportDir, `${base}.pdf`);
+      const stem = await nextAvailableStem(exportDir, base, '.pdf');
+      outputPath = path.join(exportDir, `${stem}.pdf`);
       await htmlToPdf(dir, html, outputPath);
     }
   }
