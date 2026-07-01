@@ -267,7 +267,7 @@ export async function generateSop(
       messages,
       output_config: {
         format: zodOutputFormat(SopEditSchema),
-        ...(params.effort ? { effort: params.effort } : {}),
+        ...(params.supportsEffort ? { effort: settings.effort } : {}),
       },
       ...(params.thinking ? { thinking: params.thinking } : {}),
     });
