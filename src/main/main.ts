@@ -298,16 +298,23 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+  // Debug/test mode: keep the app window visible during capture so you can watch
+  // what's happening (it WILL appear in the screenshots — for diagnosis only).
+  const noHideDuringCapture = process.env.SHOTAI_CAPTURE_NO_HIDE === '1';
+  if (noHideDuringCapture) {
+    mainLog.info('SHOTAI_CAPTURE_NO_HIDE=1 — app window stays visible during capture (debug)');
+  }
   const capture = createCaptureController({
     // Hide the main window while recording (the always-on-top toolbar pill is
-    // the control); restore + focus it when recording stops.
+    // the control); restore + focus it when recording stops. Debug mode keeps it
+    // visible throughout.
     onRecordingChange: (recording) => {
       const proj =
         projectWindow && !projectWindow.isDestroyed() ? projectWindow : null;
       const pill =
         toolbarWindow && !toolbarWindow.isDestroyed() ? toolbarWindow : null;
       if (recording) {
-        proj?.hide();
+        if (!noHideDuringCapture) proj?.hide();
         if (pill && !toolbarPositioned) {
           dockToolbarTopCenter(pill); // top-center on first show; drag respected after
           toolbarPositioned = true;
@@ -315,7 +322,7 @@ app.whenReady().then(async () => {
         pill?.show(); // pill only appears while recording
       } else {
         pill?.hide();
-        proj?.show();
+        proj?.show(); // no-op if never hidden; also refocuses after recording
         proj?.focus();
       }
     },
