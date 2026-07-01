@@ -12,6 +12,7 @@ import {
   type ProjectStep,
   type ProjectSummary,
   type SopBackup,
+  type SopIntro,
   type StepPatch,
 } from '../shared/project';
 import { DEFAULT_SOP_TONE, isSopTone } from '../shared/sop';
@@ -69,6 +70,16 @@ export function normalizeSteps(steps: unknown): ProjectStep[] {
   });
 }
 
+/** Coerce a persisted SOP intro (or null) — a preamble, not a step. */
+function coerceIntro(raw: unknown): SopIntro | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const heading = typeof r.heading === 'string' ? r.heading : '';
+  const body = typeof r.body === 'string' ? r.body : '';
+  if (!heading && !body) return null;
+  return { heading, body };
+}
+
 /** Coerce a persisted SOP backup (or null) from a possibly-corrupt manifest. */
 function coerceSopBackup(raw: unknown): SopBackup | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -77,6 +88,7 @@ function coerceSopBackup(raw: unknown): SopBackup | null {
   return {
     steps: normalizeSteps(r.steps),
     title: r.title,
+    intro: coerceIntro(r.intro),
     model: typeof r.model === 'string' ? r.model : '',
     tone: isSopTone(r.tone) ? r.tone : DEFAULT_SOP_TONE,
     at: typeof r.at === 'string' ? r.at : '',
@@ -102,6 +114,7 @@ async function readManifest(projectPath: string): Promise<ProjectManifest> {
     updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
     captureSettings: parsed.captureSettings ?? null,
     steps: normalizeSteps(parsed.steps),
+    intro: coerceIntro(parsed.intro),
     sopBackup: coerceSopBackup(parsed.sopBackup),
   };
 }
@@ -166,6 +179,7 @@ export async function createProject(title?: string): Promise<ProjectSummary> {
     updatedAt: now,
     captureSettings: null,
     steps: [],
+    intro: null,
     sopBackup: null,
   };
   await writeManifest(dir, manifest); // atomic, same as every other manifest write

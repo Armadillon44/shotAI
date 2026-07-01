@@ -289,6 +289,7 @@ export function Report({
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
   const steps = useProjectStore((s) => s.steps);
+  const intro = useProjectStore((s) => s.intro);
   const applyManifest = useProjectStore((s) => s.applyManifest);
   const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
   const [editingCapId, setEditingCapId] = React.useState<string | null>(null);
@@ -844,6 +845,12 @@ export function Report({
 
   return (
     <div className="rep" role="list">
+      {intro && (intro.heading || intro.body) && (
+        <div className="rep__intro" role="note">
+          {intro.heading && <h2 className="rep__intro-h">{intro.heading}</h2>}
+          {intro.body && <p className="rep__intro-b">{intro.body}</p>}
+        </div>
+      )}
       {insertZone(0)}
       {steps.map((s, idx) => (
         <React.Fragment key={s.id}>

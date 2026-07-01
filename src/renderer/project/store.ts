@@ -5,6 +5,7 @@ import type {
   ProjectManifest,
   ProjectStep,
   SopBackup,
+  SopIntro,
 } from '../../shared/project';
 
 interface ProjectState {
@@ -14,6 +15,8 @@ interface ProjectState {
   projectPath: string | null;
   title: string;
   steps: ProjectStep[];
+  /** SOP overview preamble (rendered above the steps, not as a step). */
+  intro: SopIntro | null;
   /** Pre-edit snapshot when Claude's inline SOP edits are applied; enables revert. */
   sopBackup: SopBackup | null;
   /** Manifest updatedAt — also used to cache-bust re-saved flattened renders. */
@@ -47,6 +50,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   projectPath: null,
   title: '',
   steps: [],
+  intro: null,
   sopBackup: null,
   updatedAt: '',
   selectedStepId: null,
@@ -63,6 +67,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         projectPath,
         title: manifest.title,
         steps: manifest.steps,
+        intro: manifest.intro,
         sopBackup: manifest.sopBackup,
         updatedAt: manifest.updatedAt,
         selectedStepId: null,
@@ -80,6 +85,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         projectPath: null,
         title: '',
         steps: [],
+        intro: null,
         sopBackup: null,
         updatedAt: '',
         selectedStepId: null,
@@ -95,6 +101,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       projectPath,
       title: manifest.title,
       steps: manifest.steps,
+      intro: manifest.intro,
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       selectedStepId: null,
@@ -108,6 +115,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       projectPath: null,
       title: '',
       steps: [],
+      intro: null,
       sopBackup: null,
       updatedAt: '',
       selectedStepId: null,
@@ -120,6 +128,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
     set({
       steps: manifest.steps,
       title: manifest.title,
+      intro: manifest.intro,
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
     }),

@@ -283,12 +283,24 @@ export type StepPatch = Partial<
 >;
 
 /**
+ * A leading overview for the SOP, rendered as a PREAMBLE above the steps (not a
+ * discrete/numbered step). Set by SOP generation (from the edit plan's intro),
+ * restored by revert.
+ */
+export interface SopIntro {
+  heading: string;
+  body: string;
+}
+
+/**
  * Pre-generation snapshot for one-click revert of Claude's inline SOP edits.
  * Captured right before an edit plan is applied; cleared on revert.
  */
 export interface SopBackup {
   steps: ProjectStep[];
   title: string;
+  /** The intro at snapshot time, so revert restores the pre-AI preamble too. */
+  intro: SopIntro | null;
   /** Model + tone the (subsequent) generation used — for the "Revert" provenance label. */
   model: string;
   tone: SopTone;
@@ -309,6 +321,8 @@ export interface ProjectManifest {
   updatedAt: string; // ISO 8601
   captureSettings: CaptureTarget | null;
   steps: ProjectStep[];
+  /** SOP overview rendered as a preamble above the steps (not a step). */
+  intro: SopIntro | null;
   /** Pre-edit snapshot enabling revert of Claude's inline SOP edits (Phase 3). */
   sopBackup: SopBackup | null;
 }

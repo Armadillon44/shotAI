@@ -1014,6 +1014,26 @@ body {
 }
 
 /* In-app report (step list with screenshots + click markers) */
+/* SOP overview preamble (E4) — a lead-in above the steps, NOT a numbered step. */
+.rep__intro {
+  margin: 0 auto 0.4rem;
+  max-width: 880px;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--hair);
+  border-left: 4px solid var(--accent, #4f46e5);
+  border-radius: var(--radius);
+  background: #f8f9fc;
+}
+.rep__intro-h {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+.rep__intro-b {
+  margin: 0;
+  color: var(--ink-2, #374151);
+  white-space: pre-wrap;
+}
+
 .rep {
   list-style: none;
   /* Centered column at any window width (the sticky detail bar stays full-bleed). */

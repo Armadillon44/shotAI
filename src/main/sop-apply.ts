@@ -50,10 +50,19 @@ export function applySopEdits(
     const backup: SopBackup = manifest.sopBackup ?? {
       steps: structuredClone(manifest.steps),
       title: manifest.title,
+      intro: manifest.intro,
       model: provenance.model,
       tone: provenance.tone,
       at: new Date().toISOString(),
     };
+
+    // The overview is a PREAMBLE, not a step (E4): store it on the manifest and
+    // render it above the steps. A fresh generate replaces it (or clears it if
+    // the model returned none).
+    manifest.intro =
+      plan.intro && (plan.intro.heading || plan.intro.body)
+        ? { heading: plan.intro.heading, body: plan.intro.body }
+        : null;
 
     // Rebuild from the non-AI base (current steps minus a prior run's inserts),
     // matching the numbering assembleRequest showed Claude. Author text steps and
@@ -61,9 +70,6 @@ export function applySopEdits(
     const base = manifest.steps.filter((s) => !s.aiInserted);
     const editByNum = new Map(plan.steps.map((e) => [e.stepNumber, e]));
     const next: ProjectStep[] = [];
-    if (plan.intro && (plan.intro.heading || plan.intro.body)) {
-      next.push(makeTextStep(plan.intro.heading, plan.intro.body, true));
-    }
     base.forEach((step, idx) => {
       // Author text steps pass through; edits only apply to SHOT steps (so an
       // edit mis-keyed to a text step's number is simply ignored).
@@ -107,6 +113,7 @@ export function revertSop(projectPath: string): Promise<ProjectManifest> {
     }
     manifest.steps = normalizeSteps(manifest.sopBackup.steps);
     manifest.title = manifest.sopBackup.title;
+    manifest.intro = manifest.sopBackup.intro;
     manifest.sopBackup = null;
   });
 }
