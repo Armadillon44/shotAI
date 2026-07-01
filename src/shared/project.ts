@@ -204,6 +204,11 @@ export type StepKind = 'shot' | 'text';
  *  (yellow), warning (red). Absent = a plain text step. */
 export type CalloutKind = 'note' | 'caution' | 'warning';
 
+/** True if `v` is a valid callout kind (used to validate patches at the boundary). */
+export function isCalloutKind(v: unknown): v is CalloutKind {
+  return v === 'note' || v === 'caution' || v === 'warning';
+}
+
 export interface ProjectStep {
   id: string;
   order: number;
@@ -272,7 +277,6 @@ export type StepPatch = Partial<
     | 'note'
     | 'heading'
     | 'body'
-    | 'callout'
     | 'kind'
     | 'crop'
     | 'annotations'
@@ -283,7 +287,10 @@ export type StepPatch = Partial<
     | 'reportPanX'
     | 'reportPanY'
   >
->;
+> & {
+  /** Set a callout kind, or null to clear it (convert back to a plain text step). */
+  callout?: CalloutKind | null;
+};
 
 /**
  * A leading overview for the SOP, rendered as a PREAMBLE above the steps (not a

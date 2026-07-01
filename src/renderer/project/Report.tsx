@@ -19,6 +19,18 @@ const REPORT_BASE_H = 600;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 4;
 
+/** A text step styled as a callout — an annotation, NOT a numbered step (E10). */
+function isCalloutStep(s: ProjectStep): boolean {
+  return s.kind === 'text' && !!s.callout;
+}
+
+/** Rail badge glyph per callout kind (the box color already conveys the kind). */
+const CALLOUT_GLYPH: Record<CalloutKind, string> = {
+  note: 'ℹ',
+  caution: '⚠',
+  warning: '⛔',
+};
+
 function StepFigure({
   projectId,
   step,
@@ -334,6 +346,16 @@ export function Report({
     }
   }, [steps, editingTextId]);
 
+  // E10: callouts are annotations, not numbered steps. Number only NON-callout
+  // steps, contiguously 1..N; callouts get a type glyph instead of a number.
+  const displayNums = React.useMemo(() => {
+    const m = new Map<string, number>();
+    let n = 0;
+    for (const s of steps) if (!isCalloutStep(s)) m.set(s.id, ++n);
+    return m;
+  }, [steps]);
+  const numberedTotal = displayNums.size;
+
   const setZoom = async (step: ProjectStep, next: number) => {
     if (!projectPath) return;
     const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
@@ -383,7 +405,19 @@ export function Report({
   const commitNum = (idx: number, raw: string) => {
     setEditingNumId(null);
     const n = Number.parseInt(raw, 10);
-    if (Number.isFinite(n)) void reorderTo(idx, n - 1); // 1-based → 0-based
+    if (!Number.isFinite(n)) return;
+    // The badge shows a display number over non-callout steps only; map it back
+    // to the absolute array slot of that Nth non-callout step before reordering.
+    const target = Math.max(1, Math.min(n, numberedTotal));
+    let seen = 0;
+    let absTarget = steps.length - 1;
+    for (let i = 0; i < steps.length; i++) {
+      if (!isCalloutStep(steps[i]) && ++seen === target) {
+        absTarget = i;
+        break;
+      }
+    }
+    void reorderTo(idx, absTarget);
   };
 
   const saveCaption = async (step: ProjectStep, caption: string) => {
@@ -478,6 +512,19 @@ export function Report({
       );
       if (freshTextIdRef.current === step.id) freshTextIdRef.current = null;
       setEditingTextId(null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // E9: convert a text step between a plain section and a colored callout box
+  // (kind = note/caution/warning, or null to revert to plain text).
+  const setCallout = async (step: ProjectStep, callout: CalloutKind | null) => {
+    if (!projectPath || (step.callout ?? null) === callout) return;
+    try {
+      applyManifest(
+        await window.shotai.projects.updateStep(projectPath, step.id, { callout }),
+      );
     } catch {
       /* ignore */
     }
@@ -608,8 +655,8 @@ export function Report({
     );
   }
 
-  // Left rail: a drag grip + the (click-to-edit) step number. Numbered for ALL
-  // step kinds, including text steps, so the sequence reads 1..N.
+  // Left rail: a drag grip + the (click-to-edit) step number. Non-callout steps
+  // are numbered contiguously 1..N; callouts show a type glyph instead (E10).
   const rail = (s: ProjectStep, idx: number) => (
     <div className="rep__rail">
       <button
@@ -634,11 +681,19 @@ export function Report({
       >
         ⠿
       </button>
-      {editingNumId === s.id ? (
+      {isCalloutStep(s) && s.callout ? (
+        <span
+          className={`rep__num rep__num--callout rep__num--${s.callout}`}
+          title={`${s.callout} callout — not a numbered step`}
+          aria-hidden="true"
+        >
+          {CALLOUT_GLYPH[s.callout]}
+        </span>
+      ) : editingNumId === s.id ? (
         <InlineInput
-          initial={String(s.order)}
+          initial={String(displayNums.get(s.id) ?? '')}
           type="number"
-          max={steps.length}
+          max={numberedTotal}
           className="rep__num-input"
           onCommit={(v) => commitNum(idx, v)}
           onCancel={() => setEditingNumId(null)}
@@ -650,7 +705,7 @@ export function Report({
           title="Click to set this step's position"
           onClick={() => setEditingNumId(s.id)}
         >
-          {s.order}
+          {displayNums.get(s.id)}
         </button>
       )}
     </div>
@@ -676,6 +731,18 @@ export function Report({
         { label: 'Zoom out', onClick: () => void setZoom(s, (s.reportZoom ?? 1) / 1.25) },
         { label: 'Reset zoom', onClick: () => void setZoom(s, 1) },
       );
+    } else {
+      // E9: convert this text step to (or between) callout styles, or back to plain.
+      const cur = s.callout ?? null;
+      items.push({ kind: 'sep' });
+      for (const k of ['note', 'caution', 'warning'] as CalloutKind[]) {
+        if (k === cur) continue;
+        items.push({
+          label: cur ? `Change to ${k}` : `Make ${k} callout`,
+          onClick: () => void setCallout(s, k),
+        });
+      }
+      if (cur) items.push({ label: 'Convert to plain text', onClick: () => void setCallout(s, null) });
     }
     items.push(
       { kind: 'sep' },

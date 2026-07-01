@@ -1425,6 +1425,25 @@ body {
   background: #4b5563;
 }
 
+/* Callout rail badge (E10): a type glyph, not a clickable number. Color matches
+   the callout box; :hover pinned so the shared .rep__num:hover doesn't recolor it. */
+.rep__num--callout {
+  cursor: default;
+  font-size: 1.05rem;
+}
+.rep__num--note,
+.rep__num--note:hover {
+  background: #10b981;
+}
+.rep__num--caution,
+.rep__num--caution:hover {
+  background: #f59e0b;
+}
+.rep__num--warning,
+.rep__num--warning:hover {
+  background: #ef4444;
+}
+
 .rep__textheading {
   margin: 0.2rem 0 0.4rem;
   font-size: 1.05rem;

@@ -19,7 +19,7 @@ import type {
   StepKind,
   StepPatch,
 } from '../shared/project';
-import { parseRect, parsePoint } from '../shared/project';
+import { parseRect, parsePoint, isCalloutKind } from '../shared/project';
 import {
   isSopModel,
   isSopTone,
@@ -146,6 +146,9 @@ function parseStepPatch(value: unknown): StepPatch {
   if (typeof v.kind === 'string' && STEP_KINDS.has(v.kind as StepKind)) {
     patch.kind = v.kind as StepKind;
   }
+  // callout present with a valid kind → set it; present but null/invalid → clear
+  // (undefined, so the manifest drops the key rather than storing null).
+  if ('callout' in v) patch.callout = isCalloutKind(v.callout) ? v.callout : undefined;
   if ('crop' in v) patch.crop = v.crop === null ? null : parseRect(v.crop);
   if ('click' in v) patch.click = v.click === null ? null : parseClick(v.click);
   if (typeof v.markerColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.markerColor)) {
