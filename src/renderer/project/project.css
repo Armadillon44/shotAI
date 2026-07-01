@@ -1345,6 +1345,59 @@ body {
   height: auto;
 }
 
+/* Positioning context for the floating controls; sizes to the image box. */
+.rep__figbox {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Floating zoom + delete controls over the image (UX8): translucent, vertical,
+   top-right; solidify on hover/focus so they stay unobtrusive until wanted. */
+.rep__imgctl {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.3;
+  transition: opacity 0.12s ease;
+  z-index: 3;
+}
+.rep__figbox:hover .rep__imgctl,
+.rep__imgctl:focus-within {
+  opacity: 1;
+}
+.rep__imgctl-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(17, 24, 39, 0.62);
+  color: #fff;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.rep__imgctl-btn:hover:not(:disabled) {
+  background: rgba(17, 24, 39, 0.88);
+}
+.rep__imgctl-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.rep__imgctl-btn--del {
+  margin-top: 6px;
+}
+.rep__imgctl-btn--del:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.9);
+}
+
 /* Click-register marker, positioned as a fraction of the image's natural size */
 .rep__marker {
   position: absolute;

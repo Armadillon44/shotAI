@@ -35,10 +35,16 @@ function StepFigure({
   projectId,
   step,
   onReframe,
+  onZoom,
+  onDelete,
 }: {
   projectId: string;
   step: ProjectStep;
   onReframe: (step: ProjectStep, panX: number, panY: number) => void;
+  /** Set an absolute report zoom (parent clamps to the allowed range). */
+  onZoom: (next: number) => void;
+  /** Delete this step (confirmed by the parent). */
+  onDelete: () => void;
 }): React.JSX.Element {
   const [dims, setDims] = React.useState<{ w: number; h: number } | null>(null);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
@@ -116,38 +122,84 @@ function StepFigure({
 
   return (
     <figure className="rep__figure">
-      <div
-        className={`rep__imgwrap${zoom > 1 ? ' rep__imgwrap--pan' : ''}`}
-        ref={wrapRef}
-        onMouseDown={onPanStart}
-        style={dims ? { width: baseW * boxScale, height: baseH * boxScale } : undefined}
-      >
-        <div className="rep__imginner">
-          <img
-            className="rep__img"
-            src={src}
-            alt={step.caption}
-            loading="lazy"
-            draggable={false}
-            style={
-              dims
-                ? { width: baseW * zoom, height: baseH * zoom }
-                : { maxWidth: REPORT_BASE_W, maxHeight: REPORT_BASE_H }
-            }
-            onLoad={(e) =>
-              setDims({
-                w: e.currentTarget.naturalWidth,
-                h: e.currentTarget.naturalHeight,
-              })
-            }
-          />
-          {marker && step.click && (
-            <span
-              className="rep__marker"
-              style={{ ...marker, borderColor: markerColor, background: `${markerColor}2e` }}
-              aria-hidden="true"
+      {/* figbox sizes to the image box and is the positioning context for the
+          floating controls — kept OUTSIDE imgwrap so they don't scroll with the
+          pan or get clipped by its overflow:hidden. */}
+      <div className="rep__figbox">
+        <div
+          className={`rep__imgwrap${zoom > 1 ? ' rep__imgwrap--pan' : ''}`}
+          ref={wrapRef}
+          onMouseDown={onPanStart}
+          style={dims ? { width: baseW * boxScale, height: baseH * boxScale } : undefined}
+        >
+          <div className="rep__imginner">
+            <img
+              className="rep__img"
+              src={src}
+              alt={step.caption}
+              loading="lazy"
+              draggable={false}
+              style={
+                dims
+                  ? { width: baseW * zoom, height: baseH * zoom }
+                  : { maxWidth: REPORT_BASE_W, maxHeight: REPORT_BASE_H }
+              }
+              onLoad={(e) =>
+                setDims({
+                  w: e.currentTarget.naturalWidth,
+                  h: e.currentTarget.naturalHeight,
+                })
+              }
             />
-          )}
+            {marker && step.click && (
+              <span
+                className="rep__marker"
+                style={{ ...marker, borderColor: markerColor, background: `${markerColor}2e` }}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+        </div>
+        {/* Translucent zoom + delete controls, floated top-right over the image
+            (UX8). Solidify on hover/focus. */}
+        <div className="rep__imgctl">
+          <button
+            type="button"
+            className="rep__imgctl-btn"
+            title="Zoom in"
+            aria-label="Zoom in"
+            onClick={() => onZoom(zoom * 1.25)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="rep__imgctl-btn"
+            title="Zoom out"
+            aria-label="Zoom out"
+            onClick={() => onZoom(zoom / 1.25)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="rep__imgctl-btn"
+            title="Reset zoom"
+            aria-label="Reset zoom"
+            disabled={zoom === 1}
+            onClick={() => onZoom(1)}
+          >
+            ↺
+          </button>
+          <button
+            type="button"
+            className="rep__imgctl-btn rep__imgctl-btn--del"
+            title="Delete step"
+            aria-label="Delete step"
+            onClick={onDelete}
+          >
+            🗑
+          </button>
         </div>
       </div>
     </figure>
@@ -711,9 +763,9 @@ export function Report({
     </div>
   );
 
-  // Per-step controls: only Edit stays on the line; everything incidental
-  // (move / zoom / delete) lives in a ⋯ overflow. Merge is offered ONLY by the
-  // contextual banner below, not duplicated here.
+  // Per-step controls: Edit stays on the line; a ⋯ overflow holds move up/down
+  // (+ callout conversion / delete for text steps). Shots' zoom + delete float
+  // over the image (UX8). Merge is offered ONLY by the contextual banner below.
   const controls = (s: ProjectStep, idx: number) => {
     const editDisabled = s.kind === 'text' && editingTextId !== null;
     const items: MenuItem[] = [
@@ -724,14 +776,7 @@ export function Report({
         disabled: idx === steps.length - 1,
       },
     ];
-    if (s.kind !== 'text') {
-      items.push(
-        { kind: 'sep' },
-        { label: 'Zoom in', onClick: () => void setZoom(s, (s.reportZoom ?? 1) * 1.25) },
-        { label: 'Zoom out', onClick: () => void setZoom(s, (s.reportZoom ?? 1) / 1.25) },
-        { label: 'Reset zoom', onClick: () => void setZoom(s, 1) },
-      );
-    } else {
+    if (s.kind === 'text') {
       // E9: convert this text step to (or between) callout styles, or back to plain.
       const cur = s.callout ?? null;
       items.push({ kind: 'sep' });
@@ -743,11 +788,13 @@ export function Report({
         });
       }
       if (cur) items.push({ label: 'Convert to plain text', onClick: () => void setCallout(s, null) });
+      // Text steps have no image, so Delete lives here; shots delete via the
+      // floating control over the image (UX8).
+      items.push(
+        { kind: 'sep' },
+        { label: 'Delete step', danger: true, onClick: () => void del(s) },
+      );
     }
-    items.push(
-      { kind: 'sep' },
-      { label: 'Delete step', danger: true, onClick: () => void del(s) },
-    );
     return (
       <div className="rep__ctl">
         <button
@@ -889,7 +936,13 @@ export function Report({
                   </button>
                 </div>
               )}
-              <StepFigure projectId={projectId} step={s} onReframe={reframe} />
+              <StepFigure
+                projectId={projectId}
+                step={s}
+                onReframe={reframe}
+                onZoom={(z) => void setZoom(s, z)}
+                onDelete={() => void del(s)}
+              />
               {editingBodyId === s.id ? (
                 <InlineTextarea
                   initial={s.body ?? ''}
