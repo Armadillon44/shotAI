@@ -8,11 +8,12 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow, nativeImage, shell } from 'electron';
 import type { CalloutKind, ProjectManifest } from '../shared/project';
 import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
+import { zoomCropRect } from './export-geometry';
 import { mainLog } from './logger';
 
 // Windows/macOS filesystem-reserved characters + device names. Used to derive a
@@ -79,8 +80,35 @@ type ExportItem =
       mediaType: 'image/png' | 'image/jpeg';
       ext: string;
       stepId: string;
+      /**
+       * Pre-cropped image bytes to embed INSTEAD of reading `abs`, produced when
+       * the step is zoomed in the report (reportZoom > 1) so the export matches
+       * the on-screen framing. Always PNG. Absent → builders read `abs` verbatim.
+       */
+      bytes?: Buffer;
     }
   | { kind: 'text'; heading: string; body: string; callout?: CalloutKind };
+
+/**
+ * Reproduce the report's per-step zoom/pan as a static crop of `abs` (the ALREADY
+ * redaction-baked sendable render — we only ever crop it SMALLER, never expose raw
+ * pixels). Returns cropped PNG bytes, or null to embed the full image unchanged
+ * (zoom <= 1, an unreadable image, or a degenerate crop). The visible-window math
+ * lives in export-geometry.ts (pure + unit-tested); here we just apply it.
+ */
+function zoomCropPng(
+  abs: string,
+  zoom: number,
+  panX: number,
+  panY: number,
+): Buffer | null {
+  const img = nativeImage.createFromPath(abs);
+  const { width, height } = img.getSize();
+  const rect = zoomCropRect(width, height, zoom, panX, panY);
+  if (!rect) return null; // whole image, as displayed
+  const png = img.crop(rect).toPNG();
+  return png && png.length > 0 ? png : null; // fail open to full image
+}
 
 /**
  * Resolve the project's steps into an ordered export list. Shot steps are
@@ -116,6 +144,10 @@ async function collectSteps(
           `Open it in the editor and save to re-bake the render, then export again.`,
       );
     }
+    // Honor the report's per-step zoom/pan: crop the sendable render to the same
+    // visible window so the export matches what's on screen. Falls back to the
+    // full image (bytes undefined) when the step isn't zoomed.
+    const cropped = zoomCropPng(abs, step.reportZoom ?? 1, step.reportPanX ?? 0.5, step.reportPanY ?? 0.5);
     items.push({
       kind: 'shot',
       n: shotNo,
@@ -123,9 +155,11 @@ async function collectSteps(
       body: (step.body ?? '').trim(),
       note: (step.note ?? '').trim(),
       abs,
-      mediaType,
-      ext: ext || '.png',
+      // A crop is re-encoded as PNG regardless of the source media type.
+      mediaType: cropped ? 'image/png' : mediaType,
+      ext: cropped ? '.png' : ext || '.png',
       stepId: step.id,
+      ...(cropped ? { bytes: cropped } : {}),
     });
   }
   if (items.length === 0) {
@@ -184,7 +218,7 @@ async function buildHtmlDoc(
       parts.push(`<section class="section">${h}${b}</section>`);
       continue;
     }
-    const bytes = await fs.readFile(it.abs);
+    const bytes = it.bytes ?? (await fs.readFile(it.abs));
     const dataUri = `data:${it.mediaType};base64,${bytes.toString('base64')}`;
     const title = escapeHtml(it.caption || `Step ${it.n}`);
     const instr = it.body ? `<p class="step__instr">${escapeHtml(it.body)}</p>` : '';
@@ -256,7 +290,7 @@ async function buildPlainHtmlDoc(
       if (it.body) parts.push(`<p>${br(it.body)}</p>`);
       continue;
     }
-    const bytes = await fs.readFile(it.abs);
+    const bytes = it.bytes ?? (await fs.readFile(it.abs));
     const dataUri = `data:${it.mediaType};base64,${bytes.toString('base64')}`;
     parts.push(`<h2>${it.n}. ${escapeHtml(it.caption || `Step ${it.n}`)}</h2>`);
     parts.push(`<p><img src="${dataUri}" alt="Screenshot for step ${it.n}"></p>`);
@@ -364,7 +398,8 @@ async function buildMarkdown(
       continue;
     }
     const imgName = `step-${String(it.n).padStart(2, '0')}-${it.stepId}${it.ext}`;
-    await fs.copyFile(it.abs, path.join(imagesDir, imgName));
+    if (it.bytes) await fs.writeFile(path.join(imagesDir, imgName), it.bytes);
+    else await fs.copyFile(it.abs, path.join(imagesDir, imgName));
     const heading = (it.caption || `Step ${it.n}`).replace(/\s*\n\s*/g, ' ');
     lines.push(`## ${it.n}. ${escapeMarkdown(heading)}`, '');
     // Angle-bracket the path: the serialized stem may contain spaces/parens.

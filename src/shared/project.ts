@@ -254,7 +254,10 @@ export interface ProjectStep {
    * and `ensureFlattened` re-bakes the render so the marker lands in it.
    */
   markerBaked?: boolean;
-  /** Per-step DISPLAY zoom in the report (default 1); does not affect export. */
+  /**
+   * Per-step zoom in the report (default 1). Zoom > 1 magnifies + pans a
+   * sub-region; export crops the render to the same window so it matches.
+   */
   reportZoom?: number;
   /** Report pan as a fraction 0..1 of the pannable range (0.5 = centered). */
   reportPanX?: number;
