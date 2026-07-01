@@ -237,26 +237,21 @@
   justify-content: center;
 }
 
-/* Text entry (Electron has no window.prompt()). Lives in the .ed__props bar now
-   (E2) so it doesn't add a stacked banner that squishes the canvas; these style
-   the label + field rendered there for both Add and Edit. */
-.ed__textlabel {
-  font-size: 0.8rem;
-  font-weight: 650;
-  color: #3730a3;
-  white-space: nowrap;
-}
-
-.ed__textfield {
-  flex: 1;
-  min-width: 0;
-  padding: 0.4rem 0.55rem;
-  border: 1px solid #cbd1d9;
-  border-radius: 6px;
-  font-size: 0.95rem;
-}
-
-.ed__textfield:focus {
-  outline: 2px solid #c7d2fe;
-  border-color: #4f46e5;
+/* Inline on-canvas text editor (E7): an input overlaid on the stage at the
+   text's position, so you type directly where the text lands. Transparent-ish
+   fill + dashed outline signals "editing here"; font-size/color are set inline
+   (JS) to match the annotation, scaled to the current zoom. */
+.ed__textedit {
+  position: absolute;
+  z-index: 45;
+  margin: 0;
+  padding: 0 1px;
+  border: 0;
+  outline: 1px dashed #4f46e5;
+  background: rgba(255, 255, 255, 0.14);
+  line-height: 1;
+  /* Match Konva Text's default font so the overlay lines up with the baked text. */
+  font-family: Arial, sans-serif;
+  white-space: pre;
+  caret-color: #4f46e5;
 }
