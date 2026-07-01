@@ -97,6 +97,7 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.claudeEstimate, projectPath),
     generateSop: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.claudeGenerateSop, projectPath),
+    cancel: () => ipcRenderer.send(IpcChannels.claudeCancel),
     onSopProgress: (cb: (p: SopProgress) => void) => {
       const listener = (_e: IpcRendererEvent, p: SopProgress) => cb(p);
       ipcRenderer.on(IpcChannels.claudeSopProgress, listener);

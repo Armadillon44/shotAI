@@ -174,10 +174,15 @@
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
-  /* `safe` so a zoomed (overflowing) stage can scroll to its top-left edge */
-  align-items: safe center;
+  /* Top-anchor so a width-filled image (T1) starts at the top and scrolls DOWN;
+     `safe` keeps the start edge reachable when a zoomed stage overflows. */
+  align-items: safe flex-start;
   justify-content: safe center;
   overflow: auto;
+  /* Reserve the scrollbar gutter so the vertical scrollbar appearing/disappearing
+     doesn't change clientWidth — which otherwise feeds back through the
+     ResizeObserver->viewport->stage-size loop and makes the image pulse (B3). */
+  scrollbar-gutter: stable both-edges;
   border: 1px solid #e3e6ea;
   border-radius: 8px;
   /* checkerboard so transparent/edges are legible */

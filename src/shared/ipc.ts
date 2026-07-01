@@ -115,6 +115,7 @@ export const IpcChannels = {
   claudeTestKey: 'claude:test-key',
   claudeEstimate: 'claude:estimate',
   claudeGenerateSop: 'claude:generate-sop',
+  claudeCancel: 'claude:cancel',
   revertSop: 'projects:revert-sop',
   // main -> renderer: SOP generation progress
   claudeSopProgress: 'claude:sop-progress',
@@ -249,6 +250,8 @@ export interface ShotaiApi {
      * Returns the updated manifest. Progress arrives via onSopProgress.
      */
     generateSop(projectPath: string): Promise<ProjectManifest>;
+    /** Abort an in-flight estimate/generateSop (fire-and-forget). */
+    cancel(): void;
     /** Subscribe to SOP generation progress; returns an unsubscribe function. */
     onSopProgress(cb: (p: SopProgress) => void): () => void;
   };

@@ -272,23 +272,33 @@ export function Editor({
   }, [projectId, step.screenshot]);
 
   // Measure the canvas container so the stage fills the available window space.
+  // Width comes from the scroll container (.ed__canvas — its clientWidth is
+  // stabilized by scrollbar-gutter), but HEIGHT comes from the NON-scrolling
+  // wrap: a horizontal scrollbar on .ed__canvas shrinks its clientHeight, which
+  // otherwise feeds back through viewport->stage-size and pulses the image in
+  // crop-view fit mode (B3). The wrap never scrolls, so its height is stable.
   React.useEffect(() => {
     const el = canvasRef.current;
-    if (!el) return;
+    const wrap = canvasWrapRef.current;
+    if (!el || !wrap) return;
     const measure = () => {
       const w = Math.floor(el.clientWidth);
-      const h = Math.floor(el.clientHeight);
+      const h = Math.floor(wrap.clientHeight);
       if (w > 0 && h > 0) setViewport({ w, h });
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    ro.observe(wrap);
     return () => ro.disconnect();
   }, []);
 
   const natW = img?.naturalWidth ?? 0;
   const natH = img?.naturalHeight ?? 0;
-  const scale = natW && natH ? Math.min(viewport.w / natW, viewport.h / natH, 1) : 1;
+  // Fit-to-WIDTH by default (T1): the image fills the canvas horizontally even
+  // when that makes it overflow vertically (scroll down). Contain-fit (min of
+  // both ratios) was shrinking tall screenshots to fit the height.
+  const scale = natW && natH ? viewport.w / natW : 1;
   const markerR = natW && natH ? clickMarkerRadius(natW, natH) : 20;
   // Stage transform: the visible region (whole image, or — when crop is applied
   // in-line — just the crop) fit to the canvas, times the editing zoom. Pointer

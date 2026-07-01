@@ -14,7 +14,7 @@ import { OverflowMenu, type MenuItem } from './OverflowMenu';
 export type InsertKind = 'text' | 'image' | 'shot' | CalloutKind;
 
 // Base display box for report images (display only — export is full-res).
-const REPORT_BASE_W = 800;
+const REPORT_BASE_W = 820;
 const REPORT_BASE_H = 600;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 4;
@@ -356,6 +356,7 @@ export function Report({
   const projectPath = useProjectStore((s) => s.projectPath);
   const steps = useProjectStore((s) => s.steps);
   const intro = useProjectStore((s) => s.intro);
+  const manifestRev = useProjectStore((s) => s.manifestRev);
   const applyManifest = useProjectStore((s) => s.applyManifest);
   const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
   const [editingIntro, setEditingIntro] = React.useState(false);
@@ -387,16 +388,26 @@ export function Report({
     onEditingChange?.(editingTextId !== null);
   }, [editingTextId, onEditingChange]);
 
-  // If the step being edited disappears (reorder/merge/SOP-gen reloads the
-  // manifest with new ids), clear the stale editing id — otherwise no editor
-  // renders yet every text step's Edit button stays disabled (looks like "can't
-  // edit any text step").
+  // Reconcile inline-edit state whenever the manifest is REPLACED (B4). A stale
+  // editingTextId is the single gate for opening ANY callout/text editor, so if
+  // it lingers after a delete/SOP-gen the user can't edit anything until they
+  // reopen the project. An "id vanished" check isn't enough: author callouts keep
+  // their id across SOP-gen/delete/reorder. So on every manifest swap, drop all
+  // transient edit latches — but preserve a genuinely-open fresh-add draft (the
+  // "+ Text/callout → auto-open" session), identified by freshTextIdRef.
   React.useEffect(() => {
-    if (editingTextId && !steps.some((s) => s.id === editingTextId)) {
-      setEditingTextId(null);
+    const fresh = freshTextIdRef.current;
+    if (fresh && steps.some((s) => s.id === fresh)) {
+      setEditingTextId(fresh); // keep the open fresh-add draft (idempotent)
+    } else {
       freshTextIdRef.current = null;
+      setEditingTextId(null);
     }
-  }, [steps, editingTextId]);
+    setEditingCapId(null);
+    setEditingNumId(null);
+    setEditingBodyId(null);
+    setInsertMenuAt(null);
+  }, [manifestRev, steps]);
 
   // E10: callouts are annotations, not numbered steps. Number only NON-callout
   // steps, contiguously 1..N; callouts get a type glyph instead of a number.

@@ -58,10 +58,14 @@ export async function mergeStepInto(
     let mx: number;
     let my: number;
     if (keep.click) {
-      const originX = keep.click.global.x - keep.click.image.x;
-      const originY = keep.click.global.y - keep.click.image.y;
-      mx = drop.click.global.x - originX;
-      my = drop.click.global.y - originY;
+      // keep.click.image is in keep's stored (downscaled) pixels: image =
+      // (global - origin) * scale. Recover origin, then map drop's global click
+      // into keep's SAME downscaled space (T2). scale defaults to 1 for old shots.
+      const ks = keep.click.imageScale ?? 1;
+      const originX = keep.click.global.x - keep.click.image.x / ks;
+      const originY = keep.click.global.y - keep.click.image.y / ks;
+      mx = (drop.click.global.x - originX) * ks;
+      my = (drop.click.global.y - originY) * ks;
     } else {
       // keep has no click metadata to anchor to — fall back to drop's own image
       // coords (best-effort; usually still in-frame since menus open at the cursor).

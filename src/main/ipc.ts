@@ -23,6 +23,7 @@ import { parseRect, parsePoint, isCalloutKind } from '../shared/project';
 import {
   isSopModel,
   isSopTone,
+  isSopEffort,
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../shared/sop';
@@ -33,6 +34,7 @@ import {
   testKey as claudeTestKey,
   estimate as claudeEstimate,
   generateSop as claudeGenerateSop,
+  cancelClaude,
 } from './claude-service';
 import { ipcLog } from './logger';
 
@@ -114,7 +116,19 @@ function parseClick(value: unknown): StepClick | null {
     typeof c.radius === 'number' && Number.isFinite(c.radius) && c.radius > 0
       ? c.radius
       : undefined;
-  return { global, image, button, ...(radius != null ? { radius } : {}) };
+  // Preserve the capture-time downscale factor (T2) across editor saves — the
+  // editor spreads it back in step.click, and merge.ts needs it to recover origin.
+  const imageScale =
+    typeof c.imageScale === 'number' && Number.isFinite(c.imageScale) && c.imageScale > 0
+      ? c.imageScale
+      : undefined;
+  return {
+    global,
+    image,
+    button,
+    ...(radius != null ? { radius } : {}),
+    ...(imageScale != null ? { imageScale } : {}),
+  };
 }
 
 const EXPORT_FORMATS = ['html', 'html-plain', 'pdf', 'markdown'] as const satisfies readonly ExportFormat[];
@@ -182,6 +196,7 @@ function parseSopPatch(value: unknown): Partial<SopSettings> {
   if (typeof v.enabled === 'boolean') patch.enabled = v.enabled;
   if (isSopModel(v.model)) patch.model = v.model;
   if (isSopTone(v.tone)) patch.tone = v.tone;
+  if (isSopEffort(v.effort)) patch.effort = v.effort;
   if (typeof v.customInstructions === 'string') {
     patch.customInstructions = v.customInstructions.slice(0, SOP_CUSTOM_INSTRUCTIONS_MAX);
   }
@@ -501,6 +516,12 @@ export function registerIpcHandlers(
       });
     },
   );
+  // Fire-and-forget cancel (mirrors region:cancel): aborts the in-flight estimate
+  // or generateSop request so the renderer's Cancel button can stop it.
+  ipcMain.on(IpcChannels.claudeCancel, () => {
+    devLog('ipc: claude:cancel');
+    cancelClaude();
+  });
 
   ipcMain.handle(
     IpcChannels.captureStart,

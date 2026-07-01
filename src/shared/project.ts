@@ -94,11 +94,17 @@ export interface CapturedMonitor {
 export interface StepClick {
   /** Click position in global (virtual-desktop) coordinates. */
   global: Point;
-  /** Click position relative to the captured screenshot (calibration pending). */
+  /** Click position relative to the captured screenshot (in stored-PNG pixels). */
   image: Point;
   button: 'left' | 'right' | 'middle' | 'other';
   /** Click-marker ring radius (image px). Omitted = derive from image size. */
   radius?: number;
+  /**
+   * Factor the stored screenshot was downscaled by at capture time (T2), so
+   * `image` is in the DOWNSCALED pixel space. Recovering the capture origin from
+   * global/image (merge.ts) must account for it. Absent = 1 (older/unscaled shots).
+   */
+  imageScale?: number;
 }
 
 /** UI element at the click point — forward-compat; populated in Phase 4. */

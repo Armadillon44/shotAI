@@ -44,6 +44,11 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
   const [estimate, setEstimate] = React.useState<SopEstimate | null>(null);
   const [progress, setProgress] = React.useState<SopProgress | null>(null);
   const [hasKey, setHasKey] = React.useState(false);
+  // Abort the pre-send flatten (renderer) alongside the main-side estimate when
+  // the user cancels; canceledRef suppresses the resulting rejection so no error
+  // banner flashes for a user-initiated cancel (C2).
+  const flattenAbortRef = React.useRef<AbortController | null>(null);
+  const canceledRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!sopEnabled) return;
@@ -76,17 +81,36 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
     }
     setError(null);
     setEstimate(null);
+    canceledRef.current = false;
+    const controller = new AbortController();
+    flattenAbortRef.current = controller;
     setPhase('preparing');
     try {
-      const flattened = await ensureFlattened(projectId, projectPath, steps);
+      const flattened = await ensureFlattened(projectId, projectPath, steps, controller.signal);
+      if (canceledRef.current) return setPhase('idle');
       if (flattened) applyManifest(flattened);
       const est = await window.shotai.claude.estimate(projectPath);
+      // The cancel path is fire-and-forget, so estimate() may still RESOLVE after
+      // the user cancels (e.g. the request finished first). Don't pop the review
+      // modal in that case — honor the cancel.
+      if (canceledRef.current) return setPhase('idle');
       setEstimate(est);
       setPhase('review');
     } catch (e) {
-      fail(e);
+      if (!canceledRef.current) fail(e); // swallow a user-initiated cancel
       setPhase('idle');
+    } finally {
+      if (flattenAbortRef.current === controller) flattenAbortRef.current = null;
     }
+  };
+
+  // Cancel the "Preparing and Estimating AI Cost" step: abort the flatten AND the
+  // main-side estimate; startGenerate's catch is suppressed via canceledRef.
+  const cancelPrepare = () => {
+    canceledRef.current = true;
+    flattenAbortRef.current?.abort();
+    window.shotai.claude.cancel();
+    setPhase('idle');
   };
 
   const runGenerate = async () => {
@@ -156,12 +180,6 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
             ↩ Revert AI edits
           </button>
         )}
-        {phase === 'preparing' && (
-          <span className="sopbar__prep" aria-live="polite">
-            <span className="sop__spinner sop__spinner--sm" aria-hidden="true" />
-            Preparing the request…
-          </span>
-        )}
         {provenance && phase === 'idle' && (
           <span className="sopbar__prov">{provenance}</span>
         )}
@@ -169,6 +187,23 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
           <span className="sopbar__hint">Set an API key in ⚙ Settings to generate.</span>
         )}
       </div>
+
+      {phase === 'preparing' && createPortal(
+        <div
+          className="sop__overlay sop__overlay--top"
+          role="dialog"
+          aria-label="Preparing and estimating AI cost"
+        >
+          <div className="sop__prepcard" aria-live="polite">
+            <span className="sop__spinner sop__spinner--sm" aria-hidden="true" />
+            <span className="sop__prepcard-text">Preparing and Estimating AI Cost…</span>
+            <button type="button" className="btn btn--small" onClick={cancelPrepare}>
+              Cancel
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {phase === 'review' && estimate && createPortal(
         <div className="sop__overlay" role="dialog" aria-label="Review before sending">

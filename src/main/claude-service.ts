@@ -210,26 +210,49 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
   };
 }
 
+// Tracks the in-flight estimate/generateSop request so the renderer's Cancel
+// button can abort the underlying HTTP mid-flight (the SDK honors the signal).
+let currentRun: AbortController | null = null;
+
+/** Abort any in-flight estimate/generateSop request (renderer Cancel button). */
+export function cancelClaude(): void {
+  currentRun?.abort();
+  currentRun = null;
+}
+
 /** Estimate input tokens + cost for generating this project's SOP (review screen). */
 export async function estimate(projectPath: string): Promise<SopEstimate> {
-  const settings = await getSopSettings();
-  if (!settings.enabled) throw new Error('AI SOP generation is turned off.');
-  const key = await getApiKey();
-  if (!key) throw new Error('No API key set.');
-  const { system, messages } = await assembleRequest(projectPath);
-  const client = makeClient(key);
-  const params = MODEL_PARAMS[settings.model];
-  let inputTokens: number;
+  // Register the abort controller BEFORE the pre-request awaits (assembleRequest
+  // reads + base64-encodes every screenshot — a real cancel window). The outer
+  // try/finally guarantees currentRun is cleared; the inner catch keeps the
+  // friendly-error mapping around the network call only.
+  const controller = new AbortController();
+  currentRun = controller;
   try {
-    const r = await client.messages.countTokens({ model: settings.model, system, messages });
-    inputTokens = r.input_tokens;
-  } catch (e) {
-    throw new Error(friendlyError(e));
+    const settings = await getSopSettings();
+    if (!settings.enabled) throw new Error('AI SOP generation is turned off.');
+    const key = await getApiKey();
+    if (!key) throw new Error('No API key set.');
+    const { system, messages } = await assembleRequest(projectPath);
+    const client = makeClient(key);
+    const params = MODEL_PARAMS[settings.model];
+    let inputTokens: number;
+    try {
+      const r = await client.messages.countTokens(
+        { model: settings.model, system, messages },
+        { signal: controller.signal },
+      );
+      inputTokens = r.input_tokens;
+    } catch (e) {
+      throw new Error(friendlyError(e));
+    }
+    const estCostUsd =
+      (inputTokens / 1e6) * params.inputPerMTok +
+      (EST_OUTPUT_TOKENS / 1e6) * params.outputPerMTok;
+    return { inputTokens, model: settings.model, estCostUsd };
+  } finally {
+    if (currentRun === controller) currentRun = null;
   }
-  const estCostUsd =
-    (inputTokens / 1e6) * params.inputPerMTok +
-    (EST_OUTPUT_TOKENS / 1e6) * params.outputPerMTok;
-  return { inputTokens, model: settings.model, estCostUsd };
 }
 
 /**
@@ -259,18 +282,23 @@ export async function generateSop(
   // structured-output parse and REJECTS on truncated JSON before we can read
   // msg.stop_reason, so we capture it from the message_delta event too.
   let stopReason: string | null = null;
+  const controller = new AbortController();
+  currentRun = controller;
   try {
-    const stream = client.messages.stream({
-      model: settings.model,
-      max_tokens: params.maxTokens,
-      system,
-      messages,
-      output_config: {
-        format: zodOutputFormat(SopEditSchema),
-        ...(params.supportsEffort ? { effort: settings.effort } : {}),
+    const stream = client.messages.stream(
+      {
+        model: settings.model,
+        max_tokens: params.maxTokens,
+        system,
+        messages,
+        output_config: {
+          format: zodOutputFormat(SopEditSchema),
+          ...(params.supportsEffort ? { effort: settings.effort } : {}),
+        },
+        ...(params.thinking ? { thinking: params.thinking } : {}),
       },
-      ...(params.thinking ? { thinking: params.thinking } : {}),
-    });
+      { signal: controller.signal },
+    );
 
     let chars = 0;
     let lastEmit = 0;
@@ -306,6 +334,8 @@ export async function generateSop(
   } catch (e) {
     if (stopReason === 'max_tokens') throw new Error(CUTOFF_MSG);
     throw new Error(friendlyError(e));
+  } finally {
+    if (currentRun === controller) currentRun = null;
   }
 
   let gen: SopEdit;

@@ -21,6 +21,13 @@ interface ProjectState {
   sopBackup: SopBackup | null;
   /** Manifest updatedAt — also used to cache-bust re-saved flattened renders. */
   updatedAt: string;
+  /**
+   * Bumped on every manifest replacement (open / applyOpened / applyManifest).
+   * The report keys a reconciliation effect on it to drop stale inline-edit
+   * latches when steps are swapped out from under it (B4) — the edited step's id
+   * can survive SOP-gen/delete unchanged, so an id-vanished check isn't enough.
+   */
+  manifestRev: number;
   selectedStepId: string | null;
   loading: boolean;
   error: string | null;
@@ -53,6 +60,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   intro: null,
   sopBackup: null,
   updatedAt: '',
+  manifestRev: 0,
   selectedStepId: null,
   loading: false,
   error: null,
@@ -62,7 +70,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
     try {
       const { projectId, manifest } =
         await window.shotai.projects.open(projectPath);
-      set({
+      set((s) => ({
         projectId,
         projectPath,
         title: manifest.title,
@@ -70,9 +78,10 @@ export const useProjectStore = create<ProjectState>((set) => ({
         intro: manifest.intro,
         sopBackup: manifest.sopBackup,
         updatedAt: manifest.updatedAt,
+        manifestRev: s.manifestRev + 1,
         selectedStepId: null,
         loading: false,
-      });
+      }));
     } catch (e) {
       // Failed open (e.g. the project was deleted — a discarded brand-new
       // project) must NOT leave a stale project rendered: clear it so the view
@@ -96,7 +105,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   },
 
   applyOpened: (projectId, projectPath, manifest) =>
-    set({
+    set((s) => ({
       projectId,
       projectPath,
       title: manifest.title,
@@ -104,10 +113,11 @@ export const useProjectStore = create<ProjectState>((set) => ({
       intro: manifest.intro,
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
+      manifestRev: s.manifestRev + 1,
       selectedStepId: null,
       loading: false,
       error: null,
-    }),
+    })),
 
   close: () =>
     set({
@@ -125,13 +135,14 @@ export const useProjectStore = create<ProjectState>((set) => ({
   selectStep: (id) => set({ selectedStepId: id }),
 
   applyManifest: (manifest) =>
-    set({
+    set((s) => ({
       steps: manifest.steps,
       title: manifest.title,
       intro: manifest.intro,
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
-    }),
+      manifestRev: s.manifestRev + 1,
+    })),
 }));
 
 /** Build a shot:// URL for a project-relative file (e.g. "shots/step-0001.png"). */
