@@ -9,6 +9,7 @@ import type {
   ProjectStep,
   ProjectSummary,
   Rect,
+  SopIntro,
   StepPatch,
   WindowInfo,
 } from './project';
@@ -102,6 +103,7 @@ export const IpcChannels = {
   reorderSteps: 'projects:reorder-steps',
   mergeSteps: 'projects:merge-steps',
   addTextStep: 'projects:add-text-step',
+  setProjectIntro: 'projects:set-intro',
   redactScan: 'projects:redact-scan',
   exportProject: 'projects:export',
   // SOP settings + Claude key management (Phase 3)
@@ -212,6 +214,8 @@ export interface ShotaiApi {
      * renderer turns these into editable blur regions for the user to review.
      */
     redactScan(projectPath: string, stepId: string): Promise<Rect[]>;
+    /** Set (or clear, with null) the SOP overview preamble. Returns the manifest. */
+    setIntro(projectPath: string, intro: SopIntro | null): Promise<ProjectManifest>;
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
     revertSop(projectPath: string): Promise<ProjectManifest>;
     /**

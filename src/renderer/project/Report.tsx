@@ -143,16 +143,18 @@ function StepFigure({
 }
 
 function TextStepEditor({
-  step,
+  initialHeading,
+  initialBody,
   onSave,
   onCancel,
 }: {
-  step: ProjectStep;
+  initialHeading: string;
+  initialBody: string;
   onSave: (heading: string, body: string) => void;
   onCancel: () => void;
 }): React.JSX.Element {
-  const [heading, setHeading] = React.useState(step.heading ?? '');
-  const [body, setBody] = React.useState(step.body ?? '');
+  const [heading, setHeading] = React.useState(initialHeading);
+  const [body, setBody] = React.useState(initialBody);
   return (
     <div className="rep__textedit">
       <input
@@ -165,7 +167,7 @@ function TextStepEditor({
       <textarea
         className="rep__textedit-b"
         placeholder="Text…"
-        rows={4}
+        rows={3}
         value={body}
         onChange={(e) => setBody(e.target.value)}
       />
@@ -292,6 +294,7 @@ export function Report({
   const intro = useProjectStore((s) => s.intro);
   const applyManifest = useProjectStore((s) => s.applyManifest);
   const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
+  const [editingIntro, setEditingIntro] = React.useState(false);
   const [editingCapId, setEditingCapId] = React.useState<string | null>(null);
   const [editingNumId, setEditingNumId] = React.useState<string | null>(null);
   // Per-screenshot instruction text (the body), editable inline under the image.
@@ -475,6 +478,21 @@ export function Report({
       );
       if (freshTextIdRef.current === step.id) freshTextIdRef.current = null;
       setEditingTextId(null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Save (or clear, when both fields are empty) the SOP overview preamble (E8).
+  const saveIntro = async (heading: string, body: string) => {
+    if (!projectPath) return;
+    const h = heading.trim();
+    const b = body.trim();
+    try {
+      applyManifest(
+        await window.shotai.projects.setIntro(projectPath, h || b ? { heading: h, body: b } : null),
+      );
+      setEditingIntro(false);
     } catch {
       /* ignore */
     }
@@ -706,7 +724,8 @@ export function Report({
           {s.kind === 'text' ? (
             editingTextId === s.id ? (
               <TextStepEditor
-                step={s}
+                initialHeading={s.heading ?? ''}
+                initialBody={s.body ?? ''}
                 onSave={(h, b) => void saveText(s, h, b)}
                 onCancel={() => void cancelText(s)}
               />
@@ -843,13 +862,43 @@ export function Report({
     );
   };
 
+  const hasIntro = !!(intro && (intro.heading || intro.body));
   return (
     <div className="rep" role="list">
-      {intro && (intro.heading || intro.body) && (
-        <div className="rep__intro" role="note">
-          {intro.heading && <h2 className="rep__intro-h">{intro.heading}</h2>}
-          {intro.body && <p className="rep__intro-b">{intro.body}</p>}
+      {editingIntro ? (
+        <div className="rep__intro">
+          <TextStepEditor
+            initialHeading={intro?.heading ?? ''}
+            initialBody={intro?.body ?? ''}
+            onSave={(h, b) => void saveIntro(h, b)}
+            onCancel={() => setEditingIntro(false)}
+          />
         </div>
+      ) : hasIntro ? (
+        <div className="rep__intro" role="note">
+          <div className="rep__intro-actions">
+            <button type="button" className="btn btn--small" onClick={() => setEditingIntro(true)}>
+              Edit overview
+            </button>
+            <button
+              type="button"
+              className="btn btn--small btn--danger"
+              onClick={() => void saveIntro('', '')}
+            >
+              Remove
+            </button>
+          </div>
+          {intro?.heading && <h2 className="rep__intro-h">{intro.heading}</h2>}
+          {intro?.body && <p className="rep__intro-b">{intro.body}</p>}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="rep__addintro"
+          onClick={() => setEditingIntro(true)}
+        >
+          + Add an overview
+        </button>
       )}
       {insertZone(0)}
       {steps.map((s, idx) => (

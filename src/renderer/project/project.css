@@ -1033,6 +1033,31 @@ body {
   color: var(--ink-2, #374151);
   white-space: pre-wrap;
 }
+.rep__intro-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  margin-bottom: 0.4rem;
+}
+/* "+ Add an overview" affordance shown when there's no intro yet. */
+.rep__addintro {
+  display: block;
+  margin: 0 auto 0.4rem;
+  max-width: 880px;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  border: 1px dashed var(--hair);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-3, #6b7280);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rep__addintro:hover {
+  border-color: var(--accent, #4f46e5);
+  color: var(--ink-2, #374151);
+}
 
 .rep {
   list-style: none;
@@ -1490,6 +1515,9 @@ body {
 
 .rep__textedit-h,
 .rep__textedit-b {
+  /* Fill the editor's container width (matches the report/preamble column). */
+  width: 100%;
+  box-sizing: border-box;
   padding: 0.45rem 0.6rem;
   border: 1px solid #d1d5db;
   border-radius: 6px;
@@ -1503,9 +1531,9 @@ body {
 
 .rep__textedit-b {
   font-size: 0.95rem;
-  line-height: 1.6;
+  line-height: 1.5;
   resize: vertical;
-  min-height: 5rem;
+  min-height: 3.25rem;
 }
 
 .rep__textedit-h:focus,

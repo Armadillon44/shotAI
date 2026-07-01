@@ -474,6 +474,14 @@ export function registerIpcHandlers(
     },
   );
   ipcMain.handle(
+    IpcChannels.setProjectIntro,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, intro: unknown) => {
+      devLog('ipc: projects:set-intro');
+      // intro is coerced main-side (setProjectIntro → coerceIntro); untrusted shape is fine.
+      return projectStore.setProjectIntro(asString(projectPath, 'projectPath'), intro);
+    },
+  );
+  ipcMain.handle(
     IpcChannels.claudeEstimate,
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: claude:estimate');

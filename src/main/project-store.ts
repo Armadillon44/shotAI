@@ -392,6 +392,18 @@ export function mutate(
   return run;
 }
 
+/** Set (or clear, with a null/empty value) the SOP overview preamble (E8). The
+ *  intro is coerced from untrusted (IPC) input — a bad shape becomes null. */
+export function setProjectIntro(
+  projectPath: string,
+  intro: unknown,
+): Promise<ProjectManifest> {
+  const clean = coerceIntro(intro);
+  return mutate(projectPath, (manifest) => {
+    manifest.intro = clean;
+  });
+}
+
 /** Append a captured step to a project's manifest (serialized, atomic-ish). */
 export function addStep(projectPath: string, step: ProjectStep): Promise<void> {
   const run = writeQueue.then(async () => {
