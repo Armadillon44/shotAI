@@ -4,8 +4,10 @@
 import { app } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import * as ps from './ProjectStore';
+import * as ps from './project-store';
 import { getRecents, persistProjectsDir, setRecents } from './settings';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function dirExists(p: string): Promise<boolean> {
   return fs
@@ -32,9 +34,9 @@ export async function runSelfTest(): Promise<void> {
     );
     const shots = await dirExists(path.join(created.path, 'shots'));
     const exp = await dirExists(path.join(created.path, 'export'));
-    const created2 = await ps.createProject('Self Test Project'); // collision
-    const sanitized = await ps.createProject('Flow: A/B - C*'); // sanitization
-    const sanitizedName = path.basename(sanitized.path);
+    const created2 = await ps.createProject('Self Test Project'); // duplicate display name
+    const special = await ps.createProject('Flow: A/B - C*'); // reserved chars in title; UUID folder
+    const specialFolder = path.basename(special.path);
     const recents = await ps.listRecentProjects();
 
     console.log('[selftest] created       =', created.path);
@@ -47,18 +49,19 @@ export async function runSelfTest(): Promise<void> {
     console.log('[selftest] folder name   =', JSON.stringify(path.basename(created.path)));
     console.log('[selftest] shots/export  =', shots, exp);
     console.log('[selftest] unique folder =', created.path !== created2.path);
-    console.log('[selftest] sanitized     =', JSON.stringify(sanitizedName));
+    console.log('[selftest] special title =', JSON.stringify(special.title), 'folder', JSON.stringify(specialFolder));
     console.log('[selftest] recents       =', recents.length);
 
     const ok =
       manifest.version === 1 &&
       manifest.createdWith === 'shotAI' &&
       manifest.title === 'Self Test Project' &&
-      path.basename(created.path) === 'Self Test Project' && // spaces preserved
+      UUID_RE.test(path.basename(created.path)) && // folder is named by the project UUID
       shots &&
       exp &&
       created.path !== created2.path &&
-      sanitizedName === 'Flow AB - C' && // reserved stripped, space/hyphen kept
+      special.title === 'Flow: A/B - C*' && // reserved chars preserved verbatim in the title
+      UUID_RE.test(specialFolder) && // …while the folder stays a clean UUID
       recents.length >= 3;
     console.log(ok ? '[selftest] PASS' : '[selftest] FAIL');
   } catch (e) {

@@ -3,18 +3,19 @@
  * source for per-model request shaping and pricing — the picker only offers ids
  * from `SOP_MODELS` (shared), and a bad/unsupported id can never reach the API.
  *
- * Why a map: thinking/effort support differs by model. Today both offered models
- * take adaptive thinking + effort, but a future model where `effort` 400s would
- * declare `effort: null` here and the request shaper would simply omit it — no
- * call-site change.
+ * Why a map: thinking/effort support differs by model. The effort LEVEL is a
+ * user setting (SopSettings.effort); this map only declares whether the model
+ * accepts the `output_config.effort` param at all — a future model where effort
+ * 400s would set `supportsEffort: false` and the request shaper would omit it,
+ * no call-site change.
  */
 import type { SopModelId, SopTone } from '../shared/sop';
 
 export interface ModelParams {
   /** Adaptive thinking config, or null to omit the `thinking` param entirely. */
   thinking: { type: 'adaptive' } | null;
-  /** Effort level, or null to omit `output_config.effort`. */
-  effort: 'low' | 'medium' | 'high' | null;
+  /** Whether this model accepts `output_config.effort` (level comes from settings). */
+  supportsEffort: boolean;
   /** USD per 1M input/output tokens — feeds the pre-send cost estimate (3b). */
   inputPerMTok: number;
   outputPerMTok: number;
@@ -23,19 +24,12 @@ export interface ModelParams {
 }
 
 export const MODEL_PARAMS: Record<SopModelId, ModelParams> = {
-  'claude-sonnet-4-6': {
+  'claude-sonnet-5': {
     thinking: { type: 'adaptive' },
-    effort: 'medium',
+    supportsEffort: true,
     inputPerMTok: 3,
     outputPerMTok: 15,
     // Generous cap (streamed) so long SOPs don't truncate; thinking draws from it too.
-    maxTokens: 32000,
-  },
-  'claude-opus-4-8': {
-    thinking: { type: 'adaptive' },
-    effort: 'high',
-    inputPerMTok: 5,
-    outputPerMTok: 25,
     maxTokens: 32000,
   },
 };

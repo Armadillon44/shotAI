@@ -21,6 +21,9 @@ export function App(): React.JSX.Element {
   const onResume = () => window.shotai.capture.resume().then(setState).catch(ignore);
   const onStop = () => window.shotai.capture.stop().then(setState).catch(ignore);
   const onDiscard = () => {
+    // Native confirm here is fine: discarding ends the capture session, so the
+    // post-dialog keyboard-focus loss (B4) has no text field to affect, and the
+    // toolbar window doesn't load the in-app modal's styles.
     if (!window.confirm('Discard this capture? Steps recorded in this session will be deleted.')) {
       return;
     }

@@ -6,7 +6,8 @@ import {
   type IpcMainInvokeEvent,
 } from 'electron';
 import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
-import * as projectStore from './ProjectStore';
+import * as projectStore from './project-store';
+import { revertSop } from './sop-apply';
 import { exportProject } from './export';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
@@ -14,19 +15,18 @@ import type {
   Annotation,
   CaptureMode,
   CaptureTarget,
-  Point,
-  Rect,
   StepClick,
   StepKind,
   StepPatch,
 } from '../shared/project';
+import { parseRect, parsePoint, isCalloutKind } from '../shared/project';
 import {
   isSopModel,
   isSopTone,
+  isSopEffort,
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../shared/sop';
-import path from 'node:path';
 import { getSopSettings, setSopSettings } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
@@ -34,7 +34,8 @@ import {
   testKey as claudeTestKey,
   estimate as claudeEstimate,
   generateSop as claudeGenerateSop,
-} from './ClaudeService';
+  cancelClaude,
+} from './claude-service';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -63,6 +64,12 @@ const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFin
  * boundary). Returns undefined for a missing target (→ defaults to Auto). Only
  * keeps the fields relevant to the chosen mode.
  */
+/** Coerce capture.start's opts object from IPC (missing/invalid → all-false). */
+function parseStartOpts(value: unknown): { createdThisSession: boolean } {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  return { createdThisSession: v.createdThisSession === true };
+}
+
 function parseCaptureTarget(value: unknown): CaptureTarget | undefined {
   if (value == null) return undefined;
   if (typeof value !== 'object') throw new Error('target must be an object');
@@ -87,21 +94,6 @@ function parseCaptureTarget(value: unknown): CaptureTarget | undefined {
   return target;
 }
 
-function parseRect(value: unknown): Rect | null {
-  if (!value || typeof value !== 'object') return null;
-  const r = value as Record<string, unknown>;
-  if (isNum(r.x) && isNum(r.y) && isNum(r.width) && isNum(r.height)) {
-    return { x: r.x, y: r.y, width: r.width, height: r.height };
-  }
-  return null;
-}
-
-function parsePoint(value: unknown): Point | null {
-  if (!value || typeof value !== 'object') return null;
-  const p = value as Record<string, unknown>;
-  return isNum(p.x) && isNum(p.y) ? { x: p.x, y: p.y } : null;
-}
-
 const CLICK_BUTTONS: ReadonlySet<StepClick['button']> = new Set<StepClick['button']>([
   'left',
   'right',
@@ -124,7 +116,19 @@ function parseClick(value: unknown): StepClick | null {
     typeof c.radius === 'number' && Number.isFinite(c.radius) && c.radius > 0
       ? c.radius
       : undefined;
-  return { global, image, button, ...(radius != null ? { radius } : {}) };
+  // Preserve the capture-time downscale factor (T2) across editor saves — the
+  // editor spreads it back in step.click, and merge.ts needs it to recover origin.
+  const imageScale =
+    typeof c.imageScale === 'number' && Number.isFinite(c.imageScale) && c.imageScale > 0
+      ? c.imageScale
+      : undefined;
+  return {
+    global,
+    image,
+    button,
+    ...(radius != null ? { radius } : {}),
+    ...(imageScale != null ? { imageScale } : {}),
+  };
 }
 
 const EXPORT_FORMATS = ['html', 'html-plain', 'pdf', 'markdown'] as const satisfies readonly ExportFormat[];
@@ -156,6 +160,9 @@ function parseStepPatch(value: unknown): StepPatch {
   if (typeof v.kind === 'string' && STEP_KINDS.has(v.kind as StepKind)) {
     patch.kind = v.kind as StepKind;
   }
+  // callout present with a valid kind → set it; present but null/invalid → clear
+  // (undefined, so the manifest drops the key rather than storing null).
+  if ('callout' in v) patch.callout = isCalloutKind(v.callout) ? v.callout : undefined;
   if ('crop' in v) patch.crop = v.crop === null ? null : parseRect(v.crop);
   if ('click' in v) patch.click = v.click === null ? null : parseClick(v.click);
   if (typeof v.markerColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.markerColor)) {
@@ -189,6 +196,7 @@ function parseSopPatch(value: unknown): Partial<SopSettings> {
   if (typeof v.enabled === 'boolean') patch.enabled = v.enabled;
   if (isSopModel(v.model)) patch.model = v.model;
   if (isSopTone(v.tone)) patch.tone = v.tone;
+  if (isSopEffort(v.effort)) patch.effort = v.effort;
   if (typeof v.customInstructions === 'string') {
     patch.customInstructions = v.customInstructions.slice(0, SOP_CUSTOM_INSTRUCTIONS_MAX);
   }
@@ -424,9 +432,12 @@ export function registerIpcHandlers(
       const step = manifest.steps.find((s) => s.id === id);
       if (!step || !step.screenshot) return [];
       // OCR the ORIGINAL capture (raw pixels) — the detected rects are in image
-      // px and become editable blur regions in the renderer. dir is confined to a
-      // known project; step.screenshot is our own relative manifest path.
-      return scanForSensitiveRects(path.join(dir, step.screenshot));
+      // px and become editable blur regions in the renderer. Confine the path to
+      // the project folder before reading (a hand-edited manifest could carry a
+      // traversal screenshot path).
+      const abs = projectStore.confinePath(dir, step.screenshot);
+      if (!abs) return [];
+      return scanForSensitiveRects(abs);
     },
   );
 
@@ -477,7 +488,15 @@ export function registerIpcHandlers(
     IpcChannels.revertSop,
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: projects:revert-sop');
-      return projectStore.revertSop(asString(projectPath, 'projectPath'));
+      return revertSop(asString(projectPath, 'projectPath'));
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.setProjectIntro,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, intro: unknown) => {
+      devLog('ipc: projects:set-intro');
+      // intro is coerced main-side (setProjectIntro → coerceIntro); untrusted shape is fine.
+      return projectStore.setProjectIntro(asString(projectPath, 'projectPath'), intro);
     },
   );
   ipcMain.handle(
@@ -497,14 +516,20 @@ export function registerIpcHandlers(
       });
     },
   );
+  // Fire-and-forget cancel (mirrors region:cancel): aborts the in-flight estimate
+  // or generateSop request so the renderer's Cancel button can stop it.
+  ipcMain.on(IpcChannels.claudeCancel, () => {
+    devLog('ipc: claude:cancel');
+    cancelClaude();
+  });
 
   ipcMain.handle(
     IpcChannels.captureStart,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown, createdThisSession: unknown) => {
+    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown, opts: unknown) => {
       devLog('ipc: capture:start');
       return capture.start(asString(projectPath, 'projectPath'), {
         target: parseCaptureTarget(target),
-        createdThisSession: createdThisSession === true,
+        ...parseStartOpts(opts),
       });
     },
   );

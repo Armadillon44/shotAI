@@ -116,6 +116,8 @@ body {
   flex: 1;
   padding: 1.75rem 2rem;
   overflow-y: auto;
+  /* Anchor for the hovering .notice-stack (home/capture errors float, no shift). */
+  position: relative;
 }
 
 /* Detail/edit view: no banner above, so drop the top padding and let the
@@ -917,6 +919,8 @@ body {
 .detail {
   display: flex;
   flex-direction: column;
+  /* Anchor for the hovering .notice-stack (errors float over content here). */
+  position: relative;
 }
 
 .detail__bar {
@@ -1010,6 +1014,54 @@ body {
 }
 
 /* In-app report (step list with screenshots + click markers) */
+/* SOP overview preamble (E4) — a lead-in above the steps, NOT a numbered step.
+   width:100% (not margin:auto) so it stretches to the report column like a step
+   row — margin:auto in the flex column would shrink it to its content width. */
+.rep__intro {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 0.4rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--hair);
+  border-left: 4px solid var(--accent, #4f46e5);
+  border-radius: var(--radius);
+  background: #f8f9fc;
+}
+.rep__intro-h {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+.rep__intro-b {
+  margin: 0;
+  color: var(--ink-2, #374151);
+  white-space: pre-wrap;
+}
+.rep__intro-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  margin-bottom: 0.4rem;
+}
+/* "+ Add an overview" affordance shown when there's no intro yet. */
+.rep__addintro {
+  display: block;
+  margin: 0 auto 0.4rem;
+  max-width: 880px;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  border: 1px dashed var(--hair);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-3, #6b7280);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rep__addintro:hover {
+  border-color: var(--accent, #4f46e5);
+  color: var(--ink-2, #374151);
+}
+
 .rep {
   list-style: none;
   /* Centered column at any window width (the sticky detail bar stays full-bleed). */
@@ -1241,7 +1293,7 @@ body {
   min-width: 0;
   /* match the image's max box (REPORT_BASE_W) so the caption-row controls
      right-align to the screenshot's right edge rather than the page edge */
-  max-width: 800px;
+  max-width: 820px;
 }
 
 .rep__caption {
@@ -1291,6 +1343,67 @@ body {
 .rep__img {
   display: block;
   height: auto;
+}
+
+/* Positioning context for the floating controls; sizes to the image box. */
+.rep__figbox {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Floating zoom + delete controls over the image (UX8): translucent, vertical,
+   top-right; solidify on hover/focus so they stay unobtrusive until wanted. */
+.rep__imgctl {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.3;
+  transition: opacity 0.12s ease;
+  z-index: 3;
+  /* Idle controls must NOT be click targets. This absolutely-positioned strip is
+     the only per-shot hit-test layer; after a delete reflows the list upward its
+     cached hit rectangle can go stale and sit over a callout that shifted under
+     it, swallowing the click until a window resize forces a relayout (B4). With
+     pointer-events off until THIS figbox is hovered/focused, a stale idle rect
+     can never intercept clicks meant for another row. */
+  pointer-events: none;
+}
+.rep__figbox:hover .rep__imgctl,
+.rep__imgctl:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rep__imgctl-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(17, 24, 39, 0.62);
+  color: #fff;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.rep__imgctl-btn:hover:not(:disabled) {
+  background: rgba(17, 24, 39, 0.88);
+}
+.rep__imgctl-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.rep__imgctl-btn--del {
+  margin-top: 6px;
+}
+.rep__imgctl-btn--del:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.9);
 }
 
 /* Click-register marker, positioned as a fraction of the image's natural size */
@@ -1371,6 +1484,25 @@ body {
 
 .rep__num--text:hover {
   background: #4b5563;
+}
+
+/* Callout rail badge (E10): a type glyph, not a clickable number. Color matches
+   the callout box; :hover pinned so the shared .rep__num:hover doesn't recolor it. */
+.rep__num--callout {
+  cursor: default;
+  font-size: 1.05rem;
+}
+.rep__num--note,
+.rep__num--note:hover {
+  background: #10b981;
+}
+.rep__num--caution,
+.rep__num--caution:hover {
+  background: #f59e0b;
+}
+.rep__num--warning,
+.rep__num--warning:hover {
+  background: #ef4444;
 }
 
 .rep__textheading {
@@ -1466,6 +1598,9 @@ body {
 
 .rep__textedit-h,
 .rep__textedit-b {
+  /* Fill the editor's container width (matches the report/preamble column). */
+  width: 100%;
+  box-sizing: border-box;
   padding: 0.45rem 0.6rem;
   border: 1px solid #d1d5db;
   border-radius: 6px;
@@ -1479,9 +1614,9 @@ body {
 
 .rep__textedit-b {
   font-size: 0.95rem;
-  line-height: 1.6;
+  line-height: 1.5;
   resize: vertical;
-  min-height: 5rem;
+  min-height: 3.25rem;
 }
 
 .rep__textedit-h:focus,
@@ -1494,264 +1629,6 @@ body {
 .rep__textedit-actions {
   display: flex;
   gap: 0.5rem;
-}
-
-/* Inline editor overlay */
-.ed__overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background: rgba(15, 23, 42, 0.55);
-}
-
-.ed {
-  display: flex;
-  flex-direction: row; /* left tool rail + main column */
-  gap: 0.7rem;
-  /* Fill the overlay (minus its padding) for maximum editing workspace. */
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  padding: 0.9rem;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
-}
-
-/* Left vertical tool rail — grouped by job (draw / mark / crop), icon + label;
-   stays put while the canvas fills the rest, with zoom pinned at the base. */
-.ed__rail {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  flex: none;
-  width: 104px;
-  overflow-y: auto;
-  overflow-x: hidden; /* never a horizontal scrollbar */
-}
-
-.ed__railgroup {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.ed__raillabel {
-  font-size: var(--fs-label);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
-  padding: 0 0.2rem;
-}
-
-.ed__railspace {
-  flex: 1;
-}
-
-.ed__main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-}
-
-/* A stable top bar holds the pinned Cancel/Save (right) so Save never reflows. */
-.ed__topbar {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-/* Contextual properties — rendered only when an element is selected, so it adds
-   no permanently-reserved height (the canvas reclaims it). */
-.ed__props {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  /* Reserved, fixed height + flex:none so showing/hiding controls never
-     reflows the canvas below it. */
-  flex: none;
-  min-height: 2.5rem;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--hair);
-  border-radius: var(--radius);
-  background: #f8f9fc;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.ed__props-hint {
-  color: var(--ink-3);
-  font-size: 0.8rem;
-}
-
-/* A tool button: icon + label, full rail width. */
-.ed__tool {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  width: 100%;
-  padding: 0.4rem 0.55rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink);
-  font-size: 0.82rem;
-  cursor: pointer;
-  text-align: left;
-}
-
-.ed__tool:hover:not(:disabled) {
-  background: var(--accent-tint);
-}
-
-.ed__tool--on {
-  background: var(--accent-tint);
-  border-color: var(--accent);
-  font-weight: 600;
-  color: #3730a3;
-}
-
-.ed__tool-ico {
-  width: 1.1rem;
-  flex: none;
-  text-align: center;
-  font-size: 0.95rem;
-}
-
-.ed__spacer {
-  flex: 1;
-}
-
-/* Segmented toggle (replaces the flaky native <select> for redaction style). */
-.ed__seg {
-  display: inline-flex;
-  border: 1px solid #cbd1d9;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.ed__seg-btn {
-  padding: 0.2rem 0.6rem;
-  border: 0;
-  background: #fff;
-  color: var(--ink-2);
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-
-.ed__seg-btn--on {
-  background: var(--accent);
-  color: #fff;
-}
-
-.ed__canvas {
-  display: flex;
-  /* Absorb the remaining modal height/width so the stage fills the window. */
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  /* `safe` so a zoomed (overflowing) stage can scroll to its top-left edge */
-  align-items: safe center;
-  justify-content: safe center;
-  overflow: auto;
-  border: 1px solid #e3e6ea;
-  border-radius: 8px;
-  /* checkerboard so transparent/edges are legible */
-  background-color: #f8fafc;
-  background-image:
-    linear-gradient(45deg, #eceff3 25%, transparent 25%),
-    linear-gradient(-45deg, #eceff3 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #eceff3 75%),
-    linear-gradient(-45deg, transparent 75%, #eceff3 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
-}
-
-.ed__hint {
-  margin: 0;
-  color: #6b7280;
-  font-size: 0.8rem;
-}
-
-.ed__opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.78rem;
-  color: #4b5563;
-}
-
-.ed__opt input[type='range'] {
-  width: 90px;
-}
-
-.ed__opt--color input[type='color'] {
-  width: 30px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid #cbd1d9;
-  border-radius: 6px;
-  background: none;
-  cursor: pointer;
-}
-
-.ed__zoom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.15rem;
-  padding: 0.15rem;
-  background: #f3f4f6;
-  border-radius: var(--radius);
-}
-
-/* Zoom uses .ed__tool buttons but they must stay compact, not rail-width. */
-.ed__zoom .ed__tool {
-  width: auto;
-  padding: 0.2rem 0.4rem;
-  justify-content: center;
-}
-
-/* In-layout text entry (Electron has no window.prompt(); a focused-then-blurred
-   floating input was too fragile, so this stays put until Add/Enter/Cancel). */
-.ed__textbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid #c7d2fe;
-  border-radius: 8px;
-  background: #eef2ff;
-}
-
-.ed__textlabel {
-  font-size: 0.8rem;
-  font-weight: 650;
-  color: #3730a3;
-  white-space: nowrap;
-}
-
-.ed__textfield {
-  flex: 1;
-  min-width: 0;
-  padding: 0.4rem 0.55rem;
-  border: 1px solid #cbd1d9;
-  border-radius: 6px;
-  font-size: 0.95rem;
-}
-
-.ed__textfield:focus {
-  outline: 2px solid #c7d2fe;
-  border-color: #4f46e5;
 }
 
 /* --- Settings panel (Phase 3) --- */
@@ -2161,6 +2038,28 @@ body {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
+/* In-app confirmation dialog (useConfirm) — replaces native window.confirm so a
+   native dialog can't steal the window's keyboard focus (B4). */
+.confirm {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.confirm__msg {
+  margin: 0 0 1.1rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #1f2937;
+}
+.confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
 .sop__modal-title {
   margin: 0 0 0.5rem;
   font-size: 1.1rem;
@@ -2377,12 +2276,27 @@ body {
 }
 
 /* Inline "preparing" indicator in the SOP banner (unobtrusive) */
-.sopbar__prep {
+/* "Preparing and Estimating AI Cost" overlay (C2): a dim (translucent) backdrop
+   with a small card anchored near the top, holding a spinner + Cancel. */
+.sop__overlay--top {
+  align-items: flex-start;
+  padding-top: 4.5rem;
+}
+
+.sop__prepcard {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  color: #6b7280;
-  font-size: 0.85rem;
+  gap: 0.7rem;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 0.7rem 0.75rem 0.7rem 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+
+.sop__prepcard-text {
+  font-weight: 600;
 }
 
 .sop__spinner--sm {

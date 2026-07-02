@@ -4,9 +4,10 @@
 // API key). Best-effort + non-fatal — any failure returns [] and the manual
 // redaction gate (the editor) remains the real guarantee.
 //
-// The eng language data downloads once into userData/tessdata and is cached
-// there, so subsequent scans work offline. The worker is created lazily and
-// reused across scans.
+// The eng language data is VENDORED (vendor/tessdata/eng.traineddata.gz, the
+// LSTM `best_int` model that oem=1 uses) and shipped via forge extraResource, so
+// OCR works fully offline from first run and never fetches from the jsdelivr CDN
+// unverified. The worker is created lazily and reused across scans.
 import path from 'node:path';
 import { app } from 'electron';
 import type { Rect } from '../shared/project';
@@ -35,11 +36,21 @@ function getWorker(): Promise<OcrWorker> {
   if (workerPromise) return workerPromise;
   workerPromise = (async () => {
     const tesseract = (await import('tesseract.js')) as unknown as {
-      createWorker: (lang: string, oem: number, opts: { cachePath: string }) => Promise<OcrWorker>;
+      createWorker: (
+        lang: string,
+        oem: number,
+        opts: { cachePath: string; langPath: string; gzip: boolean },
+      ) => Promise<OcrWorker>;
     };
     const cachePath = path.join(app.getPath('userData'), 'tessdata');
-    ocrLog.info(`initializing OCR worker (lang cache: ${cachePath})`);
-    return tesseract.createWorker('eng', 1, { cachePath });
+    // Local vendored model dir (resources/tessdata when packaged; vendor/tessdata
+    // in dev). With langPath set + gzip, tesseract reads <langPath>/eng.traineddata.gz
+    // from disk and never touches the network. oem=1 ⇒ it expects the LSTM model.
+    const langPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'tessdata')
+      : path.join(app.getAppPath(), 'vendor', 'tessdata');
+    ocrLog.info(`initializing OCR worker (vendored lang: ${langPath}, cache: ${cachePath})`);
+    return tesseract.createWorker('eng', 1, { cachePath, langPath, gzip: true });
   })();
   // If init fails, clear the memo so a later scan can retry.
   workerPromise.catch(() => {

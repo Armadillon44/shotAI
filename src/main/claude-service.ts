@@ -1,8 +1,7 @@
 /**
  * ClaudeService — the main-process boundary to the Anthropic API for SOP
- * generation. Phase 3a ships the key-connectivity test plus the system-prompt /
- * request-param helpers; the actual generation (vision + structured output +
- * streaming) lands in 3b and will build on `buildSystemPrompt` + `shapeParams`.
+ * generation. Ships the key-connectivity test, the system-prompt helper
+ * (`buildSystemPrompt`), and the streaming vision/structured-output generation.
  *
  * The API key never leaves main (read here via secrets.getApiKey) and is never
  * logged. Model + tone come from the user's SOP settings.
@@ -12,14 +11,15 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 // The SDK's zod helper targets zod v4's type shape; zod 3.25 ships it at `zod/v4`.
 import { z } from 'zod/v4';
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import type { SopEditPlan, SopModelId } from '../shared/sop';
 import type { ProjectManifest } from '../shared/project';
 import type { SopEstimate, SopProgress, TestKeyResult } from '../shared/ipc';
 import { getApiKey } from './secrets';
 import { getSopSettings } from './settings';
-import { getProjectForRead, applySopEdits } from './ProjectStore';
-import { MODEL_PARAMS, TONE_PROMPT, type ModelParams } from './claude-models';
+import { getProjectForRead } from './project-store';
+import { applySopEdits } from './sop-apply';
+import { resolveSendableRender } from './render-gate';
+import { MODEL_PARAMS, TONE_PROMPT } from './claude-models';
 import { claudeLog } from './logger';
 
 /**
@@ -71,6 +71,15 @@ function friendlyError(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// Pin the Anthropic egress host. Without an explicit baseURL the SDK defaults to
+// process.env.ANTHROPIC_BASE_URL, which would let a poisoned environment redirect
+// the API key (x-api-key header) AND the captured screenshots to an attacker host.
+// shotAI only ever talks to the real API.
+const ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
+function makeClient(apiKey: string): Anthropic {
+  return new Anthropic({ apiKey, baseURL: ANTHROPIC_BASE_URL });
+}
+
 /**
  * Validate the configured key + model with a cheap, free call (Models API). Does
  * NOT run when SOP generation is disabled (no network when the feature is off).
@@ -81,7 +90,7 @@ export async function testKey(): Promise<TestKeyResult> {
   const key = await getApiKey();
   if (!key) return { ok: false, error: 'No API key set.' };
   try {
-    const client = new Anthropic({ apiKey: key });
+    const client = makeClient(key);
     await client.models.retrieve(sop.model);
     claudeLog.info(`API key validated against ${sop.model}.`);
     return { ok: true, model: sop.model };
@@ -99,19 +108,6 @@ export async function buildSystemPrompt(): Promise<string> {
   const custom = sop.customInstructions.trim();
   if (custom) parts.push(`Additional instructions from the user:\n${custom}`);
   return parts.join('\n\n');
-}
-
-/** Per-model request parameters (thinking/effort/max_tokens/pricing). */
-export function shapeParams(model: SopModelId): ModelParams {
-  return MODEL_PARAMS[model];
-}
-
-/** Confine a project-relative path to the project folder (defense in depth). */
-function confineProjectFile(dir: string, rel: string): string | null {
-  const abs = path.resolve(dir, rel);
-  const within = path.relative(dir, abs);
-  if (within === '' || within.startsWith('..') || path.isAbsolute(within)) return null;
-  return abs;
 }
 
 interface AssembledRequest {
@@ -170,24 +166,9 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
       continue;
     }
 
-    const hasBlur = step.annotations.some((a) => a.type === 'blur');
-    const rel = step.flattened ?? null;
-    // Fail closed: a blur OR a crop that hasn't been baked into a render must not
-    // fall back to the raw (un-redacted / uncropped) screenshot. Only a step with
-    // neither may use the original shot.
-    if (!rel && (hasBlur || step.crop)) {
-      throw new Error(
-        `Step ${n} has a redaction or crop that hasn't been baked into a render yet — ` +
-          `refusing to send the raw screenshot. Open it in the editor and save, then retry.`,
-      );
-    }
-    const relToRead = rel ?? step.screenshot;
-    const abs = relToRead ? confineProjectFile(dir, relToRead) : null;
-    if (!abs) throw new Error(`Step ${n} has no readable screenshot.`);
+    // Fail-closed redaction gate (shared with the export path).
+    const { abs, mediaType } = resolveSendableRender(dir, step, `Step ${n}`, 'send');
     const bytes = await fs.readFile(abs);
-    const ext = path.extname(relToRead).toLowerCase();
-    const mediaType: 'image/png' | 'image/jpeg' =
-      ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
     content.push({
       type: 'image',
       source: { type: 'base64', media_type: mediaType, data: bytes.toString('base64') },
@@ -229,26 +210,49 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
   };
 }
 
+// Tracks the in-flight estimate/generateSop request so the renderer's Cancel
+// button can abort the underlying HTTP mid-flight (the SDK honors the signal).
+let currentRun: AbortController | null = null;
+
+/** Abort any in-flight estimate/generateSop request (renderer Cancel button). */
+export function cancelClaude(): void {
+  currentRun?.abort();
+  currentRun = null;
+}
+
 /** Estimate input tokens + cost for generating this project's SOP (review screen). */
 export async function estimate(projectPath: string): Promise<SopEstimate> {
-  const settings = await getSopSettings();
-  if (!settings.enabled) throw new Error('AI SOP generation is turned off.');
-  const key = await getApiKey();
-  if (!key) throw new Error('No API key set.');
-  const { system, messages } = await assembleRequest(projectPath);
-  const client = new Anthropic({ apiKey: key });
-  const params = MODEL_PARAMS[settings.model];
-  let inputTokens: number;
+  // Register the abort controller BEFORE the pre-request awaits (assembleRequest
+  // reads + base64-encodes every screenshot — a real cancel window). The outer
+  // try/finally guarantees currentRun is cleared; the inner catch keeps the
+  // friendly-error mapping around the network call only.
+  const controller = new AbortController();
+  currentRun = controller;
   try {
-    const r = await client.messages.countTokens({ model: settings.model, system, messages });
-    inputTokens = r.input_tokens;
-  } catch (e) {
-    throw new Error(friendlyError(e));
+    const settings = await getSopSettings();
+    if (!settings.enabled) throw new Error('AI SOP generation is turned off.');
+    const key = await getApiKey();
+    if (!key) throw new Error('No API key set.');
+    const { system, messages } = await assembleRequest(projectPath);
+    const client = makeClient(key);
+    const params = MODEL_PARAMS[settings.model];
+    let inputTokens: number;
+    try {
+      const r = await client.messages.countTokens(
+        { model: settings.model, system, messages },
+        { signal: controller.signal },
+      );
+      inputTokens = r.input_tokens;
+    } catch (e) {
+      throw new Error(friendlyError(e));
+    }
+    const estCostUsd =
+      (inputTokens / 1e6) * params.inputPerMTok +
+      (EST_OUTPUT_TOKENS / 1e6) * params.outputPerMTok;
+    return { inputTokens, model: settings.model, estCostUsd };
+  } finally {
+    if (currentRun === controller) currentRun = null;
   }
-  const estCostUsd =
-    (inputTokens / 1e6) * params.inputPerMTok +
-    (EST_OUTPUT_TOKENS / 1e6) * params.outputPerMTok;
-  return { inputTokens, model: settings.model, estCostUsd };
 }
 
 /**
@@ -268,7 +272,7 @@ export async function generateSop(
   onProgress?.({ stage: 'preparing' });
   const { system, messages } = await assembleRequest(projectPath);
   const params = MODEL_PARAMS[settings.model];
-  const client = new Anthropic({ apiKey: key });
+  const client = makeClient(key);
 
   const CUTOFF_MSG =
     'The SOP was cut off at the output limit. Try again, or split the project into fewer steps.';
@@ -278,18 +282,23 @@ export async function generateSop(
   // structured-output parse and REJECTS on truncated JSON before we can read
   // msg.stop_reason, so we capture it from the message_delta event too.
   let stopReason: string | null = null;
+  const controller = new AbortController();
+  currentRun = controller;
   try {
-    const stream = client.messages.stream({
-      model: settings.model,
-      max_tokens: params.maxTokens,
-      system,
-      messages,
-      output_config: {
-        format: zodOutputFormat(SopEditSchema),
-        ...(params.effort ? { effort: params.effort } : {}),
+    const stream = client.messages.stream(
+      {
+        model: settings.model,
+        max_tokens: params.maxTokens,
+        system,
+        messages,
+        output_config: {
+          format: zodOutputFormat(SopEditSchema),
+          ...(params.supportsEffort ? { effort: settings.effort } : {}),
+        },
+        ...(params.thinking ? { thinking: params.thinking } : {}),
       },
-      ...(params.thinking ? { thinking: params.thinking } : {}),
-    });
+      { signal: controller.signal },
+    );
 
     let chars = 0;
     let lastEmit = 0;
@@ -325,6 +334,8 @@ export async function generateSop(
   } catch (e) {
     if (stopReason === 'max_tokens') throw new Error(CUTOFF_MSG);
     throw new Error(friendlyError(e));
+  } finally {
+    if (currentRun === controller) currentRun = null;
   }
 
   let gen: SopEdit;

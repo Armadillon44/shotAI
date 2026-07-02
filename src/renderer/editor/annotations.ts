@@ -1,10 +1,10 @@
 // Editor tool types, default styles, and annotation factories. Geometry is in
 // IMAGE (screenshot) pixel coordinates — see shared/project.ts.
 import type {
-  Annotation,
   ArrowAnnotation,
   BlurAnnotation,
   MarkerAnnotation,
+  ProjectStep,
   RectAnnotation,
   StampAnnotation,
   TextAnnotation,
@@ -33,8 +33,18 @@ export const TOOLS: { tool: Tool; label: string; hint: string }[] = [
 
 // High-contrast accent for outlines/arrows/stamps.
 export const ACCENT = '#e11d48'; // rose-600
+export const RIGHT_CLICK_COLOR = '#2563eb'; // blue-600
 export const DEFAULT_STROKE_WIDTH = 4;
 export const DEFAULT_BLOCK_SIZE = 14;
+
+/**
+ * The click-ring color for a step — the single source for the report overlay,
+ * the step-merge marker, and the baked-marker color so they can't drift: a
+ * user-set markerColor wins, else right-clicks are blue and everything else rose.
+ */
+export function markerColorFor(step: Pick<ProjectStep, 'markerColor' | 'click'>): string {
+  return step.markerColor ?? (step.click?.button === 'right' ? RIGHT_CLICK_COLOR : ACCENT);
+}
 
 function newId(): string {
   try {
@@ -179,8 +189,4 @@ export function dragRect(
     width: Math.abs(x2 - x1),
     height: Math.abs(y2 - y1),
   };
-}
-
-export function isAnnotation(a: unknown): a is Annotation {
-  return !!a && typeof a === 'object' && typeof (a as { type?: unknown }).type === 'string';
 }

@@ -43,6 +43,8 @@ import {
   dragRect,
 } from './annotations';
 import { MIN_REDACT_BLOCK, flattenToPng } from './flatten';
+import { Notice, type NoticeData } from '../Notice';
+import './editor.css';
 
 const CLICK_ID = '__click__'; // pseudo-selection id for the click marker
 const CROP_ID = '__crop__'; // pseudo-selection id for the (resizable) crop box
@@ -93,13 +95,6 @@ type Props = {
   onSaved: (manifest: ProjectManifest) => void;
 };
 
-type TextEntry = {
-  imageX: number;
-  imageY: number;
-  id: string | null; // editing an existing text, or null = new
-  value: string;
-  fontSize: number;
-};
 
 /**
  * A blur/redact region rendered as a LIVE preview that matches flatten.ts: the
@@ -227,11 +222,14 @@ export function Editor({
   const [arrowDraft, setArrowDraft] = React.useState<
     [number, number, number, number] | null
   >(null);
-  const [textEntry, setTextEntry] = React.useState<TextEntry | null>(null);
+  // id of the text annotation being edited IN PLACE (overlay textarea on the
+  // canvas). null = not editing. The text lives in `annotations` and is updated
+  // live as you type; empty texts are dropped on finish/save.
+  const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
   const [selBox, setSelBox] = React.useState<Rect | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [scanning, setScanning] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<NoticeData | null>(null);
   // The canvas viewport size — measured from the (flex-grown) container so the
   // stage fills as much of the window as feasible. Seeded with the old fixed
   // defaults until the ResizeObserver reports the real size.
@@ -242,7 +240,12 @@ export function Editor({
   const trRef = React.useRef<Konva.Transformer | null>(null);
   const shapeRefs = React.useRef<Map<string, Konva.Node>>(new Map());
   const dragStart = React.useRef<{ x: number; y: number } | null>(null);
-  const textInputRef = React.useRef<HTMLInputElement | null>(null);
+  const textEditRef = React.useRef<HTMLInputElement | null>(null);
+  const canvasWrapRef = React.useRef<HTMLDivElement | null>(null);
+  // True briefly right after inline text editing opens: the creating click's
+  // mouse-up steals focus back to the canvas, which would blur the just-focused
+  // overlay input and finish/remove the empty text. Absorb that one blur.
+  const textEditOpeningRef = React.useRef(false);
 
   // Load the ORIGINAL screenshot (editing is on the original + annotations).
   // crossOrigin keeps the canvas untainted so flatten()'s toBlob() works (the
@@ -258,7 +261,7 @@ export function Editor({
       setStrokeWidth(defaultStrokeWidth(im.naturalWidth, im.naturalHeight));
     };
     im.onerror = () => {
-      if (!cancelled) setError('Could not load the screenshot.');
+      if (!cancelled) setNotice({ kind: 'error', text: 'Could not load the screenshot.' });
     };
     im.src = shotUrl(projectId, step.screenshot);
     return () => {
@@ -269,23 +272,33 @@ export function Editor({
   }, [projectId, step.screenshot]);
 
   // Measure the canvas container so the stage fills the available window space.
+  // Width comes from the scroll container (.ed__canvas — its clientWidth is
+  // stabilized by scrollbar-gutter), but HEIGHT comes from the NON-scrolling
+  // wrap: a horizontal scrollbar on .ed__canvas shrinks its clientHeight, which
+  // otherwise feeds back through viewport->stage-size and pulses the image in
+  // crop-view fit mode (B3). The wrap never scrolls, so its height is stable.
   React.useEffect(() => {
     const el = canvasRef.current;
-    if (!el) return;
+    const wrap = canvasWrapRef.current;
+    if (!el || !wrap) return;
     const measure = () => {
       const w = Math.floor(el.clientWidth);
-      const h = Math.floor(el.clientHeight);
+      const h = Math.floor(wrap.clientHeight);
       if (w > 0 && h > 0) setViewport({ w, h });
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    ro.observe(wrap);
     return () => ro.disconnect();
   }, []);
 
   const natW = img?.naturalWidth ?? 0;
   const natH = img?.naturalHeight ?? 0;
-  const scale = natW && natH ? Math.min(viewport.w / natW, viewport.h / natH, 1) : 1;
+  // Fit-to-WIDTH by default (T1): the image fills the canvas horizontally even
+  // when that makes it overflow vertically (scroll down). Contain-fit (min of
+  // both ratios) was shrinking tall screenshots to fit the height.
+  const scale = natW && natH ? viewport.w / natW : 1;
   const markerR = natW && natH ? clickMarkerRadius(natW, natH) : 20;
   // Stage transform: the visible region (whole image, or — when crop is applied
   // in-line — just the crop) fit to the canvas, times the editing zoom. Pointer
@@ -376,14 +389,14 @@ export function Editor({
       return;
     }
     if (tool === 'text') {
-      setSelectedId(null);
-      setTextEntry({
-        imageX: p.x,
-        imageY: p.y,
-        id: null,
-        value: '',
-        fontSize: defaultFontSize(natW, natH),
-      });
+      if (editingTextId) finishTextEdit(); // close any in-progress edit first
+      // Create the text immediately and edit it in place — you type directly on
+      // the canvas (overlay textarea), no separate field.
+      const a = createText(p.x, p.y, '', defaultFontSize(natW, natH), color);
+      setAnnotations((prev) => [...prev, a]);
+      setSelectedId(a.id);
+      setEditingTextId(a.id);
+      setTool('select'); // so you can move/resize/recolor it after typing
       return;
     }
     // drag-create tools: rect / arrow / blur / crop
@@ -547,14 +560,21 @@ export function Editor({
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId]);
 
-  // Focus the text field when a new entry opens (keyed on identity, not value,
-  // so typing doesn't re-focus and reset the caret).
-  const textEntryKey = textEntry
-    ? `${textEntry.id ?? 'new'}:${textEntry.imageX}:${textEntry.imageY}`
-    : '';
+  // Focus (and select) the overlay textarea when inline text editing opens.
   React.useEffect(() => {
-    if (textEntryKey) textInputRef.current?.focus();
-  }, [textEntryKey]);
+    if (!editingTextId) return;
+    textEditOpeningRef.current = true;
+    const t = textEditRef.current;
+    if (t) {
+      t.focus();
+      t.select();
+    }
+    // Backstop: clear the guard even if the spurious blur never comes.
+    const clear = setTimeout(() => {
+      textEditOpeningRef.current = false;
+    }, 300);
+    return () => clearTimeout(clear);
+  }, [editingTextId]);
 
   // Selection outline for arrow/stamp/text (rect/blur already show the
   // Transformer's handles). Measured from the node so it fits any shape.
@@ -581,21 +601,14 @@ export function Editor({
     else shapeRefs.current.delete(id);
   };
 
-  const commitText = () => {
-    const entry = textEntry;
-    setTextEntry(null);
-    if (!entry) return;
-    const value = entry.value.trim();
-    if (entry.id) {
-      if (value)
-        update(entry.id, { text: value, fontSize: entry.fontSize } as Partial<Annotation>);
-      else remove(entry.id);
-    } else if (value) {
-      const a = createText(entry.imageX, entry.imageY, value, entry.fontSize, color);
-      setAnnotations((prev) => [...prev, a]);
-      setSelectedId(a.id);
-      setTool('select');
-    }
+  // Close inline text editing; drop the text if it was left empty (e.g. placed
+  // then clicked away without typing).
+  const finishTextEdit = () => {
+    const id = editingTextId;
+    if (!id) return;
+    setEditingTextId(null);
+    const a = annotations.find((x) => x.id === id);
+    if (a && a.type === 'text' && !a.text.trim()) remove(id);
   };
 
   const changeStroke = (v: number) => {
@@ -632,18 +645,21 @@ export function Editor({
   const autoRedact = async () => {
     if (!img || scanning) return;
     setScanning(true);
-    setError(null);
+    setNotice(null);
     try {
       const rects = await window.shotai.projects.redactScan(projectPath, step.id);
       if (!rects.length) {
-        setError('No sensitive data detected (best-effort — redact manually if needed).');
+        setNotice({
+          kind: 'info',
+          text: 'No sensitive data detected (best-effort — redact manually if needed).',
+        });
         return;
       }
       const added = rects.map((r) => createBlur(r.x, r.y, r.width, r.height, 'solid'));
       setAnnotations((prev) => [...prev, ...added]);
       setSelectedId(added[added.length - 1].id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     } finally {
       setScanning(false);
     }
@@ -652,7 +668,12 @@ export function Editor({
   const onSave = async () => {
     if (!img) return;
     setSaving(true);
-    setError(null);
+    setNotice(null);
+    // Text edits are live in `annotations`; just close any open editor and drop
+    // empty text annotations so a placed-but-never-typed text isn't baked.
+    if (editingTextId) setEditingTextId(null);
+    const anns = annotations.filter((a) => !(a.type === 'text' && !a.text.trim()));
+    if (anns.length !== annotations.length) setAnnotations(anns);
     try {
       // clickImage is null when the step has no click marker OR the user removed
       // it → persist click:null so the marker is actually deleted (not kept).
@@ -667,7 +688,7 @@ export function Editor({
       // Bake the click ring into the render so Claude's vision + exports see it.
       const blob = await flattenToPng(
         img,
-        annotations,
+        anns,
         crop,
         click
           ? {
@@ -682,13 +703,13 @@ export function Editor({
       const manifest = await window.shotai.projects.updateStep(
         projectPath,
         step.id,
-        { annotations, crop, click, markerColor, markerBaked: true },
+        { annotations: anns, crop, click, markerColor, markerBaked: true },
         bytes,
       );
       onSaved(manifest);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     } finally {
       setSaving(false);
     }
@@ -735,6 +756,7 @@ export function Editor({
                   title={info.hint}
                   aria-pressed={tool === tl}
                   onClick={() => {
+                    if (editingTextId) finishTextEdit(); // close any in-progress edit
                     setTool(tl);
                     if (tl !== 'select') setSelectedId(null);
                     if (tl === 'crop') {
@@ -833,7 +855,8 @@ export function Editor({
 
         {/* Properties bar — ALWAYS present with a reserved height, so toggling a
             selection never reflows/resizes the canvas. Empty shows a quiet hint;
-            Delete is the lone destructive control, anchored here with the selection. */}
+            Delete is the lone destructive control, anchored here with the selection.
+            Adding/editing text reuses THIS bar (no extra banner) — see E2. */}
         <div className="ed__props">
           {selectedId ? (
             <>
@@ -844,6 +867,20 @@ export function Editor({
                   type="color"
                   value={colorVal}
                   onChange={(e) => changeColor(e.target.value)}
+                />
+              </label>
+            )}
+            {selected?.type === 'text' && (
+              <label className="ed__opt" title="Text size">
+                Size
+                <input
+                  type="range"
+                  min={10}
+                  max={160}
+                  value={selected.fontSize}
+                  onChange={(e) =>
+                    update(selected.id, { fontSize: Number(e.target.value) } as Partial<Annotation>)
+                  }
                 />
               </label>
             )}
@@ -901,6 +938,16 @@ export function Editor({
                 )}
               </>
             )}
+            {selected?.type === 'text' && (
+              <button
+                type="button"
+                className="btn btn--small"
+                title="Edit this text (or double-click it)"
+                onClick={() => setEditingTextId(selected.id)}
+              >
+                Edit text
+              </button>
+            )}
             <div className="ed__spacer" />
             <button
               type="button"
@@ -927,63 +974,70 @@ export function Editor({
             </>
           ) : (
             <span className="ed__props-hint">
-              Select an element to change its color or size, or to delete it.
+              Select an element to change its color or size, edit its text, or delete it.
             </span>
           )}
         </div>
 
-      {error && <p className="project__error">Error: {error}</p>}
-
-      {textEntry && (
-        <div className="ed__textbar">
-          <span className="ed__textlabel">
-            {textEntry.id ? 'Edit text' : 'Add text'}
-          </span>
-          <input
-            ref={textInputRef}
-            className="ed__textfield"
-            value={textEntry.value}
-            placeholder="Type the label, then Add (or Enter)…"
-            onChange={(e) =>
-              setTextEntry((cur) => (cur ? { ...cur, value: e.target.value } : cur))
-            }
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitText();
-              else if (e.key === 'Escape') setTextEntry(null);
-              e.stopPropagation();
-            }}
-          />
-          <label className="ed__opt" title="Text size">
-            Size
-            <input
-              type="range"
-              min={10}
-              max={160}
-              value={textEntry.fontSize}
-              onChange={(e) =>
-                setTextEntry((cur) =>
-                  cur ? { ...cur, fontSize: Number(e.target.value) } : cur,
-                )
-              }
-            />
-          </label>
-          <button
-            type="button"
-            className="btn btn--small btn--primary"
-            onClick={commitText}
-          >
-            Add
-          </button>
-          <button
-            type="button"
-            className="btn btn--small"
-            onClick={() => setTextEntry(null)}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
+      <div className="ed__canvaswrap" ref={canvasWrapRef}>
+        {notice && (
+          <div className="notice-stack">
+            <Notice kind={notice.kind} onDismiss={() => setNotice(null)}>
+              {notice.text}
+            </Notice>
+          </div>
+        )}
+        {/* Inline on-canvas text editor: an input overlaid at the text's screen
+            position (E7) so you type directly where the text lands. */}
+        {editingTextId &&
+          img &&
+          (() => {
+            const a = annotations.find((x) => x.id === editingTextId);
+            const stage = stageRef.current;
+            const wrap = canvasWrapRef.current;
+            if (!a || a.type !== 'text' || !stage || !wrap) return null;
+            const sBox = stage.container().getBoundingClientRect();
+            const wBox = wrap.getBoundingClientRect();
+            const left = sBox.left - wBox.left + (a.x - region.x) * cropView.scale;
+            const top = sBox.top - wBox.top + (a.y - region.y) * cropView.scale;
+            return (
+              <input
+                ref={textEditRef}
+                type="text"
+                className="ed__textedit"
+                value={a.text}
+                size={Math.max(a.text.length, 4)}
+                placeholder="Type…"
+                spellCheck={false}
+                style={{
+                  left,
+                  top,
+                  fontSize: `${a.fontSize * cropView.scale}px`,
+                  color: a.fill,
+                }}
+                onChange={(e) =>
+                  update(a.id, { text: e.target.value } as Partial<Annotation>)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === 'Escape') {
+                    e.preventDefault();
+                    finishTextEdit();
+                  }
+                  e.stopPropagation();
+                }}
+                onBlur={() => {
+                  // Absorb the one spurious blur right after opening (focus steal
+                  // from the creating click's mouse-up); re-focus and keep editing.
+                  if (textEditOpeningRef.current) {
+                    textEditOpeningRef.current = false;
+                    requestAnimationFrame(() => textEditRef.current?.focus());
+                    return;
+                  }
+                  finishTextEdit();
+                }}
+              />
+            );
+          })()}
       <div className="ed__canvas" ref={canvasRef}>
         {!img ? (
           <p className="project__hint">Loading screenshot…</p>
@@ -1124,7 +1178,7 @@ export function Editor({
                     />
                   );
                 }
-                // text
+                // text — hidden while its inline overlay editor is open
                 return (
                   <KText
                     {...common}
@@ -1133,15 +1187,8 @@ export function Editor({
                     text={a.text}
                     fontSize={a.fontSize}
                     fill={a.fill}
-                    onDblClick={() =>
-                      setTextEntry({
-                        imageX: a.x,
-                        imageY: a.y,
-                        id: a.id,
-                        value: a.text,
-                        fontSize: a.fontSize,
-                      })
-                    }
+                    visible={editingTextId !== a.id}
+                    onDblClick={() => selectable && setEditingTextId(a.id)}
                     onDragEnd={(e) => update(a.id, { x: e.target.x(), y: e.target.y() })}
                   />
                 );
@@ -1233,18 +1280,6 @@ export function Editor({
                 />
               )}
 
-              {/* live text preview: shows where the text will land + its size */}
-              {textEntry && (
-                <KText
-                  x={textEntry.imageX}
-                  y={textEntry.imageY}
-                  text={textEntry.value || 'Text…'}
-                  fontSize={textEntry.fontSize}
-                  fill={color}
-                  opacity={0.65}
-                  listening={false}
-                />
-              )}
 
               {/* selection outline (arrow / stamp / text) */}
               {selBox && (
@@ -1273,6 +1308,7 @@ export function Editor({
           </Stage>
         )}
       </div>
+      </div>
 
       <p className="ed__hint">
         {tool === 'select'
@@ -1282,7 +1318,7 @@ export function Editor({
             : tool === 'stamp'
               ? 'Click to place a numbered stamp.'
               : tool === 'text'
-                ? 'Click where the text should go, then type.'
+                ? 'Click where the text should go and type — it previews live; press Enter, switch tools, or Save to place it.'
                 : 'Drag to draw.'}{' '}
         Redactions are baked into the exported image on save.
       </p>

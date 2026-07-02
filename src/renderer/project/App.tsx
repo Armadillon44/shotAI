@@ -12,7 +12,9 @@ import type {
 } from '../../shared/project';
 import { useProjectStore } from './store';
 import { ProjectDetail } from './ProjectDetail';
+import { Notice } from '../Notice';
 import { Settings } from './Settings';
+import { useConfirm } from '../useConfirm';
 import { OverflowMenu, type MenuItem } from './OverflowMenu';
 import { ensureFlattened } from './sop-prepare';
 
@@ -203,6 +205,7 @@ export function App(): React.JSX.Element {
   const openPath = useProjectStore((s) => s.projectPath);
   const openProjectInDetail = useProjectStore((s) => s.open);
   const adoptOpened = useProjectStore((s) => s.applyOpened);
+  const { confirm, confirmModal } = useConfirm();
   const showDetail = !recording && !!openPath;
   const showHome = !recording && !openPath;
 
@@ -309,7 +312,12 @@ export function App(): React.JSX.Element {
   };
   const doDelete = async (p: ProjectSummary) => {
     if (rowBusyPath) return;
-    if (!window.confirm(`Delete "${p.title}"? This removes the project folder and its screenshots.`)) {
+    if (
+      !(await confirm(`Delete "${p.title}"? This removes the project folder and its screenshots.`, {
+        confirmLabel: 'Delete',
+        danger: true,
+      }))
+    ) {
       return;
     }
     setRowBusyPath(p.path);
@@ -355,6 +363,7 @@ export function App(): React.JSX.Element {
 
   return (
     <main className="project">
+      {confirmModal}
       {/* The shotAI banner is hidden in the detail/edit view so the project's
           own sticky header pins flush to the top. */}
       {!showDetail && (
@@ -379,7 +388,13 @@ export function App(): React.JSX.Element {
       <section
         className={`project__body${showDetail && !showSettings ? ' project__body--detail' : ''}`}
       >
-        {error && <p className="project__error">Error: {error}</p>}
+        {error && (
+          <div className="notice-stack">
+            <Notice kind="error" onDismiss={() => setError(null)}>
+              {error}
+            </Notice>
+          </div>
+        )}
 
         {recording && capture && (
           <div className={`rec rec--${capture.status}`}>

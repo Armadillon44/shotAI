@@ -5,7 +5,7 @@ import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
-import { resolveProjectFile } from './ProjectStore';
+import { resolveProjectFile } from './project-store';
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
 import { initLogging, mainLog } from './logger';
@@ -99,12 +99,20 @@ if (process.env.SHOTAI_ENABLE_GPU !== '1') {
   app.commandLine.appendSwitch('disable-gpu-compositing');
   app.commandLine.appendSwitch('disable-software-rasterizer');
   app.commandLine.appendSwitch('in-process-gpu');
-  // This VM can't initialize the OS sandbox, so child (renderer/GPU) processes
-  // never start without this. The app only loads local bundled content.
-  app.commandLine.appendSwitch('no-sandbox');
   mainLog.info('GPU disabled — software rendering (set SHOTAI_ENABLE_GPU=1 to enable)');
 } else {
   mainLog.info('GPU enabled (SHOTAI_ENABLE_GPU=1)');
+}
+
+// Keep the OS process sandbox ON by default (the windows also set sandbox:true).
+// Disabling HW acceleration above does NOT require --no-sandbox. Some virtualized
+// hosts (e.g. this Windows-on-ARM dev VM) can't initialize the OS sandbox, so
+// child renderer/GPU processes won't start; opt OUT with SHOTAI_NO_SANDBOX=1 on
+// THOSE machines only. Shipped installs keep the sandbox — it's the one OS-level
+// containment for the renderer, which decodes attacker-influenceable image pixels.
+if (process.env.SHOTAI_NO_SANDBOX === '1') {
+  app.commandLine.appendSwitch('no-sandbox');
+  mainLog.warn('OS sandbox DISABLED (SHOTAI_NO_SANDBOX=1) — dev/VM workaround only');
 }
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -256,6 +264,28 @@ const createWindows = (): void => {
 
 // Register IPC handlers once, then create windows, after Electron is ready.
 app.whenReady().then(async () => {
+  // Lock every window down: deny window.open/new-window and confine top-level
+  // navigation to local app origins (the bundled file://, the shot:// scheme, or
+  // the Vite dev server in dev). Nothing in shotAI navigates externally; this
+  // stops a future link / innerHTML / window.open sink — or compromised on-screen
+  // content rendered into a window — from steering it to a remote origin that
+  // would then reach the full IPC surface. Registered once, before any window.
+  app.on('web-contents-created', (_e, contents) => {
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    const confine = (e: Electron.Event, url: string) => {
+      const ok =
+        url.startsWith('shot:') ||
+        url.startsWith('file:') ||
+        (!!MAIN_WINDOW_VITE_DEV_SERVER_URL && url.startsWith(MAIN_WINDOW_VITE_DEV_SERVER_URL));
+      if (!ok) {
+        e.preventDefault();
+        mainLog.warn(`blocked navigation to ${url}`);
+      }
+    };
+    contents.on('will-navigate', confine);
+    contents.on('will-redirect', confine);
+  });
+
   if (process.env.SHOTAI_SELFTEST === '1') {
     const { runSelfTest } = await import('./selftest');
     await runSelfTest();
@@ -268,16 +298,23 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+  // Debug/test mode: keep the app window visible during capture so you can watch
+  // what's happening (it WILL appear in the screenshots — for diagnosis only).
+  const noHideDuringCapture = process.env.SHOTAI_CAPTURE_NO_HIDE === '1';
+  if (noHideDuringCapture) {
+    mainLog.info('SHOTAI_CAPTURE_NO_HIDE=1 — app window stays visible during capture (debug)');
+  }
   const capture = createCaptureController({
     // Hide the main window while recording (the always-on-top toolbar pill is
-    // the control); restore + focus it when recording stops.
+    // the control); restore + focus it when recording stops. Debug mode keeps it
+    // visible throughout.
     onRecordingChange: (recording) => {
       const proj =
         projectWindow && !projectWindow.isDestroyed() ? projectWindow : null;
       const pill =
         toolbarWindow && !toolbarWindow.isDestroyed() ? toolbarWindow : null;
       if (recording) {
-        proj?.hide();
+        if (!noHideDuringCapture) proj?.hide();
         if (pill && !toolbarPositioned) {
           dockToolbarTopCenter(pill); // top-center on first show; drag respected after
           toolbarPositioned = true;
@@ -285,7 +322,7 @@ app.whenReady().then(async () => {
         pill?.show(); // pill only appears while recording
       } else {
         pill?.hide();
-        proj?.show();
+        proj?.show(); // no-op if never hidden; also refocuses after recording
         proj?.focus();
       }
     },

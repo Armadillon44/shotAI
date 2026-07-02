@@ -1,0 +1,262 @@
+/* Inline Konva editor overlay styles. Lives beside the editor module (imported
+   by Editor.tsx) instead of in the project.css monolith. Loaded with the project
+   window's bundle since ProjectDetail statically imports Editor. */
+
+/* Inline editor overlay */
+.ed__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.ed {
+  display: flex;
+  flex-direction: row; /* left tool rail + main column */
+  gap: 0.7rem;
+  /* Fill the overlay (minus its padding) for maximum editing workspace. */
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  padding: 0.9rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+}
+
+/* Left vertical tool rail — grouped by job (draw / mark / crop), icon + label;
+   stays put while the canvas fills the rest, with zoom pinned at the base. */
+.ed__rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: none;
+  width: 104px;
+  overflow-y: auto;
+  overflow-x: hidden; /* never a horizontal scrollbar */
+}
+
+.ed__railgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ed__raillabel {
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  padding: 0 0.2rem;
+}
+
+.ed__railspace {
+  flex: 1;
+}
+
+.ed__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* A stable top bar holds the pinned Cancel/Save (right) so Save never reflows. */
+.ed__topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Contextual properties — rendered only when an element is selected, so it adds
+   no permanently-reserved height (the canvas reclaims it). */
+.ed__props {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  /* Reserved, fixed height + flex:none so showing/hiding controls never
+     reflows the canvas below it. */
+  flex: none;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: #f8f9fc;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.ed__props-hint {
+  color: var(--ink-3);
+  font-size: 0.8rem;
+}
+
+/* A tool button: icon + label, full rail width. */
+.ed__tool {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ed__tool:hover:not(:disabled) {
+  background: var(--accent-tint);
+}
+
+.ed__tool--on {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  font-weight: 600;
+  color: #3730a3;
+}
+
+.ed__tool-ico {
+  width: 1.1rem;
+  flex: none;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.ed__spacer {
+  flex: 1;
+}
+
+/* Segmented toggle (replaces the flaky native <select> for redaction style). */
+.ed__seg {
+  display: inline-flex;
+  border: 1px solid #cbd1d9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ed__seg-btn {
+  padding: 0.2rem 0.6rem;
+  border: 0;
+  background: #fff;
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.ed__seg-btn--on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Relative wrapper so a hovering .notice-stack pins to the top of the canvas
+   area without scrolling with the (overflow:auto) canvas or shifting layout. */
+.ed__canvaswrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ed__canvas {
+  display: flex;
+  /* Absorb the remaining modal height/width so the stage fills the window. */
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  /* Top-anchor so a width-filled image (T1) starts at the top and scrolls DOWN;
+     `safe` keeps the start edge reachable when a zoomed stage overflows. */
+  align-items: safe flex-start;
+  justify-content: safe center;
+  overflow: auto;
+  /* Reserve the scrollbar gutter so the vertical scrollbar appearing/disappearing
+     doesn't change clientWidth — which otherwise feeds back through the
+     ResizeObserver->viewport->stage-size loop and makes the image pulse (B3). */
+  scrollbar-gutter: stable both-edges;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  /* checkerboard so transparent/edges are legible */
+  background-color: #f8fafc;
+  background-image:
+    linear-gradient(45deg, #eceff3 25%, transparent 25%),
+    linear-gradient(-45deg, #eceff3 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eceff3 75%),
+    linear-gradient(-45deg, transparent 75%, #eceff3 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+
+.ed__hint {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.ed__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: #4b5563;
+}
+
+.ed__opt input[type='range'] {
+  width: 90px;
+}
+
+.ed__opt--color input[type='color'] {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #cbd1d9;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+.ed__zoom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  background: #f3f4f6;
+  border-radius: var(--radius);
+}
+
+/* Zoom uses .ed__tool buttons but they must stay compact, not rail-width. */
+.ed__zoom .ed__tool {
+  width: auto;
+  padding: 0.2rem 0.4rem;
+  justify-content: center;
+}
+
+/* Inline on-canvas text editor (E7): an input overlaid on the stage at the
+   text's position, so you type directly where the text lands. Transparent-ish
+   fill + dashed outline signals "editing here"; font-size/color are set inline
+   (JS) to match the annotation, scaled to the current zoom. */
+.ed__textedit {
+  position: absolute;
+  z-index: 45;
+  margin: 0;
+  padding: 0 1px;
+  border: 0;
+  outline: 1px dashed #4f46e5;
+  background: rgba(255, 255, 255, 0.14);
+  line-height: 1;
+  /* Match Konva Text's default font so the overlay lines up with the baked text. */
+  font-family: Arial, sans-serif;
+  white-space: pre;
+  caret-color: #4f46e5;
+}

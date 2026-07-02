@@ -53,6 +53,30 @@ export interface Rect {
   height: number;
 }
 
+const isFiniteNum = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * Validate/normalize an untrusted Rect (types are erased at the IPC boundary, and
+ * the area overlay reports one too). Returns null if any field is missing/non-finite.
+ * Co-located with the Rect type so the two main-side validators don't drift apart.
+ */
+export function parseRect(value: unknown): Rect | null {
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  if (isFiniteNum(r.x) && isFiniteNum(r.y) && isFiniteNum(r.width) && isFiniteNum(r.height)) {
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
+  return null;
+}
+
+/** Validate/normalize an untrusted Point. Returns null if invalid. */
+export function parsePoint(value: unknown): Point | null {
+  if (!value || typeof value !== 'object') return null;
+  const p = value as Record<string, unknown>;
+  return isFiniteNum(p.x) && isFiniteNum(p.y) ? { x: p.x, y: p.y } : null;
+}
+
 export interface CapturedWindow {
   /** App / executable name, e.g. "chrome.exe". */
   app: string;
@@ -70,11 +94,17 @@ export interface CapturedMonitor {
 export interface StepClick {
   /** Click position in global (virtual-desktop) coordinates. */
   global: Point;
-  /** Click position relative to the captured screenshot (calibration pending). */
+  /** Click position relative to the captured screenshot (in stored-PNG pixels). */
   image: Point;
   button: 'left' | 'right' | 'middle' | 'other';
   /** Click-marker ring radius (image px). Omitted = derive from image size. */
   radius?: number;
+  /**
+   * Factor the stored screenshot was downscaled by at capture time (T2), so
+   * `image` is in the DOWNSCALED pixel space. Recovering the capture origin from
+   * global/image (merge.ts) must account for it. Absent = 1 (older/unscaled shots).
+   */
+  imageScale?: number;
 }
 
 /** UI element at the click point — forward-compat; populated in Phase 4. */
@@ -180,6 +210,11 @@ export type StepKind = 'shot' | 'text';
  *  (yellow), warning (red). Absent = a plain text step. */
 export type CalloutKind = 'note' | 'caution' | 'warning';
 
+/** True if `v` is a valid callout kind (used to validate patches at the boundary). */
+export function isCalloutKind(v: unknown): v is CalloutKind {
+  return v === 'note' || v === 'caution' || v === 'warning';
+}
+
 export interface ProjectStep {
   id: string;
   order: number;
@@ -230,7 +265,10 @@ export interface ProjectStep {
    * and `ensureFlattened` re-bakes the render so the marker lands in it.
    */
   markerBaked?: boolean;
-  /** Per-step DISPLAY zoom in the report (default 1); does not affect export. */
+  /**
+   * Per-step zoom in the report (default 1). Zoom > 1 magnifies + pans a
+   * sub-region; export crops the render to the same window so it matches.
+   */
   reportZoom?: number;
   /** Report pan as a fraction 0..1 of the pannable range (0.5 = centered). */
   reportPanX?: number;
@@ -245,7 +283,6 @@ export type StepPatch = Partial<
     | 'note'
     | 'heading'
     | 'body'
-    | 'callout'
     | 'kind'
     | 'crop'
     | 'annotations'
@@ -256,7 +293,20 @@ export type StepPatch = Partial<
     | 'reportPanX'
     | 'reportPanY'
   >
->;
+> & {
+  /** Set a callout kind, or null to clear it (convert back to a plain text step). */
+  callout?: CalloutKind | null;
+};
+
+/**
+ * A leading overview for the SOP, rendered as a PREAMBLE above the steps (not a
+ * discrete/numbered step). Set by SOP generation (from the edit plan's intro),
+ * restored by revert.
+ */
+export interface SopIntro {
+  heading: string;
+  body: string;
+}
 
 /**
  * Pre-generation snapshot for one-click revert of Claude's inline SOP edits.
@@ -265,6 +315,8 @@ export type StepPatch = Partial<
 export interface SopBackup {
   steps: ProjectStep[];
   title: string;
+  /** The intro at snapshot time, so revert restores the pre-AI preamble too. */
+  intro: SopIntro | null;
   /** Model + tone the (subsequent) generation used — for the "Revert" provenance label. */
   model: string;
   tone: SopTone;
@@ -285,6 +337,8 @@ export interface ProjectManifest {
   updatedAt: string; // ISO 8601
   captureSettings: CaptureTarget | null;
   steps: ProjectStep[];
+  /** SOP overview rendered as a preamble above the steps (not a step). */
+  intro: SopIntro | null;
   /** Pre-edit snapshot enabling revert of Claude's inline SOP edits (Phase 3). */
   sopBackup: SopBackup | null;
 }

@@ -7,25 +7,45 @@ import React from 'react';
 import type { CalloutKind, ProjectStep } from '../../shared/project';
 import { shotUrl, useProjectStore } from './store';
 import { canMergeInto, mergeStepInto } from './merge';
+import { markerColorFor } from '../editor/annotations';
 import { OverflowMenu, type MenuItem } from './OverflowMenu';
+import { useConfirm } from '../useConfirm';
 
 /** What the hover-"+" insert menu can add between steps. */
 export type InsertKind = 'text' | 'image' | 'shot' | CalloutKind;
 
 // Base display box for report images (display only — export is full-res).
-const REPORT_BASE_W = 800;
+const REPORT_BASE_W = 820;
 const REPORT_BASE_H = 600;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 4;
+
+/** A text step styled as a callout — an annotation, NOT a numbered step (E10). */
+function isCalloutStep(s: ProjectStep): boolean {
+  return s.kind === 'text' && !!s.callout;
+}
+
+/** Rail badge glyph per callout kind (the box color already conveys the kind). */
+const CALLOUT_GLYPH: Record<CalloutKind, string> = {
+  note: 'ℹ',
+  caution: '⚠',
+  warning: '⛔',
+};
 
 function StepFigure({
   projectId,
   step,
   onReframe,
+  onZoom,
+  onDelete,
 }: {
   projectId: string;
   step: ProjectStep;
   onReframe: (step: ProjectStep, panX: number, panY: number) => void;
+  /** Set an absolute report zoom (parent clamps to the allowed range). */
+  onZoom: (next: number) => void;
+  /** Delete this step (confirmed by the parent). */
+  onDelete: () => void;
 }): React.JSX.Element {
   const [dims, setDims] = React.useState<{ w: number; h: number } | null>(null);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
@@ -45,8 +65,7 @@ function StepFigure({
   const baseW = dims ? dims.w * baseScale : 0;
   const baseH = dims ? dims.h * baseScale : 0;
   const boxScale = Math.min(zoom, 1);
-  const markerColor =
-    step.markerColor ?? (step.click?.button === 'right' ? '#2563eb' : '#e11d48');
+  const markerColor = markerColorFor(step);
   // Marker as a fraction of the displayed image; subtract crop origin when the
   // displayed image is the cropped flatten; hidden if outside the visible region.
   const offX = flattened && step.crop ? step.crop.x : 0;
@@ -104,38 +123,84 @@ function StepFigure({
 
   return (
     <figure className="rep__figure">
-      <div
-        className={`rep__imgwrap${zoom > 1 ? ' rep__imgwrap--pan' : ''}`}
-        ref={wrapRef}
-        onMouseDown={onPanStart}
-        style={dims ? { width: baseW * boxScale, height: baseH * boxScale } : undefined}
-      >
-        <div className="rep__imginner">
-          <img
-            className="rep__img"
-            src={src}
-            alt={step.caption}
-            loading="lazy"
-            draggable={false}
-            style={
-              dims
-                ? { width: baseW * zoom, height: baseH * zoom }
-                : { maxWidth: REPORT_BASE_W, maxHeight: REPORT_BASE_H }
-            }
-            onLoad={(e) =>
-              setDims({
-                w: e.currentTarget.naturalWidth,
-                h: e.currentTarget.naturalHeight,
-              })
-            }
-          />
-          {marker && step.click && (
-            <span
-              className="rep__marker"
-              style={{ ...marker, borderColor: markerColor, background: `${markerColor}2e` }}
-              aria-hidden="true"
+      {/* figbox sizes to the image box and is the positioning context for the
+          floating controls — kept OUTSIDE imgwrap so they don't scroll with the
+          pan or get clipped by its overflow:hidden. */}
+      <div className="rep__figbox">
+        <div
+          className={`rep__imgwrap${zoom > 1 ? ' rep__imgwrap--pan' : ''}`}
+          ref={wrapRef}
+          onMouseDown={onPanStart}
+          style={dims ? { width: baseW * boxScale, height: baseH * boxScale } : undefined}
+        >
+          <div className="rep__imginner">
+            <img
+              className="rep__img"
+              src={src}
+              alt={step.caption}
+              loading="lazy"
+              draggable={false}
+              style={
+                dims
+                  ? { width: baseW * zoom, height: baseH * zoom }
+                  : { maxWidth: REPORT_BASE_W, maxHeight: REPORT_BASE_H }
+              }
+              onLoad={(e) =>
+                setDims({
+                  w: e.currentTarget.naturalWidth,
+                  h: e.currentTarget.naturalHeight,
+                })
+              }
             />
-          )}
+            {marker && step.click && (
+              <span
+                className="rep__marker"
+                style={{ ...marker, borderColor: markerColor, background: `${markerColor}2e` }}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+        </div>
+        {/* Translucent zoom + delete controls, floated top-right over the image
+            (UX8). Solidify on hover/focus. */}
+        <div className="rep__imgctl">
+          <button
+            type="button"
+            className="rep__imgctl-btn"
+            title="Zoom in"
+            aria-label="Zoom in"
+            onClick={() => onZoom(zoom * 1.25)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="rep__imgctl-btn"
+            title="Zoom out"
+            aria-label="Zoom out"
+            onClick={() => onZoom(zoom / 1.25)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="rep__imgctl-btn"
+            title="Reset zoom"
+            aria-label="Reset zoom"
+            disabled={zoom === 1}
+            onClick={() => onZoom(1)}
+          >
+            ↺
+          </button>
+          <button
+            type="button"
+            className="rep__imgctl-btn rep__imgctl-btn--del"
+            title="Delete step"
+            aria-label="Delete step"
+            onClick={onDelete}
+          >
+            🗑
+          </button>
         </div>
       </div>
     </figure>
@@ -143,16 +208,18 @@ function StepFigure({
 }
 
 function TextStepEditor({
-  step,
+  initialHeading,
+  initialBody,
   onSave,
   onCancel,
 }: {
-  step: ProjectStep;
+  initialHeading: string;
+  initialBody: string;
   onSave: (heading: string, body: string) => void;
   onCancel: () => void;
 }): React.JSX.Element {
-  const [heading, setHeading] = React.useState(step.heading ?? '');
-  const [body, setBody] = React.useState(step.body ?? '');
+  const [heading, setHeading] = React.useState(initialHeading);
+  const [body, setBody] = React.useState(initialBody);
   return (
     <div className="rep__textedit">
       <input
@@ -165,7 +232,7 @@ function TextStepEditor({
       <textarea
         className="rep__textedit-b"
         placeholder="Text…"
-        rows={4}
+        rows={3}
         value={body}
         onChange={(e) => setBody(e.target.value)}
       />
@@ -274,12 +341,17 @@ function InlineTextarea({
 export function Report({
   onEditStep,
   autoEditId,
+  onAutoEditConsumed,
   onEditingChange,
   onInsert,
 }: {
   onEditStep?: (step: ProjectStep) => void;
   /** When set to a (text) step id, open that step's inline editor. */
   autoEditId?: string | null;
+  /** Called once the autoEditId has been consumed so the parent can reset it —
+   *  a stale, never-reset trigger would otherwise re-open the editor on later
+   *  re-renders/remounts and re-lock the report (B4). */
+  onAutoEditConsumed?: () => void;
   /** Notifies the parent whether a text step is currently being inline-edited
    *  (so it can disable structural actions that would discard the draft). */
   onEditingChange?: (editing: boolean) => void;
@@ -289,8 +361,12 @@ export function Report({
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
   const steps = useProjectStore((s) => s.steps);
+  const intro = useProjectStore((s) => s.intro);
+  const manifestRev = useProjectStore((s) => s.manifestRev);
   const applyManifest = useProjectStore((s) => s.applyManifest);
+  const { confirm, alert, confirmModal } = useConfirm();
   const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
+  const [editingIntro, setEditingIntro] = React.useState(false);
   const [editingCapId, setEditingCapId] = React.useState<string | null>(null);
   const [editingNumId, setEditingNumId] = React.useState<string | null>(null);
   // Per-screenshot instruction text (the body), editable inline under the image.
@@ -306,29 +382,48 @@ export function Report({
   // step. Cleared on the first save or cancel of that step.
   const freshTextIdRef = React.useRef<string | null>(null);
 
-  // A freshly added text step opens straight into its editor.
+  // A freshly added text step opens straight into its editor — ONCE. The parent
+  // resets autoEditId via onAutoEditConsumed so a stale trigger can't re-open
+  // (and re-lock) the editor on a later re-render or remount.
   React.useEffect(() => {
     if (autoEditId) {
       setEditingTextId(autoEditId);
       freshTextIdRef.current = autoEditId;
+      onAutoEditConsumed?.();
     }
-  }, [autoEditId]);
+  }, [autoEditId, onAutoEditConsumed]);
 
   // Keep the parent in sync so it can guard against discarding an open draft.
   React.useEffect(() => {
     onEditingChange?.(editingTextId !== null);
   }, [editingTextId, onEditingChange]);
 
-  // If the step being edited disappears (reorder/merge/SOP-gen reloads the
-  // manifest with new ids), clear the stale editing id — otherwise no editor
-  // renders yet every text step's Edit button stays disabled (looks like "can't
-  // edit any text step").
+  // Reconcile inline-edit state whenever the manifest is REPLACED (B4). Only DROP
+  // a latch whose step has vanished — never re-assert one. (An earlier version
+  // re-opened the "fresh-add draft" here, which self-healed into a permanent lock
+  // because a callout's id survives delete/SOP-gen/reorder, so the re-assertion
+  // fired forever.) A genuinely-open editor is preserved automatically: its id is
+  // still in steps, so the functional updater leaves editingTextId untouched.
   React.useEffect(() => {
-    if (editingTextId && !steps.some((s) => s.id === editingTextId)) {
-      setEditingTextId(null);
+    setEditingTextId((cur) => (cur && !steps.some((s) => s.id === cur) ? null : cur));
+    if (freshTextIdRef.current && !steps.some((s) => s.id === freshTextIdRef.current)) {
       freshTextIdRef.current = null;
     }
-  }, [steps, editingTextId]);
+    setEditingCapId(null);
+    setEditingNumId(null);
+    setEditingBodyId(null);
+    setInsertMenuAt(null);
+  }, [manifestRev, steps]);
+
+  // E10: callouts are annotations, not numbered steps. Number only NON-callout
+  // steps, contiguously 1..N; callouts get a type glyph instead of a number.
+  const displayNums = React.useMemo(() => {
+    const m = new Map<string, number>();
+    let n = 0;
+    for (const s of steps) if (!isCalloutStep(s)) m.set(s.id, ++n);
+    return m;
+  }, [steps]);
+  const numberedTotal = displayNums.size;
 
   const setZoom = async (step: ProjectStep, next: number) => {
     if (!projectPath) return;
@@ -379,7 +474,19 @@ export function Report({
   const commitNum = (idx: number, raw: string) => {
     setEditingNumId(null);
     const n = Number.parseInt(raw, 10);
-    if (Number.isFinite(n)) void reorderTo(idx, n - 1); // 1-based → 0-based
+    if (!Number.isFinite(n)) return;
+    // The badge shows a display number over non-callout steps only; map it back
+    // to the absolute array slot of that Nth non-callout step before reordering.
+    const target = Math.max(1, Math.min(n, numberedTotal));
+    let seen = 0;
+    let absTarget = steps.length - 1;
+    for (let i = 0; i < steps.length; i++) {
+      if (!isCalloutStep(steps[i]) && ++seen === target) {
+        absTarget = i;
+        break;
+      }
+    }
+    void reorderTo(idx, absTarget);
   };
 
   const saveCaption = async (step: ProjectStep, caption: string) => {
@@ -426,7 +533,14 @@ export function Report({
 
   const del = async (step: ProjectStep) => {
     if (busyRef.current || !projectPath) return;
-    if (!window.confirm('Delete this step? (its image file stays on disk)')) return;
+    if (
+      !(await confirm('Delete this step? (its image file stays on disk)', {
+        confirmLabel: 'Delete',
+        danger: true,
+      }))
+    ) {
+      return;
+    }
     busyRef.current = true;
     try {
       applyManifest(await window.shotai.projects.deleteStep(projectPath, step.id));
@@ -451,9 +565,7 @@ export function Report({
     try {
       applyManifest(await mergeStepInto(projectId, projectPath, keep, drop));
     } catch (e) {
-      window.alert(
-        `Could not merge these steps: ${e instanceof Error ? e.message : String(e)}`,
-      );
+      void alert(`Could not merge these steps: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setMerging(null);
       busyRef.current = false;
@@ -461,9 +573,15 @@ export function Report({
   };
 
   // Open a text/callout step's inline editor (also the heading/body click
-  // target). Blocked while another draft is open so it can't be discarded.
+  // target). ALWAYS opens, switching away from any other open editor — editing
+  // must never be blocked by a lingering editingTextId (a still-open editor, or
+  // one left set after deleting a different step). Unsaved text in a previously
+  // open editor is dropped. This is a user click on an existing step, not a
+  // fresh-add auto-open, so clear that marker.
   const openTextEdit = (step: ProjectStep) => {
-    if (editingTextId === null) setEditingTextId(step.id);
+    if (editingTextId === step.id) return;
+    freshTextIdRef.current = null;
+    setEditingTextId(step.id);
   };
 
   const saveText = async (step: ProjectStep, heading: string, body: string) => {
@@ -474,6 +592,34 @@ export function Report({
       );
       if (freshTextIdRef.current === step.id) freshTextIdRef.current = null;
       setEditingTextId(null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // E9: convert a text step between a plain section and a colored callout box
+  // (kind = note/caution/warning, or null to revert to plain text).
+  const setCallout = async (step: ProjectStep, callout: CalloutKind | null) => {
+    if (!projectPath || (step.callout ?? null) === callout) return;
+    try {
+      applyManifest(
+        await window.shotai.projects.updateStep(projectPath, step.id, { callout }),
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Save (or clear, when both fields are empty) the SOP overview preamble (E8).
+  const saveIntro = async (heading: string, body: string) => {
+    if (!projectPath) return;
+    const h = heading.trim();
+    const b = body.trim();
+    try {
+      applyManifest(
+        await window.shotai.projects.setIntro(projectPath, h || b ? { heading: h, body: b } : null),
+      );
+      setEditingIntro(false);
     } catch {
       /* ignore */
     }
@@ -499,9 +645,10 @@ export function Report({
 
   if (!projectId) return null;
 
-  // The hover-"+" between steps. Disabled while a text draft is open (inserting
-  // would switch/discard it). Hidden entirely if the parent gives no handler.
-  const canInsert = !!onInsert && editingTextId === null;
+  // The hover-"+" between steps. Enabled whenever the parent gives a handler;
+  // inserting while an editor is open just switches to the newly-added step
+  // (never blocked — a lingering editingTextId must not lock creation, B4).
+  const canInsert = !!onInsert;
   const insertZone = (atIndex: number) =>
     onInsert ? (
       <div className="rep__insert">
@@ -589,8 +736,8 @@ export function Report({
     );
   }
 
-  // Left rail: a drag grip + the (click-to-edit) step number. Numbered for ALL
-  // step kinds, including text steps, so the sequence reads 1..N.
+  // Left rail: a drag grip + the (click-to-edit) step number. Non-callout steps
+  // are numbered contiguously 1..N; callouts show a type glyph instead (E10).
   const rail = (s: ProjectStep, idx: number) => (
     <div className="rep__rail">
       <button
@@ -615,11 +762,19 @@ export function Report({
       >
         ⠿
       </button>
-      {editingNumId === s.id ? (
+      {isCalloutStep(s) && s.callout ? (
+        <span
+          className={`rep__num rep__num--callout rep__num--${s.callout}`}
+          title={`${s.callout} callout — not a numbered step`}
+          aria-hidden="true"
+        >
+          {CALLOUT_GLYPH[s.callout]}
+        </span>
+      ) : editingNumId === s.id ? (
         <InlineInput
-          initial={String(s.order)}
+          initial={String(displayNums.get(s.id) ?? '')}
           type="number"
-          max={steps.length}
+          max={numberedTotal}
           className="rep__num-input"
           onCommit={(v) => commitNum(idx, v)}
           onCancel={() => setEditingNumId(null)}
@@ -631,17 +786,16 @@ export function Report({
           title="Click to set this step's position"
           onClick={() => setEditingNumId(s.id)}
         >
-          {s.order}
+          {displayNums.get(s.id)}
         </button>
       )}
     </div>
   );
 
-  // Per-step controls: only Edit stays on the line; everything incidental
-  // (move / zoom / delete) lives in a ⋯ overflow. Merge is offered ONLY by the
-  // contextual banner below, not duplicated here.
+  // Per-step controls: Edit stays on the line; a ⋯ overflow holds move up/down
+  // (+ callout conversion / delete for text steps). Shots' zoom + delete float
+  // over the image (UX8). Merge is offered ONLY by the contextual banner below.
   const controls = (s: ProjectStep, idx: number) => {
-    const editDisabled = s.kind === 'text' && editingTextId !== null;
     const items: MenuItem[] = [
       { label: '↑ Move up', onClick: () => move(idx, -1), disabled: idx === 0 },
       {
@@ -650,28 +804,34 @@ export function Report({
         disabled: idx === steps.length - 1,
       },
     ];
-    if (s.kind !== 'text') {
+    if (s.kind === 'text') {
+      // E9: convert this text step to (or between) callout styles, or back to plain.
+      const cur = s.callout ?? null;
+      items.push({ kind: 'sep' });
+      for (const k of ['note', 'caution', 'warning'] as CalloutKind[]) {
+        if (k === cur) continue;
+        items.push({
+          label: cur ? `Change to ${k}` : `Make ${k} callout`,
+          onClick: () => void setCallout(s, k),
+        });
+      }
+      if (cur) items.push({ label: 'Convert to plain text', onClick: () => void setCallout(s, null) });
+      // Text steps have no image, so Delete lives here; shots delete via the
+      // floating control over the image (UX8).
       items.push(
         { kind: 'sep' },
-        { label: 'Zoom in', onClick: () => void setZoom(s, (s.reportZoom ?? 1) * 1.25) },
-        { label: 'Zoom out', onClick: () => void setZoom(s, (s.reportZoom ?? 1) / 1.25) },
-        { label: 'Reset zoom', onClick: () => void setZoom(s, 1) },
+        { label: 'Delete step', danger: true, onClick: () => void del(s) },
       );
     }
-    items.push(
-      { kind: 'sep' },
-      { label: 'Delete step', danger: true, onClick: () => void del(s) },
-    );
     return (
       <div className="rep__ctl">
         <button
           type="button"
           className="btn btn--small"
-          // While a text step is open in the inline editor, switching to edit
-          // another text step would discard the open draft — block it.
-          disabled={editDisabled}
-          title={editDisabled ? 'Finish editing the open text step first' : 'Edit'}
-          onClick={() => (s.kind === 'text' ? setEditingTextId(s.id) : onEditStep?.(s))}
+          title="Edit"
+          // Editing a text step switches the open editor (openTextEdit), so it's
+          // never blocked by another open/stale editor. Shots open the modal editor.
+          onClick={() => (s.kind === 'text' ? openTextEdit(s) : onEditStep?.(s))}
         >
           Edit
         </button>
@@ -705,7 +865,8 @@ export function Report({
           {s.kind === 'text' ? (
             editingTextId === s.id ? (
               <TextStepEditor
-                step={s}
+                initialHeading={s.heading ?? ''}
+                initialBody={s.body ?? ''}
                 onSave={(h, b) => void saveText(s, h, b)}
                 onCancel={() => void cancelText(s)}
               />
@@ -802,7 +963,13 @@ export function Report({
                   </button>
                 </div>
               )}
-              <StepFigure projectId={projectId} step={s} onReframe={reframe} />
+              <StepFigure
+                projectId={projectId}
+                step={s}
+                onReframe={reframe}
+                onZoom={(z) => void setZoom(s, z)}
+                onDelete={() => void del(s)}
+              />
               {editingBodyId === s.id ? (
                 <InlineTextarea
                   initial={s.body ?? ''}
@@ -842,8 +1009,45 @@ export function Report({
     );
   };
 
+  const hasIntro = !!(intro && (intro.heading || intro.body));
   return (
     <div className="rep" role="list">
+      {confirmModal}
+      {editingIntro ? (
+        <div className="rep__intro">
+          <TextStepEditor
+            initialHeading={intro?.heading ?? ''}
+            initialBody={intro?.body ?? ''}
+            onSave={(h, b) => void saveIntro(h, b)}
+            onCancel={() => setEditingIntro(false)}
+          />
+        </div>
+      ) : hasIntro ? (
+        <div className="rep__intro" role="note">
+          <div className="rep__intro-actions">
+            <button type="button" className="btn btn--small" onClick={() => setEditingIntro(true)}>
+              Edit overview
+            </button>
+            <button
+              type="button"
+              className="btn btn--small btn--danger"
+              onClick={() => void saveIntro('', '')}
+            >
+              Remove
+            </button>
+          </div>
+          {intro?.heading && <h2 className="rep__intro-h">{intro.heading}</h2>}
+          {intro?.body && <p className="rep__intro-b">{intro.body}</p>}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="rep__addintro"
+          onClick={() => setEditingIntro(true)}
+        >
+          + Add an overview
+        </button>
+      )}
       {insertZone(0)}
       {steps.map((s, idx) => (
         <React.Fragment key={s.id}>

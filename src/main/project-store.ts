@@ -12,14 +12,10 @@ import {
   type ProjectStep,
   type ProjectSummary,
   type SopBackup,
+  type SopIntro,
   type StepPatch,
 } from '../shared/project';
-import {
-  DEFAULT_SOP_TONE,
-  isSopTone,
-  type SopEditPlan,
-  type SopTone,
-} from '../shared/sop';
+import { DEFAULT_SOP_TONE, isSopTone } from '../shared/sop';
 import {
   addRecent,
   getProjectsDir,
@@ -27,10 +23,17 @@ import {
   persistProjectsDir,
   setRecents,
 } from './settings';
+import { confinePath } from './path-confine';
+import { applyPatchAndInvalidate, writeStepRender } from './step-render';
+import { writeFileAtomic } from './atomic-write';
 
 const MANIFEST = 'project.json';
 
 export { getProjectsDir };
+// Re-export the path-confinement boundary so existing `from './project-store'`
+// callers (ClaudeService, export, ipc) keep a stable import while the impl lives
+// in the dependency-free path-confine module (unit-testable without electron).
+export { confinePath };
 
 /** Change the projects directory (creating it if needed) and persist it. */
 export async function setProjectsDir(dir: string): Promise<void> {
@@ -54,8 +57,9 @@ async function resolveKnownProject(projectPath: string): Promise<string> {
   throw new Error('Project path is not within the projects directory');
 }
 
-/** Ensure each step has the fields the editor relies on (defensive on read). */
-function normalizeSteps(steps: unknown): ProjectStep[] {
+/** Ensure each step has the fields the editor relies on (defensive on read).
+ *  Exported for sop-apply (revertSop normalizes the restored snapshot). */
+export function normalizeSteps(steps: unknown): ProjectStep[] {
   if (!Array.isArray(steps)) return [];
   return steps.map((s) => {
     const step = s as ProjectStep;
@@ -66,6 +70,16 @@ function normalizeSteps(steps: unknown): ProjectStep[] {
   });
 }
 
+/** Coerce a persisted SOP intro (or null) — a preamble, not a step. */
+function coerceIntro(raw: unknown): SopIntro | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const heading = typeof r.heading === 'string' ? r.heading : '';
+  const body = typeof r.body === 'string' ? r.body : '';
+  if (!heading && !body) return null;
+  return { heading, body };
+}
+
 /** Coerce a persisted SOP backup (or null) from a possibly-corrupt manifest. */
 function coerceSopBackup(raw: unknown): SopBackup | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -74,6 +88,7 @@ function coerceSopBackup(raw: unknown): SopBackup | null {
   return {
     steps: normalizeSteps(r.steps),
     title: r.title,
+    intro: coerceIntro(r.intro),
     model: typeof r.model === 'string' ? r.model : '',
     tone: isSopTone(r.tone) ? r.tone : DEFAULT_SOP_TONE,
     at: typeof r.at === 'string' ? r.at : '',
@@ -99,6 +114,7 @@ async function readManifest(projectPath: string): Promise<ProjectManifest> {
     updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
     captureSettings: parsed.captureSettings ?? null,
     steps: normalizeSteps(parsed.steps),
+    intro: coerceIntro(parsed.intro),
     sopBackup: coerceSopBackup(parsed.sopBackup),
   };
 }
@@ -107,11 +123,10 @@ async function writeManifest(
   projectPath: string,
   manifest: ProjectManifest,
 ): Promise<void> {
-  await fs.writeFile(
-    path.join(projectPath, MANIFEST),
-    JSON.stringify(manifest, null, 2),
-    'utf8',
-  );
+  // Atomic (tmp + rename) so a crash/power-loss mid-write can't corrupt the
+  // project's manifest — it's the highest-churn user-data file (every capture/
+  // edit/SOP-apply rewrites it). Same helper settings.ts/secrets.ts already use.
+  await writeFileAtomic(path.join(projectPath, MANIFEST), JSON.stringify(manifest, null, 2));
 }
 
 function summarize(
@@ -164,13 +179,10 @@ export async function createProject(title?: string): Promise<ProjectSummary> {
     updatedAt: now,
     captureSettings: null,
     steps: [],
+    intro: null,
     sopBackup: null,
   };
-  await fs.writeFile(
-    path.join(dir, MANIFEST),
-    JSON.stringify(manifest, null, 2),
-    'utf8',
-  );
+  await writeManifest(dir, manifest); // atomic, same as every other manifest write
 
   await addRecent(dir);
   return summarize(manifest, dir);
@@ -236,12 +248,7 @@ export function resolveProjectFile(
 ): string | null {
   const dir = idToDir.get(projectId);
   if (!dir) return null;
-  const abs = path.resolve(dir, rel);
-  const within = path.relative(dir, abs);
-  if (within === '' || within.startsWith('..') || path.isAbsolute(within)) {
-    return null; // escapes the project folder
-  }
-  return abs;
+  return confinePath(dir, rel);
 }
 
 /** Recent projects, most-recently-touched first; prunes entries gone from disk. */
@@ -358,6 +365,45 @@ export async function deleteProject(projectPath: string): Promise<void> {
 // Serialize manifest writes so rapid captures can't interleave read-modify-write.
 let writeQueue: Promise<unknown> = Promise.resolve();
 
+/**
+ * Run a read-modify-write against a project's manifest inside the shared
+ * writeQueue (so captures / edits / SOP-applies can't interleave). Confines the
+ * path, reads the manifest, runs `fn` (which mutates it in place — may throw to
+ * abort without writing), bumps updatedAt, writes atomically, and returns the
+ * manifest. Lets feature modules (e.g. sop-apply) mutate the manifest without
+ * re-implementing the queue + IO (and without reaching the private helpers).
+ */
+export function mutate(
+  projectPath: string,
+  fn: (manifest: ProjectManifest) => void | Promise<void>,
+): Promise<ProjectManifest> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    await fn(manifest);
+    manifest.updatedAt = new Date().toISOString();
+    await writeManifest(resolved, manifest);
+    return manifest;
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Set (or clear, with a null/empty value) the SOP overview preamble (E8). The
+ *  intro is coerced from untrusted (IPC) input — a bad shape becomes null. */
+export function setProjectIntro(
+  projectPath: string,
+  intro: unknown,
+): Promise<ProjectManifest> {
+  const clean = coerceIntro(intro);
+  return mutate(projectPath, (manifest) => {
+    manifest.intro = clean;
+  });
+}
+
 /** Append a captured step to a project's manifest (serialized, atomic-ish). */
 export function addStep(projectPath: string, step: ProjectStep): Promise<void> {
   const run = writeQueue.then(async () => {
@@ -395,25 +441,9 @@ export function updateStep(
     const manifest = await readManifest(resolved);
     const step = manifest.steps.find((s) => s.id === stepId);
     if (!step) throw new Error(`step ${stepId} not found`);
-    Object.assign(step, patch);
+    applyPatchAndInvalidate(step, patch, !!(flattenedPng && flattenedPng.length));
     if (flattenedPng && flattenedPng.length) {
-      const renderDir = path.join(resolved, 'export', '.render');
-      await fs.mkdir(renderDir, { recursive: true });
-      await fs.writeFile(path.join(renderDir, `${stepId}.png`), flattenedPng);
-      // posix separators for the shot:// URL the renderer builds from this.
-      step.flattened = path.posix.join('export', '.render', `${stepId}.png`);
-      // Bump only on a real re-render so the report cache-busts the <img> then —
-      // but NOT on display-only patches (e.g. reportZoom), avoiding a reload.
-      step.renderRev = (step.renderRev ?? 0) + 1;
-    } else if ('annotations' in patch || 'crop' in patch) {
-      // Annotations/crop changed without a fresh bake → the cached render no longer
-      // reflects the step (a new/changed redaction or crop isn't applied). Invalidate
-      // it so it MUST be re-flattened before any send: redaction is enforced by
-      // FRESHNESS, not mere existence (Phase-3b review). The shipping editor always
-      // co-sends a PNG so this branch only fires on annotations/crop-only patches.
-      step.flattened = null;
-      // The dropped render also carried the baked marker; the next bake must redo it.
-      step.markerBaked = false;
+      await writeStepRender(resolved, step, stepId, flattenedPng);
     }
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
@@ -452,13 +482,12 @@ export function mergeSteps(
     const dropIdx = manifest.steps.findIndex((s) => s.id === dropId);
     if (dropIdx === -1) throw new Error(`step ${dropId} not found`);
 
-    Object.assign(keep, patch);
+    // Same fresh-render-or-invalidate rule as updateStep (S3): a merge patch that
+    // changes annotations/crop without co-sending a re-baked PNG must drop the
+    // stale render so an unbaked redaction can't ride a stale flattened to egress.
+    applyPatchAndInvalidate(keep, patch, !!(flattenedPng && flattenedPng.length));
     if (flattenedPng && flattenedPng.length) {
-      const renderDir = path.join(resolved, 'export', '.render');
-      await fs.mkdir(renderDir, { recursive: true });
-      await fs.writeFile(path.join(renderDir, `${keepId}.png`), flattenedPng);
-      keep.flattened = path.posix.join('export', '.render', `${keepId}.png`);
-      keep.renderRev = (keep.renderRev ?? 0) + 1;
+      await writeStepRender(resolved, keep, keepId, flattenedPng);
     }
     manifest.steps.splice(dropIdx, 1);
     renumber(manifest.steps);
@@ -473,8 +502,8 @@ export function mergeSteps(
   return run;
 }
 
-/** Reassign step.order to 1..N in array order. */
-function renumber(steps: ProjectStep[]): void {
+/** Reassign step.order to 1..N in array order. Exported for sop-apply. */
+export function renumber(steps: ProjectStep[]): void {
   steps.forEach((s, i) => {
     s.order = i + 1;
   });
@@ -523,7 +552,11 @@ export function deleteSteps(
     for (const s of removed) {
       for (const rel of [s.screenshot, s.flattened]) {
         if (!rel) continue;
-        await fs.rm(path.join(resolved, rel), { force: true }).catch(() => undefined);
+        // Confine: a manifest-sourced path must stay inside the project folder
+        // before we rm it (defends against a hand-edited traversal path).
+        const abs = confinePath(resolved, rel);
+        if (!abs) continue;
+        await fs.rm(abs, { force: true }).catch(() => undefined);
       }
     }
     return manifest;
@@ -598,130 +631,6 @@ export function addTextStep(
     const i = Math.max(0, Math.min(Math.round(atIndex), manifest.steps.length));
     manifest.steps.splice(i, 0, step);
     renumber(manifest.steps);
-    manifest.updatedAt = new Date().toISOString();
-    await writeManifest(resolved, manifest);
-    return manifest;
-  });
-  writeQueue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
-/** Build a fresh text step. `aiInserted` marks SOP-generated intro/section steps. */
-function makeTextStep(heading: string, body: string, aiInserted = false): ProjectStep {
-  return {
-    id: randomUUID(),
-    order: 0,
-    kind: 'text',
-    screenshot: '',
-    trigger: 'hotkey',
-    click: null,
-    monitor: null,
-    window: null,
-    element: { available: false, name: null, controlType: null, bounds: null },
-    caption: '',
-    note: '',
-    heading,
-    body,
-    crop: null,
-    annotations: [],
-    aiInserted,
-  };
-}
-
-/**
- * Apply Claude's inline SOP edit plan to the project's steps: snapshot the
- * current steps+title for revert, rewrite each referenced SHOT step's
- * caption/heading/body/note, insert an optional intro + per-step section
- * headings, optionally refine the title, then renumber. Author-written text
- * steps pass through untouched; edits keyed to a non-shot step are ignored.
- * Serialized via the writeQueue. Returns the updated manifest.
- */
-export function applySopEdits(
-  projectPath: string,
-  plan: SopEditPlan,
-  provenance: { model: string; tone: SopTone },
-): Promise<ProjectManifest> {
-  const run = writeQueue.then(async () => {
-    const resolved = await resolveKnownProject(projectPath);
-    const manifest = await readManifest(resolved);
-
-    // Preserve the FIRST snapshot (the pristine pre-AI state) across regenerations
-    // so "Revert Claude's edits" always restores the true original — never a prior
-    // AI pass. Cleared by revertSop, so a fresh generate re-snapshots.
-    const backup: SopBackup = manifest.sopBackup ?? {
-      steps: structuredClone(manifest.steps),
-      title: manifest.title,
-      model: provenance.model,
-      tone: provenance.tone,
-      at: new Date().toISOString(),
-    };
-
-    // Rebuild from the non-AI base (current steps minus a prior run's inserts),
-    // matching the numbering assembleRequest showed Claude. Author text steps and
-    // the user's own screenshots/edits are preserved; only prior AI inserts drop.
-    const base = manifest.steps.filter((s) => !s.aiInserted);
-    const editByNum = new Map(plan.steps.map((e) => [e.stepNumber, e]));
-    const next: ProjectStep[] = [];
-    if (plan.intro && (plan.intro.heading || plan.intro.body)) {
-      next.push(makeTextStep(plan.intro.heading, plan.intro.body, true));
-    }
-    base.forEach((step, idx) => {
-      // Author text steps pass through; edits only apply to SHOT steps (so an
-      // edit mis-keyed to a text step's number is simply ignored).
-      if (step.kind === 'text') {
-        next.push(step);
-        return;
-      }
-      const e = editByNum.get(idx + 1);
-      if (!e) {
-        next.push(step);
-        return;
-      }
-      if (e.sectionHeading) {
-        next.push(makeTextStep(e.sectionHeading, e.sectionBody ?? '', true));
-      }
-      next.push({
-        ...step,
-        // Fall back to existing text if the model returns blank (don't wipe).
-        caption: e.caption.trim() || step.caption,
-        body: e.body.trim() || step.body || '',
-        note: e.note ?? step.note,
-      });
-    });
-
-    manifest.steps = next;
-    renumber(manifest.steps);
-    if (plan.title && plan.title.trim()) manifest.title = plan.title.trim();
-    manifest.sopBackup = backup;
-    manifest.updatedAt = new Date().toISOString();
-    await writeManifest(resolved, manifest);
-    return manifest;
-  });
-  writeQueue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
-/**
- * Revert Claude's inline SOP edits: restore the pre-generation snapshot
- * (steps + title) and clear it. Throws if there's nothing to revert.
- * Serialized via the writeQueue. Returns the updated manifest.
- */
-export function revertSop(projectPath: string): Promise<ProjectManifest> {
-  const run = writeQueue.then(async () => {
-    const resolved = await resolveKnownProject(projectPath);
-    const manifest = await readManifest(resolved);
-    if (!manifest.sopBackup) {
-      throw new Error('Nothing to revert — no AI edits are recorded for this project.');
-    }
-    manifest.steps = normalizeSteps(manifest.sopBackup.steps);
-    manifest.title = manifest.sopBackup.title;
-    manifest.sopBackup = null;
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
     return manifest;

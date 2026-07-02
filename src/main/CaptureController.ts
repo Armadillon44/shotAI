@@ -15,12 +15,12 @@
 //   - 'screen' → a single picked monitor.
 //
 // Click-marker DPI calibration is follow-up work (Phase 2 markers).
-import { app, BrowserWindow, globalShortcut, screen } from 'electron';
+import { app, BrowserWindow, globalShortcut, nativeImage, screen } from 'electron';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import type { UiohookMouseEvent } from 'uiohook-napi';
-import * as projectStore from './ProjectStore';
+import * as projectStore from './project-store';
 import type {
   CapturedWindow,
   CaptureTarget,
@@ -35,11 +35,40 @@ import type {
 import type { CaptureState } from '../shared/ipc';
 import { IpcChannels } from '../shared/ipc';
 import { captureLog } from './logger';
-import { getElementAtPoint } from './ElementLocator';
+import { getElementAtPoint } from './element-locator';
 
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+S';
 const OWN_WINDOW_TITLES = new Set(['shotAI', 'shotAI — Capture']);
 const DEFAULT_TARGET: CaptureTarget = { mode: 'auto' };
+
+// Modest downscale applied to every captured screenshot (T2) to cut PNG file
+// size AND Claude vision token cost. Kept gentle so small UI text Claude must
+// read stays legible. `image` click coords are scaled to match; a `<1` factor is
+// persisted on the click so merge.ts can still recover the capture origin.
+const CAPTURE_SCALE = 0.85;
+
+/**
+ * Downscale a captured PNG by CAPTURE_SCALE, returning the resized bytes and the
+ * ACTUAL scale applied (after integer rounding) so click coords can be scaled to
+ * match exactly. Fails open to the original PNG (scale 1) on any error — a resize
+ * hiccup must never lose a capture.
+ */
+function downscalePng(png: Buffer): { png: Buffer; scale: number } {
+  if (CAPTURE_SCALE >= 1) return { png, scale: 1 };
+  try {
+    const img = nativeImage.createFromBuffer(png);
+    const { width, height } = img.getSize();
+    if (width < 2 || height < 2) return { png, scale: 1 };
+    const targetW = Math.max(1, Math.round(width * CAPTURE_SCALE));
+    if (targetW >= width) return { png, scale: 1 };
+    const resized = img.resize({ width: targetW, quality: 'best' });
+    const out = resized.toPNG();
+    if (!out || out.length === 0) return { png, scale: 1 };
+    return { png: out, scale: resized.getSize().width / width };
+  } catch {
+    return { png, scale: 1 };
+  }
+}
 
 // A right-click is captured immediately as its own step (the target the user
 // right-clicked). It also opens a context menu, so we treat the NEXT click as a
@@ -1189,12 +1218,16 @@ export class CaptureController {
     const grabbed = grab();
     if (!grabbed) return null;
     const { png, originX, originY, monitor } = grabbed;
+    // Downscale before writing so the stored PNG (which every downstream consumer
+    // reads for its dimensions) is the smaller image; click.image is scaled to
+    // match below (T2).
+    const { png: outPng, scale: imageScale } = downscalePng(png);
 
     const order = ++this.session.stepCount;
     const filename = `step-${String(order).padStart(4, '0')}.png`;
     await fs.writeFile(
       path.join(this.session.projectPath, 'shots', filename),
-      png,
+      outPng,
       { flag: 'wx' }, // fail loudly rather than silently overwrite an existing shot
     );
     const window: CapturedWindow | null = active
@@ -1223,8 +1256,12 @@ export class CaptureController {
       click: point
         ? {
             global: point,
-            image: { x: point.x - originX, y: point.y - originY },
+            image: {
+              x: Math.round((point.x - originX) * imageScale),
+              y: Math.round((point.y - originY) * imageScale),
+            },
             button,
+            ...(imageScale !== 1 ? { imageScale } : {}),
           }
         : null,
       monitor: monitor
@@ -1258,7 +1295,7 @@ export class CaptureController {
     // Track this session's additions so a Discard can remove exactly them.
     this.session?.addedStepIds.push(step.id);
     captureLog.info(
-      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'}${element.name ? ` el='${element.name}'(${element.controlType})` : ''} -> ${filename} (${Math.round(png.length / 1024)} KB)`,
+      `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'}${element.name ? ` el='${element.name}'(${element.controlType})` : ''} -> ${filename} (${Math.round(outPng.length / 1024)} KB${imageScale !== 1 ? ` @${imageScale.toFixed(2)}x` : ''})`,
     );
     this.broadcast(IpcChannels.captureStepAdded, step);
     this.emitState();

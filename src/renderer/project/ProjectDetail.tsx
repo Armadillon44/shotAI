@@ -9,6 +9,7 @@ import { ensureFlattened } from './sop-prepare';
 import { Report, type InsertKind } from './Report';
 import { SopPanel } from './SopPanel';
 import { Editor } from '../editor/Editor';
+import { Notice } from '../Notice';
 
 const EXPORT_LABEL: Record<ExportFormat, string> = {
   html: 'HTML',
@@ -39,6 +40,11 @@ export function ProjectDetail({
   const [importing, setImporting] = React.useState(false);
   const [importErr, setImportErr] = React.useState<string | null>(null);
   const [autoEditId, setAutoEditId] = React.useState<string | null>(null);
+  // Single-shot reset for autoEditId: once Report has opened the freshly-added
+  // step's editor it calls this, so a stale trigger can't re-open (and re-lock)
+  // the editor on a later re-render/remount (B4). Stable ref so Report's effect
+  // deps stay quiet.
+  const clearAutoEdit = React.useCallback(() => setAutoEditId(null), []);
   // True while a text step is being inline-edited in the report; we disable
   // structural actions (resume/add/import) so they can't discard the draft.
   const [textEditing, setTextEditing] = React.useState(false);
@@ -234,19 +240,6 @@ export function ProjectDetail({
               ⏺ Resume capturing
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn--small"
-            disabled={importing || textEditing}
-            onClick={() => pickImageAt(null)}
-            title={
-              textEditing
-                ? 'Finish editing the text step first'
-                : 'Add your own PNG/JPEG image as a new step'
-            }
-          >
-            {importing ? 'Importing…' : 'Import image'}
-          </button>
           <div className="export" ref={exportRef}>
             <button
               type="button"
@@ -315,15 +308,32 @@ export function ProjectDetail({
         />
       </div>
 
-      {importErr && <p className="project__error">Import failed: {importErr}</p>}
-      {exportErr && <p className="project__error">Export failed: {exportErr}</p>}
-      {error && <p className="project__error">Error: {error}</p>}
+      {(importErr || exportErr || error) && (
+        <div className="notice-stack">
+          {importErr && (
+            <Notice kind="error" onDismiss={() => setImportErr(null)}>
+              Import failed: {importErr}
+            </Notice>
+          )}
+          {exportErr && (
+            <Notice kind="error" onDismiss={() => setExportErr(null)}>
+              Export failed: {exportErr}
+            </Notice>
+          )}
+          {error && (
+            <Notice kind="error" onDismiss={() => useProjectStore.setState({ error: null })}>
+              Error: {error}
+            </Notice>
+          )}
+        </div>
+      )}
       {loading ? (
         <p className="project__hint">Loading…</p>
       ) : (
         <Report
           onEditStep={onEditStep}
           autoEditId={autoEditId}
+          onAutoEditConsumed={clearAutoEdit}
           onEditingChange={setTextEditing}
           onInsert={onInsert}
         />

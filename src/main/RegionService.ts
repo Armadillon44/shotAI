@@ -14,6 +14,7 @@ import { BrowserWindow, ipcMain, screen, type IpcMainEvent } from 'electron';
 import path from 'node:path';
 import { IpcChannels } from '../shared/ipc';
 import type { Rect } from '../shared/project';
+import { parseRect } from '../shared/project';
 import { mainLog } from './logger';
 
 const MIN_DRAG = 4; // CSS px — anything smaller is a stray click, treat as cancel
@@ -28,26 +29,11 @@ export class RegionService {
   constructor(preloadPath: string) {
     this.preloadPath = preloadPath;
     ipcMain.on(IpcChannels.regionComplete, (event: IpcMainEvent, rect: unknown) => {
-      this.finish(event, this.parseRect(rect));
+      this.finish(event, parseRect(rect));
     });
     ipcMain.on(IpcChannels.regionCancel, (event: IpcMainEvent) => {
       this.finish(event, null);
     });
-  }
-
-  private parseRect(value: unknown): Rect | null {
-    if (!value || typeof value !== 'object') return null;
-    const r = value as Record<string, unknown>;
-    const nums = ['x', 'y', 'width', 'height'] as const;
-    if (!nums.every((k) => typeof r[k] === 'number' && Number.isFinite(r[k]))) {
-      return null;
-    }
-    return {
-      x: r.x as number,
-      y: r.y as number,
-      width: r.width as number,
-      height: r.height as number,
-    };
   }
 
   /**
@@ -116,12 +102,16 @@ export class RegionService {
 
   private finish(event: IpcMainEvent, cssRect: Rect | null): void {
     if (!this.pending) return;
+    // Only honor region:complete / region:cancel from an overlay window WE created
+    // for the in-flight selection — ignore any other renderer firing the channel
+    // (the same preload exposes region.* to every window).
+    const sender = BrowserWindow.fromWebContents(event.sender);
+    if (!sender || !this.pending.windows.includes(sender)) return;
     let result: Rect | null = null;
     if (cssRect && cssRect.width >= MIN_DRAG && cssRect.height >= MIN_DRAG) {
-      const win = BrowserWindow.fromWebContents(event.sender);
-      if (win && !win.isDestroyed()) {
-        const b = win.getBounds(); // DIP
-        const phys = screen.dipToScreenRect(win, {
+      if (!sender.isDestroyed()) {
+        const b = sender.getBounds(); // DIP
+        const phys = screen.dipToScreenRect(sender, {
           x: b.x + Math.round(cssRect.x),
           y: b.y + Math.round(cssRect.y),
           width: Math.round(cssRect.width),

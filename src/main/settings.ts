@@ -8,7 +8,7 @@ import { app } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { projectsLog } from './logger';
-import { writeFileAtomic } from './atomicWrite';
+import { writeFileAtomic } from './atomic-write';
 import {
   coerceSopSettings,
   DEFAULT_SOP_SETTINGS,

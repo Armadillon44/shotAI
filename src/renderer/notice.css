@@ -1,0 +1,77 @@
+/* Hovering, translucent, dismissable notices — see Notice.tsx.
+   The stack pins to the top-center of its (position:relative) parent and floats
+   ABOVE the content, so showing a notice never reflows/squishes the layout. */
+.notice-stack {
+  position: absolute;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: max-content;
+  max-width: min(92%, 680px);
+  /* let clicks pass through the gaps; each .notice re-enables pointer events */
+  pointer-events: none;
+}
+
+.notice {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: #fff;
+  /* Text shadow keeps white text legible over the translucent fill (the GPU is
+     disabled in this app, so backdrop-filter blur is a no-op — don't rely on it). */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 20px rgba(2, 6, 23, 0.25);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: notice-in 140ms ease-out;
+}
+
+/* Clearly translucent (alpha, not blur) so the underlying image/UI shows through. */
+.notice--error {
+  background: rgba(185, 28, 28, 0.6);
+}
+.notice--info {
+  background: rgba(37, 99, 235, 0.6);
+}
+.notice--success {
+  background: rgba(22, 163, 74, 0.6);
+}
+
+.notice__text {
+  flex: 1 1 auto;
+}
+
+.notice__dismiss {
+  flex: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.notice__dismiss:hover {
+  opacity: 1;
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -7,7 +7,7 @@
  */
 
 /** Models offered for SOP generation (curated allowlist — a bad id can't reach the API). */
-export type SopModelId = 'claude-sonnet-4-6' | 'claude-opus-4-8';
+export type SopModelId = 'claude-sonnet-5';
 
 export interface SopModelOption {
   id: SopModelId;
@@ -18,21 +18,38 @@ export interface SopModelOption {
 
 export const SOP_MODELS: readonly SopModelOption[] = [
   {
-    id: 'claude-sonnet-4-6',
-    label: 'Sonnet 4.6 — balanced (recommended)',
-    blurb: 'Fast and cost-effective; great for most SOPs.',
-  },
-  {
-    id: 'claude-opus-4-8',
-    label: 'Opus 4.8 — most capable',
-    blurb: 'Highest quality for complex procedures; slower and pricier.',
+    id: 'claude-sonnet-5',
+    label: 'Sonnet 5 — latest (recommended)',
+    blurb: 'Anthropic’s latest Sonnet: capable, fast, and cost-effective.',
   },
 ];
 
-export const DEFAULT_SOP_MODEL: SopModelId = 'claude-sonnet-4-6';
+export const DEFAULT_SOP_MODEL: SopModelId = 'claude-sonnet-5';
 
 export function isSopModel(v: unknown): v is SopModelId {
   return typeof v === 'string' && SOP_MODELS.some((m) => m.id === v);
+}
+
+/** Generation effort — maps to `output_config.effort` main-side (higher = more
+ *  deliberation, slower, pricier). User-configurable in Settings. */
+export type SopEffort = 'low' | 'medium' | 'high';
+
+export interface SopEffortOption {
+  id: SopEffort;
+  label: string;
+  blurb: string;
+}
+
+export const SOP_EFFORTS: readonly SopEffortOption[] = [
+  { id: 'low', label: 'Low', blurb: 'Fastest and cheapest; least deliberation.' },
+  { id: 'medium', label: 'Medium', blurb: 'Balanced quality, speed, and cost (recommended).' },
+  { id: 'high', label: 'High', blurb: 'Most thorough; slower and pricier.' },
+];
+
+export const DEFAULT_SOP_EFFORT: SopEffort = 'medium';
+
+export function isSopEffort(v: unknown): v is SopEffort {
+  return typeof v === 'string' && SOP_EFFORTS.some((e) => e.id === v);
 }
 
 /** Output tone — maps to a system-prompt modifier (main-side). */
@@ -69,6 +86,8 @@ export interface SopSettings {
   enabled: boolean;
   model: SopModelId;
   tone: SopTone;
+  /** Generation effort (output_config.effort) — user-configurable. */
+  effort: SopEffort;
   /** Optional extra system-prompt guidance, appended verbatim (length-capped). */
   customInstructions: string;
 }
@@ -77,6 +96,7 @@ export const DEFAULT_SOP_SETTINGS: SopSettings = {
   enabled: true,
   model: DEFAULT_SOP_MODEL,
   tone: DEFAULT_SOP_TONE,
+  effort: DEFAULT_SOP_EFFORT,
   customInstructions: '',
 };
 
@@ -94,6 +114,7 @@ export function coerceSopSettings(
     enabled: typeof r.enabled === 'boolean' ? r.enabled : base.enabled,
     model: isSopModel(r.model) ? r.model : base.model,
     tone: isSopTone(r.tone) ? r.tone : base.tone,
+    effort: isSopEffort(r.effort) ? r.effort : base.effort,
     customInstructions:
       typeof r.customInstructions === 'string'
         ? r.customInstructions.slice(0, SOP_CUSTOM_INSTRUCTIONS_MAX)

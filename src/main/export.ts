@@ -8,13 +8,17 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow, nativeImage, shell } from 'electron';
 import type { CalloutKind, ProjectManifest } from '../shared/project';
 import type { ExportFormat, ExportResult } from '../shared/ipc';
-import { getProjectForRead } from './ProjectStore';
+import { getProjectForRead } from './project-store';
+import { resolveSendableRender } from './render-gate';
+import { zoomCropRect } from './export-geometry';
 import { mainLog } from './logger';
 
-// Windows/macOS filesystem-reserved characters + device names (mirror ProjectStore).
+// Windows/macOS filesystem-reserved characters + device names. Used to derive a
+// safe EXPORT filename from the project title (project folders themselves are
+// UUID-named in ProjectStore, so there's nothing to mirror there).
 const RESERVED_CHARS = '<>:"/\\|?*';
 const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
@@ -34,12 +38,20 @@ function safeFileBase(title: string): string {
   return cleaned;
 }
 
-/** Confine a project-relative path to the project folder (defense in depth). */
-function confineProjectFile(dir: string, rel: string): string | null {
-  const abs = path.resolve(dir, rel);
-  const within = path.relative(dir, abs);
-  if (within === '' || within.startsWith('..') || path.isAbsolute(within)) return null;
-  return abs;
+/**
+ * First non-existent `<stem><ext>` in `exportDir`, appending " (1)", " (2)", …
+ * on collision. Serializes repeat exports so a second export never overwrites —
+ * or fails to write to — a previous export the user may have open (Windows lock).
+ */
+async function nextAvailableStem(exportDir: string, stem: string, ext: string): Promise<string> {
+  for (let n = 0; ; n++) {
+    const candidate = n === 0 ? stem : `${stem} (${n})`;
+    try {
+      await fs.access(path.join(exportDir, candidate + ext));
+    } catch {
+      return candidate; // ENOENT → this name is free
+    }
+  }
 }
 
 function escapeHtml(s: string): string {
@@ -68,8 +80,35 @@ type ExportItem =
       mediaType: 'image/png' | 'image/jpeg';
       ext: string;
       stepId: string;
+      /**
+       * Pre-cropped image bytes to embed INSTEAD of reading `abs`, produced when
+       * the step is zoomed in the report (reportZoom > 1) so the export matches
+       * the on-screen framing. Always PNG. Absent → builders read `abs` verbatim.
+       */
+      bytes?: Buffer;
     }
   | { kind: 'text'; heading: string; body: string; callout?: CalloutKind };
+
+/**
+ * Reproduce the report's per-step zoom/pan as a static crop of `abs` (the ALREADY
+ * redaction-baked sendable render — we only ever crop it SMALLER, never expose raw
+ * pixels). Returns cropped PNG bytes, or null to embed the full image unchanged
+ * (zoom <= 1, an unreadable image, or a degenerate crop). The visible-window math
+ * lives in export-geometry.ts (pure + unit-tested); here we just apply it.
+ */
+function zoomCropPng(
+  abs: string,
+  zoom: number,
+  panX: number,
+  panY: number,
+): Buffer | null {
+  const img = nativeImage.createFromPath(abs);
+  const { width, height } = img.getSize();
+  const rect = zoomCropRect(width, height, zoom, panX, panY);
+  if (!rect) return null; // whole image, as displayed
+  const png = img.crop(rect).toPNG();
+  return png && png.length > 0 ? png : null; // fail open to full image
+}
 
 /**
  * Resolve the project's steps into an ordered export list. Shot steps are
@@ -93,30 +132,22 @@ async function collectSteps(
     }
     // Shot step.
     shotNo++;
-    const hasBlur = step.annotations.some((a) => a.type === 'blur');
-    const rel = step.flattened ?? null;
-    if (!rel && (hasBlur || step.crop)) {
-      throw new Error(
-        `Step ${shotNo} has a redaction or crop that hasn't been baked into a render yet — ` +
-          `refusing to export the raw screenshot. Open it in the editor and save, then export again.`,
-      );
-    }
-    const relToRead = rel ?? step.screenshot;
-    const abs = relToRead ? confineProjectFile(dir, relToRead) : null;
-    if (!abs) throw new Error(`Step ${shotNo} has no readable screenshot to export.`);
+    // Fail-closed redaction gate (shared with the Claude send path).
+    const { abs, mediaType, ext } = resolveSendableRender(dir, step, `Step ${shotNo}`, 'export');
     // Fail fast (and clearly) if the render was deleted off disk after the
     // manifest was written — better than an opaque ENOENT mid-export.
     try {
       await fs.stat(abs);
     } catch {
       throw new Error(
-        `Step ${shotNo}'s screenshot render is missing from disk (${relToRead}). ` +
+        `Step ${shotNo}'s screenshot render is missing from disk (${step.flattened ?? step.screenshot}). ` +
           `Open it in the editor and save to re-bake the render, then export again.`,
       );
     }
-    const ext = path.extname(relToRead).toLowerCase();
-    const mediaType: 'image/png' | 'image/jpeg' =
-      ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+    // Honor the report's per-step zoom/pan: crop the sendable render to the same
+    // visible window so the export matches what's on screen. Falls back to the
+    // full image (bytes undefined) when the step isn't zoomed.
+    const cropped = zoomCropPng(abs, step.reportZoom ?? 1, step.reportPanX ?? 0.5, step.reportPanY ?? 0.5);
     items.push({
       kind: 'shot',
       n: shotNo,
@@ -124,9 +155,11 @@ async function collectSteps(
       body: (step.body ?? '').trim(),
       note: (step.note ?? '').trim(),
       abs,
-      mediaType,
-      ext: ext || '.png',
+      // A crop is re-encoded as PNG regardless of the source media type.
+      mediaType: cropped ? 'image/png' : mediaType,
+      ext: cropped ? '.png' : ext || '.png',
       stepId: step.id,
+      ...(cropped ? { bytes: cropped } : {}),
     });
   }
   if (items.length === 0) {
@@ -142,6 +175,9 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .doc{max-width:820px;margin:0 auto;padding:40px 32px 64px}
 .doc__title{font-size:1.9rem;line-height:1.25;margin:0 0 4px}
 .doc__meta{color:#6b7280;font-size:.85rem;margin:0 0 28px}
+.doc__intro{margin:0 0 28px;padding:14px 18px;border:1px solid #e3e6ea;border-left:4px solid #4f46e5;border-radius:8px;background:#f8f9fc}
+.doc__intro-h{margin:0 0 6px;font-size:1.15rem}
+.doc__intro-b{margin:0;color:#374151;white-space:pre-wrap}
 .section{margin:26px 0}
 .section__h{font-size:1.3rem;margin:0 0 6px;color:#111827}
 .section__b{white-space:pre-wrap;margin:0}
@@ -182,7 +218,7 @@ async function buildHtmlDoc(
       parts.push(`<section class="section">${h}${b}</section>`);
       continue;
     }
-    const bytes = await fs.readFile(it.abs);
+    const bytes = it.bytes ?? (await fs.readFile(it.abs));
     const dataUri = `data:${it.mediaType};base64,${bytes.toString('base64')}`;
     const title = escapeHtml(it.caption || `Step ${it.n}`);
     const instr = it.body ? `<p class="step__instr">${escapeHtml(it.body)}</p>` : '';
@@ -199,6 +235,16 @@ async function buildHtmlDoc(
     );
   }
   const title = escapeHtml(manifest.title);
+  const intro = manifest.intro;
+  const introHtml =
+    intro && (intro.heading || intro.body)
+      ? `<section class="doc__intro">\n` +
+        (intro.heading ? `<h2 class="doc__intro-h">${escapeHtml(intro.heading)}</h2>\n` : '') +
+        (intro.body
+          ? `<p class="doc__intro-b">${escapeHtml(intro.body).replace(/\n/g, '<br>')}</p>\n`
+          : '') +
+        `</section>\n`
+      : '';
   return (
     `<!doctype html>\n<html lang="en">\n<head>\n` +
     `<meta charset="utf-8">\n` +
@@ -208,6 +254,7 @@ async function buildHtmlDoc(
     `</head>\n<body>\n<main class="doc">\n` +
     `<h1 class="doc__title">${title}</h1>\n` +
     `<p class="doc__meta">Generated by shotAI · ${escapeHtml(generatedAt)}</p>\n` +
+    introHtml +
     parts.join('\n') +
     `\n</main>\n</body>\n</html>\n`
   );
@@ -225,6 +272,10 @@ async function buildPlainHtmlDoc(
 ): Promise<string> {
   const br = (s: string) => escapeHtml(s).replace(/\n/g, '<br>');
   const parts: string[] = [`<h1>${escapeHtml(manifest.title)}</h1>`];
+  if (manifest.intro && (manifest.intro.heading || manifest.intro.body)) {
+    if (manifest.intro.heading) parts.push(`<h2>${escapeHtml(manifest.intro.heading)}</h2>`);
+    if (manifest.intro.body) parts.push(`<p>${br(manifest.intro.body)}</p>`);
+  }
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout) {
@@ -239,7 +290,7 @@ async function buildPlainHtmlDoc(
       if (it.body) parts.push(`<p>${br(it.body)}</p>`);
       continue;
     }
-    const bytes = await fs.readFile(it.abs);
+    const bytes = it.bytes ?? (await fs.readFile(it.abs));
     const dataUri = `data:${it.mediaType};base64,${bytes.toString('base64')}`;
     parts.push(`<h2>${it.n}. ${escapeHtml(it.caption || `Step ${it.n}`)}</h2>`);
     parts.push(`<p><img src="${dataUri}" alt="Screenshot for step ${it.n}"></p>`);
@@ -307,11 +358,13 @@ async function buildMarkdown(
   dir: string,
   manifest: ProjectManifest,
   items: ExportItem[],
-  base: string,
+  stem: string,
   generatedAt: string,
 ): Promise<string> {
-  const imagesDir = path.join(dir, 'export', 'images');
-  // Start clean so images from deleted/reordered steps don't linger as orphans.
+  // Per-export images dir (stem is already unique for the .md) so a serialized
+  // second markdown export doesn't clobber the first export's images.
+  const imagesDirName = `${stem}-images`;
+  const imagesDir = path.join(dir, 'export', imagesDirName);
   await fs.rm(imagesDir, { recursive: true, force: true }).catch(() => undefined);
   await fs.mkdir(imagesDir, { recursive: true });
   const lines: string[] = [
@@ -320,6 +373,10 @@ async function buildMarkdown(
     `_Generated by shotAI · ${generatedAt}_`,
     '',
   ];
+  if (manifest.intro && (manifest.intro.heading || manifest.intro.body)) {
+    if (manifest.intro.heading) lines.push(`## ${escapeMarkdown(manifest.intro.heading)}`, '');
+    if (manifest.intro.body) lines.push(manifest.intro.body, '');
+  }
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout) {
@@ -341,14 +398,16 @@ async function buildMarkdown(
       continue;
     }
     const imgName = `step-${String(it.n).padStart(2, '0')}-${it.stepId}${it.ext}`;
-    await fs.copyFile(it.abs, path.join(imagesDir, imgName));
+    if (it.bytes) await fs.writeFile(path.join(imagesDir, imgName), it.bytes);
+    else await fs.copyFile(it.abs, path.join(imagesDir, imgName));
     const heading = (it.caption || `Step ${it.n}`).replace(/\s*\n\s*/g, ' ');
     lines.push(`## ${it.n}. ${escapeMarkdown(heading)}`, '');
-    lines.push(`![Screenshot for step ${it.n}](images/${imgName})`, '');
+    // Angle-bracket the path: the serialized stem may contain spaces/parens.
+    lines.push(`![Screenshot for step ${it.n}](<${imagesDirName}/${imgName}>)`, '');
     if (it.body) lines.push(it.body, '');
     if (it.note) lines.push(`> ${it.note.replace(/\n/g, '\n> ')}`, '');
   }
-  const outputPath = path.join(dir, 'export', `${base}.md`);
+  const outputPath = path.join(dir, 'export', `${stem}.md`);
   await fs.writeFile(outputPath, lines.join('\n'), 'utf8');
   return outputPath;
 }
@@ -371,18 +430,22 @@ export async function exportProject(
 
   let outputPath: string;
   if (format === 'markdown') {
-    outputPath = await buildMarkdown(dir, manifest, items, base, generatedAt);
+    const stem = await nextAvailableStem(exportDir, base, '.md');
+    outputPath = await buildMarkdown(dir, manifest, items, stem, generatedAt);
   } else if (format === 'html-plain') {
     const html = await buildPlainHtmlDoc(manifest, items);
-    outputPath = path.join(exportDir, `${base}-plain.html`);
+    const stem = await nextAvailableStem(exportDir, `${base}-plain`, '.html');
+    outputPath = path.join(exportDir, `${stem}.html`);
     await fs.writeFile(outputPath, html, 'utf8');
   } else {
     const html = await buildHtmlDoc(manifest, items, generatedAt);
     if (format === 'html') {
-      outputPath = path.join(exportDir, `${base}.html`);
+      const stem = await nextAvailableStem(exportDir, base, '.html');
+      outputPath = path.join(exportDir, `${stem}.html`);
       await fs.writeFile(outputPath, html, 'utf8');
     } else {
-      outputPath = path.join(exportDir, `${base}.pdf`);
+      const stem = await nextAvailableStem(exportDir, base, '.pdf');
+      outputPath = path.join(exportDir, `${stem}.pdf`);
       await htmlToPdf(dir, html, outputPath);
     }
   }

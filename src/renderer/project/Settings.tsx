@@ -2,6 +2,7 @@ import React from 'react';
 import {
   SOP_MODELS,
   SOP_TONES,
+  SOP_EFFORTS,
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../../shared/sop';
@@ -275,6 +276,27 @@ export function Settings({
                 </div>
                 <p className="settings__hint">
                   {SOP_TONES.find((t) => t.id === sop.tone)?.blurb}
+                </p>
+              </div>
+
+              <div className="settings__group">
+                <h3 className="settings__h">Effort</h3>
+                <div className="capmode__modes" role="radiogroup" aria-label="Effort">
+                  {SOP_EFFORTS.map((e) => (
+                    <button
+                      key={e.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={sop.effort === e.id}
+                      className={`capmode__chip${sop.effort === e.id ? ' capmode__chip--on' : ''}`}
+                      onClick={() => void patch({ effort: e.id })}
+                    >
+                      {e.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="settings__hint">
+                  {SOP_EFFORTS.find((e) => e.id === sop.effort)?.blurb}
                 </p>
               </div>
 

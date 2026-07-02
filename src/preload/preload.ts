@@ -10,7 +10,7 @@ import {
   type ShotaiApi,
   type SopProgress,
 } from '../shared/ipc';
-import type { CaptureTarget, ProjectStep, Rect, StepPatch } from '../shared/project';
+import type { CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch } from '../shared/project';
 import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
@@ -76,6 +76,8 @@ const api: ShotaiApi = {
     ) => ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex, callout),
     redactScan: (projectPath: string, stepId: string) =>
       ipcRenderer.invoke(IpcChannels.redactScan, projectPath, stepId),
+    setIntro: (projectPath: string, intro: SopIntro | null) =>
+      ipcRenderer.invoke(IpcChannels.setProjectIntro, projectPath, intro),
     revertSop: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),
     export: (projectPath: string, format: ExportFormat) =>
@@ -95,6 +97,7 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.claudeEstimate, projectPath),
     generateSop: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.claudeGenerateSop, projectPath),
+    cancel: () => ipcRenderer.send(IpcChannels.claudeCancel),
     onSopProgress: (cb: (p: SopProgress) => void) => {
       const listener = (_e: IpcRendererEvent, p: SopProgress) => cb(p);
       ipcRenderer.on(IpcChannels.claudeSopProgress, listener);
@@ -104,12 +107,10 @@ const api: ShotaiApi = {
   },
   capture: {
     start: (projectPath: string, target?: CaptureTarget, opts?: { createdThisSession?: boolean }) =>
-      ipcRenderer.invoke(
-        IpcChannels.captureStart,
-        projectPath,
-        target,
-        opts?.createdThisSession ?? false,
-      ),
+      // Pass the opts object through verbatim (isomorphic to the ShotaiApi shape)
+      // rather than flattening one field to a positional bool — adding a future
+      // opts field then can't silently drop at the bridge.
+      ipcRenderer.invoke(IpcChannels.captureStart, projectPath, target, opts),
     captureSingle: (projectPath: string, atIndex: number) =>
       ipcRenderer.invoke(IpcChannels.captureSingle, projectPath, atIndex),
     pause: () => ipcRenderer.invoke(IpcChannels.capturePause),

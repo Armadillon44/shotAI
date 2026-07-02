@@ -8,6 +8,9 @@
 // flattened PNG — never the raw shots/*.png. Kept free of React/Konva so it can
 // be reasoned about (and unit-tested) on its own.
 import type { Annotation, BlurAnnotation, Rect } from '../../shared/project';
+// Single source of truth for the marker radius (annotations.ts is types-only +
+// pure, so flatten.ts stays React/Konva-free).
+import { clickMarkerRadius } from './annotations';
 
 // Minimum redaction downsample factor (image px). Below this, averaged text can
 // stay legible, so the bake clamps up to it regardless of the stored value.
@@ -167,11 +170,6 @@ function bakeRedaction(
   ctx.drawImage(tmp, 0, 0, sw, sh, x0, y0, w, h);
   ctx.restore(); // also resets filter + smoothing + clip
   return true;
-}
-
-/** Marker ring radius from image size — mirror of clickMarkerRadius() in annotations.ts. */
-function clickMarkerRadius(naturalW: number, naturalH: number): number {
-  return Math.max(14, Math.min(60, Math.round(Math.min(naturalW, naturalH) * 0.02)));
 }
 
 /** Draw the click ring (translucent fill + solid stroke) at the click point. */
