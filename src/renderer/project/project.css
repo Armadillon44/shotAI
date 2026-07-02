@@ -1364,10 +1364,18 @@ body {
   opacity: 0.3;
   transition: opacity 0.12s ease;
   z-index: 3;
+  /* Idle controls must NOT be click targets. This absolutely-positioned strip is
+     the only per-shot hit-test layer; after a delete reflows the list upward its
+     cached hit rectangle can go stale and sit over a callout that shifted under
+     it, swallowing the click until a window resize forces a relayout (B4). With
+     pointer-events off until THIS figbox is hovered/focused, a stale idle rect
+     can never intercept clicks meant for another row. */
+  pointer-events: none;
 }
 .rep__figbox:hover .rep__imgctl,
 .rep__imgctl:focus-within {
   opacity: 1;
+  pointer-events: auto;
 }
 .rep__imgctl-btn {
   width: 1.9rem;
@@ -2028,6 +2036,28 @@ body {
   border-radius: 12px;
   padding: 1.25rem 1.5rem;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* In-app confirmation dialog (useConfirm) — replaces native window.confirm so a
+   native dialog can't steal the window's keyboard focus (B4). */
+.confirm {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.confirm__msg {
+  margin: 0 0 1.1rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #1f2937;
+}
+.confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
 }
 
 .sop__modal-title {

@@ -9,6 +9,7 @@ import { shotUrl, useProjectStore } from './store';
 import { canMergeInto, mergeStepInto } from './merge';
 import { markerColorFor } from '../editor/annotations';
 import { OverflowMenu, type MenuItem } from './OverflowMenu';
+import { useConfirm } from '../useConfirm';
 
 /** What the hover-"+" insert menu can add between steps. */
 export type InsertKind = 'text' | 'image' | 'shot' | CalloutKind;
@@ -340,12 +341,17 @@ function InlineTextarea({
 export function Report({
   onEditStep,
   autoEditId,
+  onAutoEditConsumed,
   onEditingChange,
   onInsert,
 }: {
   onEditStep?: (step: ProjectStep) => void;
   /** When set to a (text) step id, open that step's inline editor. */
   autoEditId?: string | null;
+  /** Called once the autoEditId has been consumed so the parent can reset it —
+   *  a stale, never-reset trigger would otherwise re-open the editor on later
+   *  re-renders/remounts and re-lock the report (B4). */
+  onAutoEditConsumed?: () => void;
   /** Notifies the parent whether a text step is currently being inline-edited
    *  (so it can disable structural actions that would discard the draft). */
   onEditingChange?: (editing: boolean) => void;
@@ -358,6 +364,7 @@ export function Report({
   const intro = useProjectStore((s) => s.intro);
   const manifestRev = useProjectStore((s) => s.manifestRev);
   const applyManifest = useProjectStore((s) => s.applyManifest);
+  const { confirm, alert, confirmModal } = useConfirm();
   const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
   const [editingIntro, setEditingIntro] = React.useState(false);
   const [editingCapId, setEditingCapId] = React.useState<string | null>(null);
@@ -375,33 +382,32 @@ export function Report({
   // step. Cleared on the first save or cancel of that step.
   const freshTextIdRef = React.useRef<string | null>(null);
 
-  // A freshly added text step opens straight into its editor.
+  // A freshly added text step opens straight into its editor — ONCE. The parent
+  // resets autoEditId via onAutoEditConsumed so a stale trigger can't re-open
+  // (and re-lock) the editor on a later re-render or remount.
   React.useEffect(() => {
     if (autoEditId) {
       setEditingTextId(autoEditId);
       freshTextIdRef.current = autoEditId;
+      onAutoEditConsumed?.();
     }
-  }, [autoEditId]);
+  }, [autoEditId, onAutoEditConsumed]);
 
   // Keep the parent in sync so it can guard against discarding an open draft.
   React.useEffect(() => {
     onEditingChange?.(editingTextId !== null);
   }, [editingTextId, onEditingChange]);
 
-  // Reconcile inline-edit state whenever the manifest is REPLACED (B4). A stale
-  // editingTextId is the single gate for opening ANY callout/text editor, so if
-  // it lingers after a delete/SOP-gen the user can't edit anything until they
-  // reopen the project. An "id vanished" check isn't enough: author callouts keep
-  // their id across SOP-gen/delete/reorder. So on every manifest swap, drop all
-  // transient edit latches — but preserve a genuinely-open fresh-add draft (the
-  // "+ Text/callout → auto-open" session), identified by freshTextIdRef.
+  // Reconcile inline-edit state whenever the manifest is REPLACED (B4). Only DROP
+  // a latch whose step has vanished — never re-assert one. (An earlier version
+  // re-opened the "fresh-add draft" here, which self-healed into a permanent lock
+  // because a callout's id survives delete/SOP-gen/reorder, so the re-assertion
+  // fired forever.) A genuinely-open editor is preserved automatically: its id is
+  // still in steps, so the functional updater leaves editingTextId untouched.
   React.useEffect(() => {
-    const fresh = freshTextIdRef.current;
-    if (fresh && steps.some((s) => s.id === fresh)) {
-      setEditingTextId(fresh); // keep the open fresh-add draft (idempotent)
-    } else {
+    setEditingTextId((cur) => (cur && !steps.some((s) => s.id === cur) ? null : cur));
+    if (freshTextIdRef.current && !steps.some((s) => s.id === freshTextIdRef.current)) {
       freshTextIdRef.current = null;
-      setEditingTextId(null);
     }
     setEditingCapId(null);
     setEditingNumId(null);
@@ -527,7 +533,14 @@ export function Report({
 
   const del = async (step: ProjectStep) => {
     if (busyRef.current || !projectPath) return;
-    if (!window.confirm('Delete this step? (its image file stays on disk)')) return;
+    if (
+      !(await confirm('Delete this step? (its image file stays on disk)', {
+        confirmLabel: 'Delete',
+        danger: true,
+      }))
+    ) {
+      return;
+    }
     busyRef.current = true;
     try {
       applyManifest(await window.shotai.projects.deleteStep(projectPath, step.id));
@@ -552,9 +565,7 @@ export function Report({
     try {
       applyManifest(await mergeStepInto(projectId, projectPath, keep, drop));
     } catch (e) {
-      window.alert(
-        `Could not merge these steps: ${e instanceof Error ? e.message : String(e)}`,
-      );
+      void alert(`Could not merge these steps: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setMerging(null);
       busyRef.current = false;
@@ -562,9 +573,15 @@ export function Report({
   };
 
   // Open a text/callout step's inline editor (also the heading/body click
-  // target). Blocked while another draft is open so it can't be discarded.
+  // target). ALWAYS opens, switching away from any other open editor — editing
+  // must never be blocked by a lingering editingTextId (a still-open editor, or
+  // one left set after deleting a different step). Unsaved text in a previously
+  // open editor is dropped. This is a user click on an existing step, not a
+  // fresh-add auto-open, so clear that marker.
   const openTextEdit = (step: ProjectStep) => {
-    if (editingTextId === null) setEditingTextId(step.id);
+    if (editingTextId === step.id) return;
+    freshTextIdRef.current = null;
+    setEditingTextId(step.id);
   };
 
   const saveText = async (step: ProjectStep, heading: string, body: string) => {
@@ -628,9 +645,10 @@ export function Report({
 
   if (!projectId) return null;
 
-  // The hover-"+" between steps. Disabled while a text draft is open (inserting
-  // would switch/discard it). Hidden entirely if the parent gives no handler.
-  const canInsert = !!onInsert && editingTextId === null;
+  // The hover-"+" between steps. Enabled whenever the parent gives a handler;
+  // inserting while an editor is open just switches to the newly-added step
+  // (never blocked — a lingering editingTextId must not lock creation, B4).
+  const canInsert = !!onInsert;
   const insertZone = (atIndex: number) =>
     onInsert ? (
       <div className="rep__insert">
@@ -778,7 +796,6 @@ export function Report({
   // (+ callout conversion / delete for text steps). Shots' zoom + delete float
   // over the image (UX8). Merge is offered ONLY by the contextual banner below.
   const controls = (s: ProjectStep, idx: number) => {
-    const editDisabled = s.kind === 'text' && editingTextId !== null;
     const items: MenuItem[] = [
       { label: '↑ Move up', onClick: () => move(idx, -1), disabled: idx === 0 },
       {
@@ -811,11 +828,10 @@ export function Report({
         <button
           type="button"
           className="btn btn--small"
-          // While a text step is open in the inline editor, switching to edit
-          // another text step would discard the open draft — block it.
-          disabled={editDisabled}
-          title={editDisabled ? 'Finish editing the open text step first' : 'Edit'}
-          onClick={() => (s.kind === 'text' ? setEditingTextId(s.id) : onEditStep?.(s))}
+          title="Edit"
+          // Editing a text step switches the open editor (openTextEdit), so it's
+          // never blocked by another open/stale editor. Shots open the modal editor.
+          onClick={() => (s.kind === 'text' ? openTextEdit(s) : onEditStep?.(s))}
         >
           Edit
         </button>
@@ -996,6 +1012,7 @@ export function Report({
   const hasIntro = !!(intro && (intro.heading || intro.body));
   return (
     <div className="rep" role="list">
+      {confirmModal}
       {editingIntro ? (
         <div className="rep__intro">
           <TextStepEditor

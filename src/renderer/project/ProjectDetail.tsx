@@ -40,6 +40,11 @@ export function ProjectDetail({
   const [importing, setImporting] = React.useState(false);
   const [importErr, setImportErr] = React.useState<string | null>(null);
   const [autoEditId, setAutoEditId] = React.useState<string | null>(null);
+  // Single-shot reset for autoEditId: once Report has opened the freshly-added
+  // step's editor it calls this, so a stale trigger can't re-open (and re-lock)
+  // the editor on a later re-render/remount (B4). Stable ref so Report's effect
+  // deps stay quiet.
+  const clearAutoEdit = React.useCallback(() => setAutoEditId(null), []);
   // True while a text step is being inline-edited in the report; we disable
   // structural actions (resume/add/import) so they can't discard the draft.
   const [textEditing, setTextEditing] = React.useState(false);
@@ -328,6 +333,7 @@ export function ProjectDetail({
         <Report
           onEditStep={onEditStep}
           autoEditId={autoEditId}
+          onAutoEditConsumed={clearAutoEdit}
           onEditingChange={setTextEditing}
           onInsert={onInsert}
         />

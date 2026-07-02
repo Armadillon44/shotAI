@@ -9,6 +9,7 @@ import type { ProjectStep } from '../../shared/project';
 import type { SopEstimate, SopProgress } from '../../shared/ipc';
 import { shotUrl, useProjectStore } from './store';
 import { ensureFlattened } from './sop-prepare';
+import { useConfirm } from '../useConfirm';
 
 /** Prefer the flattened/redacted render (cache-busted), else the raw screenshot. */
 function stepImageSrc(projectId: string, step: ProjectStep): string {
@@ -49,6 +50,7 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
   // banner flashes for a user-initiated cancel (C2).
   const flattenAbortRef = React.useRef<AbortController | null>(null);
   const canceledRef = React.useRef(false);
+  const { confirm, confirmModal } = useConfirm();
 
   React.useEffect(() => {
     if (!sopEnabled) return;
@@ -73,9 +75,10 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
     if (!projectId || !projectPath) return;
     if (
       sopBackup &&
-      !window.confirm(
+      !(await confirm(
         'Regenerate the SOP? This replaces the AI-written headings, instructions, and section text. You can revert afterward.',
-      )
+        { confirmLabel: 'Regenerate' },
+      ))
     ) {
       return;
     }
@@ -134,7 +137,7 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
 
   const revert = async () => {
     if (!projectPath) return;
-    if (!window.confirm("Revert Claude's edits and restore the project as it was before generation?"))
+    if (!(await confirm("Revert Claude's edits and restore the project as it was before generation?", { confirmLabel: 'Revert' })))
       return;
     setError(null);
     try {
@@ -152,6 +155,7 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
 
   return (
     <section className="sopbar">
+      {confirmModal}
       {error && <p className="project__error sopbar__err">{error}</p>}
       <div className="sopbar__row">
         {sopEnabled && (
