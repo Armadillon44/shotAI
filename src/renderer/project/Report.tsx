@@ -17,7 +17,12 @@ export type InsertKind = 'text' | 'image' | 'shot' | CalloutKind;
 // Base display box for report images (display only — export is full-res).
 const REPORT_BASE_W = 820;
 const REPORT_BASE_H = 600;
-const ZOOM_MIN = 0.5;
+// The default view (zoom 1) already fits the screenshot to the report column, so
+// zoom is IN-only — never shrink below the fit. Enforced on BOTH the write path
+// (setZoom clamps to [ZOOM_MIN, ZOOM_MAX]) and the read path (a persisted or
+// legacy zoom < 1 is floored to ZOOM_MIN on load), so no manifest value can ever
+// render below the fit. (Export also treats any zoom <= 1 as the full image.)
+const ZOOM_MIN = 1;
 const ZOOM_MAX = 4;
 
 /** A text step styled as a callout — an annotation, NOT a numbered step (E10). */
@@ -57,10 +62,14 @@ function StepFigure({
     ? `${shotUrl(projectId, step.flattened as string)}?v=${step.renderRev ?? 0}`
     : shotUrl(projectId, step.screenshot);
 
-  const zoom = step.reportZoom ?? 1;
-  // Fixed viewport: the image fit within REPORT_BASE (<=800x600) at zoom 1; the
-  // box shrinks for zoom<1 and stays fixed for zoom>1 so the image overflows and
-  // pans in BOTH axes (instead of the box growing taller).
+  // Floor to ZOOM_MIN on read so a legacy/persisted zoom < 1 (older builds
+  // allowed 0.5) can never render below the fit — the IN-only invariant holds
+  // regardless of what's on disk.
+  const zoom = Math.max(ZOOM_MIN, step.reportZoom ?? 1);
+  // Fixed viewport: the image fits within REPORT_BASE (<=820x600) at zoom 1; the
+  // box stays fixed and the image overflows for zoom>1 so it pans in BOTH axes
+  // (instead of the box growing taller). boxScale is 1 for all valid zooms (>=1);
+  // Math.min keeps it defensive if a sub-1 value ever slips past the read floor.
   const baseScale = dims ? Math.min(REPORT_BASE_W / dims.w, REPORT_BASE_H / dims.h, 1) : 0;
   const baseW = dims ? dims.w * baseScale : 0;
   const baseH = dims ? dims.h * baseScale : 0;
@@ -178,6 +187,7 @@ function StepFigure({
             className="rep__imgctl-btn"
             title="Zoom out"
             aria-label="Zoom out"
+            disabled={zoom <= ZOOM_MIN}
             onClick={() => onZoom(zoom / 1.25)}
           >
             −

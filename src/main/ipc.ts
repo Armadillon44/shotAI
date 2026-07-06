@@ -176,7 +176,10 @@ function parseStepPatch(value: unknown): StepPatch {
     patch.markerColor = v.markerColor;
   }
   if (typeof v.markerBaked === 'boolean') patch.markerBaked = v.markerBaked;
-  if (isNum(v.reportZoom)) patch.reportZoom = Math.max(0.2, Math.min(6, v.reportZoom));
+  // Floor at 1: the report's default view already fits the screenshot to the
+  // column, so zoom is IN-only (matches Report.tsx ZOOM_MIN). Normalizes any
+  // legacy sub-1 value on the next write.
+  if (isNum(v.reportZoom)) patch.reportZoom = Math.max(1, Math.min(6, v.reportZoom));
   if (isNum(v.reportPanX)) patch.reportPanX = Math.max(0, Math.min(1, v.reportPanX));
   if (isNum(v.reportPanY)) patch.reportPanY = Math.max(0, Math.min(1, v.reportPanY));
   if (Array.isArray(v.annotations)) {
