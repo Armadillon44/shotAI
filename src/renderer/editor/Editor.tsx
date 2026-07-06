@@ -99,7 +99,10 @@ export function Editor({
   const [crop, setCrop] = React.useState<Rect | null>(step.crop ?? null);
   // When true, the editor shows only the cropped region (zoomed to fill) so you
   // can work on it directly. Annotations stay in full-image coords regardless.
-  const [viewCropped, setViewCropped] = React.useState(false);
+  // Open in the cropped view when the step already has a saved crop, so a
+  // re-opened step matches the report instead of showing the full capture with a
+  // stray crop box (the crop was always persisted — only the view was wrong).
+  const [viewCropped, setViewCropped] = React.useState<boolean>(!!step.crop);
   // Editing zoom on top of the fit/crop scale — for precise work on large
   // captures. The canvas scrolls when the zoomed stage exceeds it.
   const [editorZoom, setEditorZoom] = React.useState(1);
@@ -298,18 +301,19 @@ export function Editor({
     else setDraft({ x: p.x, y: p.y, width: 0, height: 0 });
   };
 
-  // Map a window mouse event to IMAGE px via the live stage transform — lets a
-  // drag continue (and clamp) even when the cursor roams outside the stage.
+  // Map a window mouse event to IMAGE px — lets a drag continue (and clamp) even
+  // when the cursor roams outside the stage. Uses Konva's OWN pointer math
+  // (setPointersPositions → getRelativePointerPosition) so the moving endpoint
+  // lands in exactly the same image space as the drag START (captured via
+  // getRelativePointerPosition). A hand-rolled inverse using the outer container
+  // rect + stage scale diverged from Konva's content-rect/content-scale
+  // normalization (DPI, a container border, sub-pixel rounding), which shifted
+  // the committed point — e.g. an arrow TIP landing off from where it was drawn.
   const eventImagePoint = (e: MouseEvent): { x: number; y: number } | null => {
     const stage = stageRef.current;
     if (!stage) return null;
-    const rect = stage.container().getBoundingClientRect();
-    const sx = stage.scaleX() || 1;
-    const sy = stage.scaleY() || 1;
-    return {
-      x: (e.clientX - rect.left - stage.x()) / sx,
-      y: (e.clientY - rect.top - stage.y()) / sy,
-    };
+    stage.setPointersPositions(e);
+    return stage.getRelativePointerPosition();
   };
 
   // Finalize from the last drafted geometry (NOT a fresh pointer read), so a
@@ -652,10 +656,9 @@ export function Editor({
                     if (editingTextId) finishTextEdit(); // close any in-progress edit
                     setTool(tl);
                     if (tl !== 'select') setSelectedId(null);
-                    if (tl === 'crop') {
-                      setViewCropped(false); // re-crop on the full image
-                      setEditorZoom(1);
-                    }
+                    // Re-crop on the full image, but KEEP the user's current
+                    // zoom — resetting it to 100% here was a jarring jump (bug).
+                    if (tl === 'crop') setViewCropped(false);
                   }}
                 >
                   <span className="ed__tool-ico" aria-hidden="true">
@@ -1007,7 +1010,7 @@ export function Editor({
                       strokeWidth={a.strokeWidth}
                       pointerLength={Math.max(12, a.strokeWidth * 3)}
                       pointerWidth={Math.max(12, a.strokeWidth * 3)}
-                      lineCap="round"
+                      lineCap="butt"
                       onDragEnd={(e) => {
                         const dx = e.target.x();
                         const dy = e.target.y();
