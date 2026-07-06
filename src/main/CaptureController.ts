@@ -552,14 +552,31 @@ export class CaptureController {
 
   getState(): CaptureState {
     if (!this.session) {
-      return { status: 'idle', projectPath: null, projectTitle: null, stepCount: 0 };
+      return {
+        status: 'idle',
+        projectPath: null,
+        projectTitle: null,
+        stepCount: 0,
+        willDeleteProjectOnDiscard: false,
+      };
     }
     return {
       status: this.session.paused ? 'paused' : 'recording',
       projectPath: this.session.projectPath,
       projectTitle: this.session.projectTitle,
       stepCount: this.session.stepCount,
+      willDeleteProjectOnDiscard: CaptureController.discardDeletesProject(this.session),
     };
+  }
+
+  /**
+   * Whether discarding `s` deletes the WHOLE project (vs. just this session's
+   * steps): a project created this session that had no prior steps and isn't a
+   * single-shot insert. One source of truth for discard() and the pill's R5
+   * warning — keep them from drifting apart.
+   */
+  private static discardDeletesProject(s: Session): boolean {
+    return s.createdThisSession && s.stepCountAtStart === 0 && !s.single;
   }
 
   private emitState(): void {
@@ -754,7 +771,7 @@ export class CaptureController {
     this.session = null;
     let projectDeleted = false;
     if (s) {
-      const whole = s.createdThisSession && s.stepCountAtStart === 0 && !s.single;
+      const whole = CaptureController.discardDeletesProject(s);
       try {
         if (whole) {
           await projectStore.deleteProject(s.projectPath);

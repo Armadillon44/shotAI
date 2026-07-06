@@ -15,6 +15,7 @@ import { ProjectDetail } from './ProjectDetail';
 import { ProjectList } from './ProjectList';
 import { Notice } from '../Notice';
 import { Settings } from './Settings';
+import { Tour } from './Tour';
 
 type Targets = { windows: WindowInfo[]; monitors: MonitorInfo[] };
 
@@ -38,6 +39,10 @@ export function App(): React.JSX.Element {
   const [capture, setCapture] = React.useState<CaptureState | null>(null);
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
   const [showSettings, setShowSettings] = React.useState(false);
+  // First-run coach-mark tour (R2). Opens once on first launch; replayable from
+  // Settings → About. Only rendered on the home screen (its bubbles anchor to
+  // home controls).
+  const [tourOpen, setTourOpen] = React.useState(false);
 
   // Capture-mode selection (applied to the next recording).
   const [mode, setMode] = React.useState<CaptureMode>('screen');
@@ -148,6 +153,29 @@ export function App(): React.JSX.Element {
     window.shotai.capture.getState().then(setCapture).catch(fail);
     refresh().catch(fail);
   }, [refresh]);
+
+  // Show the first-run tour once (persisted hasSeenTour flag). The render gate
+  // below keeps it to the home screen where its anchors live.
+  React.useEffect(() => {
+    window.shotai.settings
+      .getHasSeenTour()
+      .then((seen) => {
+        if (!seen) setTourOpen(true);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  // Dismiss/complete the tour and remember it so it doesn't re-fire.
+  const closeTour = () => {
+    setTourOpen(false);
+    void window.shotai.settings.setHasSeenTour(true);
+  };
+
+  // Replay from Settings → About: leave Settings for the home screen, then open.
+  const replayTour = () => {
+    setShowSettings(false);
+    setTourOpen(true);
+  };
 
   // Screen is the default mode → load monitors so the picker shows the primary
   // preselected (selectMode only lazy-loads on a click).
@@ -289,6 +317,7 @@ export function App(): React.JSX.Element {
               className="btn btn--small"
               onClick={() => setShowSettings(true)}
               title="Settings"
+              data-tour="settings"
             >
               ⚙ Settings
             </button>
@@ -382,13 +411,21 @@ export function App(): React.JSX.Element {
           <Settings
             onBack={() => setShowSettings(false)}
             onProjectsDirChanged={() => void refresh()}
+            onReplayTour={replayTour}
           />
         )}
 
         {showHome && !showSettings && (
-          <div className="home__create">
+          <div className="home__create" data-tour="hero">
             {/* Lead with the create action — the primary intent. */}
             <h2 className="home__h">Start a project</h2>
+            {/* One-line mission: define "SOP" and motivate the primary action for
+                a first-time user (R1). */}
+            <p className="home__mission">
+              Record a process, mark it up, and let Claude turn it into a
+              step-by-step guide — a standard operating procedure — you can export
+              and share.
+            </p>
             <form className="home__createrow" onSubmit={onCreate}>
               <input
                 className="project__input"
@@ -402,6 +439,8 @@ export function App(): React.JSX.Element {
                 type="submit"
                 className="btn btn--primary"
                 disabled={busy || recording || !modeReady}
+                data-tour="capture"
+                title="Start recording — every click captures a step"
               >
                 {busy ? 'Creating…' : 'Capture ▸'}
               </button>
@@ -412,12 +451,12 @@ export function App(): React.JSX.Element {
                 onClick={() => void onCreateEmpty()}
                 title="Create an empty project and open it — add images, screenshots, or text without capturing"
               >
-                Empty
+                Empty Project
               </button>
             </form>
 
             {/* Capture mode — a compact inline control attached to the create action. */}
-            <div className="home__mode" role="radiogroup" aria-label="Capture mode">
+            <div className="home__mode" role="radiogroup" aria-label="Capture mode" data-tour="mode">
               <span className="home__mode-label">Mode</span>
               {MODE_OPTIONS.map((opt) => (
                 <button
@@ -442,6 +481,13 @@ export function App(): React.JSX.Element {
                 </span>
               )}
             </div>
+            {/* Plain-language explainer so the mode choice doesn't rely on hover
+                tooltips alone (R10). */}
+            <p className="home__mode-hint">
+              What shotAI grabs for each step: a full monitor (<b>Screen</b>), one{' '}
+              <b>Window</b>, a fixed <b>Area</b> you drag out, or <b>Auto</b>-detect
+              per click.
+            </p>
 
             {(mode === 'window' || mode === 'screen') && (
               <div className="home__dd">
@@ -556,11 +602,15 @@ export function App(): React.JSX.Element {
             )}
             {mode === 'window' && !pickedWindow && (
               <p className="capmode__warn">
-                Pick a window above to enable capture.
+                Pick a window above to start recording — that's why Capture ▸ is
+                greyed out.
               </p>
             )}
             {mode === 'area' && !pickedArea && !selectingArea && (
-              <p className="capmode__warn">Select an area to enable capture.</p>
+              <p className="capmode__warn">
+                Select an area above to start recording — that's why Capture ▸ is
+                greyed out.
+              </p>
             )}
           </div>
         )}
@@ -575,6 +625,8 @@ export function App(): React.JSX.Element {
         )}
 
       </section>
+
+      {showHome && !showSettings && tourOpen && <Tour onClose={closeTour} />}
     </main>
   );
 }

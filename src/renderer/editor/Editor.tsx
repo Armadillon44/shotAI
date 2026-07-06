@@ -791,9 +791,12 @@ export function Editor({
             )}
             {showBlurCtl && (
               <>
-                <div className="ed__opt" title="How redaction is baked in">
-                  Redact
-                  <div className="ed__seg" role="radiogroup" aria-label="Redaction style">
+                <div
+                  className="ed__opt"
+                  title="Blur softens the pixels; Black box covers them — both are permanently applied to the exported image"
+                >
+                  How to hide
+                  <div className="ed__seg" role="radiogroup" aria-label="How to hide this region">
                     <button
                       type="button"
                       role="radio"
@@ -1213,7 +1216,7 @@ export function Editor({
               : tool === 'text'
                 ? 'Click where the text should go and type — it previews live; press Enter, switch tools, or Save to place it.'
                 : 'Drag to draw.'}{' '}
-        Redactions are baked into the exported image on save.
+        Redactions are permanently applied to the exported image on save.
       </p>
       </div>
     </div>

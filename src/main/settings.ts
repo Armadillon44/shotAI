@@ -46,6 +46,12 @@ export interface Settings {
    * captureScaleNow().
    */
   captureScale: number;
+  /**
+   * Whether the first-run coach-mark tour has been shown/dismissed (R2). Default
+   * false → the tour fires once on first launch; the user can replay it from
+   * Settings → About (which sets this back to false).
+   */
+  hasSeenTour: boolean;
 }
 
 const MAX_RECENTS = 20;
@@ -73,6 +79,7 @@ async function load(): Promise<Settings> {
       sop: coerceSopSettings(parsed.sop),
       captureNoHide: typeof parsed.captureNoHide === 'boolean' ? parsed.captureNoHide : false,
       captureScale: clampCaptureScale(parsed.captureScale),
+      hasSeenTour: typeof parsed.hasSeenTour === 'boolean' ? parsed.hasSeenTour : false,
     };
   } catch {
     return {
@@ -81,6 +88,7 @@ async function load(): Promise<Settings> {
       sop: DEFAULT_SOP_SETTINGS,
       captureNoHide: false,
       captureScale: CAPTURE_SCALE_DEFAULT,
+      hasSeenTour: false,
     };
   }
 }
@@ -194,6 +202,18 @@ export function setCaptureScale(value: number): Promise<number> {
   return mutate((s) => {
     s.captureScale = clamped;
     return clamped;
+  });
+}
+
+export async function getHasSeenTour(): Promise<boolean> {
+  return (await load()).hasSeenTour;
+}
+
+/** Persist whether the first-run tour has been seen (false replays it). */
+export function setHasSeenTour(value: boolean): Promise<boolean> {
+  return mutate((s) => {
+    s.hasSeenTour = value;
+    return value;
   });
 }
 

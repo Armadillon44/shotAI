@@ -665,6 +665,7 @@ export function Report({
         {insertMenuAt === atIndex ? (
           <div className="rep__insert-menu" role="menu">
             {/* Row 1 — content steps. */}
+            <span className="rep__insert-label">Numbered step</span>
             <div className="rep__insert-row">
               <button
                 type="button"
@@ -697,10 +698,14 @@ export function Report({
               </button>
             </div>
             {/* Row 2 — tinted callouts. */}
+            <span className="rep__insert-label">
+              Callout <span className="rep__insert-sublabel">— a highlighted note, not a numbered step</span>
+            </span>
             <div className="rep__insert-row">
               <button
                 type="button"
                 className="btn btn--small rep__insert-callout rep__insert-callout--note"
+                title="Note — extra info or a helpful tip"
                 onClick={() => doInsert(atIndex, 'note')}
               >
                 + Note
@@ -708,6 +713,7 @@ export function Report({
               <button
                 type="button"
                 className="btn btn--small rep__insert-callout rep__insert-callout--caution"
+                title="Caution — a potential issue to watch for"
                 onClick={() => doInsert(atIndex, 'caution')}
               >
                 + Caution
@@ -715,6 +721,7 @@ export function Report({
               <button
                 type="button"
                 className="btn btn--small rep__insert-callout rep__insert-callout--warning"
+                title="Warning — a serious risk; read before proceeding"
                 onClick={() => doInsert(atIndex, 'warning')}
               >
                 + Warning

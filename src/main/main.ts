@@ -226,8 +226,11 @@ const createProjectWindow = (): BrowserWindow => {
  */
 const createToolbarWindow = (): BrowserWindow => {
   const win = new BrowserWindow({
+    // Two rows while recording: the controls, plus a persistent "click to
+    // capture" instruction (R3) so the core interaction isn't hidden with the
+    // main window.
     width: 380,
-    height: 52,
+    height: 74,
     show: false,
     frame: false,
     resizable: false,

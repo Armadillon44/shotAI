@@ -24,9 +24,9 @@ export const TOOLS: { tool: Tool; label: string; hint: string }[] = [
   { tool: 'select', label: 'Select', hint: 'Select / move / resize (V)' },
   { tool: 'rect', label: 'Box', hint: 'Rounded rectangle' },
   { tool: 'arrow', label: 'Arrow', hint: 'Arrow' },
-  { tool: 'blur', label: 'Redact', hint: 'Blur / redact a region (baked into the export)' },
-  { tool: 'stamp', label: 'Number', hint: 'Numbered step stamp' },
-  { tool: 'marker', label: 'Marker', hint: 'Click-point ring — click to place' },
+  { tool: 'blur', label: 'Redact', hint: 'Redact — hide sensitive data (blur or black box), permanently applied to the exported image' },
+  { tool: 'stamp', label: 'Number', hint: 'Numbered step stamp (1, 2, 3…)' },
+  { tool: 'marker', label: 'Marker', hint: 'Ring to circle a button or link — click to place' },
   { tool: 'text', label: 'Text', hint: 'Text label' },
   { tool: 'crop', label: 'Crop', hint: 'Crop the screenshot' },
 ];

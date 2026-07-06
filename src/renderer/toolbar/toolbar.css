@@ -32,15 +32,82 @@ body {
 }
 
 .toolbar {
+  position: relative; /* positioning context for the capture-flash overlay */
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
   height: 100%;
   /* A little breathing room so the controls aren't flush to the window edge
      (the window is a few px taller to absorb the vertical padding). */
-  padding: 0.35rem 0.6rem;
-  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  gap: 0.15rem;
   background: #1f2330;
   color: #f4f5f7;
+}
+
+/* Row 1: status label (left) + controls (right). */
+.toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Row 2: the persistent "click to capture" instruction (R3). Draggable like the
+   rest of the pill; muted so it reads as guidance, not a control. */
+.toolbar__hint {
+  font-size: 0.72rem;
+  color: #aeb4c7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 0.35rem;
+  -webkit-app-region: drag;
+}
+
+.toolbar--paused .toolbar__hint {
+  color: #fcd34d;
+}
+
+/* Capture-confirmation flash (R4): a one-shot green ring pulse over the pill. */
+.toolbar__flash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px #34d399;
+  animation: tb-flash 0.7s ease-out forwards;
+}
+
+@keyframes tb-flash {
+  0% {
+    opacity: 0;
+    box-shadow: inset 0 0 0 3px #34d399;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    box-shadow: inset 0 0 0 2px #34d399;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolbar__rec-dot {
+    animation: none;
+  }
+  .toolbar__flash {
+    animation: tb-flash-static 0.7s linear forwards;
+  }
+  @keyframes tb-flash-static {
+    0%,
+    70% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
 }
 
 /* The drag handle: lets the frameless window be moved. Buttons opt out below. */
