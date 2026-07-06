@@ -27,7 +27,7 @@ import {
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../shared/sop';
-import { getSopSettings, setSopSettings } from './settings';
+import { getSopSettings, setSopSettings, getCaptureNoHide, setCaptureNoHide } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
 import {
@@ -462,6 +462,17 @@ export function registerIpcHandlers(
     (_event: IpcMainInvokeEvent, patch: unknown) => {
       devLog('ipc: settings:set-sop');
       return setSopSettings(parseSopPatch(patch));
+    },
+  );
+  ipcMain.handle(IpcChannels.getCaptureNoHide, () => {
+    devLog('ipc: settings:get-capture-no-hide');
+    return getCaptureNoHide();
+  });
+  ipcMain.handle(
+    IpcChannels.setCaptureNoHide,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-capture-no-hide');
+      return setCaptureNoHide(value === true);
     },
   );
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {

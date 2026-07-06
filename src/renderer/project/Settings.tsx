@@ -31,21 +31,33 @@ export function Settings({
   const [error, setError] = React.useState<string | null>(null);
   const [appInfo, setAppInfo] = React.useState<AppInfo | null>(null);
   const [projectsDir, setProjectsDir] = React.useState('');
+  const [captureNoHide, setCaptureNoHide] = React.useState(false);
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir] = await Promise.all([
+    const [s, ks, info, dir, noHide] = await Promise.all([
       window.shotai.settings.getSop(),
       window.shotai.claude.keyStatus(),
       window.shotai.getAppInfo(),
       window.shotai.projects.getDir(),
+      window.shotai.settings.getCaptureNoHide(),
     ]);
     setSop(s);
     setKeyStatus(ks);
     setAppInfo(info);
     setProjectsDir(dir);
+    setCaptureNoHide(noHide);
   }, []);
+
+  const toggleCaptureNoHide = async (value: boolean) => {
+    setError(null);
+    try {
+      setCaptureNoHide(await window.shotai.settings.setCaptureNoHide(value));
+    } catch (e) {
+      fail(e);
+    }
+  };
 
   const chooseDir = async () => {
     try {
@@ -317,6 +329,23 @@ export function Settings({
               </div>
             </>
           )}
+
+          <label className="settings__toggle">
+            <span className="settings__toggle-text">
+              <strong>Keep shotAI visible during capture</strong>
+              <span className="settings__hint">
+                Demo / screen-share mode: don’t hide the window while recording.
+                Handy when presenting shotAI live — but the window will then appear
+                in the screenshots it captures, so turn it off for clean SOPs.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="settings__switch"
+              checked={captureNoHide}
+              onChange={(e) => void toggleCaptureNoHide(e.target.checked)}
+            />
+          </label>
 
           <div className="settings__group">
             <h3 className="settings__h">Projects folder</h3>

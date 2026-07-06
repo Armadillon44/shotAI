@@ -20,6 +20,13 @@ export interface Settings {
   recents: string[];
   /** SOP generation settings (Phase 3; NON-SECRET — the API key is in secrets.ts). */
   sop: SopSettings;
+  /**
+   * Keep the app window VISIBLE during capture instead of hiding it (demo /
+   * screen-share mode). Default false = hide while recording (so the window
+   * doesn't appear in the screenshots). Read synchronously at recording-start via
+   * captureNoHideNow(); replaces the old SHOTAI_CAPTURE_NO_HIDE env var.
+   */
+  captureNoHide: boolean;
 }
 
 const MAX_RECENTS = 20;
@@ -45,12 +52,14 @@ async function load(): Promise<Settings> {
         ? parsed.recents.filter((p): p is string => typeof p === 'string')
         : [],
       sop: coerceSopSettings(parsed.sop),
+      captureNoHide: typeof parsed.captureNoHide === 'boolean' ? parsed.captureNoHide : false,
     };
   } catch {
     return {
       projectsDir: defaultProjectsDir(),
       recents: [],
       sop: DEFAULT_SOP_SETTINGS,
+      captureNoHide: false,
     };
   }
 }
@@ -115,6 +124,31 @@ export async function addRecent(projectPath: string): Promise<void> {
 export function setRecents(recents: string[]): Promise<void> {
   return mutate((s) => {
     s.recents = recents;
+  });
+}
+
+// In-memory mirror of captureNoHide so the capture path can read it SYNCHRONOUSLY
+// at recording-start — an async load there would risk a frame where the window is
+// still visible and leaks into the first screenshot. Primed at startup via
+// getCaptureNoHide() and updated immediately by setCaptureNoHide().
+let captureNoHideCache = false;
+
+/** Current captureNoHide value, synchronously (safe default false = hide). */
+export function captureNoHideNow(): boolean {
+  return captureNoHideCache;
+}
+
+export async function getCaptureNoHide(): Promise<boolean> {
+  captureNoHideCache = (await load()).captureNoHide;
+  return captureNoHideCache;
+}
+
+/** Persist captureNoHide and update the synchronous cache. Returns the new value. */
+export function setCaptureNoHide(value: boolean): Promise<boolean> {
+  captureNoHideCache = value; // reflect immediately for the next recording
+  return mutate((s) => {
+    s.captureNoHide = value;
+    return value;
   });
 }
 

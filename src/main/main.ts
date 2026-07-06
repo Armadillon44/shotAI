@@ -6,6 +6,7 @@ import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
 import { resolveProjectFile } from './project-store';
+import { getCaptureNoHide, captureNoHideNow } from './settings';
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
 import { decideGpu, type GpuDecision } from './gpu-policy';
@@ -324,23 +325,22 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  // Debug/test mode: keep the app window visible during capture so you can watch
-  // what's happening (it WILL appear in the screenshots — for diagnosis only).
-  const noHideDuringCapture = process.env.SHOTAI_CAPTURE_NO_HIDE === '1';
-  if (noHideDuringCapture) {
-    mainLog.info('SHOTAI_CAPTURE_NO_HIDE=1 — app window stays visible during capture (debug)');
-  }
+  // Prime the "keep visible during capture" (demo) setting into its synchronous
+  // cache so onRecordingChange can read it without an async race. Toggled live in
+  // Settings; setCaptureNoHide updates the cache immediately.
+  void getCaptureNoHide();
   const capture = createCaptureController({
-    // Hide the main window while recording (the always-on-top toolbar pill is
-    // the control); restore + focus it when recording stops. Debug mode keeps it
-    // visible throughout.
+    // Hide the main window while recording (the always-on-top toolbar pill is the
+    // control); restore + focus it when recording stops. Demo mode (Settings →
+    // "Keep shotAI visible during capture") keeps it visible throughout — handy
+    // for screen-shares, though the window then appears in the screenshots.
     onRecordingChange: (recording) => {
       const proj =
         projectWindow && !projectWindow.isDestroyed() ? projectWindow : null;
       const pill =
         toolbarWindow && !toolbarWindow.isDestroyed() ? toolbarWindow : null;
       if (recording) {
-        if (!noHideDuringCapture) proj?.hide();
+        if (!captureNoHideNow()) proj?.hide();
         if (pill && !toolbarPositioned) {
           dockToolbarTopCenter(pill); // top-center on first show; drag respected after
           toolbarPositioned = true;

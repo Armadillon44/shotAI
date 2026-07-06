@@ -109,6 +109,8 @@ export const IpcChannels = {
   // SOP settings + Claude key management (Phase 3)
   getSopSettings: 'settings:get-sop',
   setSopSettings: 'settings:set-sop',
+  getCaptureNoHide: 'settings:get-capture-no-hide',
+  setCaptureNoHide: 'settings:set-capture-no-hide',
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
@@ -232,6 +234,10 @@ export interface ShotaiApi {
     getSop(): Promise<SopSettings>;
     /** Patch SOP settings; returns the full coerced settings. */
     setSop(patch: Partial<SopSettings>): Promise<SopSettings>;
+    /** Whether the app window stays visible during capture (demo/screen-share). */
+    getCaptureNoHide(): Promise<boolean>;
+    /** Set the capture-no-hide (demo) mode; returns the new value. */
+    setCaptureNoHide(value: boolean): Promise<boolean>;
   };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */
