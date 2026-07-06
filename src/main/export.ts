@@ -14,6 +14,8 @@ import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
 import { zoomCropRect } from './export-geometry';
+import { buildDocx } from './export-docx';
+import { buildPptx } from './export-pptx';
 import { mainLog } from './logger';
 
 // Windows/macOS filesystem-reserved characters + device names. Used to derive a
@@ -23,7 +25,7 @@ const RESERVED_CHARS = '<>:"/\\|?*';
 const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
 /** Turn a project title into a safe file base name (no extension). */
-function safeFileBase(title: string): string {
+export function safeFileBase(title: string): string {
   let cleaned = Array.from(title || '')
     .filter((ch) => (ch.codePointAt(0) ?? 0) > 0x1f && !RESERVED_CHARS.includes(ch))
     .join('')
@@ -43,7 +45,7 @@ function safeFileBase(title: string): string {
  * on collision. Serializes repeat exports so a second export never overwrites —
  * or fails to write to — a previous export the user may have open (Windows lock).
  */
-async function nextAvailableStem(exportDir: string, stem: string, ext: string): Promise<string> {
+export async function nextAvailableStem(exportDir: string, stem: string, ext: string): Promise<string> {
   for (let n = 0; ; n++) {
     const candidate = n === 0 ? stem : `${stem} (${n})`;
     try {
@@ -67,7 +69,7 @@ function escapeMarkdown(s: string): string {
   return s.replace(/([\\`*_[\]#<>])/g, '\\$1');
 }
 
-type ExportItem =
+export type ExportItem =
   | {
       kind: 'shot';
       /** 1-based number among SHOT steps only (text sections don't consume one). */
@@ -108,6 +110,20 @@ function zoomCropPng(
   if (!rect) return null; // whole image, as displayed
   const png = img.crop(rect).toPNG();
   return png && png.length > 0 ? png : null; // fail open to full image
+}
+
+/**
+ * Load a shot item's image bytes + pixel dimensions (for the .docx / .pptx
+ * builders, which must size images by aspect). Uses the pre-cropped `bytes` when
+ * present, else reads the sendable render at `abs`. Dimensions come from
+ * nativeImage so no image-parsing dep is needed.
+ */
+export async function loadItemImage(
+  it: Extract<ExportItem, { kind: 'shot' }>,
+): Promise<{ buffer: Buffer; width: number; height: number }> {
+  const buffer = it.bytes ?? (await fs.readFile(it.abs));
+  const { width, height } = nativeImage.createFromBuffer(buffer).getSize();
+  return { buffer, width, height };
 }
 
 /**
@@ -429,7 +445,17 @@ export async function exportProject(
   await fs.mkdir(exportDir, { recursive: true });
 
   let outputPath: string;
-  if (format === 'markdown') {
+  if (format === 'docx') {
+    const buf = await buildDocx(manifest, items, generatedAt);
+    const stem = await nextAvailableStem(exportDir, base, '.docx');
+    outputPath = path.join(exportDir, `${stem}.docx`);
+    await fs.writeFile(outputPath, buf);
+  } else if (format === 'pptx') {
+    const buf = await buildPptx(manifest, items, generatedAt);
+    const stem = await nextAvailableStem(exportDir, base, '.pptx');
+    outputPath = path.join(exportDir, `${stem}.pptx`);
+    await fs.writeFile(outputPath, buf);
+  } else if (format === 'markdown') {
     const stem = await nextAvailableStem(exportDir, base, '.md');
     outputPath = await buildMarkdown(dir, manifest, items, stem, generatedAt);
   } else if (format === 'html-plain') {

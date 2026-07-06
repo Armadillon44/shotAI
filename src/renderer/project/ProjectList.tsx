@@ -22,6 +22,7 @@ export function ProjectList({
   onOpen,
   onChanged,
   onError,
+  onImport,
 }: {
   projects: ProjectSummary[];
   /** Open a project in the detail view. */
@@ -30,6 +31,8 @@ export function ProjectList({
   onChanged: () => Promise<void> | void;
   /** Surface an error through App's shared notice. */
   onError: (e: unknown) => void;
+  /** Import a shared project package (.zip). Renders the Import button when set. */
+  onImport?: () => void;
 }): React.JSX.Element {
   const [sortKey, setSortKey] = React.useState<SortKey>('modified');
   const [sortAsc, setSortAsc] = React.useState(false);
@@ -111,9 +114,21 @@ export function ProjectList({
     <>
       {confirmModal}
       <div className="home__listhead">
-        <h2 className="home__h">
-          Projects <span className="home__count">· {sortedProjects.length}</span>
-        </h2>
+        <div className="home__listhead-left">
+          <h2 className="home__h">
+            Projects <span className="home__count">· {sortedProjects.length}</span>
+          </h2>
+          {onImport && (
+            <button
+              type="button"
+              className="btn btn--small btn--ghost"
+              onClick={onImport}
+              title="Import a project package (.zip) someone shared with you"
+            >
+              ⤓ Import project
+            </button>
+          )}
+        </div>
         <div className="project__sort" role="group" aria-label="Sort projects">
           <span className="project__sort-label">Sort:</span>
           {SORT_LABELS.map((s) => (
@@ -155,6 +170,8 @@ export function ProjectList({
             const exportItems: MenuItem[] = (
               [
                 ['html', 'HTML'],
+                ['docx', 'Word'],
+                ['pptx', 'PowerPoint'],
                 ['html-plain', 'HTML (for Word)'],
                 ['pdf', 'PDF'],
                 ['markdown', 'Markdown'],

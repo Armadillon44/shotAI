@@ -16,6 +16,8 @@ const EXPORT_LABEL: Record<ExportFormat, string> = {
   'html-plain': 'HTML (for Word)',
   pdf: 'PDF',
   markdown: 'Markdown',
+  docx: 'Word',
+  pptx: 'PowerPoint',
 };
 
 export function ProjectDetail({
@@ -70,6 +72,11 @@ export function ProjectDetail({
   const [exporting, setExporting] = React.useState<ExportFormat | null>(null);
   const [exportErr, setExportErr] = React.useState<string | null>(null);
   const exportRef = React.useRef<HTMLDivElement | null>(null);
+  // Shareable-package export: a small dialog picks redacted-only (default) vs.
+  // include-originals (full editing, recoverable redactions).
+  const [packageDialog, setPackageDialog] = React.useState(false);
+  const [includeOriginals, setIncludeOriginals] = React.useState(false);
+  const [packageBusy, setPackageBusy] = React.useState(false);
   // Aborts an in-flight flatten if the user leaves the project mid-export.
   const exportAbortRef = React.useRef<AbortController | null>(null);
   const hasShots = steps.some((s) => s.kind !== 'text');
@@ -117,6 +124,29 @@ export function ProjectDetail({
     } finally {
       if (exportAbortRef.current === controller) exportAbortRef.current = null;
       setExporting(null);
+    }
+  };
+
+  const doExportPackage = async () => {
+    if (!projectPath || !projectId) return;
+    exportAbortRef.current?.abort();
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
+    setPackageDialog(false);
+    setExportErr(null);
+    setPackageBusy(true);
+    try {
+      // Flatten first so the safe (redacted-only) package has current baked renders
+      // to collapse to — same fail-closed guarantee as every other export.
+      const flattened = await ensureFlattened(projectId, projectPath, steps, controller.signal);
+      if (flattened) applyManifest(flattened);
+      await window.shotai.projects.exportPackage(projectPath, includeOriginals);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return; // left the project
+      setExportErr(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (exportAbortRef.current === controller) exportAbortRef.current = null;
+      setPackageBusy(false);
     }
   };
 
@@ -244,17 +274,21 @@ export function ProjectDetail({
             <button
               type="button"
               className="btn btn--small"
-              disabled={!hasShots || exporting !== null || textEditing || importing}
+              disabled={!hasShots || exporting !== null || packageBusy || textEditing || importing}
               onClick={() => setExportMenuOpen((o) => !o)}
               title={
                 !hasShots
                   ? 'Add a screenshot before exporting'
                   : textEditing
                     ? 'Finish editing the text step first'
-                    : 'Export this report as HTML, PDF, or Markdown'
+                    : 'Export as HTML, Word, PowerPoint, PDF, Markdown, or a shareable package'
               }
             >
-              {exporting ? `Exporting ${EXPORT_LABEL[exporting]}…` : '⬇ Export'}
+              {packageBusy
+                ? 'Packaging…'
+                : exporting
+                  ? `Exporting ${EXPORT_LABEL[exporting]}…`
+                  : '⬇ Export'}
             </button>
             {exportMenuOpen && (
               <div className="export__menu" role="menu">
@@ -266,6 +300,24 @@ export function ProjectDetail({
                   onClick={() => void doExport('html')}
                 >
                   HTML <span className="export__hint">one self-contained file — best for sharing</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="export__item"
+                  disabled={exporting !== null}
+                  onClick={() => void doExport('docx')}
+                >
+                  Word <span className="export__hint">.docx — edit in Microsoft Word</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="export__item"
+                  disabled={exporting !== null}
+                  onClick={() => void doExport('pptx')}
+                >
+                  PowerPoint <span className="export__hint">.pptx — one slide per step</span>
                 </button>
                 <button
                   type="button"
@@ -295,6 +347,20 @@ export function ProjectDetail({
                 >
                   Markdown <span className="export__hint">.md + images/ — for wikis &amp; version control</span>
                 </button>
+                <div className="export__sep" role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="export__item"
+                  disabled={exporting !== null}
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    setPackageDialog(true);
+                  }}
+                >
+                  Project package{' '}
+                  <span className="export__hint">.zip — re-open &amp; edit in shotAI</span>
+                </button>
               </div>
             )}
           </div>
@@ -307,6 +373,49 @@ export function ProjectDetail({
           onChange={onImportFile}
         />
       </div>
+
+      {packageDialog && (
+        <div
+          className="sop__overlay"
+          role="dialog"
+          aria-label="Export a shareable project package"
+          onClick={() => setPackageDialog(false)}
+        >
+          <div className="sop__modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="sop__modal-title">Share this project</h3>
+            <p className="sop__warn">
+              Exports a <strong>.zip</strong> another shotAI user can import and
+              edit. By default it ships only the redaction-baked images, so blurred
+              or cropped-out content stays hidden.
+            </p>
+            <label className="pkg__opt">
+              <input
+                type="checkbox"
+                checked={includeOriginals}
+                onChange={(e) => setIncludeOriginals(e.target.checked)}
+              />
+              <span>
+                <strong>Include original screenshots</strong> — lets the recipient
+                fully re-edit (re-crop, adjust or remove blur). ⚠ Blurred/redacted
+                content becomes <strong>recoverable</strong> from the package. Only
+                for people you trust with the raw captures.
+              </span>
+            </label>
+            <div className="sop__modal-actions">
+              <button type="button" className="btn" onClick={() => setPackageDialog(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => void doExportPackage()}
+              >
+                {includeOriginals ? 'Export with originals' : 'Export (redacted)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(importErr || exportErr || error) && (
         <div className="notice-stack">

@@ -25,6 +25,13 @@ export default defineConfig({
         // from node_modules, so bundling a second copy here would make
         // zodOutputFormat fail to introspect our schema (dual-instance hazard).
         /^zod(\/|$)/,
+        // Export libraries (Word/PowerPoint/zip). pptxgenjs in particular does
+        // env detection + dynamic requires (and bundles its own JSZip); keep all
+        // three external so main require()s them at runtime from node_modules
+        // (copyProductionNodeModules ships them). docx + jszip follow suit.
+        'docx',
+        'pptxgenjs',
+        'jszip',
       ],
     },
   },

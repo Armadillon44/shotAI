@@ -82,13 +82,20 @@ export interface SopProgress {
 }
 
 /** Output format for an exported report/SOP. */
-export type ExportFormat = 'html' | 'html-plain' | 'pdf' | 'markdown';
+export type ExportFormat = 'html' | 'html-plain' | 'pdf' | 'markdown' | 'docx' | 'pptx';
 
 /** Result of an export — the file that was written (revealed in the OS file manager). */
 export interface ExportResult {
   format: ExportFormat;
   /** Absolute path to the written file. */
   outputPath: string;
+}
+
+/** Result of a shareable-package export (a .zip that round-trips back into shotAI). */
+export interface PackageResult {
+  outputPath: string;
+  /** Whether original (un-redacted) screenshots were included. */
+  includeOriginals: boolean;
 }
 
 /** IPC channel names — single source of truth. */
@@ -113,6 +120,8 @@ export const IpcChannels = {
   setProjectIntro: 'projects:set-intro',
   redactScan: 'projects:redact-scan',
   exportProject: 'projects:export',
+  exportPackage: 'projects:export-package',
+  importPackage: 'projects:import-package',
   // SOP settings + Claude key management (Phase 3)
   getSopSettings: 'settings:get-sop',
   setSopSettings: 'settings:set-sop',
@@ -150,6 +159,7 @@ export const IpcChannels = {
   captureError: 'capture:error',
   // Application menu → renderer
   openSettings: 'menu:open-settings',
+  menuImportProject: 'menu:import-project',
 } as const;
 
 /** The typed API exposed to the renderer on `window.shotai` via contextBridge. */
@@ -164,6 +174,9 @@ export interface ShotaiApi {
   /** Fires when the application menu's File → Settings is chosen. Returns an
    *  unsubscribe fn. */
   onOpenSettings(cb: () => void): () => void;
+  /** Fires when the application menu's File → Import Project… is chosen. Returns
+   *  an unsubscribe fn. */
+  onImportProject(cb: () => void): () => void;
   projects: {
     getDir(): Promise<string>;
     chooseDir(): Promise<string | null>;
@@ -244,6 +257,19 @@ export interface ShotaiApi {
      * manager. Returns the written file path.
      */
     export(projectPath: string, format: ExportFormat): Promise<ExportResult>;
+    /**
+     * Export a shareable .zip package that another shotAI user can import and
+     * edit. `includeOriginals` false (default) ships only redaction-baked renders
+     * (redactions permanent); true ships the un-redacted originals for full
+     * re-editing (recoverable — opt-in, with a warning in the UI).
+     */
+    exportPackage(projectPath: string, includeOriginals: boolean): Promise<PackageResult>;
+    /**
+     * Import a project package (.zip): opens a file picker, validates + extracts
+     * it into a NEW project, and returns its summary — or null if the user
+     * cancels the picker.
+     */
+    importPackage(): Promise<ProjectSummary | null>;
   };
   settings: {
     /** Current SOP generation settings (non-secret; never includes the API key). */

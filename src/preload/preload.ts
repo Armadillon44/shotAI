@@ -21,6 +21,11 @@ const api: ShotaiApi = {
     ipcRenderer.on(IpcChannels.openSettings, listener);
     return () => ipcRenderer.removeListener(IpcChannels.openSettings, listener);
   },
+  onImportProject: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on(IpcChannels.menuImportProject, listener);
+    return () => ipcRenderer.removeListener(IpcChannels.menuImportProject, listener);
+  },
   projects: {
     getDir: () => ipcRenderer.invoke(IpcChannels.getProjectsDir),
     chooseDir: () => ipcRenderer.invoke(IpcChannels.chooseProjectsDir),
@@ -83,6 +88,9 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),
     export: (projectPath: string, format: ExportFormat) =>
       ipcRenderer.invoke(IpcChannels.exportProject, projectPath, format),
+    exportPackage: (projectPath: string, includeOriginals: boolean) =>
+      ipcRenderer.invoke(IpcChannels.exportPackage, projectPath, includeOriginals),
+    importPackage: () => ipcRenderer.invoke(IpcChannels.importPackage),
   },
   settings: {
     getSop: () => ipcRenderer.invoke(IpcChannels.getSopSettings),
