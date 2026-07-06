@@ -43,6 +43,9 @@ export function App(): React.JSX.Element {
   // Settings → About. Only rendered on the home screen (its bubbles anchor to
   // home controls).
   const [tourOpen, setTourOpen] = React.useState(false);
+  // Holds the latest package-import handler so the once-registered menu listener
+  // (File → Import Project…) calls the current closure, not a stale one.
+  const importPackageRef = React.useRef<() => void>(() => undefined);
 
   // Capture-mode selection (applied to the next recording).
   const [mode, setMode] = React.useState<CaptureMode>('screen');
@@ -183,13 +186,21 @@ export function App(): React.JSX.Element {
     if (mode === 'screen' && !targets) void loadTargets();
   }, [mode, targets, loadTargets]);
 
-  // Application menu: File → Settings opens the Settings view. Ignored while
-  // recording — the project window is hidden then, so Settings would open
-  // invisibly/overlap the recording panel. recordingRef avoids a stale closure.
+  // Application menu → renderer. File → Settings opens Settings; File → Import
+  // Project… runs the same import flow as the Home button. Both are ignored while
+  // recording (the project window is hidden then). recordingRef + importPackageRef
+  // avoid stale closures for these once-registered listeners.
   React.useEffect(() => {
-    return window.shotai.onOpenSettings(() => {
+    const offSettings = window.shotai.onOpenSettings(() => {
       if (!recordingRef.current) setShowSettings(true);
     });
+    const offImport = window.shotai.onImportProject(() => {
+      if (!recordingRef.current) importPackageRef.current();
+    });
+    return () => {
+      offSettings();
+      offImport();
+    };
   }, []);
 
   React.useEffect(() => {
@@ -283,6 +294,26 @@ export function App(): React.JSX.Element {
       setBusy(false);
     }
   };
+
+  // Import a shared project package (.zip): the main process opens a file picker,
+  // validates + extracts it into a new project, then we re-list and open it.
+  const onImportPackage = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const summary = await window.shotai.projects.importPackage();
+      if (!summary) return; // user canceled the picker
+      await refresh();
+      await openProjectInDetail(summary.path);
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Keep the menu listener pointed at the current import handler.
+  importPackageRef.current = () => void onImportPackage();
 
   // Create an EMPTY project and open it (no capture) — for building a greenfield
   // project from imported images / text without recording first.
@@ -621,6 +652,7 @@ export function App(): React.JSX.Element {
             onOpen={(p) => void openProjectInDetail(p)}
             onChanged={refresh}
             onError={fail}
+            onImport={() => void onImportPackage()}
           />
         )}
 

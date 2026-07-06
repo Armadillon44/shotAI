@@ -41,6 +41,11 @@ export function installAppMenu(getProjectWindow: () => BrowserWindow | null): vo
       label: 'File',
       submenu: [
         {
+          label: 'Import Project…',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => getProjectWindow()?.webContents.send(IpcChannels.menuImportProject),
+        },
+        {
           label: 'Settings',
           accelerator: 'CmdOrCtrl+,',
           click: () => getProjectWindow()?.webContents.send(IpcChannels.openSettings),

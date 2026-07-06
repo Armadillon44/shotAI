@@ -95,10 +95,15 @@ function coerceSopBackup(raw: unknown): SopBackup | null {
   };
 }
 
-/** Read + validate a project manifest, defaulting any missing/corrupt fields. */
-async function readManifest(projectPath: string): Promise<ProjectManifest> {
-  const raw = await fs.readFile(path.join(projectPath, MANIFEST), 'utf8');
-  const parsed = JSON.parse(raw) as Partial<ProjectManifest>;
+/**
+ * Coerce an untrusted/partial manifest object into a valid ProjectManifest,
+ * defaulting any missing/corrupt field. Shared by readManifest (disk) and the
+ * package importer (untrusted zip) so both validate identically.
+ */
+export function coerceManifest(
+  parsed: Partial<ProjectManifest>,
+  fallbackTitle: string,
+): ProjectManifest {
   return {
     version:
       typeof parsed.version === 'number'
@@ -106,9 +111,7 @@ async function readManifest(projectPath: string): Promise<ProjectManifest> {
         : PROJECT_SCHEMA_VERSION,
     id: typeof parsed.id === 'string' ? parsed.id : '',
     title:
-      typeof parsed.title === 'string' && parsed.title
-        ? parsed.title
-        : path.basename(projectPath),
+      typeof parsed.title === 'string' && parsed.title ? parsed.title : fallbackTitle,
     createdWith: 'shotAI',
     createdAt: typeof parsed.createdAt === 'string' ? parsed.createdAt : '',
     updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
@@ -117,6 +120,13 @@ async function readManifest(projectPath: string): Promise<ProjectManifest> {
     intro: coerceIntro(parsed.intro),
     sopBackup: coerceSopBackup(parsed.sopBackup),
   };
+}
+
+/** Read + validate a project manifest, defaulting any missing/corrupt fields. */
+async function readManifest(projectPath: string): Promise<ProjectManifest> {
+  const raw = await fs.readFile(path.join(projectPath, MANIFEST), 'utf8');
+  const parsed = JSON.parse(raw) as Partial<ProjectManifest>;
+  return coerceManifest(parsed, path.basename(projectPath));
 }
 
 async function writeManifest(
@@ -184,6 +194,48 @@ export async function createProject(title?: string): Promise<ProjectSummary> {
   };
   await writeManifest(dir, manifest); // atomic, same as every other manifest write
 
+  await addRecent(dir);
+  return summarize(manifest, dir);
+}
+
+/**
+ * Materialize an imported project package into a NEW project folder (a fresh
+ * UUID, so it never collides with the sender's). Files come from an untrusted
+ * zip, so each is CONFINED to the new folder and WHITELISTED to `shots/` or
+ * `export/.render/` — anything else (including path-traversal names) is refused.
+ * The manifest is re-stamped with the new id and a fresh sopBackup=null (the
+ * sender's local revert history isn't shared).
+ */
+export async function createProjectFromImport(
+  manifest: ProjectManifest,
+  files: { rel: string; bytes: Buffer }[],
+): Promise<ProjectSummary> {
+  const root = await getProjectsDir();
+  await fs.mkdir(root, { recursive: true });
+  const id = randomUUID();
+  const dir = path.join(root, id);
+  await fs.mkdir(path.join(dir, 'shots'), { recursive: true });
+  await fs.mkdir(path.join(dir, 'export'), { recursive: true });
+
+  for (const f of files) {
+    const rel = f.rel.replace(/\\/g, '/');
+    // Whitelist the only two folders a package legitimately carries images in.
+    if (!/^shots\/[^/]+$/.test(rel) && !/^export\/\.render\/[^/]+$/.test(rel)) {
+      throw new Error(`Package contains an unexpected file path: ${f.rel}`);
+    }
+    const abs = confinePath(dir, rel); // defense-in-depth against zip-slip
+    if (!abs) throw new Error(`Refusing to extract a path outside the project: ${f.rel}`);
+    await fs.mkdir(path.dirname(abs), { recursive: true });
+    await fs.writeFile(abs, f.bytes, { flag: 'wx' }); // wx: never overwrite in a fresh dir
+  }
+
+  const now = new Date().toISOString();
+  manifest.id = id;
+  manifest.createdWith = 'shotAI';
+  if (!manifest.createdAt) manifest.createdAt = now;
+  manifest.updatedAt = now;
+  manifest.sopBackup = null;
+  await writeManifest(dir, manifest);
   await addRecent(dir);
   return summarize(manifest, dir);
 }

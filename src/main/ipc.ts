@@ -10,12 +10,14 @@ import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
 import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
 import { exportProject } from './export';
+import { exportPackage, importPackage } from './export-package';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
 import type {
   Annotation,
   CaptureMode,
   CaptureTarget,
+  ProjectSummary,
   StepClick,
   StepKind,
   StepPatch,
@@ -141,7 +143,7 @@ function parseClick(value: unknown): StepClick | null {
   };
 }
 
-const EXPORT_FORMATS = ['html', 'html-plain', 'pdf', 'markdown'] as const satisfies readonly ExportFormat[];
+const EXPORT_FORMATS = ['html', 'html-plain', 'pdf', 'markdown', 'docx', 'pptx'] as const satisfies readonly ExportFormat[];
 const EXPORT_FORMAT_SET: ReadonlySet<string> = new Set(EXPORT_FORMATS);
 
 function parseExportFormat(value: unknown): ExportFormat {
@@ -486,6 +488,32 @@ export function registerIpcHandlers(
         asString(projectPath, 'projectPath'),
         parseExportFormat(format),
       );
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.exportPackage,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, includeOriginals: unknown) => {
+      devLog('ipc: projects:export-package');
+      return exportPackage(asString(projectPath, 'projectPath'), includeOriginals === true);
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.importPackage,
+    async (event: IpcMainInvokeEvent): Promise<ProjectSummary | null> => {
+      devLog('ipc: projects:import-package');
+      const parent = BrowserWindow.fromWebContents(event.sender);
+      const options: Electron.OpenDialogOptions = {
+        title: 'Import a shotAI project package',
+        properties: ['openFile'],
+        filters: [{ name: 'shotAI package', extensions: ['zip'] }],
+      };
+      const result = parent
+        ? await dialog.showOpenDialog(parent, options)
+        : await dialog.showOpenDialog(options);
+      if (result.canceled || result.filePaths.length === 0) return null;
+      return importPackage(result.filePaths[0]);
     },
   );
 
