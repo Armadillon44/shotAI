@@ -34,6 +34,8 @@ import type {
 } from '../shared/project';
 import type { CaptureState } from '../shared/ipc';
 import { IpcChannels } from '../shared/ipc';
+import { unionRect, clickBox, captureModeFor, cropRect } from './capture-geometry';
+import { buildClickCaption } from './click-caption';
 import { captureLog } from './logger';
 import { getElementAtPoint } from './element-locator';
 
@@ -175,122 +177,17 @@ function mapButton(button: unknown): StepClick['button'] {
   }
 }
 
-type ActiveLike = { owner: { name: string }; title: string } | null | undefined;
-
-// Windows shell host processes whose windows are huge/transparent and capture
-// as a black swath — observed from get-windows on Windows 11 (sometimes the
-// friendly name, sometimes the exe). UI-element-precise bounds arrive with the
-// Phase 4 element-at-point addon.
-const SHELL_HOST_RE =
-  /experience host|searchhost|shellexperiencehost|startmenuexperiencehost|searchapp|textinputhost|cortana/i;
-
-/**
- * Pick a capture strategy for the click target:
- *  - 'window'     → a normal application window → capture just that window
- *  - 'region'     → an OS shell surface (taskbar, Start/Search, system tray,
- *                   notifications) → capture a tight region around the click
- *  - 'fullscreen' → the desktop, or an unidentified window → whole monitor
- */
-/** Smallest rectangle containing both inputs. */
-function unionRect(a: Rect, b: Rect): Rect {
-  const x = Math.min(a.x, b.x);
-  const y = Math.min(a.y, b.y);
-  const right = Math.max(a.x + a.width, b.x + b.width);
-  const bottom = Math.max(a.y + a.height, b.y + b.height);
-  return { x, y, width: right - x, height: bottom - y };
-}
-
-/** Crop a full-monitor capture to a global-px region, clamped to the monitor. */
+/** Crop a full-monitor capture to a global-px region, clamped to the monitor.
+ *  The rect math is the pure cropRect() (capture-geometry.ts); this does the
+ *  native crop + records the crop's global origin. */
 function cropToRegion(mon: NsMonitor, full: NsImage, region: Rect): Grab {
-  const lx = Math.round(region.x - mon.x());
-  const ly = Math.round(region.y - mon.y());
-  const cropX = Math.max(0, Math.min(lx, mon.width() - 1));
-  const cropY = Math.max(0, Math.min(ly, mon.height() - 1));
-  const cropW = Math.max(1, Math.min(lx + Math.round(region.width), mon.width()) - cropX);
-  const cropH = Math.max(1, Math.min(ly + Math.round(region.height), mon.height()) - cropY);
+  const c = cropRect({ x: mon.x(), y: mon.y(), width: mon.width(), height: mon.height() }, region);
   return {
-    png: full.cropSync(cropX, cropY, cropW, cropH).toPngSync(),
-    originX: mon.x() + cropX,
-    originY: mon.y() + cropY,
+    png: full.cropSync(c.x, c.y, c.width, c.height).toPngSync(),
+    originX: mon.x() + c.x,
+    originY: mon.y() + c.y,
     monitor: mon,
   };
-}
-
-/** A box of half-size `620·scaleFactor` centered on a point — the generous,
- *  roughly symmetric crop used to frame a click together with any menu/dropdown
- *  it opened (menus flip up/left near screen edges, so the box is symmetric). */
-function clickBox(point: Point, mon: NsMonitor): Rect {
-  const half = Math.round(620 * (mon.scaleFactor() || 1));
-  return { x: point.x - half, y: point.y - half, width: half * 2, height: half * 2 };
-}
-
-function captureModeFor(active: ActiveLike): 'window' | 'region' | 'fullscreen' {
-  if (!active) return 'fullscreen'; // unknown focus → full context, never a guessed crop
-  const app = active.owner.name;
-  const title = active.title;
-  if (app === 'Windows Explorer' && title === 'Program Manager') return 'fullscreen'; // desktop
-  if (app === 'Windows Explorer' && title.trim() === '') return 'region'; // taskbar / system tray
-  if (SHELL_HOST_RE.test(app)) return 'region'; // Start / Search / Shell hosts
-  return 'window';
-}
-
-/** A friendly noun for a UIA control type, for captions ('' = omit the noun). */
-function controlWord(ct: string | null | undefined): string {
-  switch (ct) {
-    case 'Button':
-    case 'SplitButton':
-      return 'button';
-    case 'Hyperlink':
-      return 'link';
-    case 'CheckBox':
-      return 'checkbox';
-    case 'RadioButton':
-      return 'option';
-    case 'Tab':
-    case 'TabItem':
-      return 'tab';
-    case 'Edit':
-      return 'field';
-    case 'ComboBox':
-      return 'dropdown';
-    case 'ListItem':
-    case 'TreeItem':
-    case 'DataItem':
-      return 'item';
-    case 'Slider':
-      return 'slider';
-    case 'Spinner':
-      return 'spinner';
-    default:
-      return '';
-  }
-}
-
-/** Auto-caption for a click step. Names the clicked UI element when one
- *  resolved (e.g. "Click 'OK' button in <app>"); otherwise falls back to the
- *  window-only phrasing. */
-function buildClickCaption(
-  button: StepClick['button'],
-  isMenuSelect: boolean,
-  appName: string,
-  element: StepElement | null,
-): string {
-  const name = element?.name;
-  if (name) {
-    // Only call it a menu selection when the clicked element really IS a menu
-    // item. The proximity gate sometimes flags a click in a dialog the menu
-    // opened (e.g. an OK button in a Properties dialog) as a "selection" — caption
-    // it as the actual control instead of "Select from context menu".
-    if (element?.controlType === 'MenuItem') return `Select '${name}' in ${appName}`;
-    const word = controlWord(element?.controlType);
-    const tail = word ? ` ${word}` : '';
-    return button === 'right'
-      ? `Right-click '${name}'${tail} in ${appName}`
-      : `Click '${name}'${tail} in ${appName}`;
-  }
-  if (button === 'right') return `Right-click in ${appName}`;
-  if (isMenuSelect) return `Select from context menu in ${appName}`;
-  return `Click in ${appName}`;
 }
 
 export class CaptureController {
@@ -1100,7 +997,7 @@ export class CaptureController {
             // UP near the screen bottom, LEFT near the right edge). Also covers
             // 'area' mode and the case where ownerBounds is null (focus unresolved
             // at right-click), where there's no owner rect to union.
-            const box = clickBox(point, mon);
+            const box = clickBox(point, mon.scaleFactor());
             base = base ? unionRect(base, box) : box;
           }
           region = base;
