@@ -1649,6 +1649,50 @@ body {
   font-weight: var(--fw-section);
 }
 
+/* Tabbed sections (D2): an underline-style tab bar above the active panel. */
+.settings__tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--hair);
+}
+
+.settings__tab {
+  appearance: none;
+  border: none;
+  background: none;
+  margin-bottom: -1px; /* sit the active underline on top of the container hairline */
+  padding: 0.55rem 0.9rem;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.settings__tab:hover {
+  color: var(--ink);
+}
+
+.settings__tab--on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* The active section. Flex gap owns the vertical rhythm so every control —
+   toggle, group, note — is spaced uniformly regardless of its own margins. */
+.settings__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.settings__panel > .settings__group,
+.settings__panel > .settings__off {
+  margin-top: 0;
+}
+
 /* Master on/off — a card with the description on the left, a switch on the right. */
 .settings__toggle {
   display: flex;
