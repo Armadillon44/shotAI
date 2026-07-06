@@ -1,6 +1,6 @@
 import React from 'react';
 import logoUrl from '../../../assets/shotAI_icon.png';
-import type { CaptureState, ExportFormat } from '../../shared/ipc';
+import type { CaptureState } from '../../shared/ipc';
 import type {
   CaptureMode,
   CaptureTarget,
@@ -12,18 +12,9 @@ import type {
 } from '../../shared/project';
 import { useProjectStore } from './store';
 import { ProjectDetail } from './ProjectDetail';
+import { ProjectList } from './ProjectList';
 import { Notice } from '../Notice';
 import { Settings } from './Settings';
-import { useConfirm } from '../useConfirm';
-import { OverflowMenu, type MenuItem } from './OverflowMenu';
-import { ensureFlattened } from './sop-prepare';
-
-type SortKey = 'name' | 'created' | 'modified';
-const SORT_LABELS: { key: SortKey; label: string }[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'created', label: 'Created' },
-  { key: 'modified', label: 'Modified' },
-];
 
 type Targets = { windows: WindowInfo[]; monitors: MonitorInfo[] };
 
@@ -43,12 +34,6 @@ export function App(): React.JSX.Element {
   const [projects, setProjects] = React.useState<ProjectSummary[]>([]);
   const [title, setTitle] = React.useState<string>('');
   const [busy, setBusy] = React.useState<boolean>(false);
-  // Home project-manager state: sort, inline rename, per-card export menu/busy.
-  const [sortKey, setSortKey] = React.useState<SortKey>('modified');
-  const [sortAsc, setSortAsc] = React.useState(false);
-  const [renamingPath, setRenamingPath] = React.useState<string | null>(null);
-  const [renameValue, setRenameValue] = React.useState('');
-  const [rowBusyPath, setRowBusyPath] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [capture, setCapture] = React.useState<CaptureState | null>(null);
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
@@ -205,7 +190,6 @@ export function App(): React.JSX.Element {
   const openPath = useProjectStore((s) => s.projectPath);
   const openProjectInDetail = useProjectStore((s) => s.open);
   const adoptOpened = useProjectStore((s) => s.applyOpened);
-  const { confirm, confirmModal } = useConfirm();
   const showDetail = !recording && !!openPath;
   const showHome = !recording && !openPath;
 
@@ -289,81 +273,8 @@ export function App(): React.JSX.Element {
     }
   };
 
-  // --- Home project-manager actions ---
-  const startRename = (p: ProjectSummary) => {
-    setRenamingPath(p.path);
-    setRenameValue(p.title);
-  };
-  const commitRename = async () => {
-    const path = renamingPath;
-    setRenamingPath(null);
-    if (!path) return;
-    const next = renameValue.trim();
-    const orig = projects.find((p) => p.path === path)?.title;
-    // Blur fires on any outside interaction; don't surprise-rename on an empty
-    // field (would become a default timestamp) or an unchanged title.
-    if (!next || next === orig) return;
-    try {
-      await window.shotai.projects.rename(path, next);
-      await refresh();
-    } catch (e) {
-      fail(e);
-    }
-  };
-  const doDelete = async (p: ProjectSummary) => {
-    if (rowBusyPath) return;
-    if (
-      !(await confirm(`Delete "${p.title}"? This removes the project folder and its screenshots.`, {
-        confirmLabel: 'Delete',
-        danger: true,
-      }))
-    ) {
-      return;
-    }
-    setRowBusyPath(p.path);
-    try {
-      await window.shotai.projects.delete(p.path);
-      await refresh();
-    } catch (e) {
-      fail(e);
-    } finally {
-      setRowBusyPath(null);
-    }
-  };
-  const doExport = async (p: ProjectSummary, format: ExportFormat) => {
-    if (rowBusyPath) return; // one row op at a time
-    setRowBusyPath(p.path);
-    setError(null);
-    try {
-      // Open (for the shot:// id + steps), flatten so only redacted/marker-baked
-      // renders are written, then export — same guarantee as the in-project flow.
-      const { projectId, manifest } = await window.shotai.projects.open(p.path);
-      await ensureFlattened(projectId, p.path, manifest.steps);
-      await window.shotai.projects.export(p.path, format);
-      await refresh(); // re-baking bumped updatedAt — refresh the list's metadata
-    } catch (e) {
-      fail(e);
-    } finally {
-      setRowBusyPath(null);
-    }
-  };
-
-  // Sorted view of all projects for the home list.
-  const sortedProjects = React.useMemo(() => {
-    const arr = [...projects];
-    arr.sort((a, b) => {
-      let cmp: number;
-      if (sortKey === 'name') cmp = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
-      else if (sortKey === 'created') cmp = a.createdAt.localeCompare(b.createdAt);
-      else cmp = a.updatedAt.localeCompare(b.updatedAt);
-      return sortAsc ? cmp : -cmp;
-    });
-    return arr;
-  }, [projects, sortKey, sortAsc]);
-
   return (
     <main className="project">
-      {confirmModal}
       {/* The shotAI banner is hidden in the detail/edit view so the project's
           own sticky header pins flush to the top. */}
       {!showDetail && (
@@ -655,124 +566,12 @@ export function App(): React.JSX.Element {
         )}
 
         {showHome && !showSettings && (
-          <>
-            <div className="home__listhead">
-              <h2 className="home__h">
-                Projects <span className="home__count">· {sortedProjects.length}</span>
-              </h2>
-              <div className="project__sort" role="group" aria-label="Sort projects">
-                <span className="project__sort-label">Sort:</span>
-                {SORT_LABELS.map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
-                    className={`project__sort-chip${sortKey === s.key ? ' project__sort-chip--on' : ''}`}
-                    onClick={() => setSortKey(s.key)}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="btn btn--small"
-                  title={sortAsc ? 'Ascending' : 'Descending'}
-                  onClick={() => setSortAsc((v) => !v)}
-                >
-                  {sortAsc ? '▲' : '▼'}
-                </button>
-              </div>
-            </div>
-            {sortedProjects.length === 0 ? (
-              <div className="empty">
-                <div className="empty__icon" aria-hidden="true">
-                  🗂️
-                </div>
-                <p className="empty__line">No projects yet</p>
-                <p className="empty__sub">
-                  Start one above — capture a process, or build an empty project
-                  from images and text.
-                </p>
-              </div>
-            ) : (
-              <ul className="project__list">
-                {sortedProjects.map((p) => {
-                  const rowBusy = rowBusyPath === p.path;
-                  const anyBusy = rowBusyPath !== null; // block other rows during an op
-                  const exportItems: MenuItem[] = (
-                    [
-                      ['html', 'HTML'],
-                      ['html-plain', 'HTML (for Word)'],
-                      ['pdf', 'PDF'],
-                      ['markdown', 'Markdown'],
-                    ] as [ExportFormat, string][]
-                  ).map(([f, label]) => ({
-                    label: `Export → ${label}`,
-                    onClick: () => void doExport(p, f),
-                    disabled: anyBusy,
-                  }));
-                  return (
-                    <li key={p.path} className="project__item">
-                      <div className="project__item-main">
-                        {renamingPath === p.path ? (
-                          <input
-                            className="project__rename-input"
-                            autoFocus
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void commitRename();
-                              else if (e.key === 'Escape') setRenamingPath(null);
-                            }}
-                            onBlur={() => void commitRename()}
-                          />
-                        ) : (
-                          <span className="project__item-title">{p.title}</span>
-                        )}
-                        <span className="project__item-meta">
-                          {rowBusy
-                            ? 'Working…'
-                            : `${p.stepCount} step${p.stepCount === 1 ? '' : 's'} · modified ${
-                                p.updatedAt
-                                  ? new Date(p.updatedAt).toLocaleDateString()
-                                  : '—'
-                              }`}
-                        </span>
-                      </div>
-                      <div className="project__item-actions">
-                        <button
-                          type="button"
-                          className="btn btn--small btn--primary"
-                          disabled={anyBusy}
-                          onClick={() => void openProjectInDetail(p.path)}
-                        >
-                          Open
-                        </button>
-                        <OverflowMenu
-                          disabled={anyBusy}
-                          items={[
-                            { label: 'Rename', onClick: () => startRename(p) },
-                            {
-                              label: 'Reveal in Explorer',
-                              onClick: () =>
-                                void window.shotai.projects.reveal(p.path).catch(fail),
-                            },
-                            { kind: 'sep' },
-                            ...exportItems,
-                            { kind: 'sep' },
-                            {
-                              label: 'Delete',
-                              danger: true,
-                              onClick: () => void doDelete(p),
-                            },
-                          ]}
-                        />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </>
+          <ProjectList
+            projects={projects}
+            onOpen={(p) => void openProjectInDetail(p)}
+            onChanged={refresh}
+            onError={fail}
+          />
         )}
 
       </section>
