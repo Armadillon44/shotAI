@@ -32,6 +32,12 @@ export interface CaptureState {
   projectPath: string | null;
   projectTitle: string | null;
   stepCount: number;
+  /**
+   * True when a Discard would delete the ENTIRE project, not just this session's
+   * steps — i.e. the project was created for this session and had no prior steps.
+   * The toolbar uses it to word the Discard confirmation honestly (R5).
+   */
+  willDeleteProjectOnDiscard: boolean;
 }
 
 /** How an Anthropic API key is available (if at all). */
@@ -88,6 +94,7 @@ export interface ExportResult {
 /** IPC channel names — single source of truth. */
 export const IpcChannels = {
   getAppInfo: 'app:get-info',
+  openExternal: 'shell:open-external',
   getProjectsDir: 'projects:get-dir',
   chooseProjectsDir: 'projects:choose-dir',
   listRecentProjects: 'projects:list-recent',
@@ -113,6 +120,8 @@ export const IpcChannels = {
   setCaptureNoHide: 'settings:set-capture-no-hide',
   getCaptureScale: 'settings:get-capture-scale',
   setCaptureScale: 'settings:set-capture-scale',
+  getHasSeenTour: 'settings:get-has-seen-tour',
+  setHasSeenTour: 'settings:set-has-seen-tour',
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
@@ -147,6 +156,11 @@ export const IpcChannels = {
 export interface ShotaiApi {
   /** Runtime / app info from the main process. */
   getAppInfo(): Promise<AppInfo>;
+  /**
+   * Open a trusted external URL in the user's default browser. Main allows only
+   * https URLs on an anthropic.com host allowlist; returns false if refused.
+   */
+  openExternal(url: string): Promise<boolean>;
   /** Fires when the application menu's File → Settings is chosen. Returns an
    *  unsubscribe fn. */
   onOpenSettings(cb: () => void): () => void;
@@ -244,6 +258,10 @@ export interface ShotaiApi {
     getCaptureScale(): Promise<number>;
     /** Set the screenshot-quality factor (clamped); returns the stored value. */
     setCaptureScale(value: number): Promise<number>;
+    /** Whether the first-run coach-mark tour has been seen/dismissed (R2). */
+    getHasSeenTour(): Promise<boolean>;
+    /** Persist whether the tour has been seen; false replays it. Returns the value. */
+    setHasSeenTour(value: boolean): Promise<boolean>;
   };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */

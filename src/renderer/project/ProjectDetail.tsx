@@ -214,7 +214,7 @@ export function ProjectDetail({
         <div className="detail__baractions">
           {/* SOP generate/revert folds into this one command bar (its review /
               progress modals are fixed overlays, unaffected by placement). */}
-          <SopPanel sopEnabled={sopEnabled} />
+          <SopPanel sopEnabled={sopEnabled} onOpenSettings={onOpenSettings} />
           {onOpenSettings && (
             <button
               type="button"
@@ -265,7 +265,7 @@ export function ProjectDetail({
                   disabled={exporting !== null}
                   onClick={() => void doExport('html')}
                 >
-                  HTML <span className="export__hint">single self-contained file</span>
+                  HTML <span className="export__hint">one self-contained file — best for sharing</span>
                 </button>
                 <button
                   type="button"
@@ -275,7 +275,7 @@ export function ProjectDetail({
                   onClick={() => void doExport('html-plain')}
                 >
                   HTML (for Word){' '}
-                  <span className="export__hint">minimal formatting — paste into a doc</span>
+                  <span className="export__hint">paste into Word or Google Docs to edit</span>
                 </button>
                 <button
                   type="button"
@@ -284,7 +284,7 @@ export function ProjectDetail({
                   disabled={exporting !== null}
                   onClick={() => void doExport('pdf')}
                 >
-                  PDF <span className="export__hint">print-ready document</span>
+                  PDF <span className="export__hint">print-ready — best for printing</span>
                 </button>
                 <button
                   type="button"
@@ -293,7 +293,7 @@ export function ProjectDetail({
                   disabled={exporting !== null}
                   onClick={() => void doExport('markdown')}
                 >
-                  Markdown <span className="export__hint">.md + images/ folder</span>
+                  Markdown <span className="export__hint">.md + images/ — for wikis &amp; version control</span>
                 </button>
               </div>
             )}

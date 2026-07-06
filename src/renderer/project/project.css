@@ -310,6 +310,15 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* One-line product mission under "Start a project" (R1). */
+.home__mission {
+  margin: -0.3rem 0 1rem;
+  max-width: 60ch;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
 .home__createrow {
   display: flex;
   gap: 0.6rem;
@@ -340,6 +349,20 @@ body {
   font-size: var(--fs-meta);
   color: var(--caut-fg);
   cursor: help;
+}
+
+/* Plain-language explainer for the Mode chips (R10). */
+.home__mode-hint {
+  margin: 0.5rem 0 0;
+  max-width: 62ch;
+  font-size: var(--fs-meta);
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.home__mode-hint b {
+  color: var(--ink-2);
+  font-weight: 600;
 }
 
 .home__listhead {
@@ -1284,6 +1307,22 @@ body {
   gap: 0.4rem;
 }
 
+/* Section labels in the insert menu — distinguish numbered steps from callouts
+   (highlighted annotations), so their difference is explicit (R13). */
+.rep__insert-label {
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.rep__insert-sublabel {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
 .rep__insert-x {
   padding-left: 0.5rem;
   padding-right: 0.5rem;
@@ -1793,6 +1832,18 @@ body {
   line-height: 1.4;
 }
 
+/* Inline link inside settings help text (e.g. the API-key console link, R6). */
+.settings__link {
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.settings__link:hover {
+  color: var(--accent-press);
+}
+
 .settings__row {
   display: flex;
   gap: 0.6rem;
@@ -2145,9 +2196,17 @@ body {
 }
 
 .sop__cost {
-  margin: 0 0 0.8rem;
+  margin: 0 0 0.35rem;
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Reassuring context under the cost estimate (R12). */
+.sop__cost-note {
+  margin: 0 0 0.8rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+  line-height: 1.4;
 }
 
 .sop__review-list {
@@ -2273,6 +2332,22 @@ body {
   font-size: 0.82rem;
 }
 
+/* Inline link inside the SOP-bar hint that opens Settings (R7). */
+.sopbar__link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.sopbar__link:hover {
+  color: var(--accent-press);
+}
+
 /* Per-screenshot instruction heading + subtext (in the report) */
 /* Instruction text under each screenshot — the main "what to do", made prominent
    with a left accent rule, larger/darker type. */
@@ -2371,4 +2446,214 @@ body {
   width: 14px;
   height: 14px;
   border-width: 2px;
+}
+
+/* ---- First-run coach-mark tour (R2) ---- */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+/* Transparent click-catcher — clicking outside the bubble skips the tour. */
+.tour__scrim {
+  position: fixed;
+  inset: 0;
+}
+
+/* Spotlight: a hole over the anchor (accent ring) that dims everything else via
+   a huge spread shadow. Pointer-events off so the scrim underneath gets clicks. */
+.tour__spot {
+  position: fixed;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 0 0 9999px rgba(17, 19, 27, 0.55);
+  transition:
+    top 0.25s ease,
+    left 0.25s ease,
+    width 0.25s ease,
+    height 0.25s ease;
+}
+
+/* Full dim for the anchor-less step (the recording pill doesn't exist yet). */
+.tour__fulldim {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 19, 27, 0.55);
+  pointer-events: none;
+}
+
+.tour__bubble {
+  position: fixed;
+  width: 330px;
+  max-width: calc(100vw - 24px);
+  background: var(--surface);
+  border: 1px solid #d4d8f5;
+  border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(20, 22, 31, 0.3);
+  padding: 16px 18px 14px;
+}
+
+.tour__caret {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--surface);
+  border: 1px solid #d4d8f5;
+  transform: rotate(45deg);
+}
+
+.tour__caret--top {
+  top: -8px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.tour__caret--bottom {
+  bottom: -8px;
+  border-left: none;
+  border-top: none;
+}
+
+.tour__step {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.tour__h {
+  margin: 4px 0 8px;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.tour__body {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* Mini recording-pill illustration inside the recording step. */
+.tour__pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #1f2330;
+  color: #f4f5f7;
+}
+
+.tour__pill-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #34d399;
+  flex: none;
+}
+
+.tour__pill-lab {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.tour__pill-lab small {
+  display: block;
+  font-weight: 500;
+  color: #aeb4c7;
+  font-size: 0.64rem;
+}
+
+.tour__pill-btn {
+  margin-left: auto;
+  font-size: 0.66rem;
+  color: #cfd4e4;
+  border: 1px solid #3a4159;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.tour__pill-btn + .tour__pill-btn {
+  margin-left: 0;
+}
+
+.tour__pill-btn--stop {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.tour__pill-btn--x {
+  color: #fca5a5;
+  border-color: #5a3040;
+}
+
+.tour__nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tour__dots {
+  display: flex;
+  gap: 5px;
+  margin-right: auto;
+}
+
+.tour__dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hair);
+}
+
+.tour__dots i.on {
+  background: var(--accent);
+}
+
+.tour__btn {
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--hair);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tour__btn:hover {
+  background: var(--ground);
+}
+
+.tour__btn--pri {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.tour__btn--pri:hover {
+  background: var(--accent-press);
+}
+
+.tour__btn--skip {
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  padding: 6px 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour__spot {
+    transition: none;
+  }
 }

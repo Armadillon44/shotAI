@@ -143,8 +143,8 @@ export function ProjectList({
           </div>
           <p className="empty__line">No projects yet</p>
           <p className="empty__sub">
-            Start one above — capture a process, or build an empty project from
-            images and text.
+            Create a project above: press <b>Capture ▸</b> to record a process, or{' '}
+            <b>Empty Project</b> to build one from images and text.
           </p>
         </div>
       ) : (

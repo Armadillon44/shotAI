@@ -33,7 +33,15 @@ function progressText(p: SopProgress | null): string {
 
 type Phase = 'idle' | 'preparing' | 'review' | 'generating';
 
-export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Element | null {
+export function SopPanel({
+  sopEnabled,
+  onOpenSettings,
+}: {
+  sopEnabled: boolean;
+  /** Open Settings (→ AI tab) so the disabled-Generate hint is one click from the
+   *  key field (R7). */
+  onOpenSettings?: () => void;
+}): React.JSX.Element | null {
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
   const steps = useProjectStore((s) => s.steps);
@@ -188,7 +196,18 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
           <span className="sopbar__prov">{provenance}</span>
         )}
         {sopEnabled && !hasKey && (
-          <span className="sopbar__hint">Set an API key in ⚙ Settings to generate.</span>
+          <span className="sopbar__hint">
+            {onOpenSettings ? (
+              <>
+                <button type="button" className="sopbar__link" onClick={onOpenSettings}>
+                  Add an API key in ⚙ Settings
+                </button>{' '}
+                to generate.
+              </>
+            ) : (
+              'Set an API key in ⚙ Settings to generate.'
+            )}
+          </span>
         )}
       </div>
 
@@ -223,6 +242,10 @@ export function SopPanel({ sopEnabled }: { sopEnabled: boolean }): React.JSX.Ele
               Model <strong>{estimate.model}</strong> · ~
               {estimate.inputTokens.toLocaleString()} input tokens · est.{' '}
               <strong>${estimate.estCostUsd.toFixed(2)}</strong>
+            </p>
+            <p className="sop__cost-note">
+              Estimated cost for this one generation, billed to your Anthropic key.
+              You can revert or regenerate anytime.
             </p>
             <div className="sop__review-list">
               {sentSteps.map((st, i) =>

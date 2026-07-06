@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  shell,
   type IpcMainInvokeEvent,
 } from 'electron';
 import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
@@ -34,6 +35,8 @@ import {
   setCaptureNoHide,
   getCaptureScale,
   setCaptureScale,
+  getHasSeenTour,
+  setHasSeenTour,
 } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
@@ -229,6 +232,30 @@ export function registerIpcHandlers(
       chrome: process.versions.chrome,
       node: process.versions.node,
     };
+  });
+
+  // Open a trusted external URL in the default browser. The app otherwise denies
+  // all window-open + confines navigation, so this is the ONLY egress to a
+  // browser — keep it fail-closed: https only, on an anthropic.com allowlist.
+  ipcMain.handle(IpcChannels.openExternal, async (_e, url: unknown): Promise<boolean> => {
+    devLog('ipc: shell:open-external');
+    if (typeof url !== 'string') return false;
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return false;
+    }
+    const host = parsed.hostname.toLowerCase();
+    const allowed =
+      parsed.protocol === 'https:' &&
+      (host === 'anthropic.com' || host.endsWith('.anthropic.com'));
+    if (!allowed) {
+      ipcLog.warn(`refused openExternal for non-allowlisted URL: ${parsed.origin}`);
+      return false;
+    }
+    await shell.openExternal(parsed.toString());
+    return true;
   });
 
   ipcMain.handle(IpcChannels.getProjectsDir, () => {
@@ -495,6 +522,17 @@ export function registerIpcHandlers(
       devLog('ipc: settings:set-capture-scale');
       // clamp happens in setCaptureScale; coerce non-numbers to the default there.
       return setCaptureScale(typeof value === 'number' ? value : NaN);
+    },
+  );
+  ipcMain.handle(IpcChannels.getHasSeenTour, () => {
+    devLog('ipc: settings:get-has-seen-tour');
+    return getHasSeenTour();
+  });
+  ipcMain.handle(
+    IpcChannels.setHasSeenTour,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-has-seen-tour');
+      return setHasSeenTour(value === true);
     },
   );
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {

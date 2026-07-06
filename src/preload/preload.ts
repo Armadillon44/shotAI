@@ -15,6 +15,7 @@ import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
+  openExternal: (url: string) => ipcRenderer.invoke(IpcChannels.openExternal, url),
   onOpenSettings: (cb: () => void) => {
     const listener = () => cb();
     ipcRenderer.on(IpcChannels.openSettings, listener);
@@ -93,6 +94,9 @@ const api: ShotaiApi = {
     getCaptureScale: () => ipcRenderer.invoke(IpcChannels.getCaptureScale),
     setCaptureScale: (value: number) =>
       ipcRenderer.invoke(IpcChannels.setCaptureScale, value),
+    getHasSeenTour: () => ipcRenderer.invoke(IpcChannels.getHasSeenTour),
+    setHasSeenTour: (value: boolean) =>
+      ipcRenderer.invoke(IpcChannels.setHasSeenTour, value),
   },
   claude: {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),

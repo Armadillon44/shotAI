@@ -33,10 +33,13 @@ type SettingsTab = (typeof SETTINGS_TABS)[number]['id'];
 export function Settings({
   onBack,
   onProjectsDirChanged,
+  onReplayTour,
 }: {
   onBack: () => void;
   /** Called when the projects folder actually changes, so Home re-lists. */
   onProjectsDirChanged?: () => void;
+  /** Replay the first-run coach-mark tour (returns to Home and starts it). */
+  onReplayTour?: () => void;
 }): React.JSX.Element {
   const [sop, setSop] = React.useState<SopSettings | null>(null);
   const [keyStatus, setKeyStatus] = React.useState<ApiKeyStatus | null>(null);
@@ -241,8 +244,9 @@ export function Settings({
                   <span className="settings__toggle-text">
                     <strong>AI SOP generation</strong>
                     <span className="settings__hint">
-                      Use Claude to write a step-by-step guide from your capture. When
-                      off, no Claude features appear and nothing ever leaves your machine.
+                      Use Claude to write a step-by-step guide from your capture —
+                      this needs an Anthropic API key (below). When off, no Claude
+                      features appear and nothing ever leaves your machine.
                     </span>
                   </span>
                   <input
@@ -264,6 +268,24 @@ export function Settings({
                   <>
                     <div className="settings__group">
                       <h3 className="settings__h">Anthropic API key</h3>
+                      <p className="settings__hint">
+                        shotAI uses <b>your own</b> Anthropic API key to write SOPs
+                        (billed per use). Your organization may provide one — paste
+                        it below. Otherwise, create your own at{' '}
+                        <a
+                          className="settings__link"
+                          href="https://console.anthropic.com/settings/keys"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            void window.shotai.openExternal(
+                              'https://console.anthropic.com/settings/keys',
+                            );
+                          }}
+                        >
+                          console.anthropic.com/settings/keys
+                        </a>
+                        .
+                      </p>
                       {keyStatus && (
                         <p className="settings__hint">
                           {keyStatus.source === 'stored' &&
@@ -487,14 +509,34 @@ export function Settings({
             )}
 
             {tab === 'about' && (
-              <div className="settings__group">
-                <h3 className="settings__h">About</h3>
-                <p className="settings__hint">
-                  {appInfo
-                    ? `${appInfo.name} · ${appInfo.platform}/${appInfo.arch} · Electron ${appInfo.electron}`
-                    : '…'}
-                </p>
-              </div>
+              <>
+                <div className="settings__group">
+                  <h3 className="settings__h">About</h3>
+                  <p className="settings__hint">
+                    {appInfo
+                      ? `${appInfo.name} · ${appInfo.platform}/${appInfo.arch} · Electron ${appInfo.electron}`
+                      : '…'}
+                  </p>
+                </div>
+                {onReplayTour && (
+                  <div className="settings__group">
+                    <h3 className="settings__h">Getting started</h3>
+                    <p className="settings__hint">
+                      New to shotAI, or want a refresher? Replay the quick intro
+                      tour on the home screen.
+                    </p>
+                    <div className="settings__dirrow">
+                      <button
+                        type="button"
+                        className="btn btn--small"
+                        onClick={onReplayTour}
+                      >
+                        ↺ Show intro tour
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </>
