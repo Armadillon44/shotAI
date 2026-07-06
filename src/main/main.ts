@@ -8,6 +8,7 @@ import { RegionService } from './RegionService';
 import { resolveProjectFile } from './project-store';
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
+import { decideGpu, type GpuDecision } from './gpu-policy';
 import { initLogging, mainLog } from './logger';
 
 initLogging();
@@ -89,19 +90,27 @@ const applyContentSecurityPolicy = (): void => {
   });
 };
 
-// Windows-on-ARM VMs (this dev box) and headless/CI environments can't create
-// a GPU context, which otherwise aborts startup ("GPU process isn't usable").
-// Default to software rendering so the app launches; set SHOTAI_ENABLE_GPU=1 to
-// use the GPU on machines that support it.
-if (process.env.SHOTAI_ENABLE_GPU !== '1') {
+// GPU is ON by default (C1). We disable HW acceleration only when a GPU context
+// won't initialize and would abort startup — currently an x64 process under
+// Windows ARM64 emulation (the dev VM / Windows-on-ARM), where "GPU process isn't
+// usable" errors occur. The decision is pure + unit-tested (gpu-policy.ts); apply
+// it HERE, before app 'ready' (disableHardwareAcceleration is ignored afterward).
+// SHOTAI_ENABLE_GPU overrides: '1' = force on, '0' = force off, unset = auto.
+let gpu: GpuDecision;
+try {
+  gpu = decideGpu(process.env, process.platform, process.arch);
+} catch {
+  gpu = { disable: false, reason: 'auto: default ON (detection error)' }; // fail toward GPU on
+}
+if (gpu.disable) {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-gpu');
   app.commandLine.appendSwitch('disable-gpu-compositing');
   app.commandLine.appendSwitch('disable-software-rasterizer');
   app.commandLine.appendSwitch('in-process-gpu');
-  mainLog.info('GPU disabled — software rendering (set SHOTAI_ENABLE_GPU=1 to enable)');
+  mainLog.info(`GPU disabled — software rendering [${gpu.reason}] (SHOTAI_ENABLE_GPU=1 to force on)`);
 } else {
-  mainLog.info('GPU enabled (SHOTAI_ENABLE_GPU=1)');
+  mainLog.info(`GPU enabled [${gpu.reason}] (SHOTAI_ENABLE_GPU=0 to force off)`);
 }
 
 // Keep the OS process sandbox ON by default (the windows also set sandbox:true).
@@ -264,6 +273,23 @@ const createWindows = (): void => {
 
 // Register IPC handlers once, then create windows, after Electron is ready.
 app.whenReady().then(async () => {
+  // Diagnostic only (does NOT drive the decision above): log the REAL GPU state
+  // once the GPU process has initialized, so "GPU on" is verifiable and a silent
+  // software fallback is visible. getGPUFeatureStatus() is read here (after
+  // getGPUInfo resolves) rather than at ready-time, where it's premature — the
+  // GPU process is still probing and reports software defaults that then flip to
+  // "enabled" a beat later.
+  app
+    .getGPUInfo('complete')
+    .then((info) => {
+      const aux = (info as { auxAttributes?: Record<string, unknown> }).auxAttributes ?? {};
+      const s = app.getGPUFeatureStatus();
+      mainLog.info(
+        `GPU: compositing=${s.gpu_compositing}, webgl=${s.webgl}, 2d_canvas=${s['2d_canvas']} | ` +
+          `renderer=${String(aux.glRenderer ?? '?')}`,
+      );
+    })
+    .catch((e) => mainLog.warn('GPU info query failed:', e));
   // Lock every window down: deny window.open/new-window and confine top-level
   // navigation to local app origins (the bundled file://, the shot:// scheme, or
   // the Vite dev server in dev). Nothing in shotAI navigates externally; this
