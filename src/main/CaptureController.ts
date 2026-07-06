@@ -38,7 +38,7 @@ import { unionRect, clickBox, captureModeFor, cropRect } from './capture-geometr
 import { buildClickCaption } from './click-caption';
 import { captureScaleNow } from './settings';
 import { captureLog } from './logger';
-import { getElementAtPoint } from './element-locator';
+import { getElementAtPoint, warmUpElementLocator } from './element-locator';
 
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+S';
 const OWN_WINDOW_TITLES = new Set(['shotAI', 'shotAI — Capture']);
@@ -72,7 +72,9 @@ function downscalePng(png: Buffer): { png: Buffer; scale: number } {
     if (target >= 1) return { png, scale: 1 };
     const targetW = Math.max(1, Math.round(width * target));
     if (targetW >= width) return { png, scale: 1 };
-    const resized = img.resize({ width: targetW, quality: 'best' });
+    // 'good' (not 'best'): 'best' is a slow Lanczos resample that blocked the main
+    // thread ~250ms/click, tripping the mouse-hook timeout and dropping clicks.
+    const resized = img.resize({ width: targetW, quality: 'good' });
     const out = resized.toPNG();
     if (!out || out.length === 0) return { png, scale: 1 };
     return { png: out, scale: resized.getSize().width / width };
@@ -188,11 +190,14 @@ function mapButton(button: unknown): StepClick['button'] {
 
 /** Crop a full-monitor capture to a global-px region, clamped to the monitor.
  *  The rect math is the pure cropRect() (capture-geometry.ts); this does the
- *  native crop + records the crop's global origin. */
-function cropToRegion(mon: NsMonitor, full: NsImage, region: Rect): Grab {
+ *  native crop + records the crop's global origin. ASYNC (crop + PNG encode run
+ *  on libuv worker threads) so the main thread / global mouse hook isn't blocked
+ *  during the encode — a slow sync encode dropped rapid follow-up clicks. */
+async function cropToRegion(mon: NsMonitor, full: NsImage, region: Rect): Promise<Grab> {
   const c = cropRect({ x: mon.x(), y: mon.y(), width: mon.width(), height: mon.height() }, region);
+  const cropped = await full.crop(c.x, c.y, c.width, c.height);
   return {
-    png: full.cropSync(c.x, c.y, c.width, c.height).toPngSync(),
+    png: await cropped.toPng(),
     originX: mon.x() + c.x,
     originY: mon.y() + c.y,
     monitor: mon,
@@ -646,6 +651,9 @@ export class CaptureController {
     captureLog.info(
       `recording started: "${manifest.title}" [mode=${target.mode}] (${manifest.steps.length} existing steps, next #${stepCount + 1}) at ${projectPath}`,
     );
+    // Pre-load the native element-locator dll now so the FIRST click isn't
+    // delayed seconds by its lazy load (which stalled the first capture).
+    warmUpElementLocator();
     if (attachHook) this.attachTriggers();
     this.onRecordingChange?.(true); // e.g. hide the main window while recording
     this.emitState();
@@ -963,7 +971,7 @@ export class CaptureController {
     // desktop fullscreen). The explicit modes ignore this.
     const autoMode = mode === 'auto' ? captureModeFor(active) : null;
 
-    const grab = (): Grab | null => {
+    const grab = async (): Promise<Grab | null> => {
       // CONTEXT-MENU SELECTION — the menu is a separate top-level popup window
       // that per-window (PrintWindow) capture can't see, so grab the monitor
       // (BitBlt of the composited desktop includes the popup) and crop to frame
@@ -1002,7 +1010,7 @@ export class CaptureController {
           }
           if (!mon) return null;
           try {
-            full = mon.captureImageSync();
+            full = await mon.captureImage();
           } catch (e) {
             captureLog.warn('menu-popup capture failed:', e);
             return null;
@@ -1031,9 +1039,9 @@ export class CaptureController {
 
         try {
           if (!region) {
-            return { png: full.toPngSync(), originX: mon.x(), originY: mon.y(), monitor: mon };
+            return { png: await full.toPng(), originX: mon.x(), originY: mon.y(), monitor: mon };
           }
-          return cropToRegion(mon, full, region);
+          return await cropToRegion(mon, full, region);
         } catch (e) {
           captureLog.warn('menu-popup crop failed:', e);
           return null;
@@ -1058,11 +1066,11 @@ export class CaptureController {
           const mon = Monitor.fromPoint(winRect.x, winRect.y) ?? clickMonitor;
           if (mon) {
             try {
-              const full = mon.captureImageSync();
+              const full = await mon.captureImage();
               // Crop tightly to the window bounds — NO generous click box here
               // (that bloated normal captures and pulled in neighboring windows).
               // The menu-popup path keeps its box to catch flipped/overflowing menus.
-              return cropToRegion(mon, full, winRect);
+              return await cropToRegion(mon, full, winRect);
             } catch (e) {
               captureLog.warn('window capture failed, falling back to monitor:', e);
             }
@@ -1083,8 +1091,9 @@ export class CaptureController {
             const cropY = Math.max(0, Math.min(Math.round(a.y - mon.y()), mon.height() - 1));
             const cropW = Math.max(1, Math.min(Math.round(a.width), mon.width() - cropX));
             const cropH = Math.max(1, Math.min(Math.round(a.height), mon.height() - cropY));
+            const areaImg = await (await mon.captureImage()).crop(cropX, cropY, cropW, cropH);
             return {
-              png: mon.captureImageSync().cropSync(cropX, cropY, cropW, cropH).toPngSync(),
+              png: await areaImg.toPng(),
               originX: mon.x() + cropX,
               originY: mon.y() + cropY,
               monitor: mon,
@@ -1114,8 +1123,9 @@ export class CaptureController {
           const cy = point.y - mon.y();
           const cropX = Math.max(0, Math.min(cx - Math.floor(boxW / 2), mon.width() - boxW));
           const cropY = Math.max(0, Math.min(cy - Math.floor(boxH / 2), mon.height() - boxH));
+          const regionImg = await (await mon.captureImage()).crop(cropX, cropY, boxW, boxH);
           return {
-            png: mon.captureImageSync().cropSync(cropX, cropY, boxW, boxH).toPngSync(),
+            png: await regionImg.toPng(),
             originX: mon.x() + cropX,
             originY: mon.y() + cropY,
             monitor: mon,
@@ -1128,7 +1138,7 @@ export class CaptureController {
       // FULLSCREEN — the whole monitor ('auto' desktop/fallback, 'screen').
       try {
         return {
-          png: mon.captureImageSync().toPngSync(),
+          png: await (await mon.captureImage()).toPng(),
           originX: mon.x(),
           originY: mon.y(),
           monitor: mon,
@@ -1138,13 +1148,23 @@ export class CaptureController {
         return null;
       }
     };
-    const grabbed = grab();
+    // Capture + PNG encode run on worker threads (async) so this doesn't block
+    // the event loop / global mouse hook — a slow sync encode was tripping
+    // Windows' low-level-hook timeout and dropping rapid follow-up clicks.
+    const tGrab = Date.now();
+    const grabbed = await grab();
     if (!grabbed) return null;
     const { png, originX, originY, monitor } = grabbed;
+    const grabMs = Date.now() - tGrab;
     // Downscale before writing so the stored PNG (which every downstream consumer
     // reads for its dimensions) is the smaller image; click.image is scaled to
     // match below (T2).
+    const tDown = Date.now();
     const { png: outPng, scale: imageScale } = downscalePng(png);
+    const downMs = Date.now() - tDown;
+    if (grabMs + downMs > 120) {
+      captureLog.debug(`capture timing: grab(async)=${grabMs}ms downscale(sync)=${downMs}ms`);
+    }
 
     const order = ++this.session.stepCount;
     const filename = `step-${String(order).padStart(4, '0')}.png`;
