@@ -69,6 +69,13 @@ function copyProductionNodeModules(buildPath: string): void {
   console.log(`[forge] packageAfterCopy: copied ${copied} production node_modules into the package`);
 }
 
+// App version, read from package.json (process.cwd() is the project root during
+// `electron-forge make`, same assumption copyProductionNodeModules relies on).
+// Used to name the installer so the built artifact needs no post-build rename.
+const { version: APP_VERSION } = JSON.parse(
+  readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+) as { version: string };
+
 const config: ForgeConfig = {
   packagerConfig: {
     // Packaged-app/exe icon. Extension omitted on purpose — electron-packager
@@ -103,7 +110,12 @@ const config: ForgeConfig = {
     },
   },
   makers: [
-    new MakerSquirrel({ setupIcon: './assets/shotAI_icon.ico' }),
+    // setupExe: emit a clean hyphenated name (Squirrel's default is
+    // "shotAI-<version> Setup.exe" — the space is awkward in URLs/downloads).
+    new MakerSquirrel({
+      setupIcon: './assets/shotAI_icon.ico',
+      setupExe: `shotAI-${APP_VERSION}-Setup.exe`,
+    }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),
     new MakerDeb({}),
