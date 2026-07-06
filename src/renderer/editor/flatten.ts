@@ -223,29 +223,46 @@ function drawVector(ctx: CanvasRenderingContext2D, a: Annotation): void {
     }
     case 'arrow': {
       const [x1, y1, x2, y2] = a.points;
+      // Replicate Konva KArrow EXACTLY so the baked arrow matches the editor
+      // pixel-for-pixel: (1) the shaft is stroked all the way to the tip (x2,y2)
+      // with a butt cap; (2) the arrowhead is a triangle (tip at x2,y2, base L
+      // back, width W = pointerLength = pointerWidth = max(12, strokeWidth*3))
+      // that is BOTH FILLED AND STROKED with a MITER join — Konva strokes its
+      // pointer, so the miter tip juts ~2×strokeWidth beyond the geometric point.
+      // Filling only (as before) made flatten's tip fall short of the editor's,
+      // so the arrow appeared to shrink/back-off after saving.
+      const L = Math.max(12, a.strokeWidth * 3);
+      const W = Math.max(12, a.strokeWidth * 3);
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      const ux = len > 0 ? (x2 - x1) / len : 0; // shaft unit vector
+      const uy = len > 0 ? (y2 - y1) / len : 0;
+      const bx = x2 - ux * L; // arrowhead base center
+      const by = y2 - uy * L;
+      const npx = -uy; // perpendicular unit
+      const npy = ux;
+      // save/restore so lineCap/lineJoin don't leak onto later shapes (e.g. rects).
+      ctx.save();
       ctx.strokeStyle = a.stroke;
       ctx.fillStyle = a.stroke;
       ctx.lineWidth = a.strokeWidth;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-      // arrowhead
-      const angle = Math.atan2(y2 - y1, x2 - x1);
-      const head = Math.max(12, a.strokeWidth * 3);
+      ctx.lineCap = 'butt';
+      ctx.lineJoin = 'miter'; // Konva default — the arrowhead's tip miters to a point
+      // Shaft to the tip (Konva draws the full line; the head covers its end).
+      if (len > 0) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+      // Arrowhead: fill AND stroke, exactly like Konva's pointer.
       ctx.beginPath();
       ctx.moveTo(x2, y2);
-      ctx.lineTo(
-        x2 - head * Math.cos(angle - Math.PI / 6),
-        y2 - head * Math.sin(angle - Math.PI / 6),
-      );
-      ctx.lineTo(
-        x2 - head * Math.cos(angle + Math.PI / 6),
-        y2 - head * Math.sin(angle + Math.PI / 6),
-      );
+      ctx.lineTo(bx + npx * (W / 2), by + npy * (W / 2));
+      ctx.lineTo(bx - npx * (W / 2), by - npy * (W / 2));
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
+      ctx.restore();
       break;
     }
     case 'stamp': {
