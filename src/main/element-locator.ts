@@ -67,6 +67,12 @@ function ensureLoaded(): Promise<ElementFn | null> {
   return loadPromise;
 }
 
+/** Pre-load the native dll (koffi + LoadLibrary) so the FIRST click of a
+ *  recording isn't delayed ~seconds while it loads lazily. Best-effort. */
+export function warmUpElementLocator(): void {
+  void ensureLoaded();
+}
+
 interface RawElement {
   name: string;
   controlType: string;
