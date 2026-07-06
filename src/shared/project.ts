@@ -11,6 +11,14 @@ import type { SopTone } from './sop';
 
 export const PROJECT_SCHEMA_VERSION = 1;
 
+// Screenshot-quality (downscale) setting bounds, shared by the settings clamp
+// (main) and the Settings slider (renderer). The stored value is a target scale;
+// CaptureController additionally enforces a readability floor (never shrink the
+// longer edge below a pixel threshold) so small captures stay legible to Claude.
+export const CAPTURE_SCALE_MIN = 0.5;
+export const CAPTURE_SCALE_MAX = 1;
+export const CAPTURE_SCALE_DEFAULT = 0.85;
+
 export type CaptureMode = 'auto' | 'window' | 'area' | 'screen';
 
 /** What each capture in a session targets (chosen before recording). */

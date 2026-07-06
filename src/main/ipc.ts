@@ -27,7 +27,14 @@ import {
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../shared/sop';
-import { getSopSettings, setSopSettings, getCaptureNoHide, setCaptureNoHide } from './settings';
+import {
+  getSopSettings,
+  setSopSettings,
+  getCaptureNoHide,
+  setCaptureNoHide,
+  getCaptureScale,
+  setCaptureScale,
+} from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
 import {
@@ -169,7 +176,10 @@ function parseStepPatch(value: unknown): StepPatch {
     patch.markerColor = v.markerColor;
   }
   if (typeof v.markerBaked === 'boolean') patch.markerBaked = v.markerBaked;
-  if (isNum(v.reportZoom)) patch.reportZoom = Math.max(0.2, Math.min(6, v.reportZoom));
+  // Floor at 1: the report's default view already fits the screenshot to the
+  // column, so zoom is IN-only (matches Report.tsx ZOOM_MIN). Normalizes any
+  // legacy sub-1 value on the next write.
+  if (isNum(v.reportZoom)) patch.reportZoom = Math.max(1, Math.min(6, v.reportZoom));
   if (isNum(v.reportPanX)) patch.reportPanX = Math.max(0, Math.min(1, v.reportPanX));
   if (isNum(v.reportPanY)) patch.reportPanY = Math.max(0, Math.min(1, v.reportPanY));
   if (Array.isArray(v.annotations)) {
@@ -473,6 +483,18 @@ export function registerIpcHandlers(
     (_event: IpcMainInvokeEvent, value: unknown) => {
       devLog('ipc: settings:set-capture-no-hide');
       return setCaptureNoHide(value === true);
+    },
+  );
+  ipcMain.handle(IpcChannels.getCaptureScale, () => {
+    devLog('ipc: settings:get-capture-scale');
+    return getCaptureScale();
+  });
+  ipcMain.handle(
+    IpcChannels.setCaptureScale,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-capture-scale');
+      // clamp happens in setCaptureScale; coerce non-numbers to the default there.
+      return setCaptureScale(typeof value === 'number' ? value : NaN);
     },
   );
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {

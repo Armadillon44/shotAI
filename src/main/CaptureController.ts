@@ -36,6 +36,7 @@ import type { CaptureState } from '../shared/ipc';
 import { IpcChannels } from '../shared/ipc';
 import { unionRect, clickBox, captureModeFor, cropRect } from './capture-geometry';
 import { buildClickCaption } from './click-caption';
+import { captureScaleNow } from './settings';
 import { captureLog } from './logger';
 import { getElementAtPoint } from './element-locator';
 
@@ -47,21 +48,29 @@ const DEFAULT_TARGET: CaptureTarget = { mode: 'auto' };
 // size AND Claude vision token cost. Kept gentle so small UI text Claude must
 // read stays legible. `image` click coords are scaled to match; a `<1` factor is
 // persisted on the click so merge.ts can still recover the capture origin.
-const CAPTURE_SCALE = 0.85;
+// Readability floor: never shrink the longer edge below this, so UI text stays
+// legible to Claude even at a low quality setting (small captures barely shrink).
+const MIN_CAPTURE_LONG_EDGE = 1100;
 
 /**
- * Downscale a captured PNG by CAPTURE_SCALE, returning the resized bytes and the
- * ACTUAL scale applied (after integer rounding) so click coords can be scaled to
- * match exactly. Fails open to the original PNG (scale 1) on any error — a resize
+ * Downscale a captured PNG toward the user's screenshot-quality setting
+ * (captureScaleNow, D1), but never below the readability floor
+ * (MIN_CAPTURE_LONG_EDGE on the longer edge) and never upscaling. Returns the
+ * resized bytes + the ACTUAL scale applied (after integer rounding) so click
+ * coords match. Fails open to the original PNG (scale 1) on any error — a resize
  * hiccup must never lose a capture.
  */
 function downscalePng(png: Buffer): { png: Buffer; scale: number } {
-  if (CAPTURE_SCALE >= 1) return { png, scale: 1 };
   try {
     const img = nativeImage.createFromBuffer(png);
     const { width, height } = img.getSize();
     if (width < 2 || height < 2) return { png, scale: 1 };
-    const targetW = Math.max(1, Math.round(width * CAPTURE_SCALE));
+    // Don't let the target drop below the readability floor for this image; and
+    // never upscale (floorScale caps at 1 for already-small captures).
+    const floorScale = Math.min(1, MIN_CAPTURE_LONG_EDGE / Math.max(width, height));
+    const target = Math.max(captureScaleNow(), floorScale);
+    if (target >= 1) return { png, scale: 1 };
+    const targetW = Math.max(1, Math.round(width * target));
     if (targetW >= width) return { png, scale: 1 };
     const resized = img.resize({ width: targetW, quality: 'best' });
     const out = resized.toPNG();

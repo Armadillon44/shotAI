@@ -14,6 +14,18 @@ import {
   DEFAULT_SOP_SETTINGS,
   type SopSettings,
 } from '../shared/sop';
+import {
+  CAPTURE_SCALE_MIN,
+  CAPTURE_SCALE_MAX,
+  CAPTURE_SCALE_DEFAULT,
+} from '../shared/project';
+
+/** Coerce an untrusted captureScale to the allowed range (or the default). */
+function clampCaptureScale(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v)
+    ? Math.min(CAPTURE_SCALE_MAX, Math.max(CAPTURE_SCALE_MIN, v))
+    : CAPTURE_SCALE_DEFAULT;
+}
 
 export interface Settings {
   projectsDir: string;
@@ -27,6 +39,13 @@ export interface Settings {
    * captureNoHideNow(); replaces the old SHOTAI_CAPTURE_NO_HIDE env var.
    */
   captureNoHide: boolean;
+  /**
+   * Screenshot quality: target downscale factor for captures (CAPTURE_SCALE_MIN..1,
+   * default 0.85). Lower = smaller files + cheaper AI, softer text. CaptureController
+   * enforces a readability floor on top of this. Read synchronously via
+   * captureScaleNow().
+   */
+  captureScale: number;
 }
 
 const MAX_RECENTS = 20;
@@ -53,6 +72,7 @@ async function load(): Promise<Settings> {
         : [],
       sop: coerceSopSettings(parsed.sop),
       captureNoHide: typeof parsed.captureNoHide === 'boolean' ? parsed.captureNoHide : false,
+      captureScale: clampCaptureScale(parsed.captureScale),
     };
   } catch {
     return {
@@ -60,6 +80,7 @@ async function load(): Promise<Settings> {
       recents: [],
       sop: DEFAULT_SOP_SETTINGS,
       captureNoHide: false,
+      captureScale: CAPTURE_SCALE_DEFAULT,
     };
   }
 }
@@ -149,6 +170,30 @@ export function setCaptureNoHide(value: boolean): Promise<boolean> {
   return mutate((s) => {
     s.captureNoHide = value;
     return value;
+  });
+}
+
+// Same sync-cache pattern for the screenshot-quality (downscale) factor, so
+// CaptureController reads the current value at capture-start without an async hop.
+let captureScaleCache = CAPTURE_SCALE_DEFAULT;
+
+/** Current captureScale, synchronously (already clamped). */
+export function captureScaleNow(): number {
+  return captureScaleCache;
+}
+
+export async function getCaptureScale(): Promise<number> {
+  captureScaleCache = (await load()).captureScale;
+  return captureScaleCache;
+}
+
+/** Persist captureScale (clamped) and update the cache. Returns the stored value. */
+export function setCaptureScale(value: number): Promise<number> {
+  const clamped = clampCaptureScale(value);
+  captureScaleCache = clamped;
+  return mutate((s) => {
+    s.captureScale = clamped;
+    return clamped;
   });
 }
 

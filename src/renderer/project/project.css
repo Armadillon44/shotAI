@@ -1798,6 +1798,30 @@ body {
   border-color: var(--danger-bd);
 }
 
+/* Screenshot-quality slider row inside Settings. */
+.settings__sliderrow {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+.settings__slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent, #4f8cff);
+  cursor: pointer;
+}
+
+.settings__slidval {
+  flex: 0 0 auto;
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text, #e7e9ee);
+}
+
 /* Projects-folder row (path + Change…) inside Settings. */
 .settings__dirrow {
   display: flex;

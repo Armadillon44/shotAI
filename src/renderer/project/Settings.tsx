@@ -7,6 +7,11 @@ import {
   type SopSettings,
 } from '../../shared/sop';
 import type { ApiKeyStatus, AppInfo } from '../../shared/ipc';
+import {
+  CAPTURE_SCALE_MIN,
+  CAPTURE_SCALE_MAX,
+  CAPTURE_SCALE_DEFAULT,
+} from '../../shared/project';
 
 /**
  * Settings panel — the master AI on/off toggle, the (encrypted) Anthropic API
@@ -32,28 +37,41 @@ export function Settings({
   const [appInfo, setAppInfo] = React.useState<AppInfo | null>(null);
   const [projectsDir, setProjectsDir] = React.useState('');
   const [captureNoHide, setCaptureNoHide] = React.useState(false);
+  const [captureScale, setCaptureScale] = React.useState(CAPTURE_SCALE_DEFAULT);
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir, noHide] = await Promise.all([
+    const [s, ks, info, dir, noHide, scale] = await Promise.all([
       window.shotai.settings.getSop(),
       window.shotai.claude.keyStatus(),
       window.shotai.getAppInfo(),
       window.shotai.projects.getDir(),
       window.shotai.settings.getCaptureNoHide(),
+      window.shotai.settings.getCaptureScale(),
     ]);
     setSop(s);
     setKeyStatus(ks);
     setAppInfo(info);
     setProjectsDir(dir);
     setCaptureNoHide(noHide);
+    setCaptureScale(scale);
   }, []);
 
   const toggleCaptureNoHide = async (value: boolean) => {
     setError(null);
     try {
       setCaptureNoHide(await window.shotai.settings.setCaptureNoHide(value));
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  // Persist the quality slider on release (onChange updates the local value live).
+  const persistCaptureScale = async (value: number) => {
+    setError(null);
+    try {
+      setCaptureScale(await window.shotai.settings.setCaptureScale(value));
     } catch (e) {
       fail(e);
     }
@@ -346,6 +364,34 @@ export function Settings({
               onChange={(e) => void toggleCaptureNoHide(e.target.checked)}
             />
           </label>
+
+          <div className="settings__group">
+            <h3 className="settings__h">Screenshot quality</h3>
+            <p className="settings__hint">
+              Downscales captured screenshots to cut file size and AI cost. Lower =
+              smaller and cheaper but softer text; a readability floor keeps small
+              captures legible to Claude. Applies to new captures.
+            </p>
+            <div className="settings__sliderrow">
+              <input
+                type="range"
+                className="settings__slider"
+                min={CAPTURE_SCALE_MIN}
+                max={CAPTURE_SCALE_MAX}
+                step={0.05}
+                value={captureScale}
+                aria-label="Screenshot quality"
+                onChange={(e) => setCaptureScale(Number(e.target.value))}
+                onPointerUp={(e) =>
+                  void persistCaptureScale(Number((e.target as HTMLInputElement).value))
+                }
+                onKeyUp={(e) =>
+                  void persistCaptureScale(Number((e.target as HTMLInputElement).value))
+                }
+              />
+              <span className="settings__slidval">{Math.round(captureScale * 100)}%</span>
+            </div>
+          </div>
 
           <div className="settings__group">
             <h3 className="settings__h">Projects folder</h3>

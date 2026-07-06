@@ -90,6 +90,9 @@ const api: ShotaiApi = {
     getCaptureNoHide: () => ipcRenderer.invoke(IpcChannels.getCaptureNoHide),
     setCaptureNoHide: (value: boolean) =>
       ipcRenderer.invoke(IpcChannels.setCaptureNoHide, value),
+    getCaptureScale: () => ipcRenderer.invoke(IpcChannels.getCaptureScale),
+    setCaptureScale: (value: number) =>
+      ipcRenderer.invoke(IpcChannels.setCaptureScale, value),
   },
   claude: {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),
