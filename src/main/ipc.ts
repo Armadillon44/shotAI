@@ -27,7 +27,14 @@ import {
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../shared/sop';
-import { getSopSettings, setSopSettings, getCaptureNoHide, setCaptureNoHide } from './settings';
+import {
+  getSopSettings,
+  setSopSettings,
+  getCaptureNoHide,
+  setCaptureNoHide,
+  getCaptureScale,
+  setCaptureScale,
+} from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
 import {
@@ -473,6 +480,18 @@ export function registerIpcHandlers(
     (_event: IpcMainInvokeEvent, value: unknown) => {
       devLog('ipc: settings:set-capture-no-hide');
       return setCaptureNoHide(value === true);
+    },
+  );
+  ipcMain.handle(IpcChannels.getCaptureScale, () => {
+    devLog('ipc: settings:get-capture-scale');
+    return getCaptureScale();
+  });
+  ipcMain.handle(
+    IpcChannels.setCaptureScale,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-capture-scale');
+      // clamp happens in setCaptureScale; coerce non-numbers to the default there.
+      return setCaptureScale(typeof value === 'number' ? value : NaN);
     },
   );
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {

@@ -6,7 +6,7 @@ import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
 import { resolveProjectFile } from './project-store';
-import { getCaptureNoHide, captureNoHideNow } from './settings';
+import { getCaptureNoHide, captureNoHideNow, getCaptureScale } from './settings';
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
 import { decideGpu, type GpuDecision } from './gpu-policy';
@@ -329,6 +329,7 @@ app.whenReady().then(async () => {
   // cache so onRecordingChange can read it without an async race. Toggled live in
   // Settings; setCaptureNoHide updates the cache immediately.
   void getCaptureNoHide();
+  void getCaptureScale(); // prime the screenshot-quality cache for downscalePng (D1)
   const capture = createCaptureController({
     // Hide the main window while recording (the always-on-top toolbar pill is the
     // control); restore + focus it when recording stops. Demo mode (Settings →

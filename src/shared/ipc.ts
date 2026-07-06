@@ -111,6 +111,8 @@ export const IpcChannels = {
   setSopSettings: 'settings:set-sop',
   getCaptureNoHide: 'settings:get-capture-no-hide',
   setCaptureNoHide: 'settings:set-capture-no-hide',
+  getCaptureScale: 'settings:get-capture-scale',
+  setCaptureScale: 'settings:set-capture-scale',
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
@@ -238,6 +240,10 @@ export interface ShotaiApi {
     getCaptureNoHide(): Promise<boolean>;
     /** Set the capture-no-hide (demo) mode; returns the new value. */
     setCaptureNoHide(value: boolean): Promise<boolean>;
+    /** Screenshot-quality downscale factor (CAPTURE_SCALE_MIN..1). */
+    getCaptureScale(): Promise<number>;
+    /** Set the screenshot-quality factor (clamped); returns the stored value. */
+    setCaptureScale(value: number): Promise<number>;
   };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */
