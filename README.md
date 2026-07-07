@@ -9,7 +9,7 @@ cautions/callouts.
 Everything runs and is stored **on your machine**. The only network call is to Anthropic's
 API, and only when you ask shotAI to write the SOP. **Windows first**, macOS later.
 
-> **Status:** working app, in a release-candidate cycle (latest: `v1.0.0-rc5`). Capture
+> **Status:** **1.0.0** — first stable release. Capture
 > engine, inline Konva annotation editor, redaction (manual + local-OCR auto-redact),
 > Claude SOP generation with review-before-send + one-click revert, element-at-point
 > captions (native UI Automation), export to HTML / Word / PowerPoint / PDF / Markdown +
