@@ -341,6 +341,22 @@ export function registerIpcHandlers(
   );
 
   ipcMain.handle(
+    IpcChannels.archiveProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:archive');
+      return projectStore.archiveProject(asString(projectPath, 'projectPath'));
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.unarchiveProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:unarchive');
+      return projectStore.unarchiveProject(asString(projectPath, 'projectPath'));
+    },
+  );
+
+  ipcMain.handle(
     IpcChannels.openProject,
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: projects:open');

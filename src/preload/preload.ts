@@ -26,6 +26,7 @@ const api: ShotaiApi = {
     ipcRenderer.on(IpcChannels.menuImportProject, listener);
     return () => ipcRenderer.removeListener(IpcChannels.menuImportProject, listener);
   },
+  setDetailView: (open: boolean) => ipcRenderer.invoke(IpcChannels.setDetailView, open),
   projects: {
     getDir: () => ipcRenderer.invoke(IpcChannels.getProjectsDir),
     chooseDir: () => ipcRenderer.invoke(IpcChannels.chooseProjectsDir),
@@ -39,6 +40,15 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.deleteProject, projectPath),
     reveal: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.revealProject, projectPath),
+    archive: (projectPath: string) =>
+      ipcRenderer.invoke(IpcChannels.archiveProject, projectPath),
+    unarchive: (projectPath: string) =>
+      ipcRenderer.invoke(IpcChannels.unarchiveProject, projectPath),
+    onChanged: (cb: () => void) => {
+      const listener = () => cb();
+      ipcRenderer.on(IpcChannels.projectsChanged, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.projectsChanged, listener);
+    },
     open: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.openProject, projectPath),
     updateStep: (

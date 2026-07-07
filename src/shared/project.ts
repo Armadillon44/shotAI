@@ -349,6 +349,14 @@ export interface ProjectManifest {
   intro: SopIntro | null;
   /** Pre-edit snapshot enabling revert of Claude's inline SOP edits (Phase 3). */
   sopBackup: SopBackup | null;
+  /**
+   * Archived state (F2): when true, the project's bulk files (shots/, export/)
+   * are compressed into archive.zip and the loose copies removed — the project
+   * stays listed (under the Archive tab) and is auto-restored on open. Default
+   * false. `archivedAt` is the ISO time it was archived (null when live).
+   */
+  archived: boolean;
+  archivedAt: string | null;
 }
 
 /** Lightweight summary for the project list (no full manifest load). */
@@ -361,4 +369,6 @@ export interface ProjectSummary {
   createdAt: string;
   updatedAt: string;
   stepCount: number;
+  /** Whether the project is archived (compressed in place; see ProjectManifest). */
+  archived: boolean;
 }

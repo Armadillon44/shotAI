@@ -122,6 +122,12 @@ export const IpcChannels = {
   exportProject: 'projects:export',
   exportPackage: 'projects:export-package',
   importPackage: 'projects:import-package',
+  archiveProject: 'projects:archive',
+  unarchiveProject: 'projects:unarchive',
+  /** Push (main → renderer): the project list changed (e.g. auto-archive). */
+  projectsChanged: 'projects:changed',
+  /** Renderer → main: entered (true) / left (false) a project — resize window (F5). */
+  setDetailView: 'view:set-detail',
   // SOP settings + Claude key management (Phase 3)
   getSopSettings: 'settings:get-sop',
   setSopSettings: 'settings:set-sop',
@@ -183,6 +189,9 @@ export interface ShotaiApi {
   /** Fires when the application menu's File → Import Project… is chosen. Returns
    *  an unsubscribe fn. */
   onImportProject(cb: () => void): () => void;
+  /** Tell main the user entered (true) / left (false) a project, so the window
+   *  grows to the report width and shrinks back on the list (F5). */
+  setDetailView(open: boolean): Promise<void>;
   projects: {
     getDir(): Promise<string>;
     chooseDir(): Promise<string | null>;
@@ -197,6 +206,12 @@ export interface ShotaiApi {
     delete(projectPath: string): Promise<void>;
     /** Reveal a project's folder in the OS file manager (Explorer/Finder). */
     reveal(projectPath: string): Promise<void>;
+    /** Archive a project (compress in place); returns the updated summary (F2). */
+    archive(projectPath: string): Promise<ProjectSummary>;
+    /** Restore an archived project; returns the updated summary (F2). */
+    unarchive(projectPath: string): Promise<ProjectSummary>;
+    /** Subscribe to project-list changes (e.g. auto-archive); returns an unsubscribe. */
+    onChanged(cb: () => void): () => void;
     /**
      * Open a project: returns its manifest plus an opaque `projectId` the
      * renderer uses to build shot:// image URLs (never a filesystem path).
