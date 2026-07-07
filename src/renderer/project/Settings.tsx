@@ -11,13 +11,21 @@ import {
   CAPTURE_SCALE_MIN,
   CAPTURE_SCALE_MAX,
   CAPTURE_SCALE_DEFAULT,
+  type ThemePref,
 } from '../../shared/project';
+
+const THEME_OPTIONS: { id: ThemePref; label: string; blurb: string }[] = [
+  { id: 'system', label: 'System', blurb: 'Match your Windows light/dark setting.' },
+  { id: 'light', label: 'Light', blurb: 'Always use the light theme.' },
+  { id: 'dark', label: 'Dark', blurb: 'Always use the dark theme.' },
+];
 
 // Settings is grouped into tabs (D2) so the panel stays manageable as controls
 // grow. Order matters: it's the tab-bar order and the arrow-key cycle order.
 const SETTINGS_TABS = [
   { id: 'ai', label: 'AI' },
   { id: 'capture', label: 'Capture' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'storage', label: 'Storage' },
   { id: 'about', label: 'About' },
 ] as const;
@@ -34,12 +42,15 @@ export function Settings({
   onBack,
   onProjectsDirChanged,
   onReplayTour,
+  onThemeChanged,
 }: {
   onBack: () => void;
   /** Called when the projects folder actually changes, so Home re-lists. */
   onProjectsDirChanged?: () => void;
   /** Replay the first-run coach-mark tour (returns to Home and starts it). */
   onReplayTour?: () => void;
+  /** Called when the theme preference changes, so App re-applies it (F10). */
+  onThemeChanged?: (theme: ThemePref) => void;
 }): React.JSX.Element {
   const [sop, setSop] = React.useState<SopSettings | null>(null);
   const [keyStatus, setKeyStatus] = React.useState<ApiKeyStatus | null>(null);
@@ -55,6 +66,7 @@ export function Settings({
   const [userName, setUserName] = React.useState('');
   const [includeName, setIncludeName] = React.useState(false);
   const [archiveAge, setArchiveAge] = React.useState(90);
+  const [theme, setTheme] = React.useState<ThemePref>('system');
   const [tab, setTab] = React.useState<SettingsTab>('ai');
   const tabRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -79,7 +91,7 @@ export function Settings({
   };
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir, noHide, scale, name, incl, age] = await Promise.all([
+    const [s, ks, info, dir, noHide, scale, name, incl, age, themePref] = await Promise.all([
       window.shotai.settings.getSop(),
       window.shotai.claude.keyStatus(),
       window.shotai.getAppInfo(),
@@ -89,6 +101,7 @@ export function Settings({
       window.shotai.settings.getUserName(),
       window.shotai.settings.getIncludeNameInReports(),
       window.shotai.settings.getArchiveAgeDays(),
+      window.shotai.settings.getTheme(),
     ]);
     setSop(s);
     setKeyStatus(ks);
@@ -99,6 +112,7 @@ export function Settings({
     setUserName(name);
     setIncludeName(incl);
     setArchiveAge(age);
+    setTheme(themePref);
   }, []);
 
   const toggleCaptureNoHide = async (value: boolean) => {
@@ -148,6 +162,19 @@ export function Settings({
     setError(null);
     try {
       setArchiveAge(await window.shotai.settings.setArchiveAgeDays(value));
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const chooseTheme = async (value: ThemePref) => {
+    setError(null);
+    setTheme(value); // reflect immediately
+    onThemeChanged?.(value); // App re-applies right away
+    try {
+      const stored = await window.shotai.settings.setTheme(value);
+      setTheme(stored);
+      onThemeChanged?.(stored);
     } catch (e) {
       fail(e);
     }
@@ -527,6 +554,33 @@ export function Settings({
                   />
                 </label>
               </>
+            )}
+
+            {tab === 'appearance' && (
+              <div className="settings__group">
+                <h3 className="settings__h">Theme</h3>
+                <p className="settings__hint">
+                  Choose the app’s color theme. “System” follows your Windows
+                  light/dark setting.
+                </p>
+                <div className="capmode__modes" role="radiogroup" aria-label="Theme">
+                  {THEME_OPTIONS.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={theme === t.id}
+                      className={`capmode__chip${theme === t.id ? ' capmode__chip--on' : ''}`}
+                      onClick={() => void chooseTheme(t.id)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="settings__hint">
+                  {THEME_OPTIONS.find((t) => t.id === theme)?.blurb}
+                </p>
+              </div>
             )}
 
             {tab === 'storage' && (

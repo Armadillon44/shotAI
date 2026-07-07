@@ -155,6 +155,7 @@ function summarize(
     updatedAt: manifest.updatedAt,
     stepCount: manifest.steps.length,
     archived: manifest.archived,
+    hasSop: manifest.intro !== null || manifest.steps.some((s) => s.aiInserted === true),
   };
 }
 

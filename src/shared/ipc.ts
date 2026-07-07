@@ -11,6 +11,7 @@ import type {
   Rect,
   SopIntro,
   StepPatch,
+  ThemePref,
   WindowInfo,
 } from './project';
 import type { SopModelId, SopSettings } from './sop';
@@ -143,6 +144,8 @@ export const IpcChannels = {
   setIncludeNameInReports: 'settings:set-include-name',
   getArchiveAgeDays: 'settings:get-archive-age',
   setArchiveAgeDays: 'settings:set-archive-age',
+  getTheme: 'settings:get-theme',
+  setTheme: 'settings:set-theme',
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
@@ -321,6 +324,10 @@ export interface ShotaiApi {
     getArchiveAgeDays(): Promise<number>;
     /** Persist the auto-archive age (0 = never; else 1..1825); returns the stored value. */
     setArchiveAgeDays(value: number): Promise<number>;
+    /** UI color theme preference (F10). */
+    getTheme(): Promise<ThemePref>;
+    /** Persist the theme preference; returns the stored value. */
+    setTheme(value: ThemePref): Promise<ThemePref>;
   };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */

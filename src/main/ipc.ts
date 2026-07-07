@@ -45,6 +45,8 @@ import {
   setIncludeNameInReports,
   getArchiveAgeDays,
   setArchiveAgeDays,
+  getTheme,
+  setTheme,
 } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
@@ -619,6 +621,14 @@ export function registerIpcHandlers(
       return setArchiveAgeDays(typeof value === 'number' ? value : NaN);
     },
   );
+  ipcMain.handle(IpcChannels.getTheme, () => {
+    devLog('ipc: settings:get-theme');
+    return getTheme();
+  });
+  ipcMain.handle(IpcChannels.setTheme, (_event: IpcMainInvokeEvent, value: unknown) => {
+    devLog('ipc: settings:set-theme');
+    return setTheme(value); // coerced in setTheme
+  });
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {
     devLog('ipc: claude:key-status');
     return getApiKeyStatus();

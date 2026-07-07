@@ -18,7 +18,13 @@ import {
   CAPTURE_SCALE_MIN,
   CAPTURE_SCALE_MAX,
   CAPTURE_SCALE_DEFAULT,
+  type ThemePref,
 } from '../shared/project';
+
+/** Coerce an untrusted theme preference to a valid value (default 'system'). */
+function coerceTheme(v: unknown): ThemePref {
+  return v === 'light' || v === 'dark' || v === 'system' ? v : 'system';
+}
 
 /** Coerce an untrusted captureScale to the allowed range (or the default). */
 function clampCaptureScale(v: unknown): number {
@@ -78,6 +84,8 @@ export interface Settings {
    * Default 90 (~3 months).
    */
   archiveAgeDays: number;
+  /** UI color theme (F10): 'light' | 'dark' | 'system' (default 'system'). */
+  theme: ThemePref;
 }
 
 const MAX_RECENTS = 20;
@@ -110,6 +118,7 @@ async function load(): Promise<Settings> {
       includeNameInReports:
         typeof parsed.includeNameInReports === 'boolean' ? parsed.includeNameInReports : false,
       archiveAgeDays: clampArchiveAge(parsed.archiveAgeDays),
+      theme: coerceTheme(parsed.theme),
     };
   } catch {
     return {
@@ -122,6 +131,7 @@ async function load(): Promise<Settings> {
       userName: '',
       includeNameInReports: false,
       archiveAgeDays: ARCHIVE_AGE_DEFAULT,
+      theme: 'system',
     };
   }
 }
@@ -297,6 +307,19 @@ export async function getReportByline(): Promise<string | null> {
   const s = await load();
   const name = s.userName.trim();
   return s.includeNameInReports && name ? name : null;
+}
+
+export async function getTheme(): Promise<ThemePref> {
+  return (await load()).theme;
+}
+
+/** Persist the theme preference (coerced). Returns the stored value. */
+export function setTheme(value: unknown): Promise<ThemePref> {
+  const v = coerceTheme(value);
+  return mutate((s) => {
+    s.theme = v;
+    return v;
+  });
 }
 
 export async function getSopSettings(): Promise<SopSettings> {

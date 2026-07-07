@@ -10,7 +10,7 @@ import {
   type ShotaiApi,
   type SopProgress,
 } from '../shared/ipc';
-import type { CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch } from '../shared/project';
+import type { CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch, ThemePref } from '../shared/project';
 import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
@@ -123,6 +123,8 @@ const api: ShotaiApi = {
     getArchiveAgeDays: () => ipcRenderer.invoke(IpcChannels.getArchiveAgeDays),
     setArchiveAgeDays: (value: number) =>
       ipcRenderer.invoke(IpcChannels.setArchiveAgeDays, value),
+    getTheme: () => ipcRenderer.invoke(IpcChannels.getTheme),
+    setTheme: (value: ThemePref) => ipcRenderer.invoke(IpcChannels.setTheme, value),
   },
   claude: {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),

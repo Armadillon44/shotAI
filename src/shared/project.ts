@@ -359,6 +359,9 @@ export interface ProjectManifest {
   archivedAt: string | null;
 }
 
+/** UI color theme preference (F10). 'system' follows the OS setting. */
+export type ThemePref = 'light' | 'dark' | 'system';
+
 /** Lightweight summary for the project list (no full manifest load). */
 export interface ProjectSummary {
   /** Stable project id (may be '' for an older project not yet opened/migrated). */
@@ -371,4 +374,7 @@ export interface ProjectSummary {
   stepCount: number;
   /** Whether the project is archived (compressed in place; see ProjectManifest). */
   archived: boolean;
+  /** True once Claude has written the guide (has an intro or AI-inserted steps) —
+   *  drives the "SOP ready" vs "Draft" status chip on the home list. */
+  hasSop: boolean;
 }
