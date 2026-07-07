@@ -26,6 +26,8 @@ import {
 import { confinePath } from './path-confine';
 import { applyPatchAndInvalidate, writeStepRender } from './step-render';
 import { writeFileAtomic } from './atomic-write';
+import { packArchive, unpackArchive, isArchivedOnDisk } from './archive';
+import { projectsLog } from './logger';
 
 const MANIFEST = 'project.json';
 
@@ -119,6 +121,8 @@ export function coerceManifest(
     steps: normalizeSteps(parsed.steps),
     intro: coerceIntro(parsed.intro),
     sopBackup: coerceSopBackup(parsed.sopBackup),
+    archived: parsed.archived === true,
+    archivedAt: typeof parsed.archivedAt === 'string' ? parsed.archivedAt : null,
   };
 }
 
@@ -150,6 +154,8 @@ function summarize(
     createdAt: manifest.createdAt,
     updatedAt: manifest.updatedAt,
     stepCount: manifest.steps.length,
+    archived: manifest.archived,
+    hasSop: manifest.intro !== null || manifest.steps.some((s) => s.aiInserted === true),
   };
 }
 
@@ -191,6 +197,8 @@ export async function createProject(title?: string): Promise<ProjectSummary> {
     steps: [],
     intro: null,
     sopBackup: null,
+    archived: false,
+    archivedAt: null,
   };
   await writeManifest(dir, manifest); // atomic, same as every other manifest write
 
@@ -235,6 +243,9 @@ export async function createProjectFromImport(
   if (!manifest.createdAt) manifest.createdAt = now;
   manifest.updatedAt = now;
   manifest.sopBackup = null;
+  // An imported project is materialized live (files extracted), never archived.
+  manifest.archived = false;
+  manifest.archivedAt = null;
   await writeManifest(dir, manifest);
   await addRecent(dir);
   return summarize(manifest, dir);
@@ -245,6 +256,11 @@ async function loadProject(
   projectPath: string,
 ): Promise<{ resolved: string; manifest: ProjectManifest }> {
   const resolved = await resolveKnownProject(projectPath);
+  // Auto-unarchive (F2): opening an archived project restores its files first,
+  // via the serialized unarchiveProject (fail-closed) so it can't race a write.
+  if (await isArchivedOnDisk(resolved)) {
+    await unarchiveProject(resolved);
+  }
   const manifest = await readManifest(resolved);
   // Back-fill a stable id for older projects, persisted once on open.
   if (!manifest.id) {
@@ -412,6 +428,80 @@ export async function deleteProject(projectPath: string): Promise<void> {
     idToDir.delete(id);
     dirToId.delete(resolved);
   }
+}
+
+/**
+ * Archive a project (F2): compress shots/ + export/ into archive.zip, remove the
+ * loose copies, and flag the manifest. Serialized through the writeQueue so it
+ * can't interleave a capture/edit. Fail-closed (packArchive verifies before it
+ * deletes anything). No-op if already archived. Does NOT bump updatedAt — the
+ * project's "last touched" time is preserved. Returns the updated summary.
+ */
+export function archiveProject(projectPath: string): Promise<ProjectSummary> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    if (!manifest.archived) {
+      await packArchive(resolved); // throws (leaving files intact) if incomplete
+      manifest.archived = true;
+      manifest.archivedAt = new Date().toISOString();
+      await writeManifest(resolved, manifest); // keep updatedAt as-is
+    }
+    return summarize(manifest, resolved);
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/**
+ * Unarchive a project (F2): restore its files from archive.zip and clear the
+ * flag. Serialized + fail-closed (unpackArchive verifies extraction before
+ * removing the zip). No-op if not archived. Returns the updated summary.
+ */
+export function unarchiveProject(projectPath: string): Promise<ProjectSummary> {
+  const run = writeQueue.then(async () => {
+    const resolved = await resolveKnownProject(projectPath);
+    const manifest = await readManifest(resolved);
+    if (manifest.archived || (await isArchivedOnDisk(resolved))) {
+      await unpackArchive(resolved);
+      manifest.archived = false;
+      manifest.archivedAt = null;
+      await writeManifest(resolved, manifest);
+    }
+    return summarize(manifest, resolved);
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/**
+ * Auto-archive policy (F2): archive every live project untouched (by updatedAt)
+ * for longer than `ageDays`. `ageDays <= 0` means "never" (returns 0). Best-effort
+ * — a per-project failure is logged and skipped. Returns the number archived.
+ */
+export async function autoArchiveStale(ageDays: number): Promise<number> {
+  if (!ageDays || ageDays <= 0) return 0;
+  const cutoff = Date.now() - ageDays * 24 * 60 * 60 * 1000;
+  let archived = 0;
+  for (const p of await listProjects()) {
+    if (p.archived) continue;
+    const t = Date.parse(p.updatedAt);
+    if (!Number.isFinite(t) || t >= cutoff) continue;
+    try {
+      await archiveProject(p.path);
+      archived++;
+    } catch (e) {
+      projectsLog.warn(`auto-archive failed for ${p.path} (non-fatal):`, e);
+    }
+  }
+  if (archived) projectsLog.info(`auto-archived ${archived} stale project(s) (>${ageDays}d)`);
+  return archived;
 }
 
 // Serialize manifest writes so rapid captures can't interleave read-modify-write.

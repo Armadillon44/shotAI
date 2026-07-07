@@ -8,6 +8,7 @@ import type {
   ProjectStep,
   ProjectSummary,
   Rect,
+  ThemePref,
   WindowInfo,
 } from '../../shared/project';
 import { useProjectStore } from './store';
@@ -16,6 +17,7 @@ import { ProjectList } from './ProjectList';
 import { Notice } from '../Notice';
 import { Settings } from './Settings';
 import { Tour } from './Tour';
+import { applyTheme, watchSystemTheme } from './theme';
 
 type Targets = { windows: WindowInfo[]; monitors: MonitorInfo[] };
 
@@ -39,6 +41,7 @@ export function App(): React.JSX.Element {
   const [capture, setCapture] = React.useState<CaptureState | null>(null);
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
   const [showSettings, setShowSettings] = React.useState(false);
+  const [themePref, setThemePref] = React.useState<ThemePref>('system');
   // First-run coach-mark tour (R2). Opens once on first launch; replayable from
   // Settings → About. Only rendered on the home screen (its bubbles anchor to
   // home controls).
@@ -256,6 +259,29 @@ export function App(): React.JSX.Element {
     refresh().catch(fail);
   }, [sopBackup, refresh]);
 
+  // F5: tell main to widen the window to the report size in a project and shrink
+  // it back to the narrow list on the home screen.
+  React.useEffect(() => {
+    void window.shotai.setDetailView(!!openPath);
+  }, [openPath]);
+
+  // Re-list when main reports the project set changed (e.g. startup auto-archive
+  // moved stale projects to the Archive tab).
+  React.useEffect(
+    () => window.shotai.projects.onChanged(() => void refresh().catch(fail)),
+    [refresh],
+  );
+
+  // F10: load the theme preference once, then apply it (and follow the OS when
+  // set to 'system'). Changing it in Settings updates themePref → re-applies here.
+  React.useEffect(() => {
+    window.shotai.settings.getTheme().then(setThemePref).catch(() => undefined);
+  }, []);
+  React.useEffect(() => {
+    applyTheme(themePref);
+    return watchSystemTheme(themePref, () => applyTheme(themePref));
+  }, [themePref]);
+
   // `createdThisSession` marks a freshly-created project so a Discard from the
   // pill deletes the whole project (vs. only this session's steps).
   const onRecord = async (projectPath: string, createdThisSession = false) => {
@@ -443,6 +469,7 @@ export function App(): React.JSX.Element {
             onBack={() => setShowSettings(false)}
             onProjectsDirChanged={() => void refresh()}
             onReplayTour={replayTour}
+            onThemeChanged={setThemePref}
           />
         )}
 

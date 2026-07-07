@@ -39,6 +39,14 @@ import {
   setCaptureScale,
   getHasSeenTour,
   setHasSeenTour,
+  getUserName,
+  setUserName,
+  getIncludeNameInReports,
+  setIncludeNameInReports,
+  getArchiveAgeDays,
+  setArchiveAgeDays,
+  getTheme,
+  setTheme,
 } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
@@ -335,6 +343,22 @@ export function registerIpcHandlers(
   );
 
   ipcMain.handle(
+    IpcChannels.archiveProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:archive');
+      return projectStore.archiveProject(asString(projectPath, 'projectPath'));
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.unarchiveProject,
+    (_event: IpcMainInvokeEvent, projectPath: unknown) => {
+      devLog('ipc: projects:unarchive');
+      return projectStore.unarchiveProject(asString(projectPath, 'projectPath'));
+    },
+  );
+
+  ipcMain.handle(
     IpcChannels.openProject,
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: projects:open');
@@ -563,6 +587,48 @@ export function registerIpcHandlers(
       return setHasSeenTour(value === true);
     },
   );
+  ipcMain.handle(IpcChannels.getUserName, () => {
+    devLog('ipc: settings:get-user-name');
+    return getUserName();
+  });
+  ipcMain.handle(
+    IpcChannels.setUserName,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-user-name');
+      return setUserName(typeof value === 'string' ? value : '');
+    },
+  );
+  ipcMain.handle(IpcChannels.getIncludeNameInReports, () => {
+    devLog('ipc: settings:get-include-name');
+    return getIncludeNameInReports();
+  });
+  ipcMain.handle(
+    IpcChannels.setIncludeNameInReports,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-include-name');
+      return setIncludeNameInReports(value === true);
+    },
+  );
+  ipcMain.handle(IpcChannels.getArchiveAgeDays, () => {
+    devLog('ipc: settings:get-archive-age');
+    return getArchiveAgeDays();
+  });
+  ipcMain.handle(
+    IpcChannels.setArchiveAgeDays,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-archive-age');
+      // clamp happens in setArchiveAgeDays; coerce non-numbers to the default there.
+      return setArchiveAgeDays(typeof value === 'number' ? value : NaN);
+    },
+  );
+  ipcMain.handle(IpcChannels.getTheme, () => {
+    devLog('ipc: settings:get-theme');
+    return getTheme();
+  });
+  ipcMain.handle(IpcChannels.setTheme, (_event: IpcMainInvokeEvent, value: unknown) => {
+    devLog('ipc: settings:set-theme');
+    return setTheme(value); // coerced in setTheme
+  });
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {
     devLog('ipc: claude:key-status');
     return getApiKeyStatus();

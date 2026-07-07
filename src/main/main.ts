@@ -1,12 +1,18 @@
-import { app, BrowserWindow, protocol, screen, session } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, screen, session } from 'electron';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './ipc';
 import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
-import { resolveProjectFile } from './project-store';
-import { getCaptureNoHide, captureNoHideNow, getCaptureScale } from './settings';
+import { resolveProjectFile, autoArchiveStale } from './project-store';
+import {
+  getCaptureNoHide,
+  captureNoHideNow,
+  getCaptureScale,
+  getArchiveAgeDays,
+} from './settings';
+import { IpcChannels } from '../shared/ipc';
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
 import { decideGpu, type GpuDecision } from './gpu-policy';
@@ -186,11 +192,31 @@ const wireLoadDiagnostics = (win: BrowserWindow, label: string): void => {
  * The main project window: recent projects, the step list, the HTML report
  * with the inline image editor, SOP generation, and export. Where editing happens.
  */
+// Project-window widths (F5): the home/project list is NARROW; opening a project
+// expands the window to fit the report column (REPORT column max-width 910 +
+// margins/scrollbar), and returning to the list shrinks it back.
+const LIST_WIDTH = 720;
+const DETAIL_WIDTH = 960;
+
+/** Resize the project window to the list (narrow) or detail (report) width,
+ *  preserving the visual center + clamping to the current display's work area. */
+const setDetailView = (open: boolean): void => {
+  const win = projectWindow;
+  if (!win || win.isDestroyed()) return;
+  const b = win.getBounds();
+  const newW = open ? DETAIL_WIDTH : LIST_WIDTH;
+  if (b.width === newW) return;
+  const centerX = b.x + b.width / 2;
+  const wa = screen.getDisplayMatching(b).workArea;
+  const x = Math.max(wa.x, Math.min(Math.round(centerX - newW / 2), wa.x + wa.width - newW));
+  win.setBounds({ x, y: b.y, width: newW, height: b.height });
+};
+
 const createProjectWindow = (): BrowserWindow => {
   const win = new BrowserWindow({
-    width: 1100,
+    width: LIST_WIDTH,
     height: 740,
-    minWidth: 800,
+    minWidth: 680,
     minHeight: 560,
     show: false,
     title: 'shotAI',
@@ -371,10 +397,28 @@ app.whenReady().then(async () => {
   registerShotProtocol();
   applyContentSecurityPolicy();
   registerIpcHandlers(capture, region);
+  // F5: the renderer signals when it enters/leaves a project so the window can
+  // grow to the report width and shrink back on the list.
+  ipcMain.handle(IpcChannels.setDetailView, (_e, open: unknown) => {
+    setDetailView(open === true);
+  });
   installAppMenu(() =>
     projectWindow && !projectWindow.isDestroyed() ? projectWindow : null,
   );
   createWindows();
+
+  // F2: auto-archive stale projects in the background, then tell the home to
+  // re-list so anything newly archived moves to the Archive tab. Best-effort.
+  void (async () => {
+    try {
+      const archived = await autoArchiveStale(await getArchiveAgeDays());
+      if (archived > 0 && projectWindow && !projectWindow.isDestroyed()) {
+        projectWindow.webContents.send(IpcChannels.projectsChanged);
+      }
+    } catch (e) {
+      mainLog.warn('startup auto-archive failed (non-fatal):', e);
+    }
+  })();
 });
 
 // Quit when all windows are closed, except on macOS.

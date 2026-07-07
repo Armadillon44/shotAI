@@ -11,6 +11,7 @@ import type {
   Rect,
   SopIntro,
   StepPatch,
+  ThemePref,
   WindowInfo,
 } from './project';
 import type { SopModelId, SopSettings } from './sop';
@@ -122,6 +123,12 @@ export const IpcChannels = {
   exportProject: 'projects:export',
   exportPackage: 'projects:export-package',
   importPackage: 'projects:import-package',
+  archiveProject: 'projects:archive',
+  unarchiveProject: 'projects:unarchive',
+  /** Push (main → renderer): the project list changed (e.g. auto-archive). */
+  projectsChanged: 'projects:changed',
+  /** Renderer → main: entered (true) / left (false) a project — resize window (F5). */
+  setDetailView: 'view:set-detail',
   // SOP settings + Claude key management (Phase 3)
   getSopSettings: 'settings:get-sop',
   setSopSettings: 'settings:set-sop',
@@ -131,6 +138,14 @@ export const IpcChannels = {
   setCaptureScale: 'settings:set-capture-scale',
   getHasSeenTour: 'settings:get-has-seen-tour',
   setHasSeenTour: 'settings:set-has-seen-tour',
+  getUserName: 'settings:get-user-name',
+  setUserName: 'settings:set-user-name',
+  getIncludeNameInReports: 'settings:get-include-name',
+  setIncludeNameInReports: 'settings:set-include-name',
+  getArchiveAgeDays: 'settings:get-archive-age',
+  setArchiveAgeDays: 'settings:set-archive-age',
+  getTheme: 'settings:get-theme',
+  setTheme: 'settings:set-theme',
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
@@ -177,6 +192,9 @@ export interface ShotaiApi {
   /** Fires when the application menu's File → Import Project… is chosen. Returns
    *  an unsubscribe fn. */
   onImportProject(cb: () => void): () => void;
+  /** Tell main the user entered (true) / left (false) a project, so the window
+   *  grows to the report width and shrinks back on the list (F5). */
+  setDetailView(open: boolean): Promise<void>;
   projects: {
     getDir(): Promise<string>;
     chooseDir(): Promise<string | null>;
@@ -191,6 +209,12 @@ export interface ShotaiApi {
     delete(projectPath: string): Promise<void>;
     /** Reveal a project's folder in the OS file manager (Explorer/Finder). */
     reveal(projectPath: string): Promise<void>;
+    /** Archive a project (compress in place); returns the updated summary (F2). */
+    archive(projectPath: string): Promise<ProjectSummary>;
+    /** Restore an archived project; returns the updated summary (F2). */
+    unarchive(projectPath: string): Promise<ProjectSummary>;
+    /** Subscribe to project-list changes (e.g. auto-archive); returns an unsubscribe. */
+    onChanged(cb: () => void): () => void;
     /**
      * Open a project: returns its manifest plus an opaque `projectId` the
      * renderer uses to build shot:// image URLs (never a filesystem path).
@@ -288,6 +312,22 @@ export interface ShotaiApi {
     getHasSeenTour(): Promise<boolean>;
     /** Persist whether the tour has been seen; false replays it. Returns the value. */
     setHasSeenTour(value: boolean): Promise<boolean>;
+    /** Display name shown in reports/exports when includeNameInReports is on (F8). */
+    getUserName(): Promise<string>;
+    /** Persist the display name (trimmed/capped); returns the stored value. */
+    setUserName(value: string): Promise<string>;
+    /** Whether to append "by <name>" to the export "Created on …" line (F8). */
+    getIncludeNameInReports(): Promise<boolean>;
+    /** Persist the include-name opt-in; returns the new value. */
+    setIncludeNameInReports(value: boolean): Promise<boolean>;
+    /** Auto-archive age in days; 0 = never (F2). */
+    getArchiveAgeDays(): Promise<number>;
+    /** Persist the auto-archive age (0 = never; else 1..1825); returns the stored value. */
+    setArchiveAgeDays(value: number): Promise<number>;
+    /** UI color theme preference (F10). */
+    getTheme(): Promise<ThemePref>;
+    /** Persist the theme preference; returns the stored value. */
+    setTheme(value: ThemePref): Promise<ThemePref>;
   };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */

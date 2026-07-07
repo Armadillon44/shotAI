@@ -10,7 +10,7 @@ import {
   type ShotaiApi,
   type SopProgress,
 } from '../shared/ipc';
-import type { CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch } from '../shared/project';
+import type { CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch, ThemePref } from '../shared/project';
 import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
@@ -26,6 +26,7 @@ const api: ShotaiApi = {
     ipcRenderer.on(IpcChannels.menuImportProject, listener);
     return () => ipcRenderer.removeListener(IpcChannels.menuImportProject, listener);
   },
+  setDetailView: (open: boolean) => ipcRenderer.invoke(IpcChannels.setDetailView, open),
   projects: {
     getDir: () => ipcRenderer.invoke(IpcChannels.getProjectsDir),
     chooseDir: () => ipcRenderer.invoke(IpcChannels.chooseProjectsDir),
@@ -39,6 +40,15 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.deleteProject, projectPath),
     reveal: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.revealProject, projectPath),
+    archive: (projectPath: string) =>
+      ipcRenderer.invoke(IpcChannels.archiveProject, projectPath),
+    unarchive: (projectPath: string) =>
+      ipcRenderer.invoke(IpcChannels.unarchiveProject, projectPath),
+    onChanged: (cb: () => void) => {
+      const listener = () => cb();
+      ipcRenderer.on(IpcChannels.projectsChanged, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.projectsChanged, listener);
+    },
     open: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.openProject, projectPath),
     updateStep: (
@@ -105,6 +115,16 @@ const api: ShotaiApi = {
     getHasSeenTour: () => ipcRenderer.invoke(IpcChannels.getHasSeenTour),
     setHasSeenTour: (value: boolean) =>
       ipcRenderer.invoke(IpcChannels.setHasSeenTour, value),
+    getUserName: () => ipcRenderer.invoke(IpcChannels.getUserName),
+    setUserName: (value: string) => ipcRenderer.invoke(IpcChannels.setUserName, value),
+    getIncludeNameInReports: () => ipcRenderer.invoke(IpcChannels.getIncludeNameInReports),
+    setIncludeNameInReports: (value: boolean) =>
+      ipcRenderer.invoke(IpcChannels.setIncludeNameInReports, value),
+    getArchiveAgeDays: () => ipcRenderer.invoke(IpcChannels.getArchiveAgeDays),
+    setArchiveAgeDays: (value: number) =>
+      ipcRenderer.invoke(IpcChannels.setArchiveAgeDays, value),
+    getTheme: () => ipcRenderer.invoke(IpcChannels.getTheme),
+    setTheme: (value: ThemePref) => ipcRenderer.invoke(IpcChannels.setTheme, value),
   },
   claude: {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),

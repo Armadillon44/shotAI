@@ -349,7 +349,18 @@ export interface ProjectManifest {
   intro: SopIntro | null;
   /** Pre-edit snapshot enabling revert of Claude's inline SOP edits (Phase 3). */
   sopBackup: SopBackup | null;
+  /**
+   * Archived state (F2): when true, the project's bulk files (shots/, export/)
+   * are compressed into archive.zip and the loose copies removed — the project
+   * stays listed (under the Archive tab) and is auto-restored on open. Default
+   * false. `archivedAt` is the ISO time it was archived (null when live).
+   */
+  archived: boolean;
+  archivedAt: string | null;
 }
+
+/** UI color theme preference (F10). 'system' follows the OS setting. */
+export type ThemePref = 'light' | 'dark' | 'system';
 
 /** Lightweight summary for the project list (no full manifest load). */
 export interface ProjectSummary {
@@ -361,4 +372,9 @@ export interface ProjectSummary {
   createdAt: string;
   updatedAt: string;
   stepCount: number;
+  /** Whether the project is archived (compressed in place; see ProjectManifest). */
+  archived: boolean;
+  /** True once Claude has written the guide (has an intro or AI-inserted steps) —
+   *  drives the "SOP ready" vs "Draft" status chip on the home list. */
+  hasSop: boolean;
 }

@@ -18,7 +18,13 @@ import {
   CAPTURE_SCALE_MIN,
   CAPTURE_SCALE_MAX,
   CAPTURE_SCALE_DEFAULT,
+  type ThemePref,
 } from '../shared/project';
+
+/** Coerce an untrusted theme preference to a valid value (default 'system'). */
+function coerceTheme(v: unknown): ThemePref {
+  return v === 'light' || v === 'dark' || v === 'system' ? v : 'system';
+}
 
 /** Coerce an untrusted captureScale to the allowed range (or the default). */
 function clampCaptureScale(v: unknown): number {
@@ -26,6 +32,21 @@ function clampCaptureScale(v: unknown): number {
     ? Math.min(CAPTURE_SCALE_MAX, Math.max(CAPTURE_SCALE_MIN, v))
     : CAPTURE_SCALE_DEFAULT;
 }
+
+/** Coerce an untrusted archiveAgeDays: 0 = never (auto-archive off), else clamped
+ *  to 1..1825 days. Default 90 (~3 months). */
+function clampArchiveAge(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return ARCHIVE_AGE_DEFAULT;
+  if (v <= 0) return 0;
+  return Math.min(1825, Math.max(1, Math.round(v)));
+}
+
+/** Trim + cap a user-supplied display name (defensive; it lands in exports). */
+function coerceUserName(v: unknown): string {
+  return typeof v === 'string' ? v.slice(0, 120) : '';
+}
+
+export const ARCHIVE_AGE_DEFAULT = 90;
 
 export interface Settings {
   projectsDir: string;
@@ -52,6 +73,19 @@ export interface Settings {
    * Settings → About (which sets this back to false).
    */
   hasSeenTour: boolean;
+  /** Display name (F8). Appended to the "Created on …" export line as "by <name>"
+   *  when includeNameInReports is on. Default '' (empty). */
+  userName: string;
+  /** Opt-in to include userName in reports/exports (F8). Default false. */
+  includeNameInReports: boolean;
+  /**
+   * Auto-archive projects untouched (by updatedAt) longer than this many days
+   * (F2). 0 = never — auto-archive off; manual Archive is always available.
+   * Default 90 (~3 months).
+   */
+  archiveAgeDays: number;
+  /** UI color theme (F10): 'light' | 'dark' | 'system' (default 'system'). */
+  theme: ThemePref;
 }
 
 const MAX_RECENTS = 20;
@@ -80,6 +114,11 @@ async function load(): Promise<Settings> {
       captureNoHide: typeof parsed.captureNoHide === 'boolean' ? parsed.captureNoHide : false,
       captureScale: clampCaptureScale(parsed.captureScale),
       hasSeenTour: typeof parsed.hasSeenTour === 'boolean' ? parsed.hasSeenTour : false,
+      userName: coerceUserName(parsed.userName),
+      includeNameInReports:
+        typeof parsed.includeNameInReports === 'boolean' ? parsed.includeNameInReports : false,
+      archiveAgeDays: clampArchiveAge(parsed.archiveAgeDays),
+      theme: coerceTheme(parsed.theme),
     };
   } catch {
     return {
@@ -89,6 +128,10 @@ async function load(): Promise<Settings> {
       captureNoHide: false,
       captureScale: CAPTURE_SCALE_DEFAULT,
       hasSeenTour: false,
+      userName: '',
+      includeNameInReports: false,
+      archiveAgeDays: ARCHIVE_AGE_DEFAULT,
+      theme: 'system',
     };
   }
 }
@@ -214,6 +257,68 @@ export function setHasSeenTour(value: boolean): Promise<boolean> {
   return mutate((s) => {
     s.hasSeenTour = value;
     return value;
+  });
+}
+
+export async function getUserName(): Promise<string> {
+  return (await load()).userName;
+}
+
+/** Persist the display name (trimmed/capped). Returns the stored value. */
+export function setUserName(value: string): Promise<string> {
+  const v = coerceUserName(value);
+  return mutate((s) => {
+    s.userName = v;
+    return v;
+  });
+}
+
+export async function getIncludeNameInReports(): Promise<boolean> {
+  return (await load()).includeNameInReports;
+}
+
+/** Persist the include-name-in-reports opt-in. Returns the new value. */
+export function setIncludeNameInReports(value: boolean): Promise<boolean> {
+  return mutate((s) => {
+    s.includeNameInReports = value;
+    return value;
+  });
+}
+
+export async function getArchiveAgeDays(): Promise<number> {
+  return (await load()).archiveAgeDays;
+}
+
+/** Persist archiveAgeDays (0 = never; else 1..1825). Returns the stored value. */
+export function setArchiveAgeDays(value: number): Promise<number> {
+  const clamped = clampArchiveAge(value);
+  return mutate((s) => {
+    s.archiveAgeDays = clamped;
+    return clamped;
+  });
+}
+
+/**
+ * The byline to append to the "Created on …" export line, or null when the user
+ * hasn't opted in or hasn't set a name. Single source of truth for every exporter
+ * (F7) so the opt-in gate lives in one place.
+ */
+export async function getReportByline(): Promise<string | null> {
+  const s = await load();
+  const name = s.userName.trim();
+  return s.includeNameInReports && name ? name : null;
+}
+
+export async function getTheme(): Promise<ThemePref> {
+  return (await load()).theme;
+}
+
+/** Persist the theme preference (coerced). Returns the stored value. */
+export function setTheme(value: unknown): Promise<ThemePref> {
+  const v = coerceTheme(value);
+  return mutate((s) => {
+    s.theme = v;
+    return v;
   });
 }
 

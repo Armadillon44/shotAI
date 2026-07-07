@@ -1,20 +1,30 @@
-// The Home projects list — extracted from App.tsx. Self-contained: owns its sort /
-// inline-rename / per-row-busy state and the row actions (open / rename / reveal /
-// export / delete), driven by a small prop surface. App still owns the `projects`
-// array (its effects refresh it on home-return / SOP edits); this component
-// reports mutations back via onChanged() so App re-lists.
+// The Home projects list — owns its sort / tab / multi-select / inline-rename /
+// per-row-busy state and the row + bulk actions (open / rename / reveal / export /
+// delete / archive). App owns the `projects` array (all projects, both tabs) and
+// re-lists via onChanged() after any mutation.
 import React from 'react';
 import type { ExportFormat } from '../../shared/ipc';
 import type { ProjectSummary } from '../../shared/project';
 import { OverflowMenu, type MenuItem } from './OverflowMenu';
 import { ensureFlattened } from './sop-prepare';
 import { useConfirm } from '../useConfirm';
+import { groupByDate } from './date-groups';
 
 type SortKey = 'name' | 'created' | 'modified';
 const SORT_LABELS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'Name' },
   { key: 'created', label: 'Created' },
   { key: 'modified', label: 'Modified' },
+];
+
+// Formats offered in the bulk-export picker (each selected project exports to its
+// own export/ folder). Mirrors the per-row menu minus the niche paste helper.
+const BULK_FORMATS: [ExportFormat, string][] = [
+  ['html', 'HTML'],
+  ['docx', 'Word'],
+  ['pptx', 'PowerPoint'],
+  ['pdf', 'PDF'],
+  ['markdown', 'Markdown'],
 ];
 
 export function ProjectList({
@@ -27,7 +37,7 @@ export function ProjectList({
   projects: ProjectSummary[];
   /** Open a project in the detail view. */
   onOpen: (path: string) => void;
-  /** Called after a mutation (rename/delete/export re-bake) so App re-lists. */
+  /** Called after a mutation (rename/delete/export/archive) so App re-lists. */
   onChanged: () => Promise<void> | void;
   /** Surface an error through App's shared notice. */
   onError: (e: unknown) => void;
@@ -36,10 +46,31 @@ export function ProjectList({
 }): React.JSX.Element {
   const [sortKey, setSortKey] = React.useState<SortKey>('modified');
   const [sortAsc, setSortAsc] = React.useState(false);
+  const [tab, setTab] = React.useState<'active' | 'archive'>('active');
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [lastClicked, setLastClicked] = React.useState<string | null>(null);
+  const [exportPickerOpen, setExportPickerOpen] = React.useState(false);
   const [renamingPath, setRenamingPath] = React.useState<string | null>(null);
   const [renameValue, setRenameValue] = React.useState('');
   const [rowBusyPath, setRowBusyPath] = React.useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = React.useState(false);
   const { confirm, confirmModal } = useConfirm();
+
+  const activeCount = React.useMemo(() => projects.filter((p) => !p.archived).length, [projects]);
+  const archiveCount = React.useMemo(() => projects.filter((p) => p.archived).length, [projects]);
+
+  const clearSelection = React.useCallback(() => {
+    setSelected(new Set());
+    setLastClicked(null);
+    setExportPickerOpen(false);
+  }, []);
+
+  // Switching tabs starts a fresh selection (paths don't carry across tabs).
+  const switchTab = (t: 'active' | 'archive') => {
+    if (t === tab) return;
+    setTab(t);
+    clearSelection();
+  };
 
   const startRename = (p: ProjectSummary) => {
     setRenamingPath(p.path);
@@ -51,8 +82,6 @@ export function ProjectList({
     if (!path) return;
     const next = renameValue.trim();
     const orig = projects.find((p) => p.path === path)?.title;
-    // Blur fires on any outside interaction; don't surprise-rename on an empty
-    // field (would become a default timestamp) or an unchanged title.
     if (!next || next === orig) return;
     try {
       await window.shotai.projects.rename(path, next);
@@ -85,12 +114,23 @@ export function ProjectList({
     if (rowBusyPath) return; // one row op at a time
     setRowBusyPath(p.path);
     try {
-      // Open (for the shot:// id + steps), flatten so only redacted/marker-baked
-      // renders are written, then export — same guarantee as the in-project flow.
       const { projectId, manifest } = await window.shotai.projects.open(p.path);
       await ensureFlattened(projectId, p.path, manifest.steps);
       await window.shotai.projects.export(p.path, format);
-      await onChanged(); // re-baking bumped updatedAt — refresh the list's metadata
+      await onChanged();
+    } catch (e) {
+      onError(e);
+    } finally {
+      setRowBusyPath(null);
+    }
+  };
+  const doArchive = async (p: ProjectSummary, archive: boolean) => {
+    if (rowBusyPath) return;
+    setRowBusyPath(p.path);
+    try {
+      if (archive) await window.shotai.projects.archive(p.path);
+      else await window.shotai.projects.unarchive(p.path);
+      await onChanged();
     } catch (e) {
       onError(e);
     } finally {
@@ -98,8 +138,13 @@ export function ProjectList({
     }
   };
 
-  const sortedProjects = React.useMemo(() => {
-    const arr = [...projects];
+  const filtered = React.useMemo(
+    () => projects.filter((p) => (tab === 'archive' ? p.archived : !p.archived)),
+    [projects, tab],
+  );
+
+  const sorted = React.useMemo(() => {
+    const arr = [...filtered];
     arr.sort((a, b) => {
       let cmp: number;
       if (sortKey === 'name') cmp = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
@@ -108,17 +153,246 @@ export function ProjectList({
       return sortAsc ? cmp : -cmp;
     });
     return arr;
-  }, [projects, sortKey, sortAsc]);
+  }, [filtered, sortKey, sortAsc]);
+
+  // Date grouping (F4) applies only to the date sorts; Name sort stays flat.
+  const showGroups = sortKey !== 'name';
+  const groups = React.useMemo(() => {
+    if (!showGroups) return [{ label: '', items: sorted }];
+    const g = groupByDate(
+      sorted,
+      (p) => Date.parse(sortKey === 'created' ? p.createdAt : p.updatedAt),
+      new Date(),
+    );
+    // Newest bucket first for descending; oldest first for ascending.
+    return (sortAsc ? [...g].reverse() : g) as { label: string; items: ProjectSummary[] }[];
+  }, [sorted, showGroups, sortKey, sortAsc]);
+
+  // Visible order (flat) for shift-range selection.
+  const visibleOrder = React.useMemo(() => sorted.map((p) => p.path), [sorted]);
+
+  const toggleSelect = (path: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+    setLastClicked(path);
+  };
+  const rangeSelect = (path: string) => {
+    const from = lastClicked ? visibleOrder.indexOf(lastClicked) : -1;
+    const to = visibleOrder.indexOf(path);
+    if (from === -1 || to === -1) {
+      toggleSelect(path);
+      return;
+    }
+    const [lo, hi] = from < to ? [from, to] : [to, from];
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (let i = lo; i <= hi; i++) next.add(visibleOrder[i]);
+      return next;
+    });
+    setLastClicked(path);
+  };
+
+  const allSelected = sorted.length > 0 && sorted.every((p) => selected.has(p.path));
+  const toggleSelectAll = () => {
+    if (allSelected) clearSelection();
+    else setSelected(new Set(visibleOrder));
+  };
+
+  // Esc clears an active selection.
+  React.useEffect(() => {
+    if (selected.size === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clearSelection();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected.size, clearSelection]);
+
+  const selectedProjects = () => sorted.filter((p) => selected.has(p.path));
+
+  const runBulk = async (
+    verb: string,
+    fn: (p: ProjectSummary) => Promise<unknown>,
+  ) => {
+    const targets = selectedProjects();
+    if (!targets.length) return;
+    setBulkBusy(true);
+    try {
+      for (const p of targets) {
+        try {
+          await fn(p);
+        } catch (e) {
+          onError(e);
+        }
+      }
+      await onChanged();
+      clearSelection();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const bulkDelete = async () => {
+    const n = selected.size;
+    if (
+      !(await confirm(
+        `Delete ${n} project${n === 1 ? '' : 's'}? This removes each project folder and its screenshots.`,
+        { confirmLabel: `Delete ${n}`, danger: true },
+      ))
+    ) {
+      return;
+    }
+    await runBulk('delete', (p) => window.shotai.projects.delete(p.path));
+  };
+  const bulkArchive = () =>
+    runBulk('archive', (p) =>
+      tab === 'archive'
+        ? window.shotai.projects.unarchive(p.path)
+        : window.shotai.projects.archive(p.path),
+    );
+  const bulkExport = (format: ExportFormat) =>
+    runBulk('export', async (p) => {
+      const { projectId, manifest } = await window.shotai.projects.open(p.path);
+      await ensureFlattened(projectId, p.path, manifest.steps);
+      await window.shotai.projects.export(p.path, format);
+    });
+
+  const anyBusy = rowBusyPath !== null || bulkBusy;
+
+  const renderRow = (p: ProjectSummary): React.JSX.Element => {
+    const rowBusy = rowBusyPath === p.path;
+    const isSel = selected.has(p.path);
+    const exportItems: MenuItem[] = (
+      [
+        ['html', 'HTML'],
+        ['docx', 'Word'],
+        ['pptx', 'PowerPoint'],
+        ['html-plain', 'HTML (for Word)'],
+        ['pdf', 'PDF'],
+        ['markdown', 'Markdown'],
+      ] as [ExportFormat, string][]
+    ).map(([f, label]) => ({
+      label: `Export → ${label}`,
+      onClick: () => void doExport(p, f),
+      disabled: anyBusy,
+    }));
+    return (
+      <li key={p.path} className={`project__item${isSel ? ' project__item--sel' : ''}`}>
+        <input
+          type="checkbox"
+          className="project__check"
+          aria-label={`Select ${p.title}`}
+          checked={isSel}
+          onClick={(e) => {
+            if (e.shiftKey) {
+              e.preventDefault();
+              rangeSelect(p.path);
+            }
+          }}
+          onChange={() => toggleSelect(p.path)}
+        />
+        <div className="project__item-main">
+          {renamingPath === p.path ? (
+            <input
+              className="project__rename-input"
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void commitRename();
+                else if (e.key === 'Escape') setRenamingPath(null);
+              }}
+              onBlur={() => void commitRename()}
+            />
+          ) : (
+            <span className="project__item-title">
+              <span className="project__item-name">{p.title}</span>
+              <span
+                className={`project__badge project__badge--${p.hasSop ? 'ok' : 'draft'}`}
+                title={p.hasSop ? 'Claude has written this guide' : 'No SOP generated yet'}
+              >
+                {p.hasSop ? 'SOP ready' : 'Draft'}
+              </span>
+            </span>
+          )}
+          <span className="project__item-meta">
+            {rowBusy
+              ? 'Working…'
+              : `${p.stepCount} step${p.stepCount === 1 ? '' : 's'} · ${
+                  tab === 'archive' ? 'archived' : 'modified'
+                } ${p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—'}`}
+          </span>
+        </div>
+        <div className="project__item-actions">
+          <button
+            type="button"
+            className="btn btn--small btn--primary"
+            disabled={anyBusy}
+            onClick={() => onOpen(p.path)}
+            title={p.archived ? 'Open (restores the archived project)' : 'Open'}
+          >
+            Open
+          </button>
+          <OverflowMenu
+            disabled={anyBusy}
+            items={[
+              { label: 'Rename', onClick: () => startRename(p) },
+              {
+                label: 'Reveal in Explorer',
+                onClick: () => void window.shotai.projects.reveal(p.path).catch(onError),
+              },
+              p.archived
+                ? { label: 'Restore', onClick: () => void doArchive(p, false) }
+                : { label: 'Archive', onClick: () => void doArchive(p, true) },
+              { kind: 'sep' },
+              ...exportItems,
+              { kind: 'sep' },
+              { label: 'Delete', danger: true, onClick: () => void doDelete(p) },
+            ]}
+          />
+        </div>
+      </li>
+    );
+  };
+
+  const emptyLabel =
+    tab === 'archive' ? 'No archived projects' : 'No projects yet';
 
   return (
     <>
       {confirmModal}
+      <div className="home__tabs" role="tablist" aria-label="Project sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'active'}
+          className={`home__tab${tab === 'active' ? ' home__tab--on' : ''}`}
+          onClick={() => switchTab('active')}
+        >
+          Projects <span className="home__tabcount">{activeCount}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'archive'}
+          className={`home__tab${tab === 'archive' ? ' home__tab--on' : ''}`}
+          onClick={() => switchTab('archive')}
+        >
+          Archive <span className="home__tabcount">{archiveCount}</span>
+        </button>
+      </div>
+
       <div className="home__listhead">
         <div className="home__listhead-left">
           <h2 className="home__h">
-            Projects <span className="home__count">· {sortedProjects.length}</span>
+            {tab === 'archive' ? 'Archive' : 'Projects'}{' '}
+            <span className="home__count">· {sorted.length}</span>
           </h2>
-          {onImport && (
+          {onImport && tab === 'active' && (
             <button
               type="button"
               className="btn btn--small btn--ghost"
@@ -151,89 +425,111 @@ export function ProjectList({
           </button>
         </div>
       </div>
-      {sortedProjects.length === 0 ? (
+
+      {selected.size > 0 && (
+        <div className="project__bulk" role="region" aria-label="Bulk actions">
+          <button
+            type="button"
+            className="project__bulk-all"
+            onClick={toggleSelectAll}
+            aria-pressed={allSelected}
+          >
+            <span className={`project__check-box${allSelected ? ' project__check-box--on' : ''}`} aria-hidden="true" />
+            {allSelected ? 'Clear all' : 'Select all'}
+          </button>
+          <span className="project__bulk-count">{selected.size} selected</span>
+          <span className="project__bulk-spacer" />
+          {exportPickerOpen ? (
+            <>
+              <span className="project__bulk-hint">Export as</span>
+              {BULK_FORMATS.map(([f, label]) => (
+                <button
+                  key={f}
+                  type="button"
+                  className="btn btn--small"
+                  disabled={anyBusy}
+                  onClick={() => void bulkExport(f)}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="btn btn--small btn--ghost"
+                onClick={() => setExportPickerOpen(false)}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="btn btn--small"
+                disabled={anyBusy}
+                onClick={() => void bulkArchive()}
+              >
+                {tab === 'archive' ? '⤴ Restore' : '🗄 Archive'}
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                disabled={anyBusy}
+                onClick={() => setExportPickerOpen(true)}
+              >
+                ⤓ Export
+              </button>
+              <button
+                type="button"
+                className="btn btn--small btn--danger"
+                disabled={anyBusy}
+                onClick={() => void bulkDelete()}
+              >
+                🗑 Delete
+              </button>
+              <button
+                type="button"
+                className="btn btn--small btn--ghost"
+                onClick={clearSelection}
+              >
+                Clear
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
         <div className="empty">
           <div className="empty__icon" aria-hidden="true">
-            🗂️
+            {tab === 'archive' ? '🗄️' : '🗂️'}
           </div>
-          <p className="empty__line">No projects yet</p>
-          <p className="empty__sub">
-            Create a project above: press <b>Capture ▸</b> to record a process, or{' '}
-            <b>Empty Project</b> to build one from images and text.
-          </p>
+          <p className="empty__line">{emptyLabel}</p>
+          {tab === 'active' && (
+            <p className="empty__sub">
+              Create a project above: press <b>Capture ▸</b> to record a process, or{' '}
+              <b>Empty Project</b> to build one from images and text.
+            </p>
+          )}
+          {tab === 'archive' && (
+            <p className="empty__sub">
+              Projects you haven’t touched in a while land here (or archive them yourself).
+              Opening one restores it automatically.
+            </p>
+          )}
         </div>
       ) : (
         <ul className="project__list">
-          {sortedProjects.map((p) => {
-            const rowBusy = rowBusyPath === p.path;
-            const anyBusy = rowBusyPath !== null; // block other rows during an op
-            const exportItems: MenuItem[] = (
-              [
-                ['html', 'HTML'],
-                ['docx', 'Word'],
-                ['pptx', 'PowerPoint'],
-                ['html-plain', 'HTML (for Word)'],
-                ['pdf', 'PDF'],
-                ['markdown', 'Markdown'],
-              ] as [ExportFormat, string][]
-            ).map(([f, label]) => ({
-              label: `Export → ${label}`,
-              onClick: () => void doExport(p, f),
-              disabled: anyBusy,
-            }));
-            return (
-              <li key={p.path} className="project__item">
-                <div className="project__item-main">
-                  {renamingPath === p.path ? (
-                    <input
-                      className="project__rename-input"
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void commitRename();
-                        else if (e.key === 'Escape') setRenamingPath(null);
-                      }}
-                      onBlur={() => void commitRename()}
-                    />
-                  ) : (
-                    <span className="project__item-title">{p.title}</span>
-                  )}
-                  <span className="project__item-meta">
-                    {rowBusy
-                      ? 'Working…'
-                      : `${p.stepCount} step${p.stepCount === 1 ? '' : 's'} · modified ${
-                          p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—'
-                        }`}
-                  </span>
-                </div>
-                <div className="project__item-actions">
-                  <button
-                    type="button"
-                    className="btn btn--small btn--primary"
-                    disabled={anyBusy}
-                    onClick={() => onOpen(p.path)}
-                  >
-                    Open
-                  </button>
-                  <OverflowMenu
-                    disabled={anyBusy}
-                    items={[
-                      { label: 'Rename', onClick: () => startRename(p) },
-                      {
-                        label: 'Reveal in Explorer',
-                        onClick: () => void window.shotai.projects.reveal(p.path).catch(onError),
-                      },
-                      { kind: 'sep' },
-                      ...exportItems,
-                      { kind: 'sep' },
-                      { label: 'Delete', danger: true, onClick: () => void doDelete(p) },
-                    ]}
-                  />
-                </div>
-              </li>
-            );
-          })}
+          {groups.map((group) => (
+            <React.Fragment key={group.label || 'all'}>
+              {showGroups && group.label && (
+                <li className="project__group" aria-hidden="true">
+                  {group.label}
+                </li>
+              )}
+              {group.items.map((p) => renderRow(p))}
+            </React.Fragment>
+          ))}
         </ul>
       )}
     </>
