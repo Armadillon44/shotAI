@@ -1617,6 +1617,8 @@ body {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  /* Match the step-number badge (2rem) so the heading/text row lines up with it. */
+  min-height: 2rem;
 }
 
 /* Callout steps carry no heading text in the caprow — the colored box conveys
@@ -1705,6 +1707,19 @@ body {
 
 .rep__callout--clickable:hover {
   box-shadow: 0 0 0 2px var(--accent) inset;
+}
+
+/* Callout row: the box grows, controls sit top-right — so the box top lines up
+   with the rail's type glyph (instead of dropping below a controls row). */
+.rep__calloutrow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.rep__calloutrow .rep__callout {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
 }
 
 /* Note / Caution / Warning callout boxes (styled text steps) */

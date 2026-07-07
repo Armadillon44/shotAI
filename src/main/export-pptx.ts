@@ -3,7 +3,7 @@
 // every other exporter, so slides only ever contain the redaction-baked renders.
 // Pure-JS `pptxgenjs` (no CDN, no native deps).
 import pptxgen from 'pptxgenjs';
-import type { CalloutKind, ProjectManifest } from '../shared/project';
+import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import { loadItemImage, type ExportItem } from './export';
 
 // LAYOUT_WIDE = 13.333in × 7.5in. All positions below are in inches.
@@ -90,7 +90,10 @@ export async function buildPptx(
         const c = CALLOUT[it.callout];
         slide.addText(
           [
-            { text: `${it.heading || c.label}\n`, options: { bold: true, fontSize: 24, color: c.fg } },
+            {
+              text: `${CALLOUT_GLYPH[it.callout]} ${it.heading || c.label}\n`,
+              options: { bold: true, fontSize: 24, color: c.fg },
+            },
             { text: it.body || '', options: { fontSize: 18, color: c.fg } },
           ],
           {
@@ -106,8 +109,11 @@ export async function buildPptx(
         );
         continue;
       }
-      // Plain section slide: heading + body.
-      slide.addText(it.heading || '', {
+      // Plain text step — a numbered step slide. With a heading, "N. heading" is the
+      // title and the body sits below. With NO heading, the body IS the title content
+      // ("2. Some text") — no redundant "Step N" and no separate body block.
+      const numPrefix = it.n != null ? `${it.n}. ` : '';
+      slide.addText(`${numPrefix}${it.heading || it.body}`, {
         x: MARGIN,
         y: 0.9,
         w: SLIDE_W - MARGIN * 2,
@@ -116,7 +122,7 @@ export async function buildPptx(
         bold: true,
         color: '14161F',
       });
-      if (it.body) {
+      if (it.heading && it.body) {
         slide.addText(it.body, {
           x: MARGIN,
           y: 2.0,
