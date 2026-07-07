@@ -245,16 +245,6 @@ export function ProjectDetail({
           {/* SOP generate/revert folds into this one command bar (its review /
               progress modals are fixed overlays, unaffected by placement). */}
           <SopPanel sopEnabled={sopEnabled} onOpenSettings={onOpenSettings} />
-          {onOpenSettings && (
-            <button
-              type="button"
-              className="btn btn--small"
-              onClick={onOpenSettings}
-              title="Settings — Claude model, tone, API key"
-            >
-              ⚙ Settings
-            </button>
-          )}
           {onResumeCapture && (
             <button
               type="button"

@@ -174,8 +174,8 @@ body {
   margin: 0 0 1rem;
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--danger-tint);
+  color: var(--danger-ink);
   font-size: 0.9rem;
 }
 
@@ -579,7 +579,7 @@ body {
   gap: 0.6rem;
   padding: 0.4rem 0.7rem;
   border-bottom: 1px solid var(--hair-2);
-  background: #f8f9fc;
+  background: var(--surface-2);
   font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--ink-2);
@@ -745,12 +745,12 @@ body {
   padding: 1rem 1.25rem;
   border: 1px solid #fecaca;
   border-radius: 10px;
-  background: #fef2f2;
+  background: var(--danger-tint);
 }
 
 .rec--paused {
   border-color: #fcd34d;
-  background: #fffbeb;
+  background: var(--caut-bg);
 }
 
 .rec__head {
@@ -1120,7 +1120,7 @@ body {
   cursor: pointer;
 }
 .export__item:hover {
-  background: #f1f5f9;
+  background: var(--accent-tint);
 }
 .export__hint {
   color: var(--ink-2);
@@ -1182,7 +1182,7 @@ body {
   border: 1px solid var(--hair);
   border-left: 4px solid var(--accent, var(--accent));
   border-radius: var(--radius);
-  background: #f8f9fc;
+  background: var(--surface-2);
 }
 .rep__intro-h {
   margin: 0 0 0.35rem;
@@ -1223,7 +1223,7 @@ body {
   list-style: none;
   /* Centered column at any window width (the sticky detail bar stays full-bleed). */
   margin: 0 auto;
-  max-width: 910px;
+  max-width: 960px;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -1466,7 +1466,7 @@ body {
   min-width: 0;
   /* match the image's max box (REPORT_BASE_W) so the caption-row controls
      right-align to the screenshot's right edge rather than the page edge */
-  max-width: 850px;
+  max-width: 900px;
 }
 
 .rep__caption {
@@ -1480,7 +1480,7 @@ body {
 }
 
 .rep__caption:hover {
-  background: #eef0f3;
+  background: var(--surface-2);
 }
 
 .rep__figure {
@@ -1716,19 +1716,19 @@ body {
   border-radius: 8px;
 }
 .rep__callout--note {
-  background: #ecfdf5;
-  border-color: #6ee7b7;
-  color: #065f46;
+  background: var(--note-bg);
+  border-color: var(--note-bd);
+  color: var(--note-fg);
 }
 .rep__callout--caution {
-  background: #fffbeb;
-  border-color: #fcd34d;
-  color: #92400e;
+  background: var(--caut-bg);
+  border-color: var(--caut-bd);
+  color: var(--caut-fg);
 }
 .rep__callout--warning {
-  background: #fef2f2;
-  border-color: #fca5a5;
-  color: #991b1b;
+  background: var(--warn-bg);
+  border-color: var(--warn-bd);
+  color: var(--warn-fg);
 }
 .rep__callout-h {
   display: block;
@@ -1875,7 +1875,7 @@ body {
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--hair);
   border-radius: var(--radius-lg);
-  background: #f8f9fc;
+  background: var(--surface-2);
   cursor: pointer;
 }
 
@@ -2016,9 +2016,9 @@ body {
 }
 
 .settings__chip--ok {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #6ee7b7;
+  color: var(--note-fg);
+  background: var(--note-bg);
+  border-color: var(--note-bd);
 }
 
 .settings__chip--err {
@@ -2089,8 +2089,8 @@ body {
   margin: 0.5rem 0 0;
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--note-bg);
+  color: var(--note-fg);
   font-size: 0.9rem;
 }
 
@@ -2099,7 +2099,7 @@ body {
   display: inline-flex;
   gap: 0.25rem;
   padding: 0.15rem;
-  background: #eef0f3;
+  background: var(--surface-2);
   border-radius: 8px;
 }
 
@@ -2203,8 +2203,8 @@ body {
 }
 
 .sop__caution {
-  background: #fffbeb;
-  border-color: #fde68a;
+  background: var(--caut-bg);
+  border-color: var(--caut-bd);
 }
 
 .sop__steps {
@@ -2224,7 +2224,7 @@ body {
   gap: 1rem;
   align-items: start;
   padding: 1rem;
-  border: 1px solid #eceef1;
+  border: 1px solid var(--hair);
   border-radius: 10px;
   background: var(--surface-2);
 }
@@ -2322,8 +2322,8 @@ body {
   margin: 0 0 0.6rem;
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--caut-bg);
+  border: 1px solid var(--caut-bd);
   color: #92400e;
   font-size: 0.85rem;
   line-height: 1.45;
@@ -2349,7 +2349,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  border-top: 1px solid #eceef1;
+  border-top: 1px solid var(--hair);
   padding-top: 0.6rem;
 }
 
@@ -2457,6 +2457,10 @@ body {
 }
 
 .sopbar__prov {
+  /* Own full-width row, ordered after every action button in the command bar. */
+  flex-basis: 100%;
+  order: 1;
+  margin-top: 0.1rem;
   color: var(--ink-2);
   font-size: 0.8rem;
 }

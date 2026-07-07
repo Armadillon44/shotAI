@@ -196,7 +196,7 @@ const wireLoadDiagnostics = (win: BrowserWindow, label: string): void => {
 // expands the window to fit the report column (REPORT column max-width 910 +
 // margins/scrollbar), and returning to the list shrinks it back.
 const LIST_WIDTH = 720;
-const DETAIL_WIDTH = 960;
+const DETAIL_WIDTH = 1010;
 
 /** Resize the project window to the list (narrow) or detail (report) width,
  *  preserving the visual center + clamping to the current display's work area. */
