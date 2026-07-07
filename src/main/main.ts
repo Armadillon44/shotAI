@@ -10,6 +10,7 @@ import { getCaptureNoHide, captureNoHideNow, getCaptureScale } from './settings'
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
 import { decideGpu, type GpuDecision } from './gpu-policy';
+import { fixArpIconOnSquirrelEvent } from './arp-icon';
 import { initLogging, mainLog } from './logger';
 
 initLogging();
@@ -127,6 +128,15 @@ if (process.env.SHOTAI_NO_SANDBOX === '1') {
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
+  // Before quitting on a Squirrel lifecycle event, point the "Installed apps"
+  // (Add/Remove-Programs) icon at ours by overwriting the app.ico that Squirrel's
+  // DisplayIcon references — a fully local fix (no personal URL). See arp-icon.ts.
+  fixArpIconOnSquirrelEvent(
+    process.argv,
+    process.execPath,
+    path.join(process.resourcesPath, 'shotAI_icon.ico'),
+    mainLog,
+  );
   app.quit();
 }
 

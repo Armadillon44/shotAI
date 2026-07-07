@@ -94,6 +94,9 @@ const config: ForgeConfig = {
     extraResource: [
       './native/element-locator/element_locator.dll',
       './assets/shotAI_icon.png',
+      // Bundled .ico used post-install to fix the "Installed apps" icon (see the
+      // MakerSquirrel note below + src/main/arp-icon.ts).
+      './assets/shotAI_icon.ico',
       './vendor/tessdata',
     ],
   },
@@ -120,9 +123,11 @@ const config: ForgeConfig = {
       // it installs — it can't be driven by real % (the bar is indeterminate).
       loadingGif: './assets/shotAI-install.gif',
       // Publisher shown in "Installed apps" (else it falls back to package.json
-      // author). Kept impersonal per request. NB: the Add/Remove-Programs icon is
-      // NOT set here on purpose — the usual iconUrl would bake a personal GitHub
-      // URL into the installed package; a privacy-preserving local fix is TODO.
+      // author). Kept impersonal per request. NB: iconUrl is intentionally NOT set
+      // — the usual iconUrl would bake a personal GitHub URL into the installed
+      // package. The "Installed apps" icon is instead fixed locally at install time
+      // by overwriting Squirrel's downloaded app.ico with the bundled shotAI_icon.ico
+      // (extraResource above) — see src/main/arp-icon.ts. No URL, no personal data.
       authors: 'LFI',
     }),
     new MakerZIP({}, ['darwin']),
