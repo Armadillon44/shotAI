@@ -52,6 +52,9 @@ export function Settings({
   const [projectsDir, setProjectsDir] = React.useState('');
   const [captureNoHide, setCaptureNoHide] = React.useState(false);
   const [captureScale, setCaptureScale] = React.useState(CAPTURE_SCALE_DEFAULT);
+  const [userName, setUserName] = React.useState('');
+  const [includeName, setIncludeName] = React.useState(false);
+  const [archiveAge, setArchiveAge] = React.useState(90);
   const [tab, setTab] = React.useState<SettingsTab>('ai');
   const tabRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -76,13 +79,16 @@ export function Settings({
   };
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir, noHide, scale] = await Promise.all([
+    const [s, ks, info, dir, noHide, scale, name, incl, age] = await Promise.all([
       window.shotai.settings.getSop(),
       window.shotai.claude.keyStatus(),
       window.shotai.getAppInfo(),
       window.shotai.projects.getDir(),
       window.shotai.settings.getCaptureNoHide(),
       window.shotai.settings.getCaptureScale(),
+      window.shotai.settings.getUserName(),
+      window.shotai.settings.getIncludeNameInReports(),
+      window.shotai.settings.getArchiveAgeDays(),
     ]);
     setSop(s);
     setKeyStatus(ks);
@@ -90,6 +96,9 @@ export function Settings({
     setProjectsDir(dir);
     setCaptureNoHide(noHide);
     setCaptureScale(scale);
+    setUserName(name);
+    setIncludeName(incl);
+    setArchiveAge(age);
   }, []);
 
   const toggleCaptureNoHide = async (value: boolean) => {
@@ -106,6 +115,39 @@ export function Settings({
     setError(null);
     try {
       setCaptureScale(await window.shotai.settings.setCaptureScale(value));
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  // Persist the display name on blur (onChange updates the local value live).
+  const persistUserName = async (value: string) => {
+    setError(null);
+    try {
+      const stored = await window.shotai.settings.setUserName(value);
+      setUserName(stored);
+      // An empty name can't be included — keep the toggle honest.
+      if (!stored.trim() && includeName) {
+        setIncludeName(await window.shotai.settings.setIncludeNameInReports(false));
+      }
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const toggleIncludeName = async (value: boolean) => {
+    setError(null);
+    try {
+      setIncludeName(await window.shotai.settings.setIncludeNameInReports(value));
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const persistArchiveAge = async (value: number) => {
+    setError(null);
+    try {
+      setArchiveAge(await window.shotai.settings.setArchiveAgeDays(value));
     } catch (e) {
       fail(e);
     }
@@ -488,28 +530,83 @@ export function Settings({
             )}
 
             {tab === 'storage' && (
-              <div className="settings__group">
-                <h3 className="settings__h">Projects folder</h3>
-                <p className="settings__hint">
-                  Where shotAI stores each project — screenshots, manifest, and exports.
-                </p>
-                <div className="settings__dirrow">
-                  <code className="settings__dir" title={projectsDir}>
-                    {projectsDir || '…'}
-                  </code>
-                  <button
-                    type="button"
-                    className="btn btn--small"
-                    onClick={() => void chooseDir()}
-                  >
-                    Change…
-                  </button>
+              <>
+                <div className="settings__group">
+                  <h3 className="settings__h">Projects folder</h3>
+                  <p className="settings__hint">
+                    Where shotAI stores each project — screenshots, manifest, and exports.
+                  </p>
+                  <div className="settings__dirrow">
+                    <code className="settings__dir" title={projectsDir}>
+                      {projectsDir || '…'}
+                    </code>
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={() => void chooseDir()}
+                    >
+                      Change…
+                    </button>
+                  </div>
                 </div>
-              </div>
+
+                <div className="settings__group">
+                  <h3 className="settings__h">Auto-archive old projects</h3>
+                  <p className="settings__hint">
+                    Projects you haven’t opened or edited in this long are compressed and
+                    moved to the Archive tab automatically. They stay listed — opening one
+                    restores it. You can also archive projects manually anytime.
+                  </p>
+                  <select
+                    className="project__input settings__select"
+                    value={archiveAge}
+                    aria-label="Auto-archive age"
+                    onChange={(e) => void persistArchiveAge(Number(e.target.value))}
+                  >
+                    <option value={0}>Never</option>
+                    <option value={30}>After 1 month</option>
+                    <option value={90}>After 3 months</option>
+                    <option value={180}>After 6 months</option>
+                    <option value={365}>After 1 year</option>
+                  </select>
+                </div>
+              </>
             )}
 
             {tab === 'about' && (
               <>
+                <div className="settings__group">
+                  <h3 className="settings__h">Your name</h3>
+                  <p className="settings__hint">
+                    Optionally credited on exported guides. When included, the footer
+                    reads “Created on &lt;date&gt; by &lt;your name&gt;”.
+                  </p>
+                  <input
+                    className="project__input"
+                    type="text"
+                    placeholder="e.g. Dana Reyes"
+                    value={userName}
+                    maxLength={120}
+                    onChange={(e) => setUserName(e.target.value)}
+                    onBlur={(e) => void persistUserName(e.target.value)}
+                  />
+                  <label className="settings__toggle" style={{ marginTop: '0.75rem' }}>
+                    <span className="settings__toggle-text">
+                      <strong>Include my name in reports &amp; exports</strong>
+                      <span className="settings__hint">
+                        Adds “by &lt;your name&gt;” to the “Created on …” line of every
+                        export. Set a name above to enable this.
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="settings__switch"
+                      checked={includeName}
+                      disabled={!userName.trim()}
+                      onChange={(e) => void toggleIncludeName(e.target.checked)}
+                    />
+                  </label>
+                </div>
                 <div className="settings__group">
                   <h3 className="settings__h">About</h3>
                   <p className="settings__hint">

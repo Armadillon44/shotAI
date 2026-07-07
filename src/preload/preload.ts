@@ -105,6 +105,14 @@ const api: ShotaiApi = {
     getHasSeenTour: () => ipcRenderer.invoke(IpcChannels.getHasSeenTour),
     setHasSeenTour: (value: boolean) =>
       ipcRenderer.invoke(IpcChannels.setHasSeenTour, value),
+    getUserName: () => ipcRenderer.invoke(IpcChannels.getUserName),
+    setUserName: (value: string) => ipcRenderer.invoke(IpcChannels.setUserName, value),
+    getIncludeNameInReports: () => ipcRenderer.invoke(IpcChannels.getIncludeNameInReports),
+    setIncludeNameInReports: (value: boolean) =>
+      ipcRenderer.invoke(IpcChannels.setIncludeNameInReports, value),
+    getArchiveAgeDays: () => ipcRenderer.invoke(IpcChannels.getArchiveAgeDays),
+    setArchiveAgeDays: (value: number) =>
+      ipcRenderer.invoke(IpcChannels.setArchiveAgeDays, value),
   },
   claude: {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),

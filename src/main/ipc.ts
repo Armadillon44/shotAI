@@ -39,6 +39,12 @@ import {
   setCaptureScale,
   getHasSeenTour,
   setHasSeenTour,
+  getUserName,
+  setUserName,
+  getIncludeNameInReports,
+  setIncludeNameInReports,
+  getArchiveAgeDays,
+  setArchiveAgeDays,
 } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
@@ -561,6 +567,40 @@ export function registerIpcHandlers(
     (_event: IpcMainInvokeEvent, value: unknown) => {
       devLog('ipc: settings:set-has-seen-tour');
       return setHasSeenTour(value === true);
+    },
+  );
+  ipcMain.handle(IpcChannels.getUserName, () => {
+    devLog('ipc: settings:get-user-name');
+    return getUserName();
+  });
+  ipcMain.handle(
+    IpcChannels.setUserName,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-user-name');
+      return setUserName(typeof value === 'string' ? value : '');
+    },
+  );
+  ipcMain.handle(IpcChannels.getIncludeNameInReports, () => {
+    devLog('ipc: settings:get-include-name');
+    return getIncludeNameInReports();
+  });
+  ipcMain.handle(
+    IpcChannels.setIncludeNameInReports,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-include-name');
+      return setIncludeNameInReports(value === true);
+    },
+  );
+  ipcMain.handle(IpcChannels.getArchiveAgeDays, () => {
+    devLog('ipc: settings:get-archive-age');
+    return getArchiveAgeDays();
+  });
+  ipcMain.handle(
+    IpcChannels.setArchiveAgeDays,
+    (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-archive-age');
+      // clamp happens in setArchiveAgeDays; coerce non-numbers to the default there.
+      return setArchiveAgeDays(typeof value === 'number' ? value : NaN);
     },
   );
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {

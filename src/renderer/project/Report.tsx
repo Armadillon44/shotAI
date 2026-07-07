@@ -15,7 +15,7 @@ import { useConfirm } from '../useConfirm';
 export type InsertKind = 'text' | 'image' | 'shot' | CalloutKind;
 
 // Base display box for report images (display only — export is full-res).
-const REPORT_BASE_W = 820;
+const REPORT_BASE_W = 850;
 const REPORT_BASE_H = 600;
 // The default view (zoom 1) already fits the screenshot to the report column, so
 // zoom is IN-only — never shrink below the fit. Enforced on BOTH the write path

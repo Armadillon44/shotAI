@@ -131,6 +131,12 @@ export const IpcChannels = {
   setCaptureScale: 'settings:set-capture-scale',
   getHasSeenTour: 'settings:get-has-seen-tour',
   setHasSeenTour: 'settings:set-has-seen-tour',
+  getUserName: 'settings:get-user-name',
+  setUserName: 'settings:set-user-name',
+  getIncludeNameInReports: 'settings:get-include-name',
+  setIncludeNameInReports: 'settings:set-include-name',
+  getArchiveAgeDays: 'settings:get-archive-age',
+  setArchiveAgeDays: 'settings:set-archive-age',
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
@@ -288,6 +294,18 @@ export interface ShotaiApi {
     getHasSeenTour(): Promise<boolean>;
     /** Persist whether the tour has been seen; false replays it. Returns the value. */
     setHasSeenTour(value: boolean): Promise<boolean>;
+    /** Display name shown in reports/exports when includeNameInReports is on (F8). */
+    getUserName(): Promise<string>;
+    /** Persist the display name (trimmed/capped); returns the stored value. */
+    setUserName(value: string): Promise<string>;
+    /** Whether to append "by <name>" to the export "Created on …" line (F8). */
+    getIncludeNameInReports(): Promise<boolean>;
+    /** Persist the include-name opt-in; returns the new value. */
+    setIncludeNameInReports(value: boolean): Promise<boolean>;
+    /** Auto-archive age in days; 0 = never (F2). */
+    getArchiveAgeDays(): Promise<number>;
+    /** Persist the auto-archive age (0 = never; else 1..1825); returns the stored value. */
+    setArchiveAgeDays(value: number): Promise<number>;
   };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */
