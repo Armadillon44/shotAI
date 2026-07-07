@@ -218,6 +218,14 @@ export type StepKind = 'shot' | 'text';
  *  (yellow), warning (red). Absent = a plain text step. */
 export type CalloutKind = 'note' | 'caution' | 'warning';
 
+/** Type glyph for each callout kind — the rail badge in the app and the leading
+ *  mark in every export (so the type reads even in grayscale where color is lost). */
+export const CALLOUT_GLYPH: Record<CalloutKind, string> = {
+  note: 'ℹ',
+  caution: '⚠',
+  warning: '⛔',
+};
+
 /** True if `v` is a valid callout kind (used to validate patches at the boundary). */
 export function isCalloutKind(v: unknown): v is CalloutKind {
   return v === 'note' || v === 'caution' || v === 'warning';

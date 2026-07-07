@@ -9,7 +9,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow, nativeImage, shell } from 'electron';
-import type { CalloutKind, ProjectManifest } from '../shared/project';
+import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
@@ -73,7 +73,8 @@ function escapeMarkdown(s: string): string {
 export type ExportItem =
   | {
       kind: 'shot';
-      /** 1-based number among SHOT steps only (text sections don't consume one). */
+      /** 1-based step number among all NON-callout steps (shots + numbered text
+       *  steps), matching the in-app report's numbering. */
       n: number;
       caption: string;
       body: string;
@@ -90,7 +91,15 @@ export type ExportItem =
        */
       bytes?: Buffer;
     }
-  | { kind: 'text'; heading: string; body: string; callout?: CalloutKind };
+  | {
+      kind: 'text';
+      /** For a plain (non-callout) text step: its 1-based step number in the shared
+       *  sequence with shots (matches the report). Absent for callouts (un-numbered). */
+      n?: number;
+      heading: string;
+      body: string;
+      callout?: CalloutKind;
+    };
 
 /**
  * Reproduce the report's per-step zoom/pan as a static crop of `abs` (the ALREADY
@@ -128,36 +137,44 @@ export async function loadItemImage(
 }
 
 /**
- * Resolve the project's steps into an ordered export list. Shot steps are
- * numbered 1..N; non-empty text steps become sections. Throws (fail-closed) if a
- * shot step's redaction/crop hasn't been baked into a render, or if there's
- * nothing to export.
+ * Resolve the project's steps into an ordered export list. Numbering matches the
+ * in-app report: every NON-callout step — shots AND non-empty plain text steps —
+ * consumes a contiguous 1..N number; callouts are un-numbered annotations. Empty
+ * plain text steps are skipped. Throws (fail-closed) if a shot step's redaction/
+ * crop hasn't been baked into a render, or if there's nothing to export.
  */
 async function collectSteps(
   dir: string,
   manifest: ProjectManifest,
 ): Promise<ExportItem[]> {
   const items: ExportItem[] = [];
-  let shotNo = 0;
+  let stepNo = 0;
   for (const step of manifest.steps) {
     if (step.kind === 'text') {
       const heading = (step.heading ?? '').trim();
       const body = (step.body ?? '').trim();
-      if (!heading && !body && !step.callout) continue; // skip empty plain text steps
-      items.push({ kind: 'text', heading, body, callout: step.callout });
+      if (step.callout) {
+        // Callouts are un-numbered annotations (matches the report), kept even if empty.
+        items.push({ kind: 'text', heading, body, callout: step.callout });
+        continue;
+      }
+      if (!heading && !body) continue; // skip empty plain text steps (no number consumed)
+      // A plain text step IS a numbered step, like the report.
+      stepNo++;
+      items.push({ kind: 'text', n: stepNo, heading, body });
       continue;
     }
     // Shot step.
-    shotNo++;
+    stepNo++;
     // Fail-closed redaction gate (shared with the Claude send path).
-    const { abs, mediaType, ext } = resolveSendableRender(dir, step, `Step ${shotNo}`, 'export');
+    const { abs, mediaType, ext } = resolveSendableRender(dir, step, `Step ${stepNo}`, 'export');
     // Fail fast (and clearly) if the render was deleted off disk after the
     // manifest was written — better than an opaque ENOENT mid-export.
     try {
       await fs.stat(abs);
     } catch {
       throw new Error(
-        `Step ${shotNo}'s screenshot render is missing from disk (${step.flattened ?? step.screenshot}). ` +
+        `Step ${stepNo}'s screenshot render is missing from disk (${step.flattened ?? step.screenshot}). ` +
           `Open it in the editor and save to re-bake the render, then export again.`,
       );
     }
@@ -167,7 +184,7 @@ async function collectSteps(
     const cropped = zoomCropPng(abs, step.reportZoom ?? 1, step.reportPanX ?? 0.5, step.reportPanY ?? 0.5);
     items.push({
       kind: 'shot',
-      n: shotNo,
+      n: stepNo,
       caption: (step.caption ?? '').trim(),
       body: (step.body ?? '').trim(),
       note: (step.note ?? '').trim(),
@@ -200,10 +217,16 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .section__b{white-space:pre-wrap;margin:0}
 .step{display:flex;gap:16px;margin:0 0 26px;page-break-inside:avoid;break-inside:avoid}
 .step__num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+.step__num--note{background:#10b981}
+.step__num--caution{background:#f59e0b}
+.step__num--warning{background:#ef4444}
+.step--callout .callout{margin:0}
 .step__main{flex:1 1 auto;min-width:0}
-.step__title{font-size:1.15rem;margin:2px 0 10px}
+.step__title{font-size:1.15rem;margin:0 0 10px}
 .step__img{display:block;max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:8px}
 .step__instr{margin:10px 0 0;padding:.1rem 0 .1rem .75rem;border-left:3px solid #a5b4fc;white-space:pre-wrap;font-size:1.02rem}
+.step--textonly{align-items:center}
+.step--textonly .step__instr{margin-top:0}
 .step__note{margin:8px 0 0;color:#6b7280;font-size:.92rem;white-space:pre-wrap}
 .callout{margin:20px 0;padding:.7rem .9rem;border-radius:8px;border:1px solid;border-left-width:4px;white-space:pre-wrap}
 .callout__h{display:block;font-weight:700;margin-bottom:.25rem}
@@ -223,16 +246,31 @@ async function buildHtmlDoc(
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout) {
-        // No type label — the box color conveys note/caution/warning. Heading
-        // (if any) is a bold block above the body.
+        // Match the app: a colored glyph badge on the left rail (like the step-number
+        // circles) + the colored callout box to its right.
+        const glyph = CALLOUT_GLYPH[it.callout];
         const h = it.heading ? `<strong class="callout__h">${escapeHtml(it.heading)}</strong>` : '';
         const b = it.body ? escapeHtml(it.body) : '';
-        parts.push(`<aside class="callout callout--${it.callout}">${h}${b}</aside>`);
+        parts.push(
+          `<section class="step step--callout">` +
+            `<div class="step__num step__num--${it.callout}">${glyph}</div>` +
+            `<div class="step__main"><aside class="callout callout--${it.callout}">${h}${b}</aside></div>` +
+            `</section>`,
+        );
         continue;
       }
-      const h = it.heading ? `<h2 class="section__h">${escapeHtml(it.heading)}</h2>` : '';
-      const b = it.body ? `<p class="section__b">${escapeHtml(it.body)}</p>` : '';
-      parts.push(`<section class="section">${h}${b}</section>`);
+      // Plain text step — a numbered step (like the report), just no image.
+      // With no heading, center the body against the number badge (step--textonly)
+      // so it doesn't sit low.
+      const th = it.heading ? `<h2 class="step__title">${escapeHtml(it.heading)}</h2>` : '';
+      const tb = it.body ? `<p class="step__instr">${escapeHtml(it.body)}</p>` : '';
+      const cls = it.heading ? 'step' : 'step step--textonly';
+      parts.push(
+        `<section class="${cls}">` +
+          `<div class="step__num">${it.n ?? ''}</div>` +
+          `<div class="step__main">${th}${tb}</div>` +
+          `</section>`,
+      );
       continue;
     }
     const bytes = it.bytes ?? (await fs.readFile(it.abs));
@@ -296,15 +334,22 @@ async function buildPlainHtmlDoc(
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout) {
-        // No type label. Bold heading (if any) on its own line, then the body.
-        const h = it.heading ? `<strong>${escapeHtml(it.heading)}</strong>` : '';
+        // Bold glyph (+ heading) on the first line, then the body.
+        const glyph = CALLOUT_GLYPH[it.callout];
+        const h = `<strong>${glyph}${it.heading ? ` ${escapeHtml(it.heading)}` : ''}</strong>`;
         const b = it.body ? br(it.body) : '';
-        const sep = h && b ? '<br>' : '';
+        const sep = b ? '<br>' : '';
         parts.push(`<blockquote><p>${h}${sep}${b}</p></blockquote>`);
         continue;
       }
-      if (it.heading) parts.push(`<h2>${escapeHtml(it.heading)}</h2>`);
-      if (it.body) parts.push(`<p>${br(it.body)}</p>`);
+      // Plain text step — numbered like a step.
+      const num = it.n != null ? `${it.n}. ` : '';
+      if (it.heading) {
+        parts.push(`<h2>${num}${escapeHtml(it.heading)}</h2>`);
+        if (it.body) parts.push(`<p>${br(it.body)}</p>`);
+      } else if (it.body) {
+        parts.push(`<p>${num}${br(it.body)}</p>`);
+      }
       continue;
     }
     const bytes = it.bytes ?? (await fs.readFile(it.abs));
@@ -397,21 +442,29 @@ async function buildMarkdown(
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout) {
-        // No type label — rendered as a plain blockquote. Bold heading (if any)
-        // as the first quoted line, then the body. A blank ">" line separates
-        // heading from body so the heading stays on its own line — without it,
-        // two adjacent quoted lines merge into one paragraph (CommonMark soft
-        // break = space). An empty callout still emits a ">" so the step
-        // persists, matching the in-app box and the HTML/PDF/Word exports.
-        if (it.heading) lines.push(`> **${escapeMarkdown(it.heading)}**`);
-        if (it.heading && it.body) lines.push('>');
-        if (it.body) lines.push(`> ${it.body.replace(/\n/g, '\n> ')}`);
-        if (!it.heading && !it.body) lines.push('>');
+        // Blockquote with a bold glyph (+ heading) as the first quoted line, then
+        // the body. A blank ">" line separates them (without it, two adjacent quoted
+        // lines merge into one paragraph — CommonMark soft break = space).
+        const glyph = CALLOUT_GLYPH[it.callout];
+        lines.push(`> **${glyph}${it.heading ? ` ${escapeMarkdown(it.heading)}` : ''}**`);
+        if (it.body) {
+          lines.push('>');
+          lines.push(`> ${it.body.replace(/\n/g, '\n> ')}`);
+        }
         lines.push('');
         continue;
       }
-      if (it.heading) lines.push(`## ${escapeMarkdown(it.heading.replace(/\s*\n\s*/g, ' '))}`, '');
-      if (it.body) lines.push(it.body, '');
+      // Plain text step — numbered like a step.
+      if (it.heading) {
+        const num = it.n != null ? `${it.n}. ` : '';
+        lines.push(`## ${num}${escapeMarkdown(it.heading.replace(/\s*\n\s*/g, ' '))}`, '');
+        if (it.body) lines.push(it.body, '');
+      } else if (it.body) {
+        // Bold number prefix — a bare "N. " line would render as a renumbered
+        // ordered-list item in Markdown.
+        const numBold = it.n != null ? `**${it.n}.** ` : '';
+        lines.push(`${numBold}${it.body}`, '');
+      }
       continue;
     }
     const imgName = `step-${String(it.n).padStart(2, '0')}-${it.stepId}${it.ext}`;

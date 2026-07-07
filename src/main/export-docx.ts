@@ -13,7 +13,7 @@ import {
   TextRun,
   type ISectionOptions,
 } from 'docx';
-import type { CalloutKind, ProjectManifest } from '../shared/project';
+import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import { loadItemImage, type ExportItem } from './export';
 
 // Max embedded image width in px; taller/wider shots scale down by aspect. Keeps
@@ -34,7 +34,8 @@ function calloutParagraphs(heading: string, body: string, kind: CalloutKind): Pa
     left: { style: BorderStyle.SINGLE, size: 18, color: c.bar, space: 12 },
   } as const;
   const runs: Paragraph[] = [];
-  const headingText = heading || c.label;
+  // Lead with the type glyph so the callout kind reads even in grayscale.
+  const headingText = `${CALLOUT_GLYPH[kind]} ${heading || c.label}`;
   runs.push(
     new Paragraph({
       shading,
@@ -100,11 +101,15 @@ export async function buildDocx(
         children.push(...calloutParagraphs(it.heading, it.body, it.callout));
         continue;
       }
+      // Plain text step — numbered like a step (matches the report + other formats).
+      const num = it.n != null ? `${it.n}. ` : '';
       if (it.heading) {
-        children.push(new Paragraph({ text: it.heading, heading: HeadingLevel.HEADING_2 }));
-      }
-      if (it.body) {
-        children.push(new Paragraph({ children: multiline(it.body), spacing: { after: 120 } }));
+        children.push(new Paragraph({ text: `${num}${it.heading}`, heading: HeadingLevel.HEADING_2 }));
+        if (it.body) {
+          children.push(new Paragraph({ children: multiline(it.body), spacing: { after: 120 } }));
+        }
+      } else if (it.body) {
+        children.push(new Paragraph({ children: multiline(`${num}${it.body}`), spacing: { after: 120 } }));
       }
       continue;
     }

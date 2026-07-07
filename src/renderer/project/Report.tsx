@@ -4,7 +4,7 @@
 // redaction) over the raw screenshot once a step has been edited. Each image is
 // constrained to ~REPORT_BASE (800x600), with a per-step report zoom to enlarge.
 import React from 'react';
-import type { CalloutKind, ProjectStep } from '../../shared/project';
+import { CALLOUT_GLYPH, type CalloutKind, type ProjectStep } from '../../shared/project';
 import { shotUrl, useProjectStore } from './store';
 import { canMergeInto, mergeStepInto } from './merge';
 import { markerColorFor } from '../editor/annotations';
@@ -29,13 +29,6 @@ const ZOOM_MAX = 4;
 function isCalloutStep(s: ProjectStep): boolean {
   return s.kind === 'text' && !!s.callout;
 }
-
-/** Rail badge glyph per callout kind (the box color already conveys the kind). */
-const CALLOUT_GLYPH: Record<CalloutKind, string> = {
-  note: 'ℹ',
-  caution: '⚠',
-  warning: '⛔',
-};
 
 function StepFigure({
   projectId,
@@ -753,32 +746,11 @@ export function Report({
     );
   }
 
-  // Left rail: a drag grip + the (click-to-edit) step number. Non-callout steps
-  // are numbered contiguously 1..N; callouts show a type glyph instead (E10).
+  // Left rail: the (click-to-edit) step number on top — vertically in line with the
+  // step's heading/text — and the drag grip BELOW it. Non-callout steps are numbered
+  // contiguously 1..N; callouts show a type glyph instead (E10).
   const rail = (s: ProjectStep, idx: number) => (
     <div className="rep__rail">
-      <button
-        type="button"
-        className="rep__grip"
-        draggable
-        aria-label="Drag to reorder"
-        title="Drag to reorder"
-        onDragStart={(e) => {
-          setDragIdx(idx);
-          e.dataTransfer.effectAllowed = 'move';
-          try {
-            e.dataTransfer.setData('text/plain', String(idx));
-          } catch {
-            /* some platforms restrict setData */
-          }
-        }}
-        onDragEnd={() => {
-          setDragIdx(null);
-          setDragOverIdx(null);
-        }}
-      >
-        ⠿
-      </button>
       {isCalloutStep(s) && s.callout ? (
         <span
           className={`rep__num rep__num--callout rep__num--${s.callout}`}
@@ -806,6 +778,28 @@ export function Report({
           {displayNums.get(s.id)}
         </button>
       )}
+      <button
+        type="button"
+        className="rep__grip"
+        draggable
+        aria-label="Drag to reorder"
+        title="Drag to reorder"
+        onDragStart={(e) => {
+          setDragIdx(idx);
+          e.dataTransfer.effectAllowed = 'move';
+          try {
+            e.dataTransfer.setData('text/plain', String(idx));
+          } catch {
+            /* some platforms restrict setData */
+          }
+        }}
+        onDragEnd={() => {
+          setDragIdx(null);
+          setDragOverIdx(null);
+        }}
+      >
+        ⠿
+      </button>
     </div>
   );
 
@@ -888,12 +882,9 @@ export function Report({
                 onCancel={() => void cancelText(s)}
               />
             ) : s.callout ? (
-              // Callout: the box COLOR conveys the type (note/caution/warning) —
-              // no text label. The optional heading + body live inside the box.
-              <>
-                <div className="rep__caprow rep__caprow--callout">
-                  <div className="rep__actions">{controls(s, idx)}</div>
-                </div>
+              // Callout: the box COLOR conveys the type; the rail shows the type glyph.
+              // Box + controls share one row so the box lines up with the glyph.
+              <div className="rep__calloutrow">
                 <div
                   className={`rep__callout rep__callout--clickable rep__callout--${s.callout}`}
                   title="Click to edit"
@@ -906,20 +897,43 @@ export function Report({
                     <p className="rep__callout-b rep__callout-empty">Empty — click to add text.</p>
                   ) : null}
                 </div>
-              </>
+                <div className="rep__actions">{controls(s, idx)}</div>
+              </div>
             ) : (
               <>
                 <div className="rep__caprow">
-                  <h3
-                    className="rep__textheading rep__textheading--edit"
-                    title="Click to edit this text step"
-                    onClick={() => openTextEdit(s)}
-                  >
-                    {s.heading || 'Text'}
-                  </h3>
+                  {/* Primary content sits on the number's row so it lines up with the
+                      step number: the heading if set; otherwise the body (a heading-less
+                      step would otherwise drop below the number); otherwise the add-text
+                      affordance. The body renders BELOW only when there's also a heading. */}
+                  {s.heading ? (
+                    <h3
+                      className="rep__textheading rep__textheading--edit"
+                      title="Click to edit this text step"
+                      onClick={() => openTextEdit(s)}
+                    >
+                      {s.heading}
+                    </h3>
+                  ) : s.body ? (
+                    <p
+                      className="rep__textbody rep__textbody--edit"
+                      title="Click to edit"
+                      onClick={() => openTextEdit(s)}
+                    >
+                      {s.body}
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rep__addline"
+                      onClick={() => openTextEdit(s)}
+                    >
+                      + Add text
+                    </button>
+                  )}
                   <div className="rep__actions">{controls(s, idx)}</div>
                 </div>
-                {s.body ? (
+                {s.heading && s.body ? (
                   <p
                     className="rep__textbody rep__textbody--edit"
                     title="Click to edit"
@@ -927,16 +941,6 @@ export function Report({
                   >
                     {s.body}
                   </p>
-                ) : !s.heading ? (
-                  // Only truly-empty (no heading AND no body) shows a clear
-                  // affordance; a heading-only step (AI divider) renders clean.
-                  <button
-                    type="button"
-                    className="rep__addline"
-                    onClick={() => openTextEdit(s)}
-                  >
-                    + Add text
-                  </button>
                 ) : null}
               </>
             )
