@@ -2457,6 +2457,10 @@ body {
 }
 
 .sopbar__prov {
+  /* Own full-width row, ordered after every action button in the command bar. */
+  flex-basis: 100%;
+  order: 1;
+  margin-top: 0.1rem;
   color: var(--ink-2);
   font-size: 0.8rem;
 }

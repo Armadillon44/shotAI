@@ -192,9 +192,6 @@ export function SopPanel({
             ↩ Revert AI edits
           </button>
         )}
-        {provenance && phase === 'idle' && (
-          <span className="sopbar__prov">{provenance}</span>
-        )}
         {sopEnabled && !hasKey && (
           <span className="sopbar__hint">
             {onOpenSettings ? (
@@ -210,6 +207,11 @@ export function SopPanel({
           </span>
         )}
       </div>
+      {/* Provenance sits on its OWN full-width row below the action buttons
+          (.sopbar__prov: flex-basis:100% + order:1), so it never crowds the row. */}
+      {provenance && phase === 'idle' && (
+        <span className="sopbar__prov">{provenance}</span>
+      )}
 
       {phase === 'preparing' && createPortal(
         <div
