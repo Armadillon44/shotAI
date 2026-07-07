@@ -205,3 +205,27 @@ Batch requested 2026-07-07; implement, then build + publish **v1.0.0-rc5**. **F9
 - **F10 — Dark mode — MOCKUP FIRST.** `theme` setting (`light|dark|system`, default system) + toggle in Settings; `[data-theme]` on `:root`; add a dark token set beside light; migrate ALL hardcoded colors → vars so the swap is complete; honor `prefers-color-scheme` for system; persist.
 
 **Open questions before coding F1-export/F2:** Q1 archive trigger (auto-on-launch vs manual + age-default), Q2 bulk-export target (per-project format vs shareable .zip).
+
+## Post-1.0.0 backlog
+Requested after the 1.0.0 GA (2026-07-07). Not yet scheduled.
+
+- **Search the project list.** Requested 2026-07-07. Add a search/filter box to the home
+  screen that filters the project list by **title** as you type (case-insensitive substring).
+  Renderer-only, low complexity: a `search` state in `ProjectList.tsx`, applied to the
+  `filtered` array before sort/date-grouping. Lives in the list header near the sort chips +
+  Projects/Archive tabs. Design decisions when picked up: (a) search within the active tab
+  only, or across both Projects + Archive (show which tab a hit is in?); (b) title-only vs.
+  also matching step captions / SOP text (title-only is the MVP and matches the ask —
+  "search in the list of projects"); (c) clear-on-Esc + a clear (✕) affordance; (d) whether
+  date-group headers stay while filtering (probably keep grouping on the filtered set). Keep
+  it a pure client-side filter — the list is already fully in memory.
+
+### Known post-1.0.0 bugs / deferred work (tracked in memory)
+- **ARP "Installed apps" icon still generic** — PR #19's `app.ico` overwrite did NOT work
+  (user-confirmed post-1.0.0). Likely fix: write the `DisplayIcon` registry value directly to
+  the installed exe rather than rely on `app.ico`. Needs a fresh 1.0.0 install to inspect the
+  registry + Squirrel install log first.
+- **Code-signing** (removes the SmartScreen "unknown publisher" warning) — needs a purchased
+  cert; prerequisite for good **auto-update**.
+- **Auto-update** — Squirrel + `update-electron-app`/`autoUpdater`; requires uploading
+  `RELEASES` + `.nupkg` per release and (realistically) code-signing first.
