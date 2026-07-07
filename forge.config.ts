@@ -125,9 +125,11 @@ const config: ForgeConfig = {
       // Publisher shown in "Installed apps" (else it falls back to package.json
       // author). Kept impersonal per request. NB: iconUrl is intentionally NOT set
       // — the usual iconUrl would bake a personal GitHub URL into the installed
-      // package. The "Installed apps" icon is instead fixed locally at install time
-      // by overwriting Squirrel's downloaded app.ico with the bundled shotAI_icon.ico
-      // (extraResource above) — see src/main/arp-icon.ts. No URL, no personal data.
+      // package. The "Installed apps" (ARP) icon is instead fixed locally at
+      // install/update time by src/main/arp-icon.ts, which writes the bundled
+      // shotAI_icon.ico (extraResource above) to app.ico AND sets the ARP
+      // DisplayIcon registry value to it (Squirrel leaves DisplayIcon blank when it
+      // can't download an iconUrl). No URL, no personal data.
       authors: 'LFI',
     }),
     new MakerZIP({}, ['darwin']),
