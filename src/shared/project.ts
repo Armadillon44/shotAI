@@ -385,4 +385,11 @@ export interface ProjectSummary {
   /** True once Claude has written the guide (has an intro or AI-inserted steps) —
    *  drives the "SOP ready" vs "Draft" status chip on the home list. */
   hasSop: boolean;
+  /**
+   * Lowercased blob of the project's in-content text (every step's caption / note /
+   * heading / body + the SOP intro) — NOT the title, which is matched separately so
+   * title hits can rank ahead of content-only hits. Powers the home search box; built
+   * from the manifest `listProjects` already reads, so it costs no extra I/O.
+   */
+  searchText: string;
 }

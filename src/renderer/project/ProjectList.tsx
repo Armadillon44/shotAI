@@ -47,6 +47,7 @@ export function ProjectList({
   const [sortKey, setSortKey] = React.useState<SortKey>('modified');
   const [sortAsc, setSortAsc] = React.useState(false);
   const [tab, setTab] = React.useState<'active' | 'archive'>('active');
+  const [query, setQuery] = React.useState('');
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [lastClicked, setLastClicked] = React.useState<string | null>(null);
   const [exportPickerOpen, setExportPickerOpen] = React.useState(false);
@@ -143,8 +144,23 @@ export function ProjectList({
     [projects, tab],
   );
 
+  // Normalized search term; empty when not searching.
+  const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
+  const titleMatches = React.useCallback(
+    (p: ProjectSummary) => p.title.toLowerCase().includes(q),
+    [q],
+  );
+
+  // Search filter: keep projects whose title OR in-content text matches. Empty
+  // query passes everything through unchanged.
+  const searched = React.useMemo(
+    () => (searching ? filtered.filter((p) => titleMatches(p) || p.searchText.includes(q)) : filtered),
+    [filtered, searching, q, titleMatches],
+  );
+
   const sorted = React.useMemo(() => {
-    const arr = [...filtered];
+    const arr = [...searched];
     arr.sort((a, b) => {
       let cmp: number;
       if (sortKey === 'name') cmp = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
@@ -153,11 +169,23 @@ export function ProjectList({
       return sortAsc ? cmp : -cmp;
     });
     return arr;
-  }, [filtered, sortKey, sortAsc]);
+  }, [searched, sortKey, sortAsc]);
 
   // Date grouping (F4) applies only to the date sorts; Name sort stays flat.
-  const showGroups = sortKey !== 'name';
-  const groups = React.useMemo(() => {
+  // While searching, date grouping is suppressed — results are ranked by
+  // relevance instead: title matches first, then content-only matches (each
+  // still in the chosen sort order), with a divider between the two tiers.
+  const showGroups = sortKey !== 'name' && !searching;
+  const groups = React.useMemo<{ label: string; items: ProjectSummary[] }[]>(() => {
+    if (searching) {
+      const titleHits = sorted.filter((p) => titleMatches(p));
+      const contentHits = sorted.filter((p) => !titleMatches(p)); // matched via content only
+      const g: { label: string; items: ProjectSummary[] }[] = [];
+      if (titleHits.length) g.push({ label: '', items: titleHits });
+      if (contentHits.length)
+        g.push({ label: titleHits.length ? 'Matches in content' : '', items: contentHits });
+      return g;
+    }
     if (!showGroups) return [{ label: '', items: sorted }];
     const g = groupByDate(
       sorted,
@@ -166,10 +194,14 @@ export function ProjectList({
     );
     // Newest bucket first for descending; oldest first for ascending.
     return (sortAsc ? [...g].reverse() : g) as { label: string; items: ProjectSummary[] }[];
-  }, [sorted, showGroups, sortKey, sortAsc]);
+  }, [sorted, searching, titleMatches, showGroups, sortKey, sortAsc]);
 
-  // Visible order (flat) for shift-range selection.
-  const visibleOrder = React.useMemo(() => sorted.map((p) => p.path), [sorted]);
+  // Visible order (flat, in render order) for shift-range selection — derived
+  // from the groups so it tracks the search tiers, not just the raw sort.
+  const visibleOrder = React.useMemo(
+    () => groups.flatMap((grp) => grp.items.map((p) => p.path)),
+    [groups],
+  );
 
   const toggleSelect = (path: string) => {
     setSelected((prev) => {
@@ -403,6 +435,39 @@ export function ProjectList({
             </button>
           )}
         </div>
+        <div className="project__search">
+          <input
+            className="project__input"
+            type="search"
+            placeholder="Search projects…"
+            aria-label="Search projects by title or content"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              // The visible set changes as you type; drop any selection so the
+              // bulk-bar count can't go stale against rows that filtered out.
+              if (selected.size) clearSelection();
+            }}
+            onKeyDown={(e) => {
+              // Esc clears the query first (before the global selection-clear).
+              if (e.key === 'Escape' && query) {
+                e.stopPropagation();
+                setQuery('');
+              }
+            }}
+          />
+          {query && (
+            <button
+              type="button"
+              className="project__search-clear"
+              aria-label="Clear search"
+              title="Clear search"
+              onClick={() => setQuery('')}
+            >
+              ✕
+            </button>
+          )}
+        </div>
         <div className="project__sort" role="group" aria-label="Sort projects">
           <span className="project__sort-label">Sort:</span>
           {SORT_LABELS.map((s) => (
@@ -499,7 +564,18 @@ export function ProjectList({
         </div>
       )}
 
-      {sorted.length === 0 ? (
+      {sorted.length === 0 && searching ? (
+        <div className="empty">
+          <div className="empty__icon" aria-hidden="true">
+            🔍
+          </div>
+          <p className="empty__line">No projects match “{query.trim()}”</p>
+          <p className="empty__sub">
+            Search looks at the project title and the text inside it (step captions, notes,
+            and the SOP overview){tab === 'archive' ? ', in the Archive tab' : ''}.
+          </p>
+        </div>
+      ) : sorted.length === 0 ? (
         <div className="empty">
           <div className="empty__icon" aria-hidden="true">
             {tab === 'archive' ? '🗄️' : '🗂️'}
@@ -522,7 +598,7 @@ export function ProjectList({
         <ul className="project__list">
           {groups.map((group) => (
             <React.Fragment key={group.label || 'all'}>
-              {showGroups && group.label && (
+              {group.label && (
                 <li className="project__group" aria-hidden="true">
                   {group.label}
                 </li>
