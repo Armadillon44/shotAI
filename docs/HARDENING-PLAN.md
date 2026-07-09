@@ -229,3 +229,68 @@ Requested after the 1.0.0 GA (2026-07-07). Not yet scheduled.
   cert; prerequisite for good **auto-update**.
 - **Auto-update** — Squirrel + `update-electron-app`/`autoUpdater`; requires uploading
   `RELEASES` + `.nupkg` per release and (realistically) code-signing first.
+
+## v1.1.0 plan (2026-07-09) — project search + report-insert rework
+Two features, grounded in a 4-agent recon pass (search / insert / capture / ui-ipc). User decisions
+locked: **search = title + content, title matches ranked first**; **insert mode picker = a small
+modal dialog**. Ship order: **G1 first** (self-contained, renderer + one summary field), then **G2**
+(the bigger capture-engine + IPC + UI rework). Each gets its own branch/PR; publish v1.1.0 only after
+both are live-verified.
+
+### G1 — Search the project list (title + content, title-first)
+Filter the home list as you type, matching **title AND in-project text**, with **title hits ranked
+above content-only hits**. Backend cost ~0 — `listProjects` already reads every full manifest.
+- **G1a (backend, `src/main/project-store.ts` + `src/shared/project.ts`):** add `searchText: string`
+  to `ProjectSummary` (shared/project.ts:374-388). Build it in `summarize()` (:146-160) from the
+  content already in hand: each step's `caption`/`note`/`heading`/`body` + `intro.heading`/`intro.body`,
+  joined and **lowercased once** (title matched separately, so `searchText` is content-only). No new
+  I/O — `readManifest` is already called per project in `listProjects` (:350-386).
+- **G1b (renderer, `src/renderer/project/ProjectList.tsx`):**
+  - New `query` state; a `<input class="project__input">` in `home__listhead` (:389-427) with a clear
+    (✕) button + Esc-to-clear.
+  - `searched` memo between `filtered` (:141-144) and `sorted` (:146): keep `p` when
+    `title.toLowerCase().includes(q)` (tier 0) OR `p.searchText.includes(q)` (tier 1). Empty query →
+    pass-through (no change to current behavior).
+  - **Tiered ordering:** sort by the current sort key as today, then stable-partition tier-0 (title)
+    ahead of tier-1 (content-only). Render as two pseudo-groups reusing the existing `project__group`
+    header markup — an unlabeled title group, then a **"Matches in content"** divider + the content
+    group (divider only when both tiers non-empty). Date grouping is **suppressed while a query is
+    active** (ordering is by relevance, not date).
+  - Count span (:393) already reads the post-filter length → auto-updates. Tab counts (activeCount/
+    archiveCount :59-60) stay full-set. Search is scoped to the **active tab**.
+  - **Selection reset:** clear/prune `selected` on query change (mirror `switchTab`'s `clearSelection`
+    at :62-73) so the bulk-bar count can't go stale against filtered rows.
+  - Empty-result state: "No projects match '<query>'".
+- **Verify:** tsc + eslint; live `npm start` — type a title fragment (title hit), type a word only in a
+  step caption (content hit, under the divider), Esc clears, selection resets on typing.
+
+### G2 — Report-insert rework: +Capture (record) / +Screenshot (one-shot)
+Replace the single-click "+Screenshot" (Report.tsx:680, hardcoded Auto at CaptureController.ts:695)
+with two gap actions. Both open a **small modal** to pick mode/target (the picker machinery lifted from
+the home screen), then insert at the gap's manifest index.
+- **+Capture** — pick a mode (Screen/Window/Area/Auto), then a **full recording** (like Resume Capture)
+  whose steps insert starting at the gap. `start()` today only appends; add a session **insert cursor**
+  (`baseInsertAt`/`insertCursor`) so each captured step splices at an incrementing index via
+  `insertStepAt` (project-store.ts:822-844) instead of `addStep`.
+- **+Screenshot** — a **one-shot, no-click grab**: whole screen (app window excluded), a chosen window,
+  or a dragged area, inserted once at the gap. `grab()` already supports **point-less** captures for
+  window/area/screen (CaptureController.ts:1058-1111) and `captureStep()` is already driven hook-free by
+  the self-test — so a new "grab once in mode X at index I" method sets `session.target`, hides the
+  window (also content-protected, so shotAI is excluded regardless), awaits a composite frame, calls
+  `captureStep(null, {insertAt})` once, and stops. No mouse hook, no click marker.
+- **Shared plumbing:**
+  - Lift the home mode-picker (MODE_OPTIONS/buildTarget/listTargets/selectArea, App.tsx:24-140) into a
+    reusable component used by both home and the report-insert modal.
+  - Thread a validated `CaptureTarget` through the single-shot chain: `ShotaiApi.capture.captureSingle`
+    (ipc.ts:366-371) → preload (preload.ts:152-153) → `capture:single` handler (ipc.ts:701-710, reuse
+    `parseCaptureTarget`) → `captureSingle` (CaptureController.ts:669-710, replace hardcoded
+    DEFAULT_TARGET at :695). Add a `capture:screenshot` channel for the one-shot path.
+  - `Report.tsx` InsertKind (:15) + insertZone menu (:655-736): swap the old 'shot' entry for
+    '+ Capture' and '+ Screenshot'; `ProjectDetail.onInsert` (:223-228) routes each to the modal then
+    the right IPC.
+  - Optional persistence: the dormant `manifest.captureSettings` field (shared/project.ts:354) can
+    remember the last insert mode per project.
+- **Open items to resolve in build:** exact composite-await for the no-click screen grab; Discard/undo
+  semantics for a multi-step +Capture insert session; stale window/area target fallbacks at insert time.
+- **Verify:** tsc + eslint; live — +Capture records multiple steps into a mid-report gap in each mode;
+  +Screenshot inserts one whole-screen / window / area shot at the gap with shotAI excluded.

@@ -156,7 +156,20 @@ function summarize(
     stepCount: manifest.steps.length,
     archived: manifest.archived,
     hasSop: manifest.intro !== null || manifest.steps.some((s) => s.aiInserted === true),
+    searchText: buildSearchText(manifest),
   };
+}
+
+/** Concatenate a project's in-content text (steps + SOP intro, NOT the title) into a
+ *  single lowercased string for the home search box. Title is matched separately so
+ *  title hits can outrank content-only hits. Built from the already-loaded manifest. */
+function buildSearchText(manifest: ProjectManifest): string {
+  const parts: string[] = [];
+  if (manifest.intro) parts.push(manifest.intro.heading, manifest.intro.body);
+  for (const s of manifest.steps) {
+    parts.push(s.caption, s.note, s.heading ?? '', s.body ?? '');
+  }
+  return parts.filter(Boolean).join(' ').toLowerCase();
 }
 
 /** Default project title when the user doesn't name one:

@@ -234,6 +234,48 @@ body {
   border-color: var(--accent);
 }
 
+/* Home list search box — sits between the list title and the sort chips. */
+.project__search {
+  position: relative;
+  display: flex;
+  flex: 1 1 200px;
+  max-width: 340px;
+}
+
+.project__search .project__input {
+  flex: 1;
+  padding-right: 2rem; /* room for the clear (✕) button */
+}
+
+/* Hide the native WebKit search cancel affordance — we render our own ✕. */
+.project__search .project__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.project__search-clear {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.25rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.project__search-clear:hover {
+  color: var(--ink);
+  background: var(--control-bd);
+}
+
 .btn {
   padding: 0.55rem 0.95rem;
   border: 1px solid var(--control-bd);
