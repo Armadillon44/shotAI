@@ -2,11 +2,12 @@
 // in-app report, plus the inline Konva editor as an overlay when a step is being
 // edited. Shown when a project is open (store.projectPath set).
 import React from 'react';
-import type { CalloutKind, ProjectStep } from '../../shared/project';
+import type { CalloutKind, CaptureTarget, ProjectStep } from '../../shared/project';
 import type { ExportFormat } from '../../shared/ipc';
 import { useProjectStore } from './store';
 import { ensureFlattened } from './sop-prepare';
 import { Report, type InsertKind } from './Report';
+import { CaptureInsertModal, type CaptureInsertVariant } from './CaptureInsertModal';
 import { SopPanel } from './SopPanel';
 import { Editor } from '../editor/Editor';
 import { Notice } from '../Notice';
@@ -22,10 +23,14 @@ const EXPORT_LABEL: Record<ExportFormat, string> = {
 
 export function ProjectDetail({
   onResumeCapture,
+  onCaptureInsert,
   onOpenSettings,
 }: {
   /** Resume capturing into this project (wired to App's capture flow). */
   onResumeCapture?: () => void;
+  /** Start a recording that INSERTS its steps at a report gap (report "+ Capture").
+   *  Routed through App so the recording HUD / adopt / stop-reload all fire there. */
+  onCaptureInsert?: (atIndex: number, target: CaptureTarget) => void;
   /** Open the Settings panel without leaving the project (model/tone/key). */
   onOpenSettings?: () => void;
 }): React.JSX.Element {
@@ -50,6 +55,12 @@ export function ProjectDetail({
   // True while a text step is being inline-edited in the report; we disable
   // structural actions (resume/add/import) so they can't discard the draft.
   const [textEditing, setTextEditing] = React.useState(false);
+  // The report "+ Capture / + Screenshot" mode-pick modal: which gap + which
+  // variant is being configured (null = closed).
+  const [captureModal, setCaptureModal] = React.useState<{
+    atIndex: number;
+    variant: CaptureInsertVariant;
+  } | null>(null);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   // Where the next image import lands (set just before opening the file dialog);
   // null → append. Lets one hidden <input> serve both the header button and the
@@ -206,15 +217,16 @@ export function ProjectDetail({
     }
   };
 
-  // Record a single screenshot inserted at `atIndex`. This flips capture state to
-  // "recording" (App hides the window + shows the pill); the first click is
-  // captured, inserted, and the session auto-stops, after which App reloads the
-  // report. No HUD seeding needed here.
-  const captureSingleAt = async (atIndex: number) => {
+  // One-shot, no-click screenshot inserted at `atIndex` (report "+ Screenshot").
+  // Synchronous in the main process (hide → grab → insert), so it returns the
+  // updated manifest and we apply it directly — no recording state, no HUD, and
+  // an open text draft is preserved (the report doesn't unmount).
+  const screenshotAt = async (atIndex: number, target: CaptureTarget) => {
     if (!projectPath) return;
     setImportErr(null);
     try {
-      await window.shotai.capture.captureSingle(projectPath, atIndex);
+      const manifest = await window.shotai.capture.screenshot(projectPath, target, atIndex);
+      applyManifest(manifest);
     } catch (err) {
       setImportErr(err instanceof Error ? err.message : String(err));
     }
@@ -223,7 +235,8 @@ export function ProjectDetail({
   const onInsert = (atIndex: number, kind: InsertKind) => {
     if (kind === 'text') void addTextAt(atIndex);
     else if (kind === 'image') pickImageAt(atIndex);
-    else if (kind === 'shot') void captureSingleAt(atIndex);
+    else if (kind === 'capture' || kind === 'screenshot')
+      setCaptureModal({ atIndex, variant: kind });
     else void addTextAt(atIndex, kind); // 'note' | 'caution' | 'warning'
   };
 
@@ -405,6 +418,29 @@ export function ProjectDetail({
             </div>
           </div>
         </div>
+      )}
+
+      {captureModal && (
+        <CaptureInsertModal
+          variant={captureModal.variant}
+          onClose={() => setCaptureModal(null)}
+          onConfirm={(target) => {
+            const m = captureModal;
+            setCaptureModal(null);
+            if (!m) return;
+            if (m.variant === 'screenshot') {
+              void screenshotAt(m.atIndex, target);
+            } else {
+              // +Capture starts a full recording, which unmounts the report — bail
+              // if a text draft is open (same rule as Resume capturing).
+              if (textEditing) {
+                setImportErr('Finish editing the text step before capturing.');
+                return;
+              }
+              onCaptureInsert?.(m.atIndex, target);
+            }
+          }}
+        />
       )}
 
       {(importErr || exportErr || error) && (

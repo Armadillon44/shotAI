@@ -374,18 +374,23 @@ app.whenReady().then(async () => {
     // control); restore + focus it when recording stops. Demo mode (Settings →
     // "Keep shotAI visible during capture") keeps it visible throughout — handy
     // for screen-shares, though the window then appears in the screenshots.
-    onRecordingChange: (recording) => {
+    onRecordingChange: (recording, opts) => {
+      const showPill = opts?.pill ?? true;
       const proj =
         projectWindow && !projectWindow.isDestroyed() ? projectWindow : null;
       const pill =
         toolbarWindow && !toolbarWindow.isDestroyed() ? toolbarWindow : null;
       if (recording) {
         if (!captureNoHideNow()) proj?.hide();
-        if (pill && !toolbarPositioned) {
-          dockToolbarTopCenter(pill); // top-center on first show; drag respected after
-          toolbarPositioned = true;
+        // The no-click one-shot (+Screenshot) hides the window but suppresses the
+        // pill — no recording HUD, and the pill can't become the focused own-window.
+        if (showPill) {
+          if (pill && !toolbarPositioned) {
+            dockToolbarTopCenter(pill); // top-center on first show; drag respected after
+            toolbarPositioned = true;
+          }
+          pill?.show(); // pill only appears while recording
         }
-        pill?.show(); // pill only appears while recording
       } else {
         pill?.hide();
         proj?.show(); // no-op if never hidden; also refocuses after recording

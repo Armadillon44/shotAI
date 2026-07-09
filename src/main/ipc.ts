@@ -85,9 +85,14 @@ const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFin
  * keeps the fields relevant to the chosen mode.
  */
 /** Coerce capture.start's opts object from IPC (missing/invalid → all-false). */
-function parseStartOpts(value: unknown): { createdThisSession: boolean } {
+function parseStartOpts(value: unknown): { createdThisSession: boolean; insertAt?: number } {
   const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
-  return { createdThisSession: v.createdThisSession === true };
+  const out: { createdThisSession: boolean; insertAt?: number } = {
+    createdThisSession: v.createdThisSession === true,
+  };
+  // +Capture at a report gap: the starting insert index (clamped in the controller).
+  if (isNum(v.insertAt)) out.insertAt = Math.max(0, Math.round(v.insertAt));
+  return out;
 }
 
 function parseCaptureTarget(value: unknown): CaptureTarget | undefined {
@@ -704,6 +709,23 @@ export function registerIpcHandlers(
       devLog('ipc: capture:single');
       return capture.captureSingle(
         asString(projectPath, 'projectPath'),
+        isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+      );
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.captureScreenshot,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, target: unknown, atIndex: unknown) => {
+      devLog('ipc: capture:screenshot');
+      const t = parseCaptureTarget(target);
+      // A no-click grab needs an explicit surface: 'auto' classifies off the
+      // clicked window, which doesn't exist here.
+      if (!t || t.mode === 'auto') {
+        throw new Error('A screenshot needs an explicit target (screen, window, or area).');
+      }
+      return capture.captureScreenshot(
+        asString(projectPath, 'projectPath'),
+        t,
         isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
       );
     },

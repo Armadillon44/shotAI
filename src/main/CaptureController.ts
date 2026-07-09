@@ -26,6 +26,7 @@ import type {
   CaptureTarget,
   MonitorInfo,
   Point,
+  ProjectManifest,
   ProjectStep,
   Rect,
   StepClick,
@@ -43,6 +44,22 @@ import { getElementAtPoint, warmUpElementLocator } from './element-locator';
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+S';
 const OWN_WINDOW_TITLES = new Set(['shotAI', 'shotAI — Capture']);
 const DEFAULT_TARGET: CaptureTarget = { mode: 'auto' };
+
+// After hiding the app window for a no-click one-shot grab (+Screenshot), wait
+// this long before capturing so the compositor has presented a frame WITHOUT the
+// window. Hiding is LOAD-BEARING here (node-screenshots BitBlt grabs a visible
+// shotAI window — see main.ts onRecordingChange), and there is no main-process
+// repaint signal, so this is a fixed settle comfortably above one present
+// interval (a 60Hz frame ~16ms; generous for slow/RDP displays) yet unobtrusive.
+// The own-window guard in captureStep is the hard backstop against a leak — this
+// timer just avoids a captured-nothing no-op while focus/composition settle.
+const HIDE_SETTLE_MS = 350;
+
+// The main-window hide/restore hook. `pill` (default true) controls whether the
+// always-on-top recording pill is shown too — a full recording shows it; the
+// no-click one-shot suppresses it (no recording HUD, and the pill must not become
+// the focused own-window that trips captureStep's guard).
+type RecordingChange = (recording: boolean, opts?: { pill?: boolean }) => void;
 
 // Modest downscale applied to every captured screenshot (T2) to cut PNG file
 // size AND Claude vision token cost. Kept gentle so small UI text Claude must
@@ -170,6 +187,12 @@ type Session = {
   // screenshot here" affordance. Absent for a normal recording session.
   // `fired` guards against a fast second click being captured before stop.
   single?: { insertAt: number; fired?: boolean };
+  // Multi-step insert (+Capture at a report gap): a full recording whose every
+  // captured step SPLICES at this rolling manifest index (then ++) instead of
+  // appending. undefined = normal append recording. Mutually exclusive with
+  // `single`. Read + advanced synchronously inside the serialized captureStep,
+  // so rapid clicks still land in order i, i+1, i+2…
+  insertCursor?: number;
 };
 
 type Broadcast = (channel: string, payload: unknown) => void;
@@ -206,7 +229,7 @@ async function cropToRegion(mon: NsMonitor, full: NsImage, region: Rect): Promis
 
 export class CaptureController {
   private readonly broadcast: Broadcast;
-  private readonly onRecordingChange?: (recording: boolean) => void;
+  private readonly onRecordingChange?: RecordingChange;
   private natives: Natives | null = null;
   private session: Session | null = null;
   private hookAttached = false;
@@ -533,7 +556,7 @@ export class CaptureController {
 
   constructor(
     broadcast: Broadcast,
-    onRecordingChange?: (recording: boolean) => void,
+    onRecordingChange?: RecordingChange,
   ) {
     this.broadcast = broadcast;
     this.onRecordingChange = onRecordingChange;
@@ -598,6 +621,9 @@ export class CaptureController {
       attachHook?: boolean;
       target?: CaptureTarget;
       createdThisSession?: boolean;
+      /** +Capture at a report gap: starting manifest index. Every captured step
+       *  inserts here and the cursor advances, instead of appending. */
+      insertAt?: number | null;
     } = {},
   ): Promise<CaptureState> {
     const attachHook = opts.attachHook ?? true;
@@ -637,6 +663,13 @@ export class CaptureController {
       /* shots/ unreadable — fall back to manifest length */
     }
 
+    // +Capture insert: clamp the starting index into the current manifest so the
+    // first captured step splices at the gap and each subsequent one after it.
+    const insertCursor =
+      opts.insertAt == null
+        ? undefined
+        : Math.max(0, Math.min(Math.round(opts.insertAt), manifest.steps.length));
+
     this.session = {
       projectPath,
       projectTitle: manifest.title,
@@ -646,10 +679,11 @@ export class CaptureController {
       stepCountAtStart,
       createdThisSession: opts.createdThisSession ?? false,
       addedStepIds: [],
+      insertCursor,
     };
 
     captureLog.info(
-      `recording started: "${manifest.title}" [mode=${target.mode}] (${manifest.steps.length} existing steps, next #${stepCount + 1}) at ${projectPath}`,
+      `recording started: "${manifest.title}" [mode=${target.mode}]${insertCursor != null ? ` [insert@${insertCursor}]` : ''} (${manifest.steps.length} existing steps, next #${stepCount + 1}) at ${projectPath}`,
     );
     // Pre-load the native element-locator dll now so the FIRST click isn't
     // delayed seconds by its lazy load (which stalled the first capture).
@@ -707,6 +741,108 @@ export class CaptureController {
     this.onRecordingChange?.(true);
     this.emitState();
     return this.getState();
+  }
+
+  /**
+   * No-click one-shot grab for the report's "+ Screenshot" insert: capture the
+   * chosen surface (whole screen / a specific window / a dragged area — NOT auto,
+   * which needs a click to classify) exactly once, insert it at `insertAt`, and
+   * return the updated manifest. No input hook, no click marker, no recording HUD.
+   *
+   * The picked window/area is validated BEFORE hiding + grabbing so a stale target
+   * fails loudly (grab() would otherwise silently fall back to a full-monitor shot).
+   * The app window is hidden (without the recording pill) and given HIDE_SETTLE_MS
+   * to leave the composited frame; captureStep's own-window guard is the hard
+   * backstop that keeps shotAI out of the shot even if that settle is short.
+   */
+  async captureScreenshot(
+    projectPath: string,
+    target: CaptureTarget,
+    insertAt: number,
+  ): Promise<ProjectManifest> {
+    if (this.session) {
+      throw new Error('A recording is already in progress');
+    }
+    const { Monitor, Window } = await this.loadNatives();
+    const manifest = await projectStore.openProject(projectPath);
+    const shotsDir = path.join(projectPath, 'shots');
+    await fs.mkdir(shotsDir, { recursive: true });
+
+    // Validate an explicit window/area target NOW (before hiding the window), so a
+    // window that has since closed or an area that is now off-screen surfaces a
+    // clear error instead of grab()'s silent full-monitor fallback.
+    if (target.mode === 'window') {
+      if (!this.resolveWindow(Window, target.window)) {
+        throw new Error('That window is no longer open — reopen it and try the screenshot again.');
+      }
+    } else if (target.mode === 'area') {
+      const a = target.area;
+      const onScreen =
+        !!a &&
+        Monitor.all().some(
+          (m) =>
+            a.x < m.x() + m.width() &&
+            a.x + a.width > m.x() &&
+            a.y < m.y() + m.height() &&
+            a.y + a.height > m.y(),
+        );
+      if (!onScreen) {
+        throw new Error('That screen area is off-screen now — drag the area again and retry.');
+      }
+    }
+
+    // Seed the filename counter past any shot on disk (deletes leave orphans).
+    let stepCount = manifest.steps.length;
+    try {
+      for (const f of await fs.readdir(shotsDir)) {
+        const m = /^step-(\d+)\.png$/i.exec(f);
+        if (m) stepCount = Math.max(stepCount, Number(m[1]));
+      }
+    } catch {
+      /* shots/ unreadable — fall back to manifest length */
+    }
+
+    const at = Math.max(0, Math.min(Math.round(insertAt), manifest.steps.length));
+    // `single` marks this a one-shot so a Discard could never delete the whole
+    // project (discardDeletesProject checks !single); fired:true is belt-and-
+    // suspenders since no mouse hook is attached anyway.
+    this.session = {
+      projectPath,
+      projectTitle: manifest.title,
+      paused: false,
+      stepCount,
+      target,
+      stepCountAtStart: manifest.steps.length,
+      createdThisSession: false,
+      addedStepIds: [],
+      single: { insertAt: at, fired: true },
+    };
+    captureLog.info(
+      `no-click screenshot armed: [mode=${target.mode}] insert at index ${at} into "${manifest.title}"`,
+    );
+    // Hide the app window WITHOUT the recording pill (the pill would flash a
+    // misleading "recording" HUD and could become the focused own-window that
+    // trips captureStep's guard). Deliberately do NOT emitState() — a recording
+    // status would unmount the report view mid-grab.
+    this.onRecordingChange?.(true, { pill: false });
+    try {
+      await new Promise((r) => setTimeout(r, HIDE_SETTLE_MS));
+      const step = await this.captureStep('hotkey', null, 'left', {
+        insertAt: at,
+        broadcast: false,
+      });
+      if (!step) {
+        // captureStep returns null only if the app was still the focused/active
+        // window (own-window guard) or the capture failed — no leak, but nothing
+        // inserted. Surface it so the user can retry.
+        throw new Error('Could not capture the screen — make sure the target is visible, then try again.');
+      }
+    } finally {
+      this.session = null;
+      this.onRecordingChange?.(false); // restore + focus the app window
+      this.emitState();
+    }
+    return projectStore.openProject(projectPath);
   }
 
   private attachTriggers(opts: { hotkey?: boolean } = {}): void {
@@ -911,6 +1047,10 @@ export class CaptureController {
       /** UI element resolved AT mousedown (started in onMouseDown, before the
        *  click's effect changes the UI). Falls back to a query here if absent. */
       elementPromise?: Promise<StepElement | null>;
+      /** Broadcast captureStepAdded to renderers (default true). The no-click
+       *  one-shot passes false: it returns the manifest for a positioned re-render,
+       *  and App.onStepAdded would otherwise append the step at the wrong index. */
+      broadcast?: boolean;
     } = {},
   ): Promise<ProjectStep | null> {
     // Re-check here (not just at enqueue) so a pause/stop that lands while
@@ -1230,8 +1370,21 @@ export class CaptureController {
       annotations: [],
     };
 
-    if (opts.insertAt != null) {
-      await projectStore.insertStepAt(this.session.projectPath, step, opts.insertAt);
+    // Placement: a fixed opts.insertAt (single-shot / no-click one-shot) wins;
+    // otherwise a +Capture session's rolling insertCursor inserts + advances;
+    // otherwise append (normal recording). The cursor is read + advanced here
+    // inside the serialized captureStep, so rapid clicks stay ordered.
+    const insertIndex =
+      opts.insertAt != null
+        ? opts.insertAt
+        : this.session.insertCursor != null
+          ? this.session.insertCursor
+          : null;
+    if (insertIndex != null) {
+      await projectStore.insertStepAt(this.session.projectPath, step, insertIndex);
+      if (opts.insertAt == null && this.session.insertCursor != null) {
+        this.session.insertCursor = insertIndex + 1;
+      }
     } else {
       await projectStore.addStep(this.session.projectPath, step);
     }
@@ -1240,15 +1393,20 @@ export class CaptureController {
     captureLog.info(
       `step #${order} [${trigger}/${autoMode ? `auto:${autoMode}` : mode}${button === 'right' ? ' right' : opts.menuPopup ? ' menu-select' : ''}]${opts.insertAt != null ? ` (insert@${opts.insertAt})` : ''} ${window?.app ?? 'screen'}${element.name ? ` el='${element.name}'(${element.controlType})` : ''} -> ${filename} (${Math.round(outPng.length / 1024)} KB${imageScale !== 1 ? ` @${imageScale.toFixed(2)}x` : ''})`,
     );
-    this.broadcast(IpcChannels.captureStepAdded, step);
-    this.emitState();
+    // The no-click one-shot (broadcast:false) suppresses BOTH the step-added
+    // event AND the state emit: it never sets a "recording" status (which would
+    // flip the report view), and the caller returns the manifest + emits idle.
+    if (opts.broadcast !== false) {
+      this.broadcast(IpcChannels.captureStepAdded, step);
+      this.emitState();
+    }
     return step;
   }
 }
 
 /** Build a CaptureController that broadcasts events to all renderer windows. */
 export function createCaptureController(
-  opts: { onRecordingChange?: (recording: boolean) => void } = {},
+  opts: { onRecordingChange?: RecordingChange } = {},
 ): CaptureController {
   const broadcast: Broadcast = (channel, payload) => {
     for (const win of BrowserWindow.getAllWindows()) {
