@@ -9,12 +9,16 @@ cautions/callouts.
 Everything runs and is stored **on your machine**. The only network call is to Anthropic's
 API, and only when you ask shotAI to write the SOP. **Windows first**, macOS later.
 
-> **Status:** **1.0.0** — first stable release. Capture
-> engine, inline Konva annotation editor, redaction (manual + local-OCR auto-redact),
-> Claude SOP generation with review-before-send + one-click revert, element-at-point
-> captions (native UI Automation), export to HTML / Word / PowerPoint / PDF / Markdown +
-> a shareable round-trip package, project archiving, and light/dark themes are all
-> implemented. See [docs/PLAN.md](docs/PLAN.md) for the product roadmap and
+> **Status:** **1.1.0** — builds on the 1.0 stable line. 1.1.0 adds **project search**
+> (by title *and* in-project text), **mid-report inserts** (drop a recorded **+Capture**
+> session or a no-click **+Screenshot** into any gap between steps), and **bounded log
+> rotation**; it also removes the redundant per-step *note* field (the step title +
+> instruction already cover it). The 1.0 foundation — capture engine, inline Konva
+> annotation editor, redaction (manual + local-OCR auto-redact), Claude SOP generation with
+> review-before-send + one-click revert, element-at-point captions (native UI Automation),
+> export to HTML / Word / PowerPoint / PDF / Markdown + a shareable round-trip package,
+> project archiving, and light/dark themes — is all in place. See
+> [docs/PLAN.md](docs/PLAN.md) for the product roadmap and
 > [docs/HARDENING-PLAN.md](docs/HARDENING-PLAN.md) for the hardening/feature history.
 
 ## How it works
@@ -29,9 +33,13 @@ API, and only when you ask shotAI to write the SOP. **Windows first**, macOS lat
    hook can't see, like the Windows Start menu. Right-click menus are captured as their own
    step, and double-clicks are collapsed into one.
 
-2. **Review & annotate.** Each step is an editable card — reorder, retitle, add a note, or
-   convert to a **callout** (note / caution / warning). Open the image editor to draw
-   arrows, boxes, and text, adjust the click marker, **crop**, or **redact** sensitive
+2. **Review & annotate.** Each step is an editable card — reorder, retitle, or convert a
+   text step to a **callout** (note / caution / warning), which then drops out of the
+   numbered sequence and everything renumbers automatically. **Insert** new steps into any
+   gap: a **text** block, an **image**, a fresh **+ Capture** recording (pick a mode and
+   click through more steps, spliced in place), or a **+ Screenshot** one-shot (whole
+   screen, a chosen window, or a dragged area — no click needed). Open the image editor to
+   draw arrows, boxes, and text, adjust the click marker, **crop**, or **redact** sensitive
    regions. Redactions are **baked into a flattened copy** of the screenshot; the original
    pixels never leave your machine for any export or AI request (the export/send path is
    fail-closed and refuses a step whose redactions aren't baked). **Auto-redact** runs
@@ -40,7 +48,7 @@ API, and only when you ask shotAI to write the SOP. **Windows first**, macOS lat
 
 3. **Generate the SOP (optional).** With **your own** Anthropic API key, Claude reads the
    redaction-baked screenshots + captions and writes the guide **in place**: an overview,
-   per-step headings and instructions, and callouts — in your chosen **tone** and
+   section headings, and per-step titles + instructions — in your chosen **tone** and
    **effort**. Before anything is sent you see exactly which screenshots go out and an
    **estimated cost**; a single click **reverts** to your pre-AI version.
 
@@ -49,9 +57,11 @@ API, and only when you ask shotAI to write the SOP. **Windows first**, macOS lat
    "Created on <date>", optionally "by <your name>". Or export a **shareable package** that
    another shotAI user can **import** and keep editing.
 
-5. **Manage.** The home screen lists projects with sort + **date grouping** (This Week /
-   Last Week / This Month / Last Month / Older), a **Draft / SOP-ready** status chip, and
-   **multi-select** for bulk **archive / export / delete**. **Archiving** compresses a
+5. **Manage.** The home screen lists projects with **search** (matches the project title
+   *and* text inside it — step captions, instructions, and the SOP overview — ranking title
+   hits first), sort + **date grouping** (This Week / Last Week / This Month / Last Month /
+   Older), a **Draft / SOP-ready** status chip, and **multi-select** for bulk **archive /
+   export / delete**. **Archiving** compresses a
    project in place (into a single zip) to save disk while keeping it listed under an
    **Archive** tab; opening an archived project restores it automatically, and old projects
    can auto-archive by age. A **light / dark / system** theme is under Settings → Appearance.
