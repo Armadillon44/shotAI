@@ -245,8 +245,6 @@ export interface ProjectStep {
   element: StepElement;
   /** Auto-generated at capture time; user-editable. */
   caption: string;
-  /** User free-text note. */
-  note: string;
   /** Optional heading. Text steps and (Phase 3) screenshot steps both use it. */
   heading?: string;
   /** Optional body/subtext (markdown). Text steps and screenshot steps both use it. */
@@ -296,7 +294,6 @@ export type StepPatch = Partial<
   Pick<
     ProjectStep,
     | 'caption'
-    | 'note'
     | 'heading'
     | 'body'
     | 'kind'
@@ -386,7 +383,7 @@ export interface ProjectSummary {
    *  drives the "SOP ready" vs "Draft" status chip on the home list. */
   hasSop: boolean;
   /**
-   * Lowercased blob of the project's in-content text (every step's caption / note /
+   * Lowercased blob of the project's in-content text (every step's caption /
    * heading / body + the SOP intro) — NOT the title, which is matched separately so
    * title hits can rank ahead of content-only hits. Powers the home search box; built
    * from the manifest `listProjects` already reads, so it costs no extra I/O.

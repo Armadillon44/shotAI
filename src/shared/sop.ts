@@ -125,7 +125,7 @@ export function coerceSopSettings(
 // --- Inline SOP edit plan (Phase 3b) ---
 // Claude does NOT produce a separate document; it returns an edit plan that is
 // applied IN-LINE to the project's steps (rewriting each screenshot step's
-// heading/instruction/caption/note and inserting intro + section text steps).
+// heading/instruction/caption and inserting intro + section text steps).
 // A pre-edit snapshot is kept for one-click revert (see SopBackup in project.ts).
 
 /** An edit Claude proposes for one screenshot step (referenced by its 1-based number). */
@@ -136,8 +136,6 @@ export interface SopStepEdit {
   caption: string;
   /** Instruction text (the detail) shown under the screenshot. */
   body: string;
-  /** Extra context for the step's note field, or null to leave it. */
-  note: string | null;
   /** If set, insert a section-heading text step immediately BEFORE this step. */
   sectionHeading: string | null;
   sectionBody: string | null;

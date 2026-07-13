@@ -136,7 +136,7 @@ export async function buildPptx(
       continue;
     }
 
-    // Shot slide: caption title, contained image, optional instruction; note → speaker notes.
+    // Shot slide: caption title, contained image, optional instruction.
     slide.addText(`${it.n}. ${it.caption || `Step ${it.n}`}`, {
       x: MARGIN,
       y: 0.3,
@@ -163,7 +163,6 @@ export async function buildPptx(
         valign: 'top',
       });
     }
-    if (it.note) slide.addNotes(it.note);
   }
 
   // write() with nodebuffer returns a Node Buffer in the main process.

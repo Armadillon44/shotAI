@@ -113,7 +113,7 @@ export async function buildDocx(
       }
       continue;
     }
-    // Shot step: numbered heading, image (aspect-scaled), instruction, note.
+    // Shot step: numbered heading, image (aspect-scaled), instruction.
     const { buffer, width, height } = await loadItemImage(it);
     const scale = width > MAX_IMG_W ? MAX_IMG_W / width : 1;
     children.push(
@@ -125,7 +125,7 @@ export async function buildDocx(
     );
     children.push(
       new Paragraph({
-        spacing: { after: it.body || it.note ? 80 : 200 },
+        spacing: { after: it.body ? 80 : 200 },
         children: [
           new ImageRun({
             type: it.mediaType === 'image/jpeg' ? 'jpg' : 'png',
@@ -136,12 +136,7 @@ export async function buildDocx(
       }),
     );
     if (it.body) {
-      children.push(new Paragraph({ children: multiline(it.body), spacing: { after: it.note ? 40 : 200 } }));
-    }
-    if (it.note) {
-      children.push(
-        new Paragraph({ children: multiline(it.note, { italics: true, color: '6B7280' }), spacing: { after: 200 } }),
-      );
+      children.push(new Paragraph({ children: multiline(it.body), spacing: { after: 200 } }));
     }
   }
 

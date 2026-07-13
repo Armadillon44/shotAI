@@ -179,7 +179,6 @@ function parseStepPatch(value: unknown): StepPatch {
   const v = value as Record<string, unknown>;
   const patch: StepPatch = {};
   if (typeof v.caption === 'string') patch.caption = v.caption;
-  if (typeof v.note === 'string') patch.note = v.note;
   if (typeof v.heading === 'string') patch.heading = v.heading;
   if (typeof v.body === 'string') patch.body = v.body;
   if (typeof v.kind === 'string' && STEP_KINDS.has(v.kind as StepKind)) {

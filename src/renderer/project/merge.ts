@@ -99,7 +99,6 @@ export async function mergeStepInto(
       annotations,
       caption: joinText(drop.caption, keep.caption, ' → '),
       body: joinText(drop.body, keep.body, '\n\n'),
-      note: joinText(drop.note, keep.note, '\n\n'),
       markerBaked: true,
     },
     bytes,

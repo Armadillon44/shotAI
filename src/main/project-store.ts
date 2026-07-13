@@ -167,7 +167,7 @@ function buildSearchText(manifest: ProjectManifest): string {
   const parts: string[] = [];
   if (manifest.intro) parts.push(manifest.intro.heading, manifest.intro.body);
   for (const s of manifest.steps) {
-    parts.push(s.caption, s.note, s.heading ?? '', s.body ?? '');
+    parts.push(s.caption, s.heading ?? '', s.body ?? '');
   }
   return parts.filter(Boolean).join(' ').toLowerCase();
 }
@@ -776,7 +776,6 @@ export function addTextStep(
       window: null,
       element: { available: false, name: null, controlType: null, bounds: null },
       caption: '',
-      note: '',
       heading: '',
       body: '',
       ...(callout ? { callout } : {}),
@@ -900,7 +899,6 @@ export function importStep(
       window: null,
       element: { available: false, name: null, controlType: null, bounds: null },
       caption: 'Imported screenshot',
-      note: '',
       crop: null,
       annotations: [],
     };
