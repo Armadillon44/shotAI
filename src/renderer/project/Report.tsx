@@ -11,8 +11,9 @@ import { markerColorFor } from '../editor/annotations';
 import { OverflowMenu, type MenuItem } from './OverflowMenu';
 import { useConfirm } from '../useConfirm';
 
-/** What the hover-"+" insert menu can add between steps. */
-export type InsertKind = 'text' | 'image' | 'shot' | CalloutKind;
+/** What the hover-"+" insert menu can add between steps. `capture` records more
+ *  steps (mode-picked) starting here; `screenshot` grabs one image (no click). */
+export type InsertKind = 'text' | 'image' | 'capture' | 'screenshot' | CalloutKind;
 
 // Base display box for report images (display only — export is full-res).
 const REPORT_BASE_W = 900;
@@ -677,7 +678,16 @@ export function Report({
               <button
                 type="button"
                 className="btn btn--small"
-                onClick={() => doInsert(atIndex, 'shot')}
+                title="Record more steps starting here — pick screen, a window, or an area"
+                onClick={() => doInsert(atIndex, 'capture')}
+              >
+                + Capture
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                title="Insert one screenshot here (no click) — full screen, a window, or a dragged area"
+                onClick={() => doInsert(atIndex, 'screenshot')}
               >
                 + Screenshot
               </button>

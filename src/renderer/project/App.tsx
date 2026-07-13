@@ -284,16 +284,24 @@ export function App(): React.JSX.Element {
 
   // `createdThisSession` marks a freshly-created project so a Discard from the
   // pill deletes the whole project (vs. only this session's steps).
-  const onRecord = async (projectPath: string, createdThisSession = false) => {
+  const onRecord = async (
+    projectPath: string,
+    createdThisSession = false,
+    // Report "+ Capture": record with a chosen target, inserting steps at a gap
+    // instead of appending. Omitted for the normal home/resume flows.
+    insert?: { atIndex: number; target: CaptureTarget },
+  ) => {
     try {
       // One open: seeds the recording HUD's step list and gives us the id +
       // manifest to mark the project "open" in the detail store (no second,
       // fallible IPC). A failure here throws → caught → capture never starts.
       const { projectId, manifest } = await window.shotai.projects.open(projectPath);
       setSteps(manifest.steps);
-      const state = await window.shotai.capture.start(projectPath, buildTarget(), {
-        createdThisSession,
-      });
+      const state = await window.shotai.capture.start(
+        projectPath,
+        insert ? insert.target : buildTarget(),
+        { createdThisSession, insertAt: insert?.atIndex },
+      );
       setCapture(state); // recording → detail/home both hidden, so no view flash
       // While recording the detail view stays hidden; when capture stops the
       // user lands in its report and the capture-end effect reloads the
@@ -459,6 +467,11 @@ export function App(): React.JSX.Element {
           <ProjectDetail
             onResumeCapture={
               openPath ? () => void onRecord(openPath) : undefined
+            }
+            onCaptureInsert={
+              openPath
+                ? (atIndex, target) => void onRecord(openPath, false, { atIndex, target })
+                : undefined
             }
             onOpenSettings={() => setShowSettings(true)}
           />

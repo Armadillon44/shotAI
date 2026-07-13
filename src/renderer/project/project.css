@@ -781,6 +781,30 @@ body {
   font-size: 0.82rem;
 }
 
+/* Report "+ Capture / + Screenshot" mode-pick modal (reuses .sop__overlay /
+   .sop__modal shell + the home picker controls). */
+.capmodal__help {
+  margin: 0 0 0.9rem;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.capmodal__modes {
+  margin-top: 0;
+}
+
+.capmodal__dd,
+.capmodal__area {
+  margin-top: 0.75rem;
+}
+
+.capmodal__err {
+  margin: 0.75rem 0 0;
+  color: var(--danger, #ef4444);
+  font-size: 0.85rem;
+}
+
 /* Recording panel */
 .rec {
   margin-bottom: 1.5rem;

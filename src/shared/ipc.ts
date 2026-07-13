@@ -158,6 +158,7 @@ export const IpcChannels = {
   claudeSopProgress: 'claude:sop-progress',
   captureStart: 'capture:start',
   captureSingle: 'capture:single',
+  captureScreenshot: 'capture:screenshot',
   capturePause: 'capture:pause',
   captureResume: 'capture:resume',
   captureStop: 'capture:stop',
@@ -357,18 +358,32 @@ export interface ShotaiApi {
      * `target` selects what each step captures; defaults to Auto (smart per-click).
      * `createdThisSession` marks a project freshly created for this session, so a
      * Discard deletes the whole project (vs. only this session's steps).
+     * `insertAt` (report "+ Capture" at a gap): the STARTING manifest index —
+     * captured steps splice in there and each subsequent step advances the cursor,
+     * instead of appending. Omit for a normal append recording.
      */
     start(
       projectPath: string,
       target?: CaptureTarget,
-      opts?: { createdThisSession?: boolean },
+      opts?: { createdThisSession?: boolean; insertAt?: number },
     ): Promise<CaptureState>;
     /**
      * Arm a one-shot capture: the next click is captured as a single step
      * inserted at `atIndex`, then recording auto-stops. The main window hides
-     * while armed (so shotAI isn't in the shot).
+     * while armed (so shotAI isn't in the shot). (Legacy click-based path.)
      */
     captureSingle(projectPath: string, atIndex: number): Promise<CaptureState>;
+    /**
+     * One-shot, NO-CLICK grab for the report "+ Screenshot" insert: capture the
+     * chosen surface (screen / a window / a dragged area — NOT auto) exactly once,
+     * insert it at `atIndex`, and resolve with the updated manifest. No input hook,
+     * no click marker, no recording HUD. The app window is hidden for the grab.
+     */
+    screenshot(
+      projectPath: string,
+      target: CaptureTarget,
+      atIndex: number,
+    ): Promise<ProjectManifest>;
     pause(): Promise<CaptureState>;
     resume(): Promise<CaptureState>;
     stop(): Promise<CaptureState>;
