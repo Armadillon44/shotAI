@@ -58,8 +58,13 @@ const HIDE_SETTLE_MS = 350;
 // The main-window hide/restore hook. `pill` (default true) controls whether the
 // always-on-top recording pill is shown too — a full recording shows it; the
 // no-click one-shot suppresses it (no recording HUD, and the pill must not become
-// the focused own-window that trips captureStep's guard).
-type RecordingChange = (recording: boolean, opts?: { pill?: boolean }) => void;
+// the focused own-window that trips captureStep's guard). `forceHide` hides the
+// app window even in demo mode ("keep shotAI visible") — a deliberate screenshot
+// must never include shotAI, whereas demo mode only concerns live recording.
+type RecordingChange = (
+  recording: boolean,
+  opts?: { pill?: boolean; forceHide?: boolean },
+) => void;
 
 // Modest downscale applied to every captured screenshot (T2) to cut PNG file
 // size AND Claude vision token cost. Kept gentle so small UI text Claude must
@@ -822,19 +827,23 @@ export class CaptureController {
     );
     // Hide the app window WITHOUT the recording pill (the pill would flash a
     // misleading "recording" HUD and could become the focused own-window that
-    // trips captureStep's guard). Deliberately do NOT emitState() — a recording
-    // status would unmount the report view mid-grab.
-    this.onRecordingChange?.(true, { pill: false });
+    // trips captureStep's guard). forceHide so it hides even in demo mode — the
+    // hide is now the sole thing keeping shotAI out of the shot (guard skipped).
+    // Deliberately do NOT emitState() — a recording status would unmount the
+    // report view mid-grab.
+    this.onRecordingChange?.(true, { pill: false, forceHide: true });
     try {
       await new Promise((r) => setTimeout(r, HIDE_SETTLE_MS));
       const step = await this.captureStep('hotkey', null, 'left', {
         insertAt: at,
         broadcast: false,
+        // No click here, and the app window is already hidden — the own-window
+        // guard (which keys off active/focused window) would spuriously abort.
+        skipOwnWindowGuard: true,
       });
       if (!step) {
-        // captureStep returns null only if the app was still the focused/active
-        // window (own-window guard) or the capture failed — no leak, but nothing
-        // inserted. Surface it so the user can retry.
+        // With the guard skipped, a null step means the capture itself failed
+        // (e.g. the monitor/window couldn't be grabbed). Surface it for a retry.
         throw new Error('Could not capture the screen — make sure the target is visible, then try again.');
       }
     } finally {
@@ -1051,6 +1060,12 @@ export class CaptureController {
        *  one-shot passes false: it returns the manifest for a positioned re-render,
        *  and App.onStepAdded would otherwise append the step at the wrong index. */
       broadcast?: boolean;
+      /** Skip the own-window guard. The no-click one-shot (+Screenshot) sets this:
+       *  it has no click to mis-attribute to shotAI, and a just-hidden window can
+       *  still momentarily report as the active/focused window (which would abort
+       *  the grab). shotAI is already hidden, so the hide — not the guard — is what
+       *  keeps it out of the shot, exactly as during a normal recording. */
+      skipOwnWindowGuard?: boolean;
     } = {},
   ): Promise<ProjectStep | null> {
     // Re-check here (not just at enqueue) so a pause/stop that lands while
@@ -1071,7 +1086,12 @@ export class CaptureController {
     const focusedIsOwn = !!focused && ours.has(focused.pid());
     // Geometric check catches clicks on the always-on-top pill, which doesn't
     // reliably report as the active/focused window (and is content-protected).
-    if (activeIsOwn || focusedIsOwn || (point && this.pointHitsOwnWindow(point))) {
+    // Skipped for the no-click one-shot (see skipOwnWindowGuard): there's no click
+    // to mis-attribute, and the just-hidden app window can still report as active.
+    if (
+      !opts.skipOwnWindowGuard &&
+      (activeIsOwn || focusedIsOwn || (point && this.pointHitsOwnWindow(point)))
+    ) {
       return null;
     }
 

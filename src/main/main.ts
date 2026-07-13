@@ -381,7 +381,9 @@ app.whenReady().then(async () => {
       const pill =
         toolbarWindow && !toolbarWindow.isDestroyed() ? toolbarWindow : null;
       if (recording) {
-        if (!captureNoHideNow()) proj?.hide();
+        // forceHide (the no-click one-shot) hides even in demo mode — a deliberate
+        // screenshot must never include shotAI.
+        if (opts?.forceHide || !captureNoHideNow()) proj?.hide();
         // The no-click one-shot (+Screenshot) hides the window but suppresses the
         // pill — no recording HUD, and the pill can't become the focused own-window.
         if (showPill) {
