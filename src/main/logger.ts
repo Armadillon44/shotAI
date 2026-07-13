@@ -22,6 +22,14 @@ export function initLogging(): void {
     path.join(app.getPath('userData'), 'logs', 'shotai.log');
   log.transports.console.format = '[{h}:{i}:{s}.{ms}] [{level}]{scope} {text}';
 
+  // Bound the log file so it can NEVER grow without limit. electron-log rotates
+  // when the active file passes maxSize: shotai.log is renamed to shotai.old.log
+  // (replacing any previous archive) and a fresh shotai.log starts — so on-disk
+  // logs stay capped at ~2 files (one active + one archived) ≈ 2× maxSize. Pinned
+  // explicitly rather than trusting the library default (currently 1 MB) so the
+  // cap is guaranteed and visible even if that default changes.
+  log.transports.file.maxSize = 5 * 1024 * 1024; // 5 MB per file → ~10 MB total
+
   // Surface uncaught errors + unhandled rejections (otherwise they vanish).
   log.errorHandler.startCatching({ showDialog: false });
 
