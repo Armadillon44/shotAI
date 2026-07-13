@@ -1,5 +1,5 @@
 // The in-app report: each step rendered as its screenshot with an overlaid
-// click-register marker + caption + note. Text steps (kind === 'text') render as
+// click-register marker + caption. Text steps (kind === 'text') render as
 // a heading + body block. Prefers the flattened render (annotations baked +
 // redaction) over the raw screenshot once a step has been edited. Each image is
 // constrained to ~REPORT_BASE (800x600), with a per-step report zoom to enlarge.
@@ -1026,7 +1026,6 @@ export function Report({
                   + Add instructions
                 </button>
               )}
-              {s.note && <p className="rep__note">{s.note}</p>}
               {s.window && (
                 <p className="rep__meta">
                   {s.window.app}

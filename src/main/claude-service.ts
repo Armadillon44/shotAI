@@ -47,7 +47,7 @@ type SopEdit = z.infer<typeof SopEditSchema>;
 const EST_OUTPUT_TOKENS = 2500;
 
 const BASE_SYSTEM_PROMPT = [
-  'You are an expert technical writer turning a captured screen recording into a polished Standard Operating Procedure (SOP) by EDITING the project in place. You are given an ordered sequence of steps: each screenshot step (labeled "Screenshot step N") has the exact click point marked on the image with a colored ring (a circle), plus metadata (application/window, an auto-generated caption, any user note); author-written "Text step" entries are interleaved.',
+  'You are an expert technical writer turning a captured screen recording into a polished Standard Operating Procedure (SOP) by EDITING the project in place. You are given an ordered sequence of steps: each screenshot step (labeled "Screenshot step N") has the exact click point marked on the image with a colored ring (a circle), plus metadata (application/window, an auto-generated caption); author-written "Text step" entries are interleaved.',
 'Return an edit plan (structured output) that improves the project IN-LINE: for every screenshot step, write a concise, action-oriented `caption` (the step title, e.g. "Open the navigation menu") and a clear instruction `body` (the detail the reader follows); reference each screenshot by its number via `stepNumber`. You may add a leading `intro` (heading + body) and, where the procedure shifts to a new phase, a `sectionHeading`/`sectionBody` inserted before a step. Always set `title` to a clear, descriptive name for the overall procedure.',
   'Write each instruction about the control inside or directly under the marked ring — that ring is exactly where the user clicked, so describe THAT element, not some other field on the screen. If the screenshot does not show the result of the click (e.g. a menu or dropdown that opened only after clicking is not visible), describe the click itself and do not invent the resulting menu or its contents.',
   'Some steps include a "UI element" line in their metadata — the accessibility name and control type (e.g. Button, MenuItem, Hyperlink) of the control under the click, read from the operating system. Treat it as a STRONG, reliable signal for WHICH control was clicked. But choose the FRIENDLIEST name for the reader, based primarily on the screenshot: the accessibility name is occasionally technical or internal (e.g. an internal class/identifier, an overly long tooltip, or a developer string) rather than the label a person sees. When the element name and the visible on-screen label differ, name the control by what the user actually sees on screen; use the accessibility name only to confirm the target or when no clear visible label exists.',
@@ -132,7 +132,7 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
   if (shotCount === 0) {
     throw new Error('This project has no captured screenshots to build an SOP from.');
   }
-  // Original (pre-AI) caption/note per step id — so regeneration never feeds Claude
+  // Original (pre-AI) caption per step id — so regeneration never feeds Claude
   // its own prior rewrites; it always sees the ground-truth captured text.
   const originalById = manifest.sopBackup
     ? new Map(manifest.sopBackup.steps.map((s) => [s.id, s]))
@@ -175,7 +175,6 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
 
     const orig = originalById?.get(step.id);
     const caption = orig?.caption ?? step.caption;
-    const note = orig?.note ?? step.note;
     const meta = [`--- Screenshot step ${n} ---`];
     if (step.window?.app) meta.push(`App: ${step.window.app}`);
     if (step.window?.title) meta.push(`Window: ${step.window.title}`);
@@ -189,7 +188,6 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
       meta.push(`Action: ${step.click.button}-click (the colored ring marks where the user clicked)`);
     }
     if (caption) meta.push(`Auto-caption: ${caption}`);
-    if (note) meta.push(`User note: ${note}`);
     content.push({ type: 'text', text: meta.join('\n') });
   }
 

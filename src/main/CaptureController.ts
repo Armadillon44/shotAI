@@ -1385,7 +1385,6 @@ export class CaptureController {
         trigger === 'click'
           ? buildClickCaption(button, !!opts.menuPopup, appName, element)
           : `Capture: ${window?.title ?? 'screen'}`,
-      note: '',
       crop: null,
       annotations: [],
     };

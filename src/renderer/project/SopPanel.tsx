@@ -1,5 +1,5 @@
 // SOP generation banner (Phase 3b, inline model). Claude edits the project's
-// steps IN-LINE (headings/instructions/captions/notes + intro/section text
+// steps IN-LINE (headings/instructions/captions + intro/section text
 // steps); this banner drives generate (with review-before-send + progress) and
 // one-click revert. The polished result shows in the Report itself — there is no
 // separate SOP document.
@@ -236,7 +236,7 @@ export function SopPanel({
             <h3 className="sop__modal-title">Review what’s sent to Claude</h3>
             <p className="sop__warn">
               These {shotCount} screenshot{shotCount === 1 ? '' : 's'} (with any redactions
-              baked in) and their captions/notes are sent to Anthropic to write the SOP, which
+              baked in) and their captions are sent to Anthropic to write the SOP, which
               is then applied to your steps. Nothing else leaves your machine.
               {sopBackup ? ' Your current AI edits will be replaced; you can revert again.' : ''}
             </p>

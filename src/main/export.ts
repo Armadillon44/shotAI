@@ -78,7 +78,6 @@ export type ExportItem =
       n: number;
       caption: string;
       body: string;
-      note: string;
       /** Absolute path to the image to embed/copy (flattened render, redaction baked). */
       abs: string;
       mediaType: 'image/png' | 'image/jpeg';
@@ -187,7 +186,6 @@ async function collectSteps(
       n: stepNo,
       caption: (step.caption ?? '').trim(),
       body: (step.body ?? '').trim(),
-      note: (step.note ?? '').trim(),
       abs,
       // A crop is re-encoded as PNG regardless of the source media type.
       mediaType: cropped ? 'image/png' : mediaType,
@@ -227,7 +225,6 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .step__instr{margin:10px 0 0;padding:.1rem 0 .1rem .75rem;border-left:3px solid #a5b4fc;white-space:pre-wrap;font-size:1.02rem}
 .step--textonly{align-items:center}
 .step--textonly .step__instr{margin-top:0}
-.step__note{margin:8px 0 0;color:#6b7280;font-size:.92rem;white-space:pre-wrap}
 .callout{margin:20px 0;padding:.7rem .9rem;border-radius:8px;border:1px solid;border-left-width:4px;white-space:pre-wrap}
 .callout__h{display:block;font-weight:700;margin-bottom:.25rem}
 .callout--note{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
@@ -277,14 +274,13 @@ async function buildHtmlDoc(
     const dataUri = `data:${it.mediaType};base64,${bytes.toString('base64')}`;
     const title = escapeHtml(it.caption || `Step ${it.n}`);
     const instr = it.body ? `<p class="step__instr">${escapeHtml(it.body)}</p>` : '';
-    const note = it.note ? `<p class="step__note">${escapeHtml(it.note)}</p>` : '';
     parts.push(
       `<section class="step">` +
         `<div class="step__num">${it.n}</div>` +
         `<div class="step__main">` +
         `<h2 class="step__title">${title}</h2>` +
         `<img class="step__img" src="${dataUri}" alt="Screenshot for step ${it.n}">` +
-        `${instr}${note}` +
+        `${instr}` +
         `</div>` +
         `</section>`,
     );
@@ -357,7 +353,6 @@ async function buildPlainHtmlDoc(
     parts.push(`<h2>${it.n}. ${escapeHtml(it.caption || `Step ${it.n}`)}</h2>`);
     parts.push(`<p><img src="${dataUri}" alt="Screenshot for step ${it.n}"></p>`);
     if (it.body) parts.push(`<p>${br(it.body)}</p>`);
-    if (it.note) parts.push(`<p><em>${br(it.note)}</em></p>`);
   }
   return (
     `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n` +
@@ -475,7 +470,6 @@ async function buildMarkdown(
     // Angle-bracket the path: the serialized stem may contain spaces/parens.
     lines.push(`![Screenshot for step ${it.n}](<${imagesDirName}/${imgName}>)`, '');
     if (it.body) lines.push(it.body, '');
-    if (it.note) lines.push(`> ${it.note.replace(/\n/g, '\n> ')}`, '');
   }
   const outputPath = path.join(dir, 'export', `${stem}.md`);
   await fs.writeFile(outputPath, lines.join('\n'), 'utf8');
