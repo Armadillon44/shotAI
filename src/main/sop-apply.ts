@@ -33,7 +33,8 @@ function makeTextStep(heading: string, body: string, aiInserted = false): Projec
 /**
  * Apply Claude's inline SOP edit plan to the project's steps: snapshot the
  * current steps+title for revert, rewrite each referenced SHOT step's
- * caption/heading/body/note, insert an optional intro + per-step section
+ * caption/heading/body (the author's note is left untouched), insert an optional
+ * intro + per-step section
  * headings, optionally refine the title, then renumber. Author-written text
  * steps pass through untouched; edits keyed to a non-shot step are ignored.
  * Serialized via ProjectStore.mutate. Returns the updated manifest.
@@ -90,7 +91,9 @@ export function applySopEdits(
         // Fall back to existing text if the model returns blank (don't wipe).
         caption: e.caption.trim() || step.caption,
         body: e.body.trim() || step.body || '',
-        note: e.note ?? step.note,
+        // Claude no longer generates notes; preserve the author's note untouched
+        // (the `...step` spread already keeps it — kept explicit for clarity).
+        note: step.note,
       });
     });
 

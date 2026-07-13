@@ -136,8 +136,6 @@ export interface SopStepEdit {
   caption: string;
   /** Instruction text (the detail) shown under the screenshot. */
   body: string;
-  /** Extra context for the step's note field, or null to leave it. */
-  note: string | null;
   /** If set, insert a section-heading text step immediately BEFORE this step. */
   sectionHeading: string | null;
   sectionBody: string | null;
