@@ -33,6 +33,10 @@ const MODE_OPTIONS: {
   { mode: 'area', label: 'Area', hint: 'Drag-select a fixed region to capture' },
 ];
 
+// #36: how often the home list auto-refreshes while it's showing, to pick up
+// changes made outside the app (cloud sync / another machine / manual edits).
+const HOME_REFRESH_MS = 20_000;
+
 export function App(): React.JSX.Element {
   const [projects, setProjects] = React.useState<ProjectSummary[]>([]);
   const [title, setTitle] = React.useState<string>('');
@@ -249,6 +253,28 @@ export function App(): React.JSX.Element {
   // inside a project (e.g. an AI-refined title, new step count) show in the list.
   React.useEffect(() => {
     if (showHome) refresh().catch(fail);
+  }, [showHome, refresh]);
+
+  // #36: keep the home list accurate against changes made OUTSIDE the app while
+  // it's open — cloud sync, another machine, or manual edits to the projects
+  // folder. Refresh when the window regains focus, and on a periodic tick while
+  // the home screen is showing. The tick is skipped while the user is typing in a
+  // field (rename / search) so the list never reorders out from under the cursor.
+  React.useEffect(() => {
+    if (!showHome) return;
+    const onFocus = () => void refresh().catch(fail);
+    const tick = () => {
+      const el = document.activeElement as HTMLElement | null;
+      const typing =
+        !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+      if (!typing) void refresh().catch(fail);
+    };
+    window.addEventListener('focus', onFocus);
+    const id = window.setInterval(tick, HOME_REFRESH_MS);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(id);
+    };
   }, [showHome, refresh]);
 
   // A SOP generate/revert flips sopBackup and rewrites the manifest title/steps;
