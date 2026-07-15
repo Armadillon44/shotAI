@@ -286,12 +286,17 @@ export function ProjectList({
         ? window.shotai.projects.unarchive(p.path)
         : window.shotai.projects.archive(p.path),
     );
-  const bulkExport = (format: ExportFormat) =>
-    runBulk('export', async (p) => {
+  const bulkExport = async (format: ExportFormat) => {
+    // #37: ask ONCE for a destination folder, then drop every selected project's
+    // export into it (no per-file dialog). Cancelling the picker aborts the bulk.
+    const destDir = await window.shotai.projects.chooseExportDir();
+    if (!destDir) return;
+    await runBulk('export', async (p) => {
       const { projectId, manifest } = await window.shotai.projects.open(p.path);
       await ensureFlattened(projectId, p.path, manifest.steps);
-      await window.shotai.projects.export(p.path, format);
+      await window.shotai.projects.exportToDir(p.path, format, destDir);
     });
+  };
 
   const anyBusy = rowBusyPath !== null || bulkBusy;
 

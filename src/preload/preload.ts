@@ -98,6 +98,9 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),
     export: (projectPath: string, format: ExportFormat) =>
       ipcRenderer.invoke(IpcChannels.exportProject, projectPath, format),
+    exportToDir: (projectPath: string, format: ExportFormat, dir: string) =>
+      ipcRenderer.invoke(IpcChannels.exportToDir, projectPath, format, dir),
+    chooseExportDir: () => ipcRenderer.invoke(IpcChannels.chooseExportDir),
     exportPackage: (projectPath: string, includeOriginals: boolean) =>
       ipcRenderer.invoke(IpcChannels.exportPackage, projectPath, includeOriginals),
     importPackage: () => ipcRenderer.invoke(IpcChannels.importPackage),

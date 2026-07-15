@@ -9,7 +9,7 @@ import {
 import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
 import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
-import { exportProject } from './export';
+import { exportProject, chooseExportDirectory } from './export';
 import { exportPackage, importPackage } from './export-package';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
@@ -512,12 +512,28 @@ export function registerIpcHandlers(
     IpcChannels.exportProject,
     (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
       devLog('ipc: projects:export');
-      return exportProject(
-        asString(projectPath, 'projectPath'),
-        parseExportFormat(format),
-      );
+      // Single export → prompt a Save dialog (issue #37).
+      return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
+        saveAs: true,
+      });
     },
   );
+
+  ipcMain.handle(
+    IpcChannels.exportToDir,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown, dir: unknown) => {
+      devLog('ipc: projects:export-to-dir');
+      // Bulk export → write into the pre-chosen destination folder (no dialog).
+      return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
+        targetDir: asString(dir, 'dir'),
+      });
+    },
+  );
+
+  ipcMain.handle(IpcChannels.chooseExportDir, () => {
+    devLog('ipc: projects:choose-export-dir');
+    return chooseExportDirectory();
+  });
 
   ipcMain.handle(
     IpcChannels.exportPackage,
