@@ -125,6 +125,7 @@ export const IpcChannels = {
   exportProject: 'projects:export',
   exportToDir: 'projects:export-to-dir',
   chooseExportDir: 'projects:choose-export-dir',
+  revealExportDir: 'projects:reveal-export-dir',
   exportPackage: 'projects:export-package',
   importPackage: 'projects:import-package',
   archiveProject: 'projects:archive',
@@ -299,6 +300,11 @@ export interface ShotaiApi {
      * directory, or null if the user cancelled.
      */
     chooseExportDir(): Promise<string | null>;
+    /**
+     * Open the bulk-export destination folder once the whole run finishes (bulk
+     * export suppresses the per-file reveal). No-op if the path isn't a directory.
+     */
+    revealExportDir(dir: string): Promise<void>;
     /**
      * Export a shareable .zip package that another shotAI user can import and
      * edit. `includeOriginals` false (default) ships only redaction-baked renders

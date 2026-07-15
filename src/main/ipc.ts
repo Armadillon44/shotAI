@@ -9,7 +9,7 @@ import {
 import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
 import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
-import { exportProject, chooseExportDirectory } from './export';
+import { exportProject, chooseExportDirectory, revealExportDir } from './export';
 import { exportPackage, importPackage } from './export-package';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
@@ -533,6 +533,11 @@ export function registerIpcHandlers(
   ipcMain.handle(IpcChannels.chooseExportDir, () => {
     devLog('ipc: projects:choose-export-dir');
     return chooseExportDirectory();
+  });
+
+  ipcMain.handle(IpcChannels.revealExportDir, (_event: IpcMainInvokeEvent, dir: unknown) => {
+    devLog('ipc: projects:reveal-export-dir');
+    return revealExportDir(asString(dir, 'dir'));
   });
 
   ipcMain.handle(

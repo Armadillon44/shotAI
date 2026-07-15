@@ -246,6 +246,14 @@ export function ProjectList({
 
   const selectedProjects = () => sorted.filter((p) => selected.has(p.path));
 
+  // Progress for the active bulk op (null when idle). `verb` is a present
+  // participle ("Exporting" / "Archiving" / …) shown in the bulk bar.
+  const [bulkProgress, setBulkProgress] = React.useState<{
+    verb: string;
+    done: number;
+    total: number;
+  } | null>(null);
+
   const runBulk = async (
     verb: string,
     fn: (p: ProjectSummary) => Promise<unknown>,
@@ -253,18 +261,21 @@ export function ProjectList({
     const targets = selectedProjects();
     if (!targets.length) return;
     setBulkBusy(true);
+    setBulkProgress({ verb, done: 0, total: targets.length });
     try {
-      for (const p of targets) {
+      for (let i = 0; i < targets.length; i++) {
         try {
-          await fn(p);
+          await fn(targets[i]);
         } catch (e) {
           onError(e);
         }
+        setBulkProgress({ verb, done: i + 1, total: targets.length });
       }
       await onChanged();
       clearSelection();
     } finally {
       setBulkBusy(false);
+      setBulkProgress(null);
     }
   };
 
@@ -278,10 +289,10 @@ export function ProjectList({
     ) {
       return;
     }
-    await runBulk('delete', (p) => window.shotai.projects.delete(p.path));
+    await runBulk('Deleting', (p) => window.shotai.projects.delete(p.path));
   };
   const bulkArchive = () =>
-    runBulk('archive', (p) =>
+    runBulk(tab === 'archive' ? 'Restoring' : 'Archiving', (p) =>
       tab === 'archive'
         ? window.shotai.projects.unarchive(p.path)
         : window.shotai.projects.archive(p.path),
@@ -291,11 +302,14 @@ export function ProjectList({
     // export into it (no per-file dialog). Cancelling the picker aborts the bulk.
     const destDir = await window.shotai.projects.chooseExportDir();
     if (!destDir) return;
-    await runBulk('export', async (p) => {
+    await runBulk('Exporting', async (p) => {
       const { projectId, manifest } = await window.shotai.projects.open(p.path);
       await ensureFlattened(projectId, p.path, manifest.steps);
       await window.shotai.projects.exportToDir(p.path, format, destDir);
     });
+    // Reveal the destination folder ONCE, after every export has finished (bulk
+    // suppresses the per-file reveal so it doesn't pop open mid-run).
+    await window.shotai.projects.revealExportDir(destDir).catch(() => undefined);
   };
 
   const anyBusy = rowBusyPath !== null || bulkBusy;
@@ -507,7 +521,11 @@ export function ProjectList({
             <span className={`project__check-box${allSelected ? ' project__check-box--on' : ''}`} aria-hidden="true" />
             {allSelected ? 'Clear all' : 'Select all'}
           </button>
-          <span className="project__bulk-count">{selected.size} selected</span>
+          <span className="project__bulk-count" role="status" aria-live="polite">
+            {bulkProgress
+              ? `${bulkProgress.verb} ${bulkProgress.done} of ${bulkProgress.total}…`
+              : `${selected.size} selected`}
+          </span>
           <span className="project__bulk-spacer" />
           {exportPickerOpen ? (
             <>

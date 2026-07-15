@@ -101,6 +101,7 @@ const api: ShotaiApi = {
     exportToDir: (projectPath: string, format: ExportFormat, dir: string) =>
       ipcRenderer.invoke(IpcChannels.exportToDir, projectPath, format, dir),
     chooseExportDir: () => ipcRenderer.invoke(IpcChannels.chooseExportDir),
+    revealExportDir: (dir: string) => ipcRenderer.invoke(IpcChannels.revealExportDir, dir),
     exportPackage: (projectPath: string, includeOriginals: boolean) =>
       ipcRenderer.invoke(IpcChannels.exportPackage, projectPath, includeOriginals),
     importPackage: () => ipcRenderer.invoke(IpcChannels.importPackage),

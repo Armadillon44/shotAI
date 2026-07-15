@@ -603,7 +603,9 @@ export async function exportProject(
     }
     const outputPath = await buildMarkdown(manifest, items, folder, path.basename(folder), createdLine);
     mainLog.info(`exported markdown → ${outputPath}`);
-    shell.showItemInFolder(outputPath);
+    // Bulk export (targetDir) reveals the destination folder ONCE when the whole
+    // run finishes — don't pop it open per project mid-run.
+    if (!opts.targetDir) shell.showItemInFolder(outputPath);
     return { format, outputPath };
   }
 
@@ -638,6 +640,22 @@ export async function exportProject(
   }
 
   mainLog.info(`exported ${format} → ${outputPath}`);
-  shell.showItemInFolder(outputPath);
+  // Bulk export (targetDir) reveals the destination folder ONCE at the end.
+  if (!opts.targetDir) shell.showItemInFolder(outputPath);
   return { format, outputPath };
+}
+
+/**
+ * Open a folder in the OS file manager — used to reveal the bulk-export
+ * destination ONCE, after the whole run finishes. Validates the path is an
+ * existing DIRECTORY first, so it can never be coaxed into opening (executing) a
+ * file.
+ */
+export async function revealExportDir(dir: string): Promise<void> {
+  try {
+    const st = await fs.stat(dir);
+    if (st.isDirectory()) await shell.openPath(dir);
+  } catch {
+    /* gone / unreadable — nothing to reveal */
+  }
 }
