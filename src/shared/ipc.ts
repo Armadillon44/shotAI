@@ -124,6 +124,7 @@ export const IpcChannels = {
   redactScan: 'projects:redact-scan',
   exportProject: 'projects:export',
   exportToDir: 'projects:export-to-dir',
+  exportToOwnFolder: 'projects:export-to-own-folder',
   chooseExportDir: 'projects:choose-export-dir',
   revealExportDir: 'projects:reveal-export-dir',
   exportPackage: 'projects:export-package',
@@ -295,6 +296,12 @@ export interface ShotaiApi {
      * collision-safe naming). No per-file dialog.
      */
     exportToDir(projectPath: string, format: ExportFormat, dir: string): Promise<ExportResult>;
+    /**
+     * Export into the project's OWN `export/` folder (bulk "each to its own
+     * folder"). No dialog and no per-file reveal (a bulk run would otherwise open
+     * one folder per project).
+     */
+    exportToOwnFolder(projectPath: string, format: ExportFormat): Promise<ExportResult>;
     /**
      * Prompt for a destination folder for a bulk export. Returns the chosen
      * directory, or null if the user cancelled.

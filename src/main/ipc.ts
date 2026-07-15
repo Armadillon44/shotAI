@@ -523,9 +523,22 @@ export function registerIpcHandlers(
     IpcChannels.exportToDir,
     (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown, dir: unknown) => {
       devLog('ipc: projects:export-to-dir');
-      // Bulk export → write into the pre-chosen destination folder (no dialog).
+      // Bulk export → write into the pre-chosen destination folder (no dialog, no
+      // per-file reveal; the folder is opened once when the run finishes).
       return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
         targetDir: asString(dir, 'dir'),
+        reveal: false,
+      });
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.exportToOwnFolder,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+      devLog('ipc: projects:export-to-own-folder');
+      // Bulk export → each project to its own export/ folder (no dialog, no reveal).
+      return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
+        reveal: false,
       });
     },
   );

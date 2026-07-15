@@ -50,7 +50,6 @@ export function ProjectList({
   const [query, setQuery] = React.useState('');
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [lastClicked, setLastClicked] = React.useState<string | null>(null);
-  const [exportPickerOpen, setExportPickerOpen] = React.useState(false);
   const [renamingPath, setRenamingPath] = React.useState<string | null>(null);
   const [renameValue, setRenameValue] = React.useState('');
   const [rowBusyPath, setRowBusyPath] = React.useState<string | null>(null);
@@ -63,7 +62,6 @@ export function ProjectList({
   const clearSelection = React.useCallback(() => {
     setSelected(new Set());
     setLastClicked(null);
-    setExportPickerOpen(false);
   }, []);
 
   // Switching tabs starts a fresh selection (paths don't carry across tabs).
@@ -297,18 +295,26 @@ export function ProjectList({
         ? window.shotai.projects.unarchive(p.path)
         : window.shotai.projects.archive(p.path),
     );
-  const bulkExport = async (format: ExportFormat) => {
-    // #37: ask ONCE for a destination folder, then drop every selected project's
-    // export into it (no per-file dialog). Cancelling the picker aborts the bulk.
+  // Open + flatten a project so only redacted, marker-baked renders are exported.
+  const prepExport = async (p: ProjectSummary) => {
+    const { projectId, manifest } = await window.shotai.projects.open(p.path);
+    await ensureFlattened(projectId, p.path, manifest.steps);
+  };
+  // #37: bulk export → each project to its OWN export/ folder (no dialog).
+  const bulkExportEach = (format: ExportFormat) =>
+    runBulk('Exporting', async (p) => {
+      await prepExport(p);
+      await window.shotai.projects.exportToOwnFolder(p.path, format);
+    });
+  // #37: bulk export → all into ONE folder, asked once; revealed when done.
+  const bulkExportToFolder = async (format: ExportFormat) => {
     const destDir = await window.shotai.projects.chooseExportDir();
-    if (!destDir) return;
+    if (!destDir) return; // cancelling the picker aborts the bulk
     await runBulk('Exporting', async (p) => {
-      const { projectId, manifest } = await window.shotai.projects.open(p.path);
-      await ensureFlattened(projectId, p.path, manifest.steps);
+      await prepExport(p);
       await window.shotai.projects.exportToDir(p.path, format, destDir);
     });
-    // Reveal the destination folder ONCE, after every export has finished (bulk
-    // suppresses the per-file reveal so it doesn't pop open mid-run).
+    // Reveal the destination folder ONCE, after every export has finished.
     await window.shotai.projects.revealExportDir(destDir).catch(() => undefined);
   };
 
@@ -527,63 +533,50 @@ export function ProjectList({
               : `${selected.size} selected`}
           </span>
           <span className="project__bulk-spacer" />
-          {exportPickerOpen ? (
-            <>
-              <span className="project__bulk-hint">Export as</span>
-              {BULK_FORMATS.map(([f, label]) => (
-                <button
-                  key={f}
-                  type="button"
-                  className="btn btn--small"
-                  disabled={anyBusy}
-                  onClick={() => void bulkExport(f)}
-                >
-                  {label}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="btn btn--small btn--ghost"
-                onClick={() => setExportPickerOpen(false)}
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="btn btn--small"
-                disabled={anyBusy}
-                onClick={() => void bulkArchive()}
-              >
-                {tab === 'archive' ? '⤴ Restore' : '🗄 Archive'}
-              </button>
-              <button
-                type="button"
-                className="btn btn--small"
-                disabled={anyBusy}
-                onClick={() => setExportPickerOpen(true)}
-              >
-                ⤓ Export
-              </button>
-              <button
-                type="button"
-                className="btn btn--small btn--danger"
-                disabled={anyBusy}
-                onClick={() => void bulkDelete()}
-              >
-                🗑 Delete
-              </button>
-              <button
-                type="button"
-                className="btn btn--small btn--ghost"
-                onClick={clearSelection}
-              >
-                Clear
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            className="btn btn--small"
+            disabled={anyBusy}
+            onClick={() => void bulkArchive()}
+          >
+            {tab === 'archive' ? '⤴ Restore' : '🗄 Archive'}
+          </button>
+          {/* Export is a dropdown (not a wrapping row of chips) with two
+              destinations × the formats. */}
+          <OverflowMenu
+            triggerClassName="btn btn--small"
+            label="⤓ Export ▾"
+            title="Export the selected projects"
+            disabled={anyBusy}
+            items={[
+              { kind: 'header', label: "Each project's own folder" },
+              ...BULK_FORMATS.map(([f, label]) => ({
+                label,
+                onClick: () => void bulkExportEach(f),
+              })),
+              { kind: 'sep' },
+              { kind: 'header', label: 'One shared folder…' },
+              ...BULK_FORMATS.map(([f, label]) => ({
+                label,
+                onClick: () => void bulkExportToFolder(f),
+              })),
+            ]}
+          />
+          <button
+            type="button"
+            className="btn btn--small btn--danger"
+            disabled={anyBusy}
+            onClick={() => void bulkDelete()}
+          >
+            🗑 Delete
+          </button>
+          <button
+            type="button"
+            className="btn btn--small btn--ghost"
+            onClick={clearSelection}
+          >
+            Clear
+          </button>
         </div>
       )}
 

@@ -565,8 +565,12 @@ async function buildMarkdown(
 export async function exportProject(
   projectPath: string,
   format: ExportFormat,
-  opts: { saveAs?: boolean; targetDir?: string } = {},
+  opts: { saveAs?: boolean; targetDir?: string; reveal?: boolean } = {},
 ): Promise<ExportResult> {
+  // Reveal the written file unless told not to — bulk exports (to a shared folder
+  // or to each project's own folder) suppress the per-file reveal so N folders
+  // don't pop open mid-run.
+  const reveal = opts.reveal ?? true;
   const { dir, manifest } = await getProjectForRead(projectPath);
   const items = await collectSteps(dir, manifest);
   const base = safeFileBase(manifest.title);
@@ -603,9 +607,7 @@ export async function exportProject(
     }
     const outputPath = await buildMarkdown(manifest, items, folder, path.basename(folder), createdLine);
     mainLog.info(`exported markdown → ${outputPath}`);
-    // Bulk export (targetDir) reveals the destination folder ONCE when the whole
-    // run finishes — don't pop it open per project mid-run.
-    if (!opts.targetDir) shell.showItemInFolder(outputPath);
+    if (reveal) shell.showItemInFolder(outputPath);
     return { format, outputPath };
   }
 
@@ -640,8 +642,7 @@ export async function exportProject(
   }
 
   mainLog.info(`exported ${format} → ${outputPath}`);
-  // Bulk export (targetDir) reveals the destination folder ONCE at the end.
-  if (!opts.targetDir) shell.showItemInFolder(outputPath);
+  if (reveal) shell.showItemInFolder(outputPath);
   return { format, outputPath };
 }
 
