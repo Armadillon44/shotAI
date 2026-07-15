@@ -1071,6 +1071,16 @@ body {
   background: var(--hair-2);
 }
 
+.menu__header {
+  padding: 0.4rem 0.6rem 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  user-select: none;
+}
+
 /* Thin divider used between list items / steps so boundaries don't rely on hover. */
 .hairline {
   height: 1px;

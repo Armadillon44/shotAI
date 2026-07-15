@@ -9,7 +9,7 @@ import {
 import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
 import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
-import { exportProject } from './export';
+import { exportProject, chooseExportDirectory, revealExportDir } from './export';
 import { exportPackage, importPackage } from './export-package';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
@@ -512,12 +512,46 @@ export function registerIpcHandlers(
     IpcChannels.exportProject,
     (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
       devLog('ipc: projects:export');
-      return exportProject(
-        asString(projectPath, 'projectPath'),
-        parseExportFormat(format),
-      );
+      // Single export → prompt a Save dialog (issue #37).
+      return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
+        saveAs: true,
+      });
     },
   );
+
+  ipcMain.handle(
+    IpcChannels.exportToDir,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown, dir: unknown) => {
+      devLog('ipc: projects:export-to-dir');
+      // Bulk export → write into the pre-chosen destination folder (no dialog, no
+      // per-file reveal; the folder is opened once when the run finishes).
+      return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
+        targetDir: asString(dir, 'dir'),
+        reveal: false,
+      });
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.exportToOwnFolder,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+      devLog('ipc: projects:export-to-own-folder');
+      // Bulk export → each project to its own export/ folder (no dialog, no reveal).
+      return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
+        reveal: false,
+      });
+    },
+  );
+
+  ipcMain.handle(IpcChannels.chooseExportDir, () => {
+    devLog('ipc: projects:choose-export-dir');
+    return chooseExportDirectory();
+  });
+
+  ipcMain.handle(IpcChannels.revealExportDir, (_event: IpcMainInvokeEvent, dir: unknown) => {
+    devLog('ipc: projects:reveal-export-dir');
+    return revealExportDir(asString(dir, 'dir'));
+  });
 
   ipcMain.handle(
     IpcChannels.exportPackage,

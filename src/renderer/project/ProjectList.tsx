@@ -50,7 +50,6 @@ export function ProjectList({
   const [query, setQuery] = React.useState('');
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [lastClicked, setLastClicked] = React.useState<string | null>(null);
-  const [exportPickerOpen, setExportPickerOpen] = React.useState(false);
   const [renamingPath, setRenamingPath] = React.useState<string | null>(null);
   const [renameValue, setRenameValue] = React.useState('');
   const [rowBusyPath, setRowBusyPath] = React.useState<string | null>(null);
@@ -63,7 +62,6 @@ export function ProjectList({
   const clearSelection = React.useCallback(() => {
     setSelected(new Set());
     setLastClicked(null);
-    setExportPickerOpen(false);
   }, []);
 
   // Switching tabs starts a fresh selection (paths don't carry across tabs).
@@ -246,6 +244,14 @@ export function ProjectList({
 
   const selectedProjects = () => sorted.filter((p) => selected.has(p.path));
 
+  // Progress for the active bulk op (null when idle). `verb` is a present
+  // participle ("Exporting" / "Archiving" / …) shown in the bulk bar.
+  const [bulkProgress, setBulkProgress] = React.useState<{
+    verb: string;
+    done: number;
+    total: number;
+  } | null>(null);
+
   const runBulk = async (
     verb: string,
     fn: (p: ProjectSummary) => Promise<unknown>,
@@ -253,18 +259,21 @@ export function ProjectList({
     const targets = selectedProjects();
     if (!targets.length) return;
     setBulkBusy(true);
+    setBulkProgress({ verb, done: 0, total: targets.length });
     try {
-      for (const p of targets) {
+      for (let i = 0; i < targets.length; i++) {
         try {
-          await fn(p);
+          await fn(targets[i]);
         } catch (e) {
           onError(e);
         }
+        setBulkProgress({ verb, done: i + 1, total: targets.length });
       }
       await onChanged();
       clearSelection();
     } finally {
       setBulkBusy(false);
+      setBulkProgress(null);
     }
   };
 
@@ -278,20 +287,36 @@ export function ProjectList({
     ) {
       return;
     }
-    await runBulk('delete', (p) => window.shotai.projects.delete(p.path));
+    await runBulk('Deleting', (p) => window.shotai.projects.delete(p.path));
   };
   const bulkArchive = () =>
-    runBulk('archive', (p) =>
+    runBulk(tab === 'archive' ? 'Restoring' : 'Archiving', (p) =>
       tab === 'archive'
         ? window.shotai.projects.unarchive(p.path)
         : window.shotai.projects.archive(p.path),
     );
-  const bulkExport = (format: ExportFormat) =>
-    runBulk('export', async (p) => {
-      const { projectId, manifest } = await window.shotai.projects.open(p.path);
-      await ensureFlattened(projectId, p.path, manifest.steps);
-      await window.shotai.projects.export(p.path, format);
+  // Open + flatten a project so only redacted, marker-baked renders are exported.
+  const prepExport = async (p: ProjectSummary) => {
+    const { projectId, manifest } = await window.shotai.projects.open(p.path);
+    await ensureFlattened(projectId, p.path, manifest.steps);
+  };
+  // #37: bulk export → each project to its OWN export/ folder (no dialog).
+  const bulkExportEach = (format: ExportFormat) =>
+    runBulk('Exporting', async (p) => {
+      await prepExport(p);
+      await window.shotai.projects.exportToOwnFolder(p.path, format);
     });
+  // #37: bulk export → all into ONE folder, asked once; revealed when done.
+  const bulkExportToFolder = async (format: ExportFormat) => {
+    const destDir = await window.shotai.projects.chooseExportDir();
+    if (!destDir) return; // cancelling the picker aborts the bulk
+    await runBulk('Exporting', async (p) => {
+      await prepExport(p);
+      await window.shotai.projects.exportToDir(p.path, format, destDir);
+    });
+    // Reveal the destination folder ONCE, after every export has finished.
+    await window.shotai.projects.revealExportDir(destDir).catch(() => undefined);
+  };
 
   const anyBusy = rowBusyPath !== null || bulkBusy;
 
@@ -502,65 +527,56 @@ export function ProjectList({
             <span className={`project__check-box${allSelected ? ' project__check-box--on' : ''}`} aria-hidden="true" />
             {allSelected ? 'Clear all' : 'Select all'}
           </button>
-          <span className="project__bulk-count">{selected.size} selected</span>
+          <span className="project__bulk-count" role="status" aria-live="polite">
+            {bulkProgress
+              ? `${bulkProgress.verb} ${bulkProgress.done} of ${bulkProgress.total}…`
+              : `${selected.size} selected`}
+          </span>
           <span className="project__bulk-spacer" />
-          {exportPickerOpen ? (
-            <>
-              <span className="project__bulk-hint">Export as</span>
-              {BULK_FORMATS.map(([f, label]) => (
-                <button
-                  key={f}
-                  type="button"
-                  className="btn btn--small"
-                  disabled={anyBusy}
-                  onClick={() => void bulkExport(f)}
-                >
-                  {label}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="btn btn--small btn--ghost"
-                onClick={() => setExportPickerOpen(false)}
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="btn btn--small"
-                disabled={anyBusy}
-                onClick={() => void bulkArchive()}
-              >
-                {tab === 'archive' ? '⤴ Restore' : '🗄 Archive'}
-              </button>
-              <button
-                type="button"
-                className="btn btn--small"
-                disabled={anyBusy}
-                onClick={() => setExportPickerOpen(true)}
-              >
-                ⤓ Export
-              </button>
-              <button
-                type="button"
-                className="btn btn--small btn--danger"
-                disabled={anyBusy}
-                onClick={() => void bulkDelete()}
-              >
-                🗑 Delete
-              </button>
-              <button
-                type="button"
-                className="btn btn--small btn--ghost"
-                onClick={clearSelection}
-              >
-                Clear
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            className="btn btn--small"
+            disabled={anyBusy}
+            onClick={() => void bulkArchive()}
+          >
+            {tab === 'archive' ? '⤴ Restore' : '🗄 Archive'}
+          </button>
+          {/* Export is a dropdown (not a wrapping row of chips) with two
+              destinations × the formats. */}
+          <OverflowMenu
+            triggerClassName="btn btn--small"
+            label="⤓ Export ▾"
+            title="Export the selected projects"
+            disabled={anyBusy}
+            items={[
+              { kind: 'header', label: "Each project's own folder" },
+              ...BULK_FORMATS.map(([f, label]) => ({
+                label,
+                onClick: () => void bulkExportEach(f),
+              })),
+              { kind: 'sep' },
+              { kind: 'header', label: 'One shared folder…' },
+              ...BULK_FORMATS.map(([f, label]) => ({
+                label,
+                onClick: () => void bulkExportToFolder(f),
+              })),
+            ]}
+          />
+          <button
+            type="button"
+            className="btn btn--small btn--danger"
+            disabled={anyBusy}
+            onClick={() => void bulkDelete()}
+          >
+            🗑 Delete
+          </button>
+          <button
+            type="button"
+            className="btn btn--small btn--ghost"
+            onClick={clearSelection}
+          >
+            Clear
+          </button>
         </div>
       )}
 

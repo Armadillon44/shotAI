@@ -7,6 +7,7 @@ import React from 'react';
 
 export type MenuItem =
   | { kind: 'sep' }
+  | { kind: 'header'; label: React.ReactNode }
   | {
       label: React.ReactNode;
       onClick: () => void;
@@ -19,11 +20,14 @@ export function OverflowMenu({
   label = '⋯',
   title = 'More actions',
   disabled = false,
+  triggerClassName = 'btn btn--small btn--ghost btn--icon',
 }: {
   items: MenuItem[];
   label?: React.ReactNode;
   title?: string;
   disabled?: boolean;
+  /** Override the trigger button's classes (e.g. to match a toolbar button). */
+  triggerClassName?: string;
 }): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   // Flip the popover upward when there isn't room below the trigger (e.g. a row
@@ -56,7 +60,7 @@ export function OverflowMenu({
       <button
         ref={btnRef}
         type="button"
-        className="btn btn--small btn--ghost btn--icon"
+        className={triggerClassName}
         aria-haspopup="menu"
         aria-expanded={open}
         title={title}
@@ -71,7 +75,13 @@ export function OverflowMenu({
           <div className={`menu__pop${dropUp ? ' menu__pop--up' : ''}`} role="menu">
             {items.map((it, i) =>
               'kind' in it ? (
-                <div key={i} className="menu__sep" />
+                it.kind === 'sep' ? (
+                  <div key={i} className="menu__sep" />
+                ) : (
+                  <div key={i} className="menu__header" role="presentation">
+                    {it.label}
+                  </div>
+                )
               ) : (
                 <button
                   key={i}

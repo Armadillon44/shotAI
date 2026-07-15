@@ -8,7 +8,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { BrowserWindow, nativeImage, shell } from 'electron';
+import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
@@ -55,6 +55,78 @@ export async function nextAvailableStem(exportDir: string, stem: string, ext: st
       return candidate; // ENOENT → this name is free
     }
   }
+}
+
+/** First non-existent `<base>` DIRECTORY in `parent`, appending " (1)", " (2)", …
+ *  on collision. The folder-level analogue of nextAvailableStem, for the
+ *  self-contained Markdown export (a `<name>/` folder with the .md + images). */
+async function nextAvailableDir(parent: string, base: string): Promise<string> {
+  for (let n = 0; ; n++) {
+    const candidate = n === 0 ? base : `${base} (${n})`;
+    try {
+      await fs.access(path.join(parent, candidate));
+    } catch {
+      return candidate; // ENOENT → free
+    }
+  }
+}
+
+/** File extension written for each export format. */
+function extFor(format: ExportFormat): string {
+  switch (format) {
+    case 'docx':
+      return '.docx';
+    case 'pptx':
+      return '.pptx';
+    case 'markdown':
+      return '.md';
+    case 'pdf':
+      return '.pdf';
+    default:
+      return '.html'; // html, html-plain
+  }
+}
+
+/** Save-dialog file filter for each export format. */
+function dialogFilters(format: ExportFormat): Electron.FileFilter[] {
+  switch (format) {
+    case 'docx':
+      return [{ name: 'Word Document', extensions: ['docx'] }];
+    case 'pptx':
+      return [{ name: 'PowerPoint', extensions: ['pptx'] }];
+    case 'markdown':
+      return [{ name: 'Markdown', extensions: ['md'] }];
+    case 'pdf':
+      return [{ name: 'PDF', extensions: ['pdf'] }];
+    default:
+      return [{ name: 'HTML', extensions: ['html'] }];
+  }
+}
+
+/** Show a Save dialog, parented to the focused window when there is one. */
+async function showSaveDialog(
+  options: Electron.SaveDialogOptions,
+): Promise<Electron.SaveDialogReturnValue> {
+  const win = BrowserWindow.getFocusedWindow();
+  return win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options);
+}
+
+/**
+ * Prompt for a destination folder (bulk export drops every selected project's
+ * export into it). Returns the chosen directory, or null if cancelled.
+ */
+export async function chooseExportDirectory(defaultPath?: string): Promise<string | null> {
+  const win = BrowserWindow.getFocusedWindow();
+  const options: Electron.OpenDialogOptions = {
+    title: 'Choose a folder for the exports',
+    properties: ['openDirectory', 'createDirectory'],
+    ...(defaultPath ? { defaultPath } : {}),
+  };
+  const res = win
+    ? await dialog.showOpenDialog(win, options)
+    : await dialog.showOpenDialog(options);
+  if (res.canceled || res.filePaths.length === 0) return null;
+  return res.filePaths[0];
 }
 
 function escapeHtml(s: string): string {
@@ -410,18 +482,21 @@ async function htmlToPdf(dir: string, html: string, outputPath: string): Promise
   }
 }
 
-/** Assemble the Markdown document, copying each image into export/images/. */
+/**
+ * Assemble the Markdown document into a SELF-CONTAINED folder `outFolder`:
+ * `<mdStem>.md` alongside an `images/` subfolder. Keeping both inside one folder
+ * (rather than a loose .md + images dir) keeps the chosen export directory tidy.
+ */
 async function buildMarkdown(
-  dir: string,
   manifest: ProjectManifest,
   items: ExportItem[],
-  stem: string,
+  outFolder: string,
+  mdStem: string,
   createdLine: string,
 ): Promise<string> {
-  // Per-export images dir (stem is already unique for the .md) so a serialized
-  // second markdown export doesn't clobber the first export's images.
-  const imagesDirName = `${stem}-images`;
-  const imagesDir = path.join(dir, 'export', imagesDirName);
+  // Images live in an `images/` subfolder next to the .md, inside outFolder.
+  const imagesDirName = 'images';
+  const imagesDir = path.join(outFolder, imagesDirName);
   await fs.rm(imagesDir, { recursive: true, force: true }).catch(() => undefined);
   await fs.mkdir(imagesDir, { recursive: true });
   const lines: string[] = [
@@ -471,20 +546,31 @@ async function buildMarkdown(
     lines.push(`![Screenshot for step ${it.n}](<${imagesDirName}/${imgName}>)`, '');
     if (it.body) lines.push(it.body, '');
   }
-  const outputPath = path.join(dir, 'export', `${stem}.md`);
+  const outputPath = path.join(outFolder, `${mdStem}.md`);
   await fs.writeFile(outputPath, lines.join('\n'), 'utf8');
   return outputPath;
 }
 
 /**
- * Export the project to `format` under its export/ folder; reveal the file in the
- * OS file manager and return its path. The renderer is expected to have flattened
- * all shot steps first (so renders are current/redacted/marker-baked).
+ * Export the project to `format`, reveal it in the OS file manager, and return its
+ * path. Destination (issue #37):
+ *  - `opts.saveAs` → prompt a Save dialog defaulting to the project's export/ folder
+ *    (single export; cancel returns `{ canceled: true }`).
+ *  - `opts.targetDir` → write into that folder with collision-safe naming (bulk).
+ *  - neither → the project's export/ folder (legacy/default).
+ * Markdown always exports as a self-contained `<name>/` folder (the .md + images/).
+ * The renderer is expected to have flattened all shot steps first (so renders are
+ * current/redacted/marker-baked).
  */
 export async function exportProject(
   projectPath: string,
   format: ExportFormat,
+  opts: { saveAs?: boolean; targetDir?: string; reveal?: boolean } = {},
 ): Promise<ExportResult> {
+  // Reveal the written file unless told not to — bulk exports (to a shared folder
+  // or to each project's own folder) suppress the per-file reveal so N folders
+  // don't pop open mid-run.
+  const reveal = opts.reveal ?? true;
   const { dir, manifest } = await getProjectForRead(projectPath);
   const items = await collectSteps(dir, manifest);
   const base = safeFileBase(manifest.title);
@@ -496,39 +582,81 @@ export async function exportProject(
   const exportDir = path.join(dir, 'export');
   await fs.mkdir(exportDir, { recursive: true });
 
-  let outputPath: string;
-  if (format === 'docx') {
-    const buf = await buildDocx(manifest, items, createdLine);
-    const stem = await nextAvailableStem(exportDir, base, '.docx');
-    outputPath = path.join(exportDir, `${stem}.docx`);
-    await fs.writeFile(outputPath, buf);
-  } else if (format === 'pptx') {
-    const buf = await buildPptx(manifest, items, createdLine);
-    const stem = await nextAvailableStem(exportDir, base, '.pptx');
-    outputPath = path.join(exportDir, `${stem}.pptx`);
-    await fs.writeFile(outputPath, buf);
-  } else if (format === 'markdown') {
-    const stem = await nextAvailableStem(exportDir, base, '.md');
-    outputPath = await buildMarkdown(dir, manifest, items, stem, createdLine);
-  } else if (format === 'html-plain') {
-    const html = await buildPlainHtmlDoc(manifest, items);
-    const stem = await nextAvailableStem(exportDir, `${base}-plain`, '.html');
-    outputPath = path.join(exportDir, `${stem}.html`);
-    await fs.writeFile(outputPath, html, 'utf8');
-  } else {
-    const html = await buildHtmlDoc(manifest, items, createdLine);
-    if (format === 'html') {
-      const stem = await nextAvailableStem(exportDir, base, '.html');
-      outputPath = path.join(exportDir, `${stem}.html`);
-      await fs.writeFile(outputPath, html, 'utf8');
+  const stembase = format === 'html-plain' ? `${base}-plain` : base;
+  const ext = extFor(format);
+
+  // Markdown is a self-contained FOLDER (<name>/<name>.md + images/) so the chosen
+  // destination stays tidy; every other format is one self-contained file.
+  if (format === 'markdown') {
+    let folder: string;
+    if (opts.saveAs) {
+      const res = await showSaveDialog({
+        title: 'Export Markdown (saved as a folder with its images)',
+        defaultPath: path.join(exportDir, `${base}.md`),
+        filters: dialogFilters(format),
+      });
+      if (res.canceled || !res.filePath) return { format, outputPath: '', canceled: true };
+      const stem = path.basename(res.filePath).replace(/\.md$/i, '') || base;
+      folder = path.join(path.dirname(res.filePath), stem);
+      await fs.mkdir(folder, { recursive: true });
     } else {
-      const stem = await nextAvailableStem(exportDir, base, '.pdf');
-      outputPath = path.join(exportDir, `${stem}.pdf`);
-      await htmlToPdf(dir, html, outputPath);
+      const parent = opts.targetDir ?? exportDir;
+      await fs.mkdir(parent, { recursive: true });
+      folder = path.join(parent, await nextAvailableDir(parent, base));
+      await fs.mkdir(folder, { recursive: true });
     }
+    const outputPath = await buildMarkdown(manifest, items, folder, path.basename(folder), createdLine);
+    mainLog.info(`exported markdown → ${outputPath}`);
+    if (reveal) shell.showItemInFolder(outputPath);
+    return { format, outputPath };
+  }
+
+  // Single-file formats: resolve the target file path.
+  let outputPath: string;
+  if (opts.saveAs) {
+    const res = await showSaveDialog({
+      title: 'Export',
+      defaultPath: path.join(exportDir, `${stembase}${ext}`),
+      filters: dialogFilters(format),
+    });
+    if (res.canceled || !res.filePath) return { format, outputPath: '', canceled: true };
+    outputPath = res.filePath;
+  } else {
+    const targetDir = opts.targetDir ?? exportDir;
+    await fs.mkdir(targetDir, { recursive: true });
+    const stem = await nextAvailableStem(targetDir, stembase, ext);
+    outputPath = path.join(targetDir, `${stem}${ext}`);
+  }
+
+  if (format === 'docx') {
+    await fs.writeFile(outputPath, await buildDocx(manifest, items, createdLine));
+  } else if (format === 'pptx') {
+    await fs.writeFile(outputPath, await buildPptx(manifest, items, createdLine));
+  } else if (format === 'html-plain') {
+    await fs.writeFile(outputPath, await buildPlainHtmlDoc(manifest, items), 'utf8');
+  } else if (format === 'html') {
+    await fs.writeFile(outputPath, await buildHtmlDoc(manifest, items, createdLine), 'utf8');
+  } else {
+    // pdf
+    await htmlToPdf(dir, await buildHtmlDoc(manifest, items, createdLine), outputPath);
   }
 
   mainLog.info(`exported ${format} → ${outputPath}`);
-  shell.showItemInFolder(outputPath);
+  if (reveal) shell.showItemInFolder(outputPath);
   return { format, outputPath };
+}
+
+/**
+ * Open a folder in the OS file manager — used to reveal the bulk-export
+ * destination ONCE, after the whole run finishes. Validates the path is an
+ * existing DIRECTORY first, so it can never be coaxed into opening (executing) a
+ * file.
+ */
+export async function revealExportDir(dir: string): Promise<void> {
+  try {
+    const st = await fs.stat(dir);
+    if (st.isDirectory()) await shell.openPath(dir);
+  } catch {
+    /* gone / unreadable — nothing to reveal */
+  }
 }

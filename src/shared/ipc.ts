@@ -88,8 +88,10 @@ export type ExportFormat = 'html' | 'html-plain' | 'pdf' | 'markdown' | 'docx' |
 /** Result of an export — the file that was written (revealed in the OS file manager). */
 export interface ExportResult {
   format: ExportFormat;
-  /** Absolute path to the written file. */
+  /** Absolute path to the written file (empty when `canceled`). */
   outputPath: string;
+  /** True when the user dismissed the Save dialog — nothing was written. */
+  canceled?: boolean;
 }
 
 /** Result of a shareable-package export (a .zip that round-trips back into shotAI). */
@@ -121,6 +123,10 @@ export const IpcChannels = {
   setProjectIntro: 'projects:set-intro',
   redactScan: 'projects:redact-scan',
   exportProject: 'projects:export',
+  exportToDir: 'projects:export-to-dir',
+  exportToOwnFolder: 'projects:export-to-own-folder',
+  chooseExportDir: 'projects:choose-export-dir',
+  revealExportDir: 'projects:reveal-export-dir',
   exportPackage: 'projects:export-package',
   importPackage: 'projects:import-package',
   archiveProject: 'projects:archive',
@@ -276,12 +282,36 @@ export interface ShotaiApi {
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
     revertSop(projectPath: string): Promise<ProjectManifest>;
     /**
-     * Export the project's report/SOP to a self-contained file under `export/`.
-     * The renderer must flatten all shot steps first (so only redacted renders
-     * are written/embedded). On success the file is revealed in the OS file
-     * manager. Returns the written file path.
+     * Export the project's report/SOP (single export). Shows a Save dialog
+     * defaulting to the project's `export/` folder, so the user can save anywhere
+     * (issue #37); returns `{ canceled: true }` if they dismiss it. Markdown is
+     * saved as a self-contained folder (the .md + its images/). The renderer must
+     * flatten all shot steps first (so only redacted renders are written/embedded).
+     * On success the file is revealed in the OS file manager.
      */
     export(projectPath: string, format: ExportFormat): Promise<ExportResult>;
+    /**
+     * Export into a specific folder (bulk export — the destination is chosen once
+     * via `chooseExportDir`, then every selected project writes into it with
+     * collision-safe naming). No per-file dialog.
+     */
+    exportToDir(projectPath: string, format: ExportFormat, dir: string): Promise<ExportResult>;
+    /**
+     * Export into the project's OWN `export/` folder (bulk "each to its own
+     * folder"). No dialog and no per-file reveal (a bulk run would otherwise open
+     * one folder per project).
+     */
+    exportToOwnFolder(projectPath: string, format: ExportFormat): Promise<ExportResult>;
+    /**
+     * Prompt for a destination folder for a bulk export. Returns the chosen
+     * directory, or null if the user cancelled.
+     */
+    chooseExportDir(): Promise<string | null>;
+    /**
+     * Open the bulk-export destination folder once the whole run finishes (bulk
+     * export suppresses the per-file reveal). No-op if the path isn't a directory.
+     */
+    revealExportDir(dir: string): Promise<void>;
     /**
      * Export a shareable .zip package that another shotAI user can import and
      * edit. `includeOriginals` false (default) ships only redaction-baked renders
