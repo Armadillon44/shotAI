@@ -387,11 +387,25 @@ async function buildHtmlDoc(
   );
 }
 
+// Simple, lightly-styled HTML: a standard sans-serif (Arial) body + basic header /
+// bold / spacing formatting so it reads well on its own — while staying plain
+// enough to paste into Word / Google Docs (they honor these basic tags/styles).
+const PLAIN_CSS = [
+  'body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.5;max-width:800px;margin:24px auto;padding:0 20px}',
+  'h1{font-size:1.8rem;font-weight:700;margin:0 0 .3rem}',
+  'h2{font-size:1.2rem;font-weight:700;margin:1.3rem 0 .4rem}',
+  'p{margin:.5rem 0}',
+  'strong{font-weight:700}',
+  'img{max-width:100%;height:auto}',
+  'blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid #cbd5e1;color:#374151}',
+  'hr{border:0;border-top:1px solid #e5e7eb;margin:1.4rem 0}',
+].join('');
+
 /**
- * Minimal-formatting HTML for pasting into Word / Google Docs / other rich
- * editors: semantic tags only (h1/h2/p/img/blockquote/em), NO CSS, classes, or
- * inline styles, images inlined as data: URIs. The destination editor applies
- * its own formatting (and its formatting tools work on the pasted content).
+ * Simple, lightly-styled standalone HTML: semantic tags (h1/h2/p/img/blockquote/
+ * strong/hr) + a minimal Arial stylesheet (PLAIN_CSS) for readable headers, bold,
+ * and spacing. Images inlined as data: URIs. Still clean enough to paste into Word
+ * / Google Docs (they honor the basic tags + formatting).
  */
 async function buildPlainHtmlDoc(
   manifest: ProjectManifest,
@@ -438,7 +452,8 @@ async function buildPlainHtmlDoc(
   if (itemBlocks.length) parts.push(itemBlocks.join('\n<hr>\n'));
   return (
     `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n` +
-    `<title>${escapeHtml(manifest.title)}</title>\n</head>\n<body>\n` +
+    `<title>${escapeHtml(manifest.title)}</title>\n` +
+    `<style>${PLAIN_CSS}</style>\n</head>\n<body>\n` +
     parts.join('\n') +
     `\n</body>\n</html>\n`
   );
