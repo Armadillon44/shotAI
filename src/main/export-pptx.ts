@@ -11,10 +11,18 @@ const SLIDE_W = 13.333;
 const SLIDE_H = 7.5;
 const MARGIN = 0.5;
 
-const CALLOUT: Record<CalloutKind, { fill: string; fg: string; label: string }> = {
-  note: { fill: 'ECFDF5', fg: '065F46', label: 'Note' },
-  caution: { fill: 'FFFBEB', fg: '92400E', label: 'Caution' },
-  warning: { fill: 'FEF2F2', fg: '991B1B', label: 'Warning' },
+// Step-card geometry (#40): each step slide gets a rounded card; content is inset
+// by PAD inside it. Mirrors the HTML/report step cards.
+const CARD = { x: 0.45, y: 0.45, w: SLIDE_W - 0.9, h: SLIDE_H - 0.9 };
+const PAD = 0.35;
+const INNER = { x: CARD.x + PAD, y: CARD.y + PAD, w: CARD.w - PAD * 2, h: CARD.h - PAD * 2 };
+const CARD_FILL = 'FAF9FF';
+const CARD_BORDER = 'E7E4F2';
+
+const CALLOUT: Record<CalloutKind, { fill: string; bd: string; fg: string; label: string }> = {
+  note: { fill: 'ECFDF5', bd: '6EE7B7', fg: '065F46', label: 'Note' },
+  caution: { fill: 'FFFBEB', bd: 'FCD34D', fg: '92400E', label: 'Caution' },
+  warning: { fill: 'FEF2F2', bd: 'FCA5A5', fg: '991B1B', label: 'Warning' },
 };
 
 /** Fit (w×h px) inside the box preserving aspect; return centered inches. */
@@ -43,7 +51,20 @@ export async function buildPptx(
   pptx.author = 'shotAI';
   pptx.title = manifest.title;
 
-  // Title slide.
+  // A rounded "card" behind the step content (drawn first so content lands on top).
+  const addCard = (slide: pptxgen.Slide, fill: string, line: string): void => {
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: CARD.x,
+      y: CARD.y,
+      w: CARD.w,
+      h: CARD.h,
+      fill: { color: fill },
+      line: { color: line, width: 1 },
+      rectRadius: 0.12,
+    });
+  };
+
+  // Title slide (cover — no card, matches the HTML title/meta).
   const title = pptx.addSlide();
   title.background = { color: 'FFFFFF' };
   title.addText(manifest.title, {
@@ -87,7 +108,9 @@ export async function buildPptx(
 
     if (it.kind === 'text') {
       if (it.callout) {
+        // Callout slide: the card is tinted by kind; content sits inside it.
         const c = CALLOUT[it.callout];
+        addCard(slide, c.fill, c.bd);
         slide.addText(
           [
             {
@@ -96,38 +119,31 @@ export async function buildPptx(
             },
             { text: it.body || '', options: { fontSize: 18, color: c.fg } },
           ],
-          {
-            x: 1.5,
-            y: 2.2,
-            w: SLIDE_W - 3,
-            h: 3.1,
-            fill: { color: c.fill },
-            align: 'left',
-            valign: 'top',
-            margin: 16,
-          },
+          { x: INNER.x, y: INNER.y, w: INNER.w, h: INNER.h, align: 'left', valign: 'top' },
         );
         continue;
       }
-      // Plain text step — a numbered step slide. With a heading, "N. heading" is the
-      // title and the body sits below. With NO heading, the body IS the title content
-      // ("2. Some text") — no redundant "Step N" and no separate body block.
+      // Plain text step — a numbered step slide inside a card. With a heading,
+      // "N. heading" is the title and the body sits below; with NO heading, the
+      // body IS the title content ("2. Some text").
+      addCard(slide, CARD_FILL, CARD_BORDER);
       const numPrefix = it.n != null ? `${it.n}. ` : '';
       slide.addText(`${numPrefix}${it.heading || it.body}`, {
-        x: MARGIN,
-        y: 0.9,
-        w: SLIDE_W - MARGIN * 2,
+        x: INNER.x,
+        y: INNER.y,
+        w: INNER.w,
         h: 1,
-        fontSize: 28,
+        fontSize: 26,
         bold: true,
         color: '14161F',
+        valign: 'top',
       });
       if (it.heading && it.body) {
         slide.addText(it.body, {
-          x: MARGIN,
-          y: 2.0,
-          w: SLIDE_W - MARGIN * 2,
-          h: SLIDE_H - 2.6,
+          x: INNER.x,
+          y: INNER.y + 1.15,
+          w: INNER.w,
+          h: INNER.h - 1.15,
           fontSize: 18,
           color: '374151',
           valign: 'top',
@@ -136,28 +152,36 @@ export async function buildPptx(
       continue;
     }
 
-    // Shot slide: caption title, contained image, optional instruction.
+    // Shot slide: card, caption title, contained image, optional instruction.
+    addCard(slide, CARD_FILL, CARD_BORDER);
     slide.addText(`${it.n}. ${it.caption || `Step ${it.n}`}`, {
-      x: MARGIN,
-      y: 0.3,
-      w: SLIDE_W - MARGIN * 2,
-      h: 0.7,
+      x: INNER.x,
+      y: INNER.y,
+      w: INNER.w,
+      h: 0.6,
       fontSize: 20,
       bold: true,
       color: '14161F',
+      valign: 'top',
     });
     const hasBody = !!it.body;
-    const box = { x: MARGIN, y: 1.1, w: SLIDE_W - MARGIN * 2, h: (hasBody ? SLIDE_H - 2.9 : SLIDE_H - 1.5) };
+    const imgTop = INNER.y + 0.75;
+    const box = {
+      x: INNER.x,
+      y: imgTop,
+      w: INNER.w,
+      h: hasBody ? INNER.h - 0.75 - 1.2 : INNER.h - 0.75,
+    };
     const { buffer, width, height } = await loadItemImage(it);
     const b64 = buffer.toString('base64');
     const fit = fitContain(width, height, box);
     slide.addImage({ data: `data:${it.mediaType};base64,${b64}`, x: fit.x, y: fit.y, w: fit.w, h: fit.h });
     if (hasBody) {
       slide.addText(it.body, {
-        x: MARGIN,
-        y: SLIDE_H - 1.65,
-        w: SLIDE_W - MARGIN * 2,
-        h: 1.4,
+        x: INNER.x,
+        y: INNER.y + INNER.h - 1.1,
+        w: INNER.w,
+        h: 1.1,
         fontSize: 15,
         color: '374151',
         valign: 'top',
