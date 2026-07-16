@@ -10,7 +10,11 @@ import {
   Packer,
   Paragraph,
   ShadingType,
+  Table,
+  TableCell,
+  TableRow,
   TextRun,
+  WidthType,
   type ISectionOptions,
 } from 'docx';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
@@ -18,44 +22,19 @@ import { loadItemImage, type ExportItem } from './export';
 
 // Max embedded image width in px; taller/wider shots scale down by aspect. Keeps
 // images inside the page's text column (~6.5in ≈ 624px at 96dpi).
-const MAX_IMG_W = 600;
+const MAX_IMG_W = 560;
 
-// Callout palette mirrors the in-app / HTML export (fill, left-bar, text color).
-const CALLOUT: Record<CalloutKind, { fill: string; bar: string; fg: string; label: string }> = {
-  note: { fill: 'ECFDF5', bar: '34D399', fg: '065F46', label: 'Note' },
-  caution: { fill: 'FFFBEB', bar: 'F59E0B', fg: '92400E', label: 'Caution' },
-  warning: { fill: 'FEF2F2', bar: 'EF4444', fg: '991B1B', label: 'Warning' },
+// Step-card colors (#40) — mirror the HTML export / in-app report (light-only).
+const CARD_FILL = 'FAF9FF';
+const CARD_BORDER = 'E7E4F2';
+const INTRO_FILL = 'EFEAFE';
+
+// Callout palette mirrors the in-app / HTML export (fill, border, text color).
+const CALLOUT: Record<CalloutKind, { fill: string; bd: string; fg: string; label: string }> = {
+  note: { fill: 'ECFDF5', bd: '6EE7B7', fg: '065F46', label: 'Note' },
+  caution: { fill: 'FFFBEB', bd: 'FCD34D', fg: '92400E', label: 'Caution' },
+  warning: { fill: 'FEF2F2', bd: 'FCA5A5', fg: '991B1B', label: 'Warning' },
 };
-
-function calloutParagraphs(heading: string, body: string, kind: CalloutKind): Paragraph[] {
-  const c = CALLOUT[kind];
-  const shading = { type: ShadingType.CLEAR, color: 'auto', fill: c.fill } as const;
-  const border = {
-    left: { style: BorderStyle.SINGLE, size: 18, color: c.bar, space: 12 },
-  } as const;
-  const runs: Paragraph[] = [];
-  // Lead with the type glyph so the callout kind reads even in grayscale.
-  const headingText = `${CALLOUT_GLYPH[kind]} ${heading || c.label}`;
-  runs.push(
-    new Paragraph({
-      shading,
-      border,
-      spacing: { before: 160, after: body ? 0 : 160 },
-      children: [new TextRun({ text: headingText, bold: true, color: c.fg })],
-    }),
-  );
-  if (body) {
-    runs.push(
-      new Paragraph({
-        shading,
-        border,
-        spacing: { after: 160 },
-        children: [new TextRun({ text: body, color: c.fg })],
-      }),
-    );
-  }
-  return runs;
-}
 
 /** Split a multi-line string into one TextRun per line with proper line breaks. */
 function multiline(text: string, opts?: { italics?: boolean; color?: string }): TextRun[] {
@@ -71,12 +50,40 @@ function multiline(text: string, opts?: { italics?: boolean; color?: string }): 
   );
 }
 
+/**
+ * Wrap a step's content in a single-cell table — a bordered, shaded "card" (#40) —
+ * so each step reads as a distinct framed unit, matching the HTML/PDF exports.
+ */
+function stepCard(content: Paragraph[], fill: string, border: string): Table {
+  const b = { style: BorderStyle.SINGLE, size: 4, color: border } as const;
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: { top: b, bottom: b, left: b, right: b, insideHorizontal: b, insideVertical: b },
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            shading: { type: ShadingType.CLEAR, color: 'auto', fill },
+            margins: { top: 120, bottom: 120, left: 180, right: 180 },
+            children: content,
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+/** A thin gap between step cards (Word needs a paragraph between tables anyway). */
+function spacer(): Paragraph {
+  return new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: '', size: 10 })] });
+}
+
 export async function buildDocx(
   manifest: ProjectManifest,
   items: ExportItem[],
   createdLine: string,
 ): Promise<Buffer> {
-  const children: Paragraph[] = [];
+  const children: (Paragraph | Table)[] = [];
 
   children.push(new Paragraph({ text: manifest.title, heading: HeadingLevel.TITLE }));
   children.push(
@@ -86,46 +93,71 @@ export async function buildDocx(
     }),
   );
 
+  // Intro → a tinted "Overview" card (mirrors the HTML intro box).
   if (manifest.intro && (manifest.intro.heading || manifest.intro.body)) {
+    const introContent: Paragraph[] = [
+      new Paragraph({
+        spacing: { before: 0, after: 40 },
+        children: [new TextRun({ text: 'OVERVIEW', bold: true, color: '6B7280', size: 15 })],
+      }),
+    ];
     if (manifest.intro.heading) {
-      children.push(new Paragraph({ text: manifest.intro.heading, heading: HeadingLevel.HEADING_2 }));
+      introContent.push(
+        new Paragraph({ spacing: { after: manifest.intro.body ? 40 : 0 }, children: [new TextRun({ text: manifest.intro.heading, bold: true, size: 26 })] }),
+      );
     }
     if (manifest.intro.body) {
-      children.push(new Paragraph({ children: multiline(manifest.intro.body), spacing: { after: 160 } }));
+      introContent.push(new Paragraph({ children: multiline(manifest.intro.body) }));
     }
+    children.push(stepCard(introContent, INTRO_FILL, CARD_BORDER));
+    children.push(spacer());
   }
 
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout) {
-        children.push(...calloutParagraphs(it.heading, it.body, it.callout));
+        const c = CALLOUT[it.callout];
+        const content: Paragraph[] = [
+          new Paragraph({
+            spacing: { before: 0, after: it.body ? 60 : 0 },
+            children: [
+              new TextRun({ text: `${CALLOUT_GLYPH[it.callout]} ${it.heading || c.label}`, bold: true, color: c.fg }),
+            ],
+          }),
+        ];
+        if (it.body) content.push(new Paragraph({ children: multiline(it.body, { color: c.fg }) }));
+        children.push(stepCard(content, c.fill, c.bd));
+        children.push(spacer());
         continue;
       }
       // Plain text step — numbered like a step (matches the report + other formats).
       const num = it.n != null ? `${it.n}. ` : '';
+      const content: Paragraph[] = [];
       if (it.heading) {
-        children.push(new Paragraph({ text: `${num}${it.heading}`, heading: HeadingLevel.HEADING_2 }));
-        if (it.body) {
-          children.push(new Paragraph({ children: multiline(it.body), spacing: { after: 120 } }));
-        }
+        content.push(
+          new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 0, after: it.body ? 100 : 0 }, text: `${num}${it.heading}` }),
+        );
+        if (it.body) content.push(new Paragraph({ children: multiline(it.body) }));
       } else if (it.body) {
-        children.push(new Paragraph({ children: multiline(`${num}${it.body}`), spacing: { after: 120 } }));
+        content.push(new Paragraph({ children: multiline(`${num}${it.body}`) }));
+      }
+      if (content.length) {
+        children.push(stepCard(content, CARD_FILL, CARD_BORDER));
+        children.push(spacer());
       }
       continue;
     }
-    // Shot step: numbered heading, image (aspect-scaled), instruction.
+    // Shot step: numbered heading, image (aspect-scaled), instruction — all in one card.
     const { buffer, width, height } = await loadItemImage(it);
     const scale = width > MAX_IMG_W ? MAX_IMG_W / width : 1;
-    children.push(
+    const content: Paragraph[] = [
       new Paragraph({
         heading: HeadingLevel.HEADING_2,
-        spacing: { before: 240 },
+        spacing: { before: 0, after: 100 },
         text: `${it.n}. ${it.caption || `Step ${it.n}`}`,
       }),
-    );
-    children.push(
       new Paragraph({
-        spacing: { after: it.body ? 80 : 200 },
+        spacing: { after: it.body ? 100 : 0 },
         children: [
           new ImageRun({
             type: it.mediaType === 'image/jpeg' ? 'jpg' : 'png',
@@ -134,10 +166,10 @@ export async function buildDocx(
           }),
         ],
       }),
-    );
-    if (it.body) {
-      children.push(new Paragraph({ children: multiline(it.body), spacing: { after: 200 } }));
-    }
+    ];
+    if (it.body) content.push(new Paragraph({ children: multiline(it.body) }));
+    children.push(stepCard(content, CARD_FILL, CARD_BORDER));
+    children.push(spacer());
   }
 
   const section: ISectionOptions = { properties: {}, children };
