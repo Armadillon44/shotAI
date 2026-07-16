@@ -1312,17 +1312,10 @@ body {
   grid-template-columns: 2.4rem 1fr;
   gap: 0.85rem;
   position: relative;
-  padding-bottom: 1.1rem;
-  /* Persistent separator so step boundaries don't depend on hover. */
-  border-bottom: 1px solid var(--hair-2);
-}
-
-/* A trailing insert zone follows the last step (so it's the 2nd-to-last child);
-   drop that step's separator so no hairline dangles at the end of the list. */
-.rep__step:nth-last-child(2),
-.rep__step:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
+  /* #40: each step is a distinct card (see .rep__bodywrap); the card frame is the
+     separator, and the badge in the gutter top-aligns with the card. */
+  align-items: start;
+  margin-bottom: 0.6rem;
 }
 
 .rep__step--dragging {
@@ -1374,6 +1367,8 @@ body {
   justify-content: center;
   width: 2rem;
   height: 2rem;
+  /* #40: drop the badge to the card's first content line (card padding-top). */
+  margin-top: 0.85rem;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -1392,6 +1387,7 @@ body {
 .rep__num-input {
   width: 2.4rem;
   height: 2rem;
+  margin-top: 0.85rem;
   text-align: center;
   border: 1px solid var(--accent);
   border-radius: 6px;
@@ -1543,6 +1539,40 @@ body {
   /* match the image's max box (REPORT_BASE_W) so the caption-row controls
      right-align to the screenshot's right edge rather than the page edge */
   max-width: 900px;
+  /* #40: the step card — a subtle rounded frame around each step's content. */
+  border: 1px solid var(--hair-2);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 0.85rem 1rem;
+}
+
+/* #40: callouts tint the whole card by kind and flatten the inner box to plain
+   content (matches the export step cards). */
+.rep__step--co-note .rep__bodywrap {
+  background: var(--note-bg);
+  border-color: var(--note-bd);
+  color: var(--note-fg);
+}
+.rep__step--co-caution .rep__bodywrap {
+  background: var(--caut-bg);
+  border-color: var(--caut-bd);
+  color: var(--caut-fg);
+}
+.rep__step--co-warning .rep__bodywrap {
+  background: var(--warn-bg);
+  border-color: var(--warn-bd);
+  color: var(--warn-fg);
+}
+.rep__step--co .rep__callout {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+}
+.rep__step--co .rep__callout--clickable:hover {
+  box-shadow: none;
 }
 
 .rep__caption {
@@ -1738,15 +1768,21 @@ body {
 }
 .rep__num--note,
 .rep__num--note:hover {
-  background: #10b981;
+  background: var(--note-bg);
+  color: var(--note-fg);
+  border: 1px solid var(--note-bd);
 }
 .rep__num--caution,
 .rep__num--caution:hover {
-  background: #f59e0b;
+  background: var(--caut-bg);
+  color: var(--caut-fg);
+  border: 1px solid var(--caut-bd);
 }
 .rep__num--warning,
 .rep__num--warning:hover {
-  background: #ef4444;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border: 1px solid var(--warn-bd);
 }
 
 .rep__textheading {

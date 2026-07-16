@@ -864,6 +864,8 @@ export function Report({
   const stepRow = (s: ProjectStep, idx: number) => {
     const cls =
       `rep__step${s.kind === 'text' ? ' rep__step--text' : ''}` +
+      // #40: callouts tint the whole step card by kind (not an inner box).
+      `${isCalloutStep(s) && s.callout ? ` rep__step--co rep__step--co-${s.callout}` : ''}` +
       `${dragIdx === idx ? ' rep__step--dragging' : ''}` +
       `${dragOverIdx === idx && dragIdx !== null && dragIdx !== idx ? ' rep__step--over' : ''}`;
     return (
