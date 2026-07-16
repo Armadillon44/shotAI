@@ -9,11 +9,15 @@ cautions/callouts.
 Everything runs and is stored **on your machine**. The only network call is to Anthropic's
 API, and only when you ask shotAI to write the SOP. **Windows first**, macOS later.
 
-> **Status:** **1.1.0** — builds on the 1.0 stable line. 1.1.0 adds **project search**
-> (by title *and* in-project text), **mid-report inserts** (drop a recorded **+Capture**
-> session or a no-click **+Screenshot** into any gap between steps), and **bounded log
-> rotation**; it also removes the redundant per-step *note* field (the step title +
-> instruction already cover it). The 1.0 foundation — capture engine, inline Konva
+> **Status:** **1.1.1** — a polish + export release on top of 1.1.0. Adds **step
+> framing** (every step reads as a distinct card in the report and all exports),
+> **choose where to save an export** (single Save dialog, or bulk to each project's
+> own folder / one shared folder; Markdown saves as a self-contained folder), a
+> **home list that auto-refreshes**, and an Arial-styled simple HTML export. 1.1.0
+> added **project search** (by title *and* in-project text), **mid-report inserts**
+> (drop a recorded **+Capture** session or a no-click **+Screenshot** into any gap),
+> **bounded log rotation**, and removed the redundant per-step *note* field. The 1.0
+> foundation — capture engine, inline Konva
 > annotation editor, redaction (manual + local-OCR auto-redact), Claude SOP generation with
 > review-before-send + one-click revert, element-at-point captions (native UI Automation),
 > export to HTML / Word / PowerPoint / PDF / Markdown + a shareable round-trip package,
