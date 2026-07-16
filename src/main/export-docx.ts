@@ -176,6 +176,10 @@ export async function buildDocx(
   const doc = new Document({
     creator: 'shotAI',
     title: manifest.title,
+    // Default the whole document to Aptos (Word's modern default) instead of the
+    // docx library's Times New Roman. Set on docDefaults so Normal + the built-in
+    // heading/title styles all inherit it (our runs don't pin a font).
+    styles: { default: { document: { run: { font: 'Aptos' } } } },
     sections: [section],
   });
   return Packer.toBuffer(doc);
