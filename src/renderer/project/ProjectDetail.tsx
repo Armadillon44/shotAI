@@ -237,7 +237,7 @@ export function ProjectDetail({
     else if (kind === 'image') pickImageAt(atIndex);
     else if (kind === 'capture' || kind === 'screenshot')
       setCaptureModal({ atIndex, variant: kind });
-    else void addTextAt(atIndex, kind); // 'note' | 'caution' | 'warning'
+    else void addTextAt(atIndex, kind); // 'note' | 'caution' | 'warning' | 'section'
   };
 
   return (

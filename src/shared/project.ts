@@ -214,21 +214,26 @@ export type Annotation =
  */
 export type StepKind = 'shot' | 'text';
 
-/** A pre-formatted callout style for a text step: note (green), caution
- *  (yellow), warning (red). Absent = a plain text step. */
-export type CalloutKind = 'note' | 'caution' | 'warning';
+/** A pre-formatted style for a text step. note (green) / caution (yellow) /
+ *  warning (red) render as colored boxes; `section` renders as a non-counted
+ *  phase-divider heading (bold heading + thin rule + muted body), NOT a colored
+ *  box. All are un-numbered (skipped by the 1..N step counter). Absent = a plain,
+ *  numbered text step. */
+export type CalloutKind = 'note' | 'caution' | 'warning' | 'section';
 
 /** Type glyph for each callout kind — the rail badge in the app and the leading
- *  mark in every export (so the type reads even in grayscale where color is lost). */
+ *  mark in every export (so the type reads even in grayscale where color is lost).
+ *  `section` has no glyph (renderers special-case it as a divider heading). */
 export const CALLOUT_GLYPH: Record<CalloutKind, string> = {
   note: 'ℹ',
   caution: '⚠',
   warning: '⛔',
+  section: '',
 };
 
 /** True if `v` is a valid callout kind (used to validate patches at the boundary). */
 export function isCalloutKind(v: unknown): v is CalloutKind {
-  return v === 'note' || v === 'caution' || v === 'warning';
+  return v === 'note' || v === 'caution' || v === 'warning' || v === 'section';
 }
 
 export interface ProjectStep {
@@ -249,7 +254,9 @@ export interface ProjectStep {
   heading?: string;
   /** Optional body/subtext (markdown). Text steps and screenshot steps both use it. */
   body?: string;
-  /** When set, a text step renders as a colored callout box (note/caution/warning). */
+  /** When set, a text step renders as a callout instead of a numbered step:
+   *  note/caution/warning = a colored box; `section` = a non-counted phase-divider
+   *  heading (bold heading + thin rule + muted body), not a box. */
   callout?: CalloutKind;
   /**
    * True for a text step that Claude's SOP generation inserted (intro / section

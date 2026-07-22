@@ -3,6 +3,7 @@
 // embed the redaction-baked renders, never raw screenshots. Pure-JS `docx` lib
 // (no CDN, no native deps).
 import {
+  AlignmentType,
   BorderStyle,
   Document,
   HeadingLevel,
@@ -29,8 +30,9 @@ const CARD_FILL = 'FAF9FF';
 const CARD_BORDER = 'E7E4F2';
 const INTRO_FILL = 'EFEAFE';
 
-// Callout palette mirrors the in-app / HTML export (fill, border, text color).
-const CALLOUT: Record<CalloutKind, { fill: string; bd: string; fg: string; label: string }> = {
+// Colored-callout palette (fill, border, text color). `section` is NOT here — it's
+// a non-counted divider heading, not a colored box (handled before this lookup).
+const CALLOUT: Record<Exclude<CalloutKind, 'section'>, { fill: string; bd: string; fg: string; label: string }> = {
   note: { fill: 'ECFDF5', bd: '6EE7B7', fg: '065F46', label: 'Note' },
   caution: { fill: 'FFFBEB', bd: 'FCD34D', fg: '92400E', label: 'Caution' },
   warning: { fill: 'FEF2F2', bd: 'FCA5A5', fg: '991B1B', label: 'Warning' },
@@ -115,6 +117,24 @@ export async function buildDocx(
 
   for (const it of items) {
     if (it.kind === 'text') {
+      if (it.callout === 'section') {
+        // Non-counted phase divider: a bold heading with a bottom rule + muted
+        // body. No card, no colored box.
+        if (it.heading) {
+          children.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 240, after: it.body ? 60 : 120 },
+              border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'E5E7EB', space: 4 } },
+              text: it.heading,
+            }),
+          );
+        }
+        if (it.body) {
+          children.push(new Paragraph({ children: multiline(it.body, { color: '6B7280' }), spacing: { after: 160 } }));
+        }
+        continue;
+      }
       if (it.callout) {
         const c = CALLOUT[it.callout];
         const content: Paragraph[] = [
@@ -157,6 +177,9 @@ export async function buildDocx(
         text: `${it.n}. ${it.caption || `Step ${it.n}`}`,
       }),
       new Paragraph({
+        // #46: center the image so a narrow capture sits in a uniform frame
+        // rather than hugging the left of the text column.
+        alignment: AlignmentType.CENTER,
         spacing: { after: it.body ? 100 : 0 },
         children: [
           new ImageRun({

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRect, parsePoint } from './project';
+import { parseRect, parsePoint, isCalloutKind, CALLOUT_GLYPH } from './project';
 
 describe('parseRect', () => {
   it('accepts a valid rect and strips extra fields', () => {
@@ -34,5 +34,27 @@ describe('parsePoint', () => {
     ['undefined', undefined],
   ])('rejects %s', (_label, input) => {
     expect(parsePoint(input)).toBeNull();
+  });
+});
+
+describe('isCalloutKind', () => {
+  it.each(['note', 'caution', 'warning', 'section'])('accepts %s', (k) => {
+    expect(isCalloutKind(k)).toBe(true);
+  });
+
+  it.each([
+    ['plain text (no callout)', 'text'],
+    ['empty string', ''],
+    ['null', null],
+    ['number', 5],
+  ])('rejects %s', (_label, v) => {
+    expect(isCalloutKind(v)).toBe(false);
+  });
+
+  it('has a CALLOUT_GLYPH entry for every kind (section has none)', () => {
+    expect(CALLOUT_GLYPH.note).toBeTruthy();
+    expect(CALLOUT_GLYPH.caution).toBeTruthy();
+    expect(CALLOUT_GLYPH.warning).toBeTruthy();
+    expect(CALLOUT_GLYPH.section).toBe('');
   });
 });

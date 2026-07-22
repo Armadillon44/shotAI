@@ -19,7 +19,9 @@ const INNER = { x: CARD.x + PAD, y: CARD.y + PAD, w: CARD.w - PAD * 2, h: CARD.h
 const CARD_FILL = 'FAF9FF';
 const CARD_BORDER = 'E7E4F2';
 
-const CALLOUT: Record<CalloutKind, { fill: string; bd: string; fg: string; label: string }> = {
+// Colored-callout palette. `section` is NOT here — it renders as a divider slide,
+// not a filled box (handled before this lookup).
+const CALLOUT: Record<Exclude<CalloutKind, 'section'>, { fill: string; bd: string; fg: string; label: string }> = {
   note: { fill: 'ECFDF5', bd: '6EE7B7', fg: '065F46', label: 'Note' },
   caution: { fill: 'FFFBEB', bd: 'FCD34D', fg: '92400E', label: 'Caution' },
   warning: { fill: 'FEF2F2', bd: 'FCA5A5', fg: '991B1B', label: 'Warning' },
@@ -107,6 +109,42 @@ export async function buildPptx(
     slide.background = { color: 'FFFFFF' };
 
     if (it.kind === 'text') {
+      if (it.callout === 'section') {
+        // Divider slide: a large centered heading + thin rule + muted body. No card.
+        if (it.heading) {
+          slide.addText(it.heading, {
+            x: MARGIN,
+            y: 2.7,
+            w: SLIDE_W - MARGIN * 2,
+            h: 1.1,
+            fontSize: 34,
+            bold: true,
+            color: '14161F',
+            align: 'center',
+            valign: 'bottom',
+          });
+        }
+        slide.addShape(pptx.ShapeType.line, {
+          x: SLIDE_W / 2 - 2,
+          y: 4.0,
+          w: 4,
+          h: 0,
+          line: { color: 'CBD5E1', width: 1 },
+        });
+        if (it.body) {
+          slide.addText(it.body, {
+            x: MARGIN + 1.5,
+            y: 4.2,
+            w: SLIDE_W - (MARGIN + 1.5) * 2,
+            h: 2,
+            fontSize: 16,
+            color: '6B7280',
+            align: 'center',
+            valign: 'top',
+          });
+        }
+        continue;
+      }
       if (it.callout) {
         // Callout slide: the card is tinted by kind; content sits inside it.
         const c = CALLOUT[it.callout];

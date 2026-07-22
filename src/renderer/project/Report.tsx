@@ -730,6 +730,20 @@ export function Report({
                 + Warning
               </button>
             </div>
+            {/* Row 3 — a non-counted section divider (heading, not a colored box). */}
+            <span className="rep__insert-label">
+              Section <span className="rep__insert-sublabel">— a phase-divider heading, not a numbered step</span>
+            </span>
+            <div className="rep__insert-row">
+              <button
+                type="button"
+                className="btn btn--small"
+                title="Section — a divider heading marking a new phase (not numbered)"
+                onClick={() => doInsert(atIndex, 'section')}
+              >
+                + Section
+              </button>
+            </div>
           </div>
         ) : (
           <button
@@ -762,13 +776,17 @@ export function Report({
   const rail = (s: ProjectStep, idx: number) => (
     <div className="rep__rail">
       {isCalloutStep(s) && s.callout ? (
-        <span
-          className={`rep__num rep__num--callout rep__num--${s.callout}`}
-          title={`${s.callout} callout — not a numbered step`}
-          aria-hidden="true"
-        >
-          {CALLOUT_GLYPH[s.callout]}
-        </span>
+        // A `section` divider carries no badge (not a numbered step, not a glyph
+        // callout); note/caution/warning show their colored glyph badge.
+        s.callout === 'section' ? null : (
+          <span
+            className={`rep__num rep__num--callout rep__num--${s.callout}`}
+            title={`${s.callout} callout — not a numbered step`}
+            aria-hidden="true"
+          >
+            {CALLOUT_GLYPH[s.callout]}
+          </span>
+        )
       ) : editingNumId === s.id ? (
         <InlineInput
           initial={String(displayNums.get(s.id) ?? '')}
@@ -836,6 +854,13 @@ export function Report({
           onClick: () => void setCallout(s, k),
         });
       }
+      // Non-counted phase-divider heading (distinct from the colored callouts).
+      if (cur !== 'section') {
+        items.push({
+          label: cur ? 'Change to section divider' : 'Make section divider',
+          onClick: () => void setCallout(s, 'section'),
+        });
+      }
       if (cur) items.push({ label: 'Convert to plain text', onClick: () => void setCallout(s, null) });
       // Text steps have no image, so Delete lives here; shots delete via the
       // floating control over the image (UX8).
@@ -893,6 +918,27 @@ export function Report({
                 onSave={(h, b) => void saveText(s, h, b)}
                 onCancel={() => void cancelText(s)}
               />
+            ) : s.callout === 'section' ? (
+              // Section: a non-counted phase-divider heading (bold heading + thin
+              // rule + muted body) — no glyph badge, no colored box.
+              <div className="rep__calloutrow">
+                <div
+                  className="rep__section rep__section--clickable"
+                  title="Click to edit this section divider"
+                  onClick={() => openTextEdit(s)}
+                >
+                  {s.heading ? <h3 className="rep__section-h">{s.heading}</h3> : null}
+                  <hr className="rep__section-rule" />
+                  {s.body ? (
+                    <p className="rep__section-b">{s.body}</p>
+                  ) : !s.heading ? (
+                    <p className="rep__section-b rep__callout-empty">
+                      Empty — click to add a section heading.
+                    </p>
+                  ) : null}
+                </div>
+                <div className="rep__actions">{controls(s, idx)}</div>
+              </div>
             ) : s.callout ? (
               // Callout: the box COLOR conveys the type; the rail shows the type glyph.
               // Box + controls share one row so the box lines up with the glyph.

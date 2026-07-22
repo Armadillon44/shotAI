@@ -3,6 +3,7 @@
  * Keep channel names and payload types here so all three stay in sync.
  */
 import type {
+  CalloutKind,
   CaptureTarget,
   MonitorInfo,
   ProjectManifest,
@@ -264,11 +265,12 @@ export interface ShotaiApi {
       patch: StepPatch,
       flattenedPng?: Uint8Array | null,
     ): Promise<ProjectManifest>;
-    /** Insert an empty text step at the given index. Returns the manifest. */
+    /** Insert an empty text step at the given index (optionally a callout —
+     *  note/caution/warning box or a `section` divider). Returns the manifest. */
     addTextStep(
       projectPath: string,
       atIndex: number,
-      callout?: 'note' | 'caution' | 'warning',
+      callout?: CalloutKind,
     ): Promise<ProjectManifest>;
     /**
      * Auto-redaction pre-scan: OCR a step's screenshot locally and return

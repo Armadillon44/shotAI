@@ -225,7 +225,10 @@ async function collectSteps(
       const heading = (step.heading ?? '').trim();
       const body = (step.body ?? '').trim();
       if (step.callout) {
-        // Callouts are un-numbered annotations (matches the report), kept even if empty.
+        // A `section` divider with neither heading nor body would emit a stray
+        // rule/hr/---, so skip it (like an empty plain text step). Colored callouts
+        // stay meaningful even when empty. Either way, un-numbered (no stepNo).
+        if (step.callout === 'section' && !heading && !body) continue;
         items.push({ kind: 'text', heading, body, callout: step.callout });
         continue;
       }
@@ -287,9 +290,9 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:#6b7280;margin:0 0 6px}
 .doc__intro-h{margin:0 0 6px;font-size:1.15rem}
 .doc__intro-b{margin:0;color:#374151;white-space:pre-wrap}
-.section{margin:26px 0}
-.section__h{font-size:1.3rem;margin:0 0 6px;color:#111827}
-.section__b{white-space:pre-wrap;margin:0}
+.section{margin:30px 0 18px}
+.section__h{font-size:1.3rem;margin:0 0 6px;padding-bottom:6px;border-bottom:1px solid #e5e7eb;color:#111827}
+.section__b{white-space:pre-wrap;margin:0;color:#6b7280}
 .step{display:flex;gap:16px;margin:0 0 18px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
 .step__num{flex:0 0 auto;width:30px;height:30px;margin-top:14px;border-radius:50%;background:#6344f1;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
 .step__num--note{background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7}
@@ -300,7 +303,7 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .step__main--caution{background:#fffbeb;border-color:#fcd34d;color:#92400e}
 .step__main--warning{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
 .step__title{font-size:1.15rem;margin:0 0 10px}
-.step__img{display:block;max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:8px}
+.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid #e5e7eb;border-radius:8px}
 .step__instr{margin:10px 0 0;white-space:pre-wrap;font-size:1.02rem}
 .step--textonly .step__instr{margin-top:0}
 .callout__h{display:block;font-weight:700;margin-bottom:.25rem}
@@ -317,6 +320,14 @@ async function buildHtmlDoc(
   const parts: string[] = [];
   for (const it of items) {
     if (it.kind === 'text') {
+      if (it.callout === 'section') {
+        // A non-counted phase divider: a heading + thin rule + muted body (no badge,
+        // no colored box). Reuses the .section / .section__h / .section__b styles.
+        const h = it.heading ? `<h2 class="section__h">${escapeHtml(it.heading)}</h2>` : '';
+        const b = it.body ? `<p class="section__b">${escapeHtml(it.body)}</p>` : '';
+        parts.push(`<section class="section">${h}${b}</section>`);
+        continue;
+      }
       if (it.callout) {
         // Callout = the same step card, tinted by kind: a glyph badge in the left
         // gutter + the content in a tinted .step__main card (no inner box).
@@ -423,7 +434,11 @@ async function buildPlainHtmlDoc(
   for (const it of items) {
     const block: string[] = [];
     if (it.kind === 'text') {
-      if (it.callout) {
+      if (it.callout === 'section') {
+        // Non-counted divider → a real heading + body (no glyph, no blockquote).
+        if (it.heading) block.push(`<h2>${escapeHtml(it.heading)}</h2>`);
+        if (it.body) block.push(`<p>${br(it.body)}</p>`);
+      } else if (it.callout) {
         // Bold glyph (+ heading) on the first line, then the body.
         const glyph = CALLOUT_GLYPH[it.callout];
         const h = `<strong>${glyph}${it.heading ? ` ${escapeHtml(it.heading)}` : ''}</strong>`;
@@ -541,7 +556,14 @@ async function buildMarkdown(
   for (const it of items) {
     const chunk: string[] = [];
     if (it.kind === 'text') {
-      if (it.callout) {
+      if (it.callout === 'section') {
+        // Non-counted divider → a real `## heading` + body (no glyph, no blockquote).
+        if (it.heading) chunk.push(`## ${escapeMarkdown(it.heading.replace(/\s*\n\s*/g, ' '))}`);
+        if (it.body) {
+          if (it.heading) chunk.push('');
+          chunk.push(it.body);
+        }
+      } else if (it.callout) {
         // Blockquote with a bold glyph (+ heading) as the first quoted line, then
         // the body. A blank ">" line separates them (without it, two adjacent quoted
         // lines merge into one paragraph — CommonMark soft break = space).
