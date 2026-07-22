@@ -9,7 +9,9 @@ cautions/callouts.
 Everything runs and is stored **on your machine**. The only network call is to Anthropic's
 API, and only when you ask shotAI to write the SOP. **Windows first**, macOS later.
 
-> **Status:** **1.1.1** — a polish + export release on top of 1.1.0. Adds **step
+> **Status:** **1.1.2** — adds non-counted **section dividers** (mark a new phase
+> with a heading that isn't a numbered step, in the report and every export) and
+> **centers narrow captures** in a uniform column width. 1.1.1 added **step
 > framing** (every step reads as a distinct card in the report and all exports),
 > **choose where to save an export** (single Save dialog, or bulk to each project's
 > own folder / one shared folder; Markdown saves as a self-contained folder), a
