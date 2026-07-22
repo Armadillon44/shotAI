@@ -290,7 +290,9 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:#6b7280;margin:0 0 6px}
 .doc__intro-h{margin:0 0 6px;font-size:1.15rem}
 .doc__intro-b{margin:0;color:#374151;white-space:pre-wrap}
-.section{margin:30px 0 18px}
+/* Offset by the step gutter (30px badge + 16px flex gap) so a section aligns
+   with the step/callout content column instead of overflowing into the gutter. */
+.section{margin:30px 0 18px 46px}
 .section__h{font-size:1.3rem;margin:0 0 6px;padding-bottom:6px;border-bottom:1px solid #e5e7eb;color:#111827}
 .section__b{white-space:pre-wrap;margin:0;color:#6b7280}
 .step{display:flex;gap:16px;margin:0 0 18px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
