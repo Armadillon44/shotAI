@@ -927,8 +927,9 @@ export function Report({
                   title="Click to edit this section divider"
                   onClick={() => openTextEdit(s)}
                 >
-                  {s.heading ? <h3 className="rep__section-h">{s.heading}</h3> : null}
+                  {/* Rule ABOVE the heading — denotes entering a new section. */}
                   <hr className="rep__section-rule" />
+                  {s.heading ? <h3 className="rep__section-h">{s.heading}</h3> : null}
                   {s.body ? (
                     <p className="rep__section-b">{s.body}</p>
                   ) : !s.heading ? (

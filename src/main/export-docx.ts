@@ -118,20 +118,26 @@ export async function buildDocx(
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout === 'section') {
-        // Non-counted phase divider: a bold heading with a bottom rule + muted
-        // body. No card, no colored box.
+        // Non-counted phase divider: a top rule (denoting a new section) ABOVE a
+        // bold heading + muted body. No card, no colored box. The rule goes on the
+        // first paragraph (heading if present, else body).
+        const rule = { top: { style: BorderStyle.SINGLE, size: 6, color: 'E5E7EB', space: 8 } } as const;
         if (it.heading) {
           children.push(
             new Paragraph({
               heading: HeadingLevel.HEADING_2,
-              spacing: { before: 240, after: it.body ? 60 : 120 },
-              border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'E5E7EB', space: 4 } },
+              spacing: { before: 280, after: it.body ? 60 : 120 },
+              border: rule,
               text: it.heading,
             }),
           );
-        }
-        if (it.body) {
-          children.push(new Paragraph({ children: multiline(it.body, { color: '6B7280' }), spacing: { after: 160 } }));
+          if (it.body) {
+            children.push(new Paragraph({ children: multiline(it.body, { color: '6B7280' }), spacing: { after: 160 } }));
+          }
+        } else if (it.body) {
+          children.push(
+            new Paragraph({ children: multiline(it.body, { color: '6B7280' }), spacing: { before: 280, after: 160 }, border: rule }),
+          );
         }
         continue;
       }

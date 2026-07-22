@@ -110,27 +110,28 @@ export async function buildPptx(
 
     if (it.kind === 'text') {
       if (it.callout === 'section') {
-        // Divider slide: a large centered heading + thin rule + muted body. No card.
-        if (it.heading) {
-          slide.addText(it.heading, {
-            x: MARGIN,
-            y: 2.7,
-            w: SLIDE_W - MARGIN * 2,
-            h: 1.1,
-            fontSize: 34,
-            bold: true,
-            color: '14161F',
-            align: 'center',
-            valign: 'bottom',
-          });
-        }
+        // Divider slide: a thin rule ABOVE a large centered heading + muted body
+        // (the rule denotes entering a new section). No card.
         slide.addShape(pptx.ShapeType.line, {
           x: SLIDE_W / 2 - 2,
-          y: 4.0,
+          y: 2.9,
           w: 4,
           h: 0,
           line: { color: 'CBD5E1', width: 1 },
         });
+        if (it.heading) {
+          slide.addText(it.heading, {
+            x: MARGIN,
+            y: 3.05,
+            w: SLIDE_W - MARGIN * 2,
+            h: 1.0,
+            fontSize: 34,
+            bold: true,
+            color: '14161F',
+            align: 'center',
+            valign: 'top',
+          });
+        }
         if (it.body) {
           slide.addText(it.body, {
             x: MARGIN + 1.5,

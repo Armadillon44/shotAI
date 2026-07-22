@@ -1892,10 +1892,11 @@ body {
   font-size: 1.15rem;
   font-weight: 700;
 }
+/* Rule sits ABOVE the heading (a divider into a new section). */
 .rep__section-rule {
   border: 0;
   border-top: 1px solid var(--hair);
-  margin: 0 0 0.5rem;
+  margin: 0.2rem 0 0.6rem;
 }
 .rep__section-b {
   margin: 0;
