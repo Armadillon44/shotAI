@@ -10,7 +10,7 @@ import {
   type ShotaiApi,
   type SopProgress,
 } from '../shared/ipc';
-import type { CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch, ThemePref } from '../shared/project';
+import type { CalloutKind, CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch, ThemePref } from '../shared/project';
 import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
@@ -88,7 +88,7 @@ const api: ShotaiApi = {
     addTextStep: (
       projectPath: string,
       atIndex: number,
-      callout?: 'note' | 'caution' | 'warning',
+      callout?: CalloutKind,
     ) => ipcRenderer.invoke(IpcChannels.addTextStep, projectPath, atIndex, callout),
     redactScan: (projectPath: string, stepId: string) =>
       ipcRenderer.invoke(IpcChannels.redactScan, projectPath, stepId),

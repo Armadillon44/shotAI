@@ -476,10 +476,7 @@ export function registerIpcHandlers(
     IpcChannels.addTextStep,
     (_event: IpcMainInvokeEvent, projectPath: unknown, atIndex: unknown, callout: unknown) => {
       devLog('ipc: projects:add-text-step');
-      const c =
-        callout === 'note' || callout === 'caution' || callout === 'warning'
-          ? callout
-          : undefined;
+      const c = isCalloutKind(callout) ? callout : undefined;
       return projectStore.addTextStep(
         asString(projectPath, 'projectPath'),
         isNum(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,

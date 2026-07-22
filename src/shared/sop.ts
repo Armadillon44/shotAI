@@ -136,7 +136,8 @@ export interface SopStepEdit {
   caption: string;
   /** Instruction text (the detail) shown under the screenshot. */
   body: string;
-  /** If set, insert a section-heading text step immediately BEFORE this step. */
+  /** If set, insert a NON-counted `section` divider (phase heading) immediately
+   *  BEFORE this step — not a numbered step. */
   sectionHeading: string | null;
   sectionBody: string | null;
 }

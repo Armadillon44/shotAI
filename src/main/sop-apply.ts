@@ -4,12 +4,18 @@
 // rule that both halves depend on can't silently drift. Manifest IO + writeQueue
 // serialization come from ProjectStore.mutate, so this module stays storage-agnostic.
 import { randomUUID } from 'node:crypto';
-import type { ProjectManifest, ProjectStep, SopBackup } from '../shared/project';
+import type { CalloutKind, ProjectManifest, ProjectStep, SopBackup } from '../shared/project';
 import type { SopEditPlan, SopTone } from '../shared/sop';
 import { mutate, renumber, normalizeSteps } from './project-store';
 
-/** Build a fresh text step. `aiInserted` marks SOP-generated intro/section steps. */
-function makeTextStep(heading: string, body: string, aiInserted = false): ProjectStep {
+/** Build a fresh text step. `aiInserted` marks SOP-generated intro/section steps;
+ *  `callout` optionally styles it (e.g. a non-counted `section` divider). */
+function makeTextStep(
+  heading: string,
+  body: string,
+  aiInserted = false,
+  callout?: CalloutKind,
+): ProjectStep {
   return {
     id: randomUUID(),
     order: 0,
@@ -23,6 +29,7 @@ function makeTextStep(heading: string, body: string, aiInserted = false): Projec
     caption: '',
     heading,
     body,
+    ...(callout ? { callout } : {}),
     crop: null,
     annotations: [],
     aiInserted,
@@ -82,7 +89,9 @@ export function applySopEdits(
         return;
       }
       if (e.sectionHeading) {
-        next.push(makeTextStep(e.sectionHeading, e.sectionBody ?? '', true));
+        // A section is a NON-counted phase divider, not a numbered step — so
+        // Claude's phase headings stop injecting redundant numbered steps.
+        next.push(makeTextStep(e.sectionHeading, e.sectionBody ?? '', true, 'section'));
       }
       next.push({
         ...step,
