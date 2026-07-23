@@ -15,8 +15,9 @@ import { useConfirm } from '../useConfirm';
  *  steps (mode-picked) starting here; `screenshot` grabs one image (no click). */
 export type InsertKind = 'text' | 'image' | 'capture' | 'screenshot' | CalloutKind;
 
-// Base display box for report images (display only — export is full-res).
-const REPORT_BASE_W = 900;
+// Base display box for report images (display only — export is full-res). Matches
+// the macOS app's ReportPresentation.baseWidth (820×600) so both render at parity.
+const REPORT_BASE_W = 820;
 const REPORT_BASE_H = 600;
 // The default view (zoom 1) already fits the screenshot to the report column, so
 // zoom is IN-only — never shrink below the fit. Enforced on BOTH the write path
