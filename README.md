@@ -136,6 +136,34 @@ Rebuild the native element-locator addon (needs Rust via rustup; sets a local `C
 npm run build:element-locator
 ```
 
+## Silent install (deployment)
+
+The installer is a **Squirrel** `Setup.exe`, so it's already low-friction: a normal
+double-click does a **per-user** install to `%LocalAppData%\shotAI` (no admin), shows a brief
+progress animation, then launches the app. There's no Next/Next/Finish wizard. For scripted or
+managed rollouts, pass `--silent`:
+
+```sh
+shotAI-<version>-Setup.exe --silent
+```
+
+`--silent` suppresses the progress animation and does **not** auto-launch the app after
+installing. It's a Squirrel-style switch, so use `--silent` (not `/S`, `/quiet`, or `/qn` —
+those belong to NSIS/MSI installers; shotAI isn't one).
+
+Notes for deployment:
+
+- **Deploy in user context.** shotAI installs into the signed-in user's profile, so a
+  system/device-context push (e.g. Intune in device context) has no profile to install into.
+- **Uninstall** via **Settings → Apps** (Installed apps), or the per-user Squirrel uninstaller
+  under `%LocalAppData%\shotAI`.
+- **Not code-signed yet.** `--silent` hides shotAI's own UI but does **not** bypass Windows
+  SmartScreen/Defender — a managed environment may need to allow/trust the app until
+  code-signing lands.
+
+See the wiki [Installation](https://github.com/Armadillon44/shotAI/wiki/Installation) page for
+the end-user walkthrough and the same deployment notes.
+
 ## Claude API key
 
 SOP generation is **bring-your-own-key** and off until you add one. Set it in
