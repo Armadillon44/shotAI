@@ -68,6 +68,69 @@ body {
   color: #fcd34d;
 }
 
+/* Row 2 alternate: an unacknowledged in-session capture error. Takes the hint's
+   row — a failure outranks guidance, and row 1 has no room for the message next
+   to the controls. The pill is the only visible surface while recording, so this
+   is what keeps a long recording from failing silently. Draggable like the hint;
+   the dismiss button opts out. */
+.toolbar__err {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding-left: 0.35rem;
+  color: #fecaca;
+  font-size: 0.72rem;
+  font-weight: 600;
+  -webkit-app-region: drag;
+}
+
+/* The glyph + message opt OUT of the row's drag region. An element inside
+   -webkit-app-region: drag is hit-tested by the OS for window moves, so it never
+   receives the hover that surfaces a native title tooltip — and the tooltip is
+   how the full text is read once the message ellipsizes. cursor:help advertises
+   it. The row's remaining space still drags the pill. */
+.toolbar__err-glyph {
+  flex: none;
+  -webkit-app-region: no-drag;
+  cursor: help;
+}
+
+.toolbar__err-msg {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  -webkit-app-region: no-drag;
+  cursor: help;
+}
+
+/* Worded rather than a bare ✕ on purpose: the destructive Discard ✕ sits ~2px
+   above it on the same right edge, and two same-glyph buttons that far apart in
+   consequence should not look alike. */
+.toolbar__err-dismiss {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-left: auto;
+  height: 18px;
+  padding: 0 0.45rem;
+  border: 0;
+  border-radius: 5px;
+  background: #7f1d1d;
+  color: #fecaca;
+  font-family: inherit;
+  font-size: 0.66rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar__err-dismiss:hover {
+  background: #991b1b;
+  color: #fff;
+}
+
 /* Capture-confirmation flash (R4): a one-shot green ring pulse over the pill. */
 .toolbar__flash {
   position: absolute;
@@ -222,6 +285,13 @@ body {
 .toolbar--recording,
 .toolbar--paused {
   box-shadow: inset 0 2px 0 var(--accent);
+}
+
+/* The accent bar goes red while an error is unacknowledged (macOS parity). Two
+   classes, so it outranks the rule above regardless of order. */
+.toolbar--err.toolbar--recording,
+.toolbar--err.toolbar--paused {
+  box-shadow: inset 0 2px 0 #ef4444;
 }
 
 .toolbar--paused .toolbar__label {

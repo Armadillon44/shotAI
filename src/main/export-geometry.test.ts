@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { zoomCropRect } from './export-geometry';
+import { PLAIN_IMG_MAX_W, plainImageSize, zoomCropRect } from './export-geometry';
 
 describe('zoomCropRect', () => {
   it('returns null at zoom 1 (whole image visible)', () => {
@@ -56,5 +56,30 @@ describe('zoomCropRect', () => {
 
   it('returns null for a degenerate (sub-2px) image', () => {
     expect(zoomCropRect(1, 1, 2, 0.5, 0.5)).toBeNull();
+  });
+});
+
+describe('plainImageSize', () => {
+  it('caps a wide capture at the macOS-matched 738px, preserving aspect', () => {
+    // 2560x1440 → scale 738/2560; height rounds to 415.
+    expect(plainImageSize(2560, 1440)).toEqual({ w: 738, h: 415 });
+  });
+
+  it('leaves a capture already narrower than the cap at its native size', () => {
+    expect(plainImageSize(400, 300)).toEqual({ w: 400, h: 300 });
+    expect(plainImageSize(PLAIN_IMG_MAX_W, 450)).toEqual({ w: 738, h: 450 });
+  });
+
+  it('never rounds a very wide/short image away to zero height', () => {
+    // 3000x1 → scale 0.246; height would round to 0 without the floor.
+    expect(plainImageSize(3000, 1)).toEqual({ w: 738, h: 1 });
+  });
+
+  it('returns null for an undecodable size so the caller omits the attributes', () => {
+    expect(plainImageSize(0, 0)).toBeNull();
+    expect(plainImageSize(NaN, 100)).toBeNull();
+    expect(plainImageSize(100, NaN)).toBeNull();
+    expect(plainImageSize(-800, 600)).toBeNull();
+    expect(plainImageSize(Infinity, 600)).toBeNull();
   });
 });
