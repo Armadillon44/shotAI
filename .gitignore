@@ -94,6 +94,10 @@ out/
 # Rust native addon build output (the built .dll is published separately)
 native/**/target/
 
+# Byproduct of scripts/make-loading-gif.cjs — a mid-loop still for eyeballing the
+# install graphic. Only the .gif it sits next to is shipped.
+assets/_loading-preview.png
+
 # OS-generated files
 Thumbs.db
 ehthumbs.db
