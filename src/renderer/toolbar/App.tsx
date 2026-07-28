@@ -153,14 +153,17 @@ export function App(): React.JSX.Element {
             <span className="toolbar__err-msg" title={error ?? undefined}>
               {error}
             </span>
+            {/* Worded, not a bare ✕: row 1's far-right control is the DESTRUCTIVE
+                Discard ✕, ~2px above and on the same edge. A different shape can't
+                be mistaken for it. */}
             <button
               type="button"
-              className="toolbar__err-x"
+              className="toolbar__err-dismiss"
               title="Dismiss this error"
               aria-label="Dismiss this capture error"
               onClick={() => setError(null)}
             >
-              ✕
+              Dismiss
             </button>
           </div>
         ) : (
