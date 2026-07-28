@@ -9,7 +9,12 @@ cautions/callouts.
 Everything runs and is stored **on your machine**. The only network call is to Anthropic's
 API, and only when you ask shotAI to write the SOP. **Windows first**, macOS later.
 
-> **Status:** **1.1.3** — a cross-platform **parity** pass: the report and HTML
+> **Status:** **1.1.4** — **HTML (for Word)** now sizes its screenshots so they
+> paste into Word / Google Docs at a sane width instead of full resolution, the
+> **capture pill surfaces an error** if a capture fails mid-recording (the main
+> window is hidden then, so a long recording could previously fail silently), and
+> the installer graphic is darker, rounded and smaller. 1.1.3 was a cross-platform
+> **parity** pass: the report and HTML
 > export now render at the same dimensions as the macOS app (matching column /
 > `.doc` widths and section-divider styling). 1.1.2 added non-counted **section
 > dividers** (mark a new phase with a heading that isn't a numbered step, in the
