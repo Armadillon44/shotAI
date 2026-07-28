@@ -21,10 +21,37 @@ export function App(): React.JSX.Element {
   // animation, which also fires reliably for rapid successive captures.
   const prevCount = React.useRef(count);
   const [flashKey, setFlashKey] = React.useState(0);
+
+  // In-session capture errors. The main window owns the error banner, but it is
+  // HIDDEN while recording — so the pill is the only surface a mid-session
+  // failure can reach. Without this, a long recording can fail silently (macOS
+  // parity: CapturePill's error badge).
+  const [error, setError] = React.useState<string | null>(null);
   React.useEffect(() => {
-    if (active && count > prevCount.current) setFlashKey((k) => k + 1);
+    // A thrown Error carrying no message would otherwise paint a red row with a
+    // glyph and no text. Substitute something readable — the point is that the
+    // user learns a capture failed at all, message or not.
+    const off = window.shotai.capture.onError((msg) =>
+      setError(msg && msg.trim() ? msg : 'A capture failed — see the log for details.'),
+    );
+    return off;
+  }, []);
+
+  React.useEffect(() => {
+    if (active && count > prevCount.current) {
+      setFlashKey((k) => k + 1);
+      setError(null); // a step landed — capture recovered, so drop the error
+    }
     prevCount.current = count;
   }, [count, active]);
+
+  // Never let an error linger on the idle pill, and start each session clean.
+  React.useEffect(() => {
+    if (!active) setError(null);
+  }, [active]);
+
+  // Only while a session exists — see above.
+  const showError = active && error !== null;
 
   // Capture is started from the main window (pick/create a project there);
   // the pill controls the in-progress session.
@@ -50,7 +77,7 @@ export function App(): React.JSX.Element {
   };
 
   return (
-    <div className={`toolbar toolbar--${status}`}>
+    <div className={`toolbar toolbar--${status}${showError ? ' toolbar--err' : ''}`}>
       <div className="toolbar__row">
         <div className="toolbar__drag" title="Drag to move">
           <span className="toolbar__grip" aria-hidden="true" />
@@ -107,14 +134,42 @@ export function App(): React.JSX.Element {
       </div>
 
       {/* Persistent instruction (R3): the core interaction is otherwise taught
-          only in the main window, which hides while recording. */}
-      {active && (
-        <div className="toolbar__hint">
-          {status === 'paused'
-            ? 'Paused — press Resume to keep capturing'
-            : 'Click anything to capture a step · Ctrl+Shift+S'}
-        </div>
-      )}
+          only in the main window, which hides while recording. An unacknowledged
+          capture error takes this row instead — a failure outranks guidance, and
+          row 1 has no room for the message beside the controls. */}
+      {active &&
+        (showError ? (
+          <div className="toolbar__err" role="alert">
+            {/* Both the glyph and the message carry the full text as a tooltip —
+                the row truncates to fit 380px, so hover is how the whole message
+                is read. */}
+            <span
+              className="toolbar__err-glyph"
+              title={error ?? undefined}
+              aria-hidden="true"
+            >
+              ⚠
+            </span>
+            <span className="toolbar__err-msg" title={error ?? undefined}>
+              {error}
+            </span>
+            <button
+              type="button"
+              className="toolbar__err-x"
+              title="Dismiss this error"
+              aria-label="Dismiss this capture error"
+              onClick={() => setError(null)}
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="toolbar__hint">
+            {status === 'paused'
+              ? 'Paused — press Resume to keep capturing'
+              : 'Click anything to capture a step · Ctrl+Shift+S'}
+          </div>
+        ))}
 
       {flashKey > 0 && <span key={flashKey} className="toolbar__flash" aria-hidden="true" />}
     </div>

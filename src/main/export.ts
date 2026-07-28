@@ -13,7 +13,7 @@ import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared
 import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
-import { zoomCropRect } from './export-geometry';
+import { plainImageSize, zoomCropRect } from './export-geometry';
 import { buildDocx } from './export-docx';
 import { buildPptx } from './export-pptx';
 import { getReportByline } from './settings';
@@ -459,10 +459,17 @@ async function buildPlainHtmlDoc(
         }
       }
     } else {
-      const bytes = it.bytes ?? (await fs.readFile(it.abs));
-      const dataUri = `data:${it.mediaType};base64,${bytes.toString('base64')}`;
+      const { buffer, width, height } = await loadItemImage(it);
+      const dataUri = `data:${it.mediaType};base64,${buffer.toString('base64')}`;
+      // Size the image with width/height ATTRIBUTES rather than relying on the
+      // stylesheet: Word / Google Docs drop CSS max-width on paste and would lay
+      // the capture out at full pixel size. Matches the macOS export.
+      const size = plainImageSize(width, height);
+      const sizeAttr = size ? ` width="${size.w}" height="${size.h}"` : '';
       block.push(`<h2>${it.n}. ${escapeHtml(it.caption || `Step ${it.n}`)}</h2>`);
-      block.push(`<p><img src="${dataUri}" alt="Screenshot for step ${it.n}"></p>`);
+      block.push(
+        `<p><img src="${dataUri}"${sizeAttr} alt="Screenshot for step ${it.n}"></p>`,
+      );
       if (it.body) block.push(`<p>${br(it.body)}</p>`);
     }
     if (block.length) itemBlocks.push(block.join('\n'));
