@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { PLAIN_IMG_MAX_W, plainImageSize, zoomCropRect } from './export-geometry';
+import {
+  HTML_IMG_MAX_W,
+  htmlImageSize,
+  resamplesEmbeddedImages,
+  zoomCropRect,
+} from './export-geometry';
 
 describe('zoomCropRect', () => {
   it('returns null at zoom 1 (whole image visible)', () => {
@@ -59,27 +64,55 @@ describe('zoomCropRect', () => {
   });
 });
 
-describe('plainImageSize', () => {
+describe('htmlImageSize', () => {
   it('caps a wide capture at the macOS-matched 738px, preserving aspect', () => {
     // 2560x1440 → scale 738/2560; height rounds to 415.
-    expect(plainImageSize(2560, 1440)).toEqual({ w: 738, h: 415 });
+    expect(htmlImageSize(2560, 1440)).toEqual({ w: 738, h: 415 });
   });
 
   it('leaves a capture already narrower than the cap at its native size', () => {
-    expect(plainImageSize(400, 300)).toEqual({ w: 400, h: 300 });
-    expect(plainImageSize(PLAIN_IMG_MAX_W, 450)).toEqual({ w: 738, h: 450 });
+    expect(htmlImageSize(400, 300)).toEqual({ w: 400, h: 300 });
+    expect(htmlImageSize(HTML_IMG_MAX_W, 450)).toEqual({ w: 738, h: 450 });
   });
 
   it('never rounds a very wide/short image away to zero height', () => {
     // 3000x1 → scale 0.246; height would round to 0 without the floor.
-    expect(plainImageSize(3000, 1)).toEqual({ w: 738, h: 1 });
+    expect(htmlImageSize(3000, 1)).toEqual({ w: 738, h: 1 });
   });
 
   it('returns null for an undecodable size so the caller omits the attributes', () => {
-    expect(plainImageSize(0, 0)).toBeNull();
-    expect(plainImageSize(NaN, 100)).toBeNull();
-    expect(plainImageSize(100, NaN)).toBeNull();
-    expect(plainImageSize(-800, 600)).toBeNull();
-    expect(plainImageSize(Infinity, 600)).toBeNull();
+    expect(htmlImageSize(0, 0)).toBeNull();
+    expect(htmlImageSize(NaN, 100)).toBeNull();
+    expect(htmlImageSize(100, NaN)).toBeNull();
+    expect(htmlImageSize(-800, 600)).toBeNull();
+    expect(htmlImageSize(Infinity, 600)).toBeNull();
+  });
+});
+
+describe('resamplesEmbeddedImages', () => {
+  // The scope boundary from #56, and the trap it guards: on Windows the PDF is
+  // printed from the SAME buildHtmlDoc output as the .html export, so it inherits
+  // anything done there unless excluded on purpose. printToPDF embeds the source
+  // bitmap, so resampling to 738px would cap a Letter print near 110 DPI where the
+  // full render gives ~355. macOS asserts the same boundary
+  // (testPdfAndMarkdownKeepFullResolution).
+  it('resamples ONLY the two HTML varieties, which inline base64', () => {
+    expect(resamplesEmbeddedImages('html')).toBe(true);
+    expect(resamplesEmbeddedImages('html-plain')).toBe(true);
+  });
+
+  it('leaves the PDF at full resolution for print', () => {
+    expect(resamplesEmbeddedImages('pdf')).toBe(false);
+  });
+
+  it('leaves the formats that never route through buildHtmlDoc alone', () => {
+    for (const f of ['markdown', 'docx', 'pptx']) {
+      expect(resamplesEmbeddedImages(f), `${f} must not resample`).toBe(false);
+    }
+  });
+
+  it('defaults to NOT resampling for an unknown format', () => {
+    expect(resamplesEmbeddedImages('')).toBe(false);
+    expect(resamplesEmbeddedImages('someFutureFormat')).toBe(false);
   });
 });

@@ -13,7 +13,13 @@ import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared
 import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
-import { plainImageSize, zoomCropRect } from './export-geometry';
+import {
+  HTML_IMG_MAX_W,
+  htmlImageSize,
+  resamplesEmbeddedImages,
+  zoomCropRect,
+} from './export-geometry';
+import { DOC_CSS, PLAIN_CSS } from './export-css';
 import { buildDocx } from './export-docx';
 import { buildPptx } from './export-pptx';
 import { getReportByline } from './settings';
@@ -207,6 +213,68 @@ export async function loadItemImage(
   return { buffer, width, height };
 }
 
+/** What an HTML export inlines for one shot: bytes, media type, and the size attrs. */
+interface InlineImage {
+  bytes: Buffer;
+  mediaType: string;
+  /** ` width="W" height="H"`, or '' when the size couldn't be read. */
+  sizeAttr: string;
+}
+
+/**
+ * Resolve a shot to the bytes an HTML export should inline, resampled down to the
+ * width it is ever displayed at (HTML_IMG_MAX_W) — issue #56.
+ *
+ * Both HTML varieties embed images as base64 data URIs, so a full-resolution render
+ * shipped several times more pixels than are ever shown plus base64's ~33%
+ * overhead. That payload is what makes copying a long SOP out of a browser into
+ * another system (a Freshservice KB article) fall over.
+ *
+ * NEVER upscales — an image already narrower than the column is left byte-identical,
+ * both to avoid inventing detail and because re-encoding a crisp screenshot can make
+ * it BIGGER (interpolation turns flat colour runs into many unique colours, which
+ * PNG compresses worse). For the same reason the re-encode is discarded if it didn't
+ * actually come out smaller.
+ *
+ * Degrades safely at every step: an unreadable size, a failed resize, or a resize
+ * that didn't help all fall back to the original bytes. The worst case is the old
+ * behaviour, never a wrong or missing image.
+ *
+ * Runs strictly AFTER the fail-closed render gate, on already redaction-baked and
+ * zoom-cropped pixels — resampling can only destroy information, never recover a
+ * redacted region.
+ */
+async function inlineImageForHtml(
+  it: Extract<ExportItem, { kind: 'shot' }>,
+  resample: boolean,
+): Promise<InlineImage> {
+  const { buffer, width, height } = await loadItemImage(it);
+  const target = htmlImageSize(width, height);
+  const sizeAttr = target ? ` width="${target.w}" height="${target.h}"` : '';
+  // `resample: false` is the PDF — it keeps full-resolution pixels for print, and
+  // still gets the attributes (they only pin the intrinsic size, and in print the
+  // blocks go max-width:none so the printable column, not the attribute, binds).
+  // Otherwise: nothing to shrink when undecodable or already at/under the width.
+  if (!resample || !target || width <= HTML_IMG_MAX_W) {
+    return { bytes: buffer, mediaType: it.mediaType, sizeAttr };
+  }
+  try {
+    const resized = nativeImage
+      .createFromBuffer(buffer)
+      // 'best' (not the cheaper 'good'): this re-encode is the ONLY copy of the
+      // pixels the reader ever sees, it's a ~4x downscale of UI text, and the
+      // filter choice is plainly visible on it. Matches macOS's .high.
+      .resize({ width: target.w, height: target.h, quality: 'best' })
+      .toPNG();
+    if (resized.length > 0 && resized.length < buffer.length) {
+      return { bytes: resized, mediaType: 'image/png', sizeAttr };
+    }
+  } catch (e) {
+    mainLog.warn('export: image resample failed, embedding the original:', e);
+  }
+  return { bytes: buffer, mediaType: it.mediaType, sizeAttr };
+}
+
 /**
  * Resolve the project's steps into an ordered export list. Numbering matches the
  * in-app report: every NON-callout step — shots AND non-empty plain text steps —
@@ -275,50 +343,20 @@ async function collectSteps(
   return items;
 }
 
-// Step framing (#40): every step is a distinct CARD — the number/glyph badge sits
-// in a left gutter, and a tinted rounded card (.step__main) holds the content to
-// its right. Callouts are the same card, tinted by kind. Mirrors the in-app report
-// and the macOS port (shotAI_MacOS#45). Light-only (exports don't theme).
-const DOC_CSS = `
-*{box-sizing:border-box}
-html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1f2937;background:#fff;line-height:1.6}
-.doc{max-width:880px;margin:0 auto;padding:40px 32px 64px}
-.doc__title{font-size:1.9rem;line-height:1.25;margin:0 0 4px}
-.doc__meta{color:#6b7280;font-size:.85rem;margin:0 0 28px}
-.doc__intro{margin:0 0 28px;padding:14px 18px;border:1px solid #e7e4f2;border-left:4px solid #6344f1;border-radius:8px;background:#efeafe}
-.doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:#6b7280;margin:0 0 6px}
-.doc__intro-h{margin:0 0 6px;font-size:1.15rem}
-.doc__intro-b{margin:0;color:#374151;white-space:pre-wrap}
-/* Offset by the step gutter (46px) so a section aligns with the step content
-   column; the 2px top rule denotes the SOP moving into a new section. Values
-   match the macOS export for parity. */
-.section{margin:28px 0 4px 46px;padding:14px 16px 0;border-top:2px solid #e7e4f2;break-inside:avoid}
-.section__h{font-size:1.2rem;font-weight:700;margin:0 0 4px;color:#191826}
-.section__b{margin:0;color:#5a5772;white-space:pre-wrap}
-.step{display:flex;gap:16px;margin:0 0 18px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
-.step__num{flex:0 0 auto;width:30px;height:30px;margin-top:14px;border-radius:50%;background:#6344f1;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
-.step__num--note{background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7}
-.step__num--caution{background:#fffbeb;color:#92400e;border:1px solid #fcd34d}
-.step__num--warning{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5}
-.step__main{flex:1 1 auto;min-width:0;padding:14px 16px;border:1px solid #e7e4f2;border-radius:12px;background:#faf9ff}
-.step__main--note{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
-.step__main--caution{background:#fffbeb;border-color:#fcd34d;color:#92400e}
-.step__main--warning{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
-.step__title{font-size:1.15rem;margin:0 0 10px}
-.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid #e5e7eb;border-radius:8px}
-.step__instr{margin:10px 0 0;white-space:pre-wrap;font-size:1.02rem}
-.step--textonly .step__instr{margin-top:0}
-.callout__h{display:block;font-weight:700;margin-bottom:.25rem}
-.callout__b{white-space:pre-wrap}
-@media print{.doc{max-width:none;padding:0 6px}}
-`.trim();
 
-/** Build the full self-contained HTML document (images as base64 data: URIs). */
+/**
+ * Build the full self-contained HTML document (images as base64 data: URIs).
+ *
+ * `resample` MUST be false for the PDF: it is printed from this same output, and a
+ * PDF wants full-resolution pixels for print rather than the display-width
+ * resample the .html export needs to keep its base64 payload pasteable (#56). See
+ * resamplesEmbeddedImages.
+ */
 async function buildHtmlDoc(
   manifest: ProjectManifest,
   items: ExportItem[],
   createdLine: string,
+  resample: boolean,
 ): Promise<string> {
   const parts: string[] = [];
   for (const it of items) {
@@ -328,7 +366,12 @@ async function buildHtmlDoc(
         // no colored box). Reuses the .section / .section__h / .section__b styles.
         const h = it.heading ? `<h2 class="section__h">${escapeHtml(it.heading)}</h2>` : '';
         const b = it.body ? `<p class="section__b">${escapeHtml(it.body)}</p>` : '';
-        parts.push(`<section class="section">${h}${b}</section>`);
+        // The rule lives on an INNER div so .section can carry the document column
+        // while the rule still aligns with the step content column. Inner elements
+        // survive a KB-editor paste; whole-document wrappers do not (#57).
+        parts.push(
+          `<section class="section"><div class="section__inner">${h}${b}</div></section>`,
+        );
         continue;
       }
       if (it.callout) {
@@ -359,8 +402,8 @@ async function buildHtmlDoc(
       );
       continue;
     }
-    const bytes = it.bytes ?? (await fs.readFile(it.abs));
-    const dataUri = `data:${it.mediaType};base64,${bytes.toString('base64')}`;
+    const img = await inlineImageForHtml(it, resample);
+    const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
     const title = escapeHtml(it.caption || `Step ${it.n}`);
     const instr = it.body ? `<p class="step__instr">${escapeHtml(it.body)}</p>` : '';
     parts.push(
@@ -368,7 +411,8 @@ async function buildHtmlDoc(
         `<div class="step__num">${it.n}</div>` +
         `<div class="step__main">` +
         `<h2 class="step__title">${title}</h2>` +
-        `<img class="step__img" src="${dataUri}" alt="Screenshot for step ${it.n}">` +
+        // width/height ATTRIBUTES: a KB editor strips max-width off <img> (#57).
+        `<img class="step__img" src="${dataUri}"${img.sizeAttr} alt="Screenshot for step ${it.n}">` +
         `${instr}` +
         `</div>` +
         `</section>`,
@@ -392,28 +436,17 @@ async function buildHtmlDoc(
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<title>${title}</title>\n` +
     `<style>${DOC_CSS}</style>\n` +
-    `</head>\n<body>\n<main class="doc">\n` +
+    // A plain <div>, not <main>: this wrapper gets unwrapped on a KB-editor paste
+    // either way (which is why every block carries its own column — see DOC_CSS),
+    // and semantic tags are commonly off a sanitizer's allowlist. It only pads.
+    `</head>\n<body>\n<div class="doc">\n` +
     `<h1 class="doc__title">${title}</h1>\n` +
     `<p class="doc__meta">${escapeHtml(createdLine)}</p>\n` +
     introHtml +
     parts.join('\n') +
-    `\n</main>\n</body>\n</html>\n`
+    `\n</div>\n</body>\n</html>\n`
   );
 }
-
-// Simple, lightly-styled HTML: a standard sans-serif (Arial) body + basic header /
-// bold / spacing formatting so it reads well on its own — while staying plain
-// enough to paste into Word / Google Docs (they honor these basic tags/styles).
-const PLAIN_CSS = [
-  'body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.5;max-width:800px;margin:24px auto;padding:0 20px}',
-  'h1{font-size:1.8rem;font-weight:700;margin:0 0 .3rem}',
-  'h2{font-size:1.2rem;font-weight:700;margin:1.3rem 0 .4rem}',
-  'p{margin:.5rem 0}',
-  'strong{font-weight:700}',
-  'img{max-width:100%;height:auto}',
-  'blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid #cbd5e1;color:#374151}',
-  'hr{border:0;border-top:1px solid #e5e7eb;margin:1.4rem 0}',
-].join('');
 
 /**
  * Simple, lightly-styled standalone HTML: semantic tags (h1/h2/p/img/blockquote/
@@ -459,16 +492,15 @@ async function buildPlainHtmlDoc(
         }
       }
     } else {
-      const { buffer, width, height } = await loadItemImage(it);
-      const dataUri = `data:${it.mediaType};base64,${buffer.toString('base64')}`;
-      // Size the image with width/height ATTRIBUTES rather than relying on the
-      // stylesheet: Word / Google Docs drop CSS max-width on paste and would lay
-      // the capture out at full pixel size. Matches the macOS export.
-      const size = plainImageSize(width, height);
-      const sizeAttr = size ? ` width="${size.w}" height="${size.h}"` : '';
+      // Same pipeline as the styled export: resampled to the display width (#56)
+      // and sized with width/height ATTRIBUTES, because Word / Google Docs drop
+      // CSS max-width on paste and would lay the capture out at full pixel size.
+      // html-plain: always resampled (resamplesEmbeddedImages('html-plain') === true).
+      const img = await inlineImageForHtml(it, true);
+      const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
       block.push(`<h2>${it.n}. ${escapeHtml(it.caption || `Step ${it.n}`)}</h2>`);
       block.push(
-        `<p><img src="${dataUri}"${sizeAttr} alt="Screenshot for step ${it.n}"></p>`,
+        `<p><img src="${dataUri}"${img.sizeAttr} alt="Screenshot for step ${it.n}"></p>`,
       );
       if (it.body) block.push(`<p>${br(it.body)}</p>`);
     }
@@ -700,10 +732,19 @@ export async function exportProject(
   } else if (format === 'html-plain') {
     await fs.writeFile(outputPath, await buildPlainHtmlDoc(manifest, items), 'utf8');
   } else if (format === 'html') {
-    await fs.writeFile(outputPath, await buildHtmlDoc(manifest, items, createdLine), 'utf8');
+    await fs.writeFile(
+      outputPath,
+      await buildHtmlDoc(manifest, items, createdLine, resamplesEmbeddedImages(format)),
+      'utf8',
+    );
   } else {
-    // pdf
-    await htmlToPdf(dir, await buildHtmlDoc(manifest, items, createdLine), outputPath);
+    // pdf — same builder as the .html export, so it must opt OUT of the image
+    // resample explicitly or it silently inherits it and prints soft (#56 scope).
+    await htmlToPdf(
+      dir,
+      await buildHtmlDoc(manifest, items, createdLine, resamplesEmbeddedImages(format)),
+      outputPath,
+    );
   }
 
   mainLog.info(`exported ${format} → ${outputPath}`);
