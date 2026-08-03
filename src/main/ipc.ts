@@ -11,6 +11,7 @@ import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
 import { exportProject, chooseExportDirectory, revealExportDir } from './export';
 import { exportPackage, importPackage } from './export-package';
+import { checkForUpdate } from './update-check';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
 import type {
@@ -45,6 +46,9 @@ import {
   setIncludeNameInReports,
   getArchiveAgeDays,
   setArchiveAgeDays,
+  getUpdateCheckEnabled,
+  setUpdateCheckEnabled,
+  setLastUpdateCheckAt,
   getTheme,
   setTheme,
 } from './settings';
@@ -261,9 +265,13 @@ export function registerIpcHandlers(
       return false;
     }
     const host = parsed.hostname.toLowerCase();
+    // anthropic.com (+ subdomains) for the API-key/console links, and github.com for
+    // the release page an update notice links to (#54). github.com is matched EXACTLY
+    // — not `.github.com` — so this can't be widened into user-content subdomains like
+    // raw./objects./codeload.github.com.
     const allowed =
       parsed.protocol === 'https:' &&
-      (host === 'anthropic.com' || host.endsWith('.anthropic.com'));
+      (host === 'anthropic.com' || host.endsWith('.anthropic.com') || host === 'github.com');
     if (!allowed) {
       ipcLog.warn(`refused openExternal for non-allowlisted URL: ${parsed.origin}`);
       return false;
@@ -669,6 +677,25 @@ export function registerIpcHandlers(
   ipcMain.handle(IpcChannels.setTheme, (_event: IpcMainInvokeEvent, value: unknown) => {
     devLog('ipc: settings:set-theme');
     return setTheme(value); // coerced in setTheme
+  });
+  ipcMain.handle(IpcChannels.getUpdateCheckEnabled, () => {
+    devLog('ipc: settings:get-update-check');
+    return getUpdateCheckEnabled();
+  });
+  ipcMain.handle(IpcChannels.setUpdateCheckEnabled, (_event: IpcMainInvokeEvent, value: unknown) => {
+    devLog('ipc: settings:set-update-check');
+    return setUpdateCheckEnabled(value === true);
+  });
+  ipcMain.handle(IpcChannels.updateCheck, async () => {
+    devLog('ipc: update:check');
+    // The MANUAL check from Settings — deliberately ignores the once-a-day throttle,
+    // but still records the timestamp so the next startup doesn't re-check.
+    const result = await checkForUpdate({
+      currentVersion: app.getVersion(),
+      fetchImpl: fetch,
+    });
+    await setLastUpdateCheckAt(Date.now());
+    return result;
   });
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {
     devLog('ipc: claude:key-status');

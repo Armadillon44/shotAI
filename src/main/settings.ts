@@ -86,6 +86,17 @@ export interface Settings {
   archiveAgeDays: number;
   /** UI color theme (F10): 'light' | 'dark' | 'system' (default 'system'). */
   theme: ThemePref;
+  /**
+   * Check GitHub once a day, on startup, for a newer release (#54). Default true.
+   *
+   * This is the app's ONLY unsolicited network call — everything else is local or an
+   * explicit Claude request — so it stays switchable without a rebuild. That matters
+   * if shotAI ever lands under managed (Intune) deployment, where IT usually wants
+   * apps not to advertise their own updates.
+   */
+  updateCheckEnabled: boolean;
+  /** Epoch ms of the last completed check, for the once-a-day throttle. 0 = never. */
+  lastUpdateCheckAt: number;
 }
 
 const MAX_RECENTS = 20;
@@ -119,6 +130,12 @@ async function load(): Promise<Settings> {
         typeof parsed.includeNameInReports === 'boolean' ? parsed.includeNameInReports : false,
       archiveAgeDays: clampArchiveAge(parsed.archiveAgeDays),
       theme: coerceTheme(parsed.theme),
+      updateCheckEnabled:
+        typeof parsed.updateCheckEnabled === 'boolean' ? parsed.updateCheckEnabled : true,
+      lastUpdateCheckAt:
+        typeof parsed.lastUpdateCheckAt === 'number' && Number.isFinite(parsed.lastUpdateCheckAt)
+          ? parsed.lastUpdateCheckAt
+          : 0,
     };
   } catch {
     return {
@@ -132,6 +149,8 @@ async function load(): Promise<Settings> {
       includeNameInReports: false,
       archiveAgeDays: ARCHIVE_AGE_DEFAULT,
       theme: 'system',
+      updateCheckEnabled: true,
+      lastUpdateCheckAt: 0,
     };
   }
 }
@@ -270,6 +289,30 @@ export function setUserName(value: string): Promise<string> {
   return mutate((s) => {
     s.userName = v;
     return v;
+  });
+}
+
+export async function getUpdateCheckEnabled(): Promise<boolean> {
+  return (await load()).updateCheckEnabled;
+}
+
+/** Persist the update-check opt-out (#54). Returns the new value. */
+export function setUpdateCheckEnabled(value: boolean): Promise<boolean> {
+  return mutate((s) => {
+    s.updateCheckEnabled = value;
+    return value;
+  });
+}
+
+export async function getLastUpdateCheckAt(): Promise<number> {
+  return (await load()).lastUpdateCheckAt;
+}
+
+/** Stamp a completed check so the once-a-day throttle can see it. */
+export function setLastUpdateCheckAt(value: number): Promise<number> {
+  return mutate((s) => {
+    s.lastUpdateCheckAt = value;
+    return value;
   });
 }
 

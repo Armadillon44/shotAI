@@ -9,6 +9,7 @@ import {
   type ExportFormat,
   type ShotaiApi,
   type ExportProgress,
+  type UpdateCheckResult,
   type SopProgress,
 } from '../shared/ipc';
 import type { CalloutKind, CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch, ThemePref } from '../shared/project';
@@ -137,6 +138,17 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.setArchiveAgeDays, value),
     getTheme: () => ipcRenderer.invoke(IpcChannels.getTheme),
     setTheme: (value: ThemePref) => ipcRenderer.invoke(IpcChannels.setTheme, value),
+    getUpdateCheckEnabled: () => ipcRenderer.invoke(IpcChannels.getUpdateCheckEnabled),
+    setUpdateCheckEnabled: (value: boolean) =>
+      ipcRenderer.invoke(IpcChannels.setUpdateCheckEnabled, value),
+  },
+  updates: {
+    check: () => ipcRenderer.invoke(IpcChannels.updateCheck),
+    onAvailable: (cb: (r: UpdateCheckResult) => void) => {
+      const listener = (_e: IpcRendererEvent, r: UpdateCheckResult) => cb(r);
+      ipcRenderer.on(IpcChannels.updateAvailable, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.updateAvailable, listener);
+    },
   },
   claude: {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),

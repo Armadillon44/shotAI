@@ -98,6 +98,21 @@ export interface ExportProgress {
   total: number;
 }
 
+/**
+ * Result of an update check (#54). `available: false` means BOTH "up to date" and
+ * "couldn't tell" — `error` distinguishes them. A check never reports an update it
+ * isn't sure about.
+ */
+export interface UpdateCheckResult {
+  available: boolean;
+  /** The newer version, no leading `v` (only when available). */
+  version?: string;
+  /** The GitHub release page to open (only when available). */
+  url?: string;
+  /** Why the check couldn't complete — offline, rate-limited, malformed reply. */
+  error?: string;
+}
+
 /** Result of an export — the file that was written (revealed in the OS file manager). */
 export interface ExportResult {
   format: ExportFormat;
@@ -177,6 +192,11 @@ export const IpcChannels = {
   claudeSopProgress: 'claude:sop-progress',
   /** Per-image progress while an export encodes screenshots (see ExportProgress). */
   exportProgress: 'projects:export-progress',
+  // Update check (#54) — renderer asks, and main pushes once on startup.
+  updateCheck: 'update:check',
+  updateAvailable: 'update:available',
+  getUpdateCheckEnabled: 'settings:get-update-check',
+  setUpdateCheckEnabled: 'settings:set-update-check',
   captureStart: 'capture:start',
   captureSingle: 'capture:single',
   captureScreenshot: 'capture:screenshot',
@@ -380,6 +400,21 @@ export interface ShotaiApi {
     getTheme(): Promise<ThemePref>;
     /** Persist the theme preference; returns the stored value. */
     setTheme(value: ThemePref): Promise<ThemePref>;
+    /** Whether shotAI checks GitHub once a day for a newer release (#54). */
+    getUpdateCheckEnabled(): Promise<boolean>;
+    setUpdateCheckEnabled(value: boolean): Promise<boolean>;
+  };
+  updates: {
+    /**
+     * Check now, ignoring the once-a-day throttle (the Settings button). Never
+     * throws — a failure comes back as `{available:false, error}`.
+     */
+    check(): Promise<UpdateCheckResult>;
+    /**
+     * Push: main found an update during its once-a-day startup check. Fires at most
+     * once per launch, and only when an update actually exists.
+     */
+    onAvailable(cb: (r: UpdateCheckResult) => void): () => void;
   };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */

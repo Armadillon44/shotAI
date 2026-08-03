@@ -46,6 +46,16 @@ export function App(): React.JSX.Element {
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
   const [showSettings, setShowSettings] = React.useState(false);
   const [themePref, setThemePref] = React.useState<ThemePref>('system');
+  // #54: main checks GitHub once a day on startup and pushes ONLY when something
+  // newer exists — deliberately no "you're up to date" noise. Dismissing hides it for
+  // this session; the next launch (a day later) offers it again.
+  const [update, setUpdate] = React.useState<{ version?: string; url?: string } | null>(null);
+  React.useEffect(() => {
+    const off = window.shotai.updates.onAvailable((r) =>
+      setUpdate(r.available ? { version: r.version, url: r.url } : null),
+    );
+    return off;
+  }, []);
   // First-run coach-mark tour (R2). Opens once on first launch; replayable from
   // Settings → About. Only rendered on the home screen (its bubbles anchor to
   // home controls).
@@ -446,11 +456,27 @@ export function App(): React.JSX.Element {
         onScroll={onBodyScroll}
         className={`project__body${showDetail && !showSettings ? ' project__body--detail' : ''}`}
       >
-        {error && (
+        {(error || update) && (
           <div className="notice-stack">
-            <Notice kind="error" onDismiss={() => setError(null)}>
-              {error}
-            </Notice>
+            {error && (
+              <Notice kind="error" onDismiss={() => setError(null)}>
+                {error}
+              </Notice>
+            )}
+            {update && (
+              <Notice kind="info" onDismiss={() => setUpdate(null)}>
+                shotAI {update.version} is available.{' '}
+                <button
+                  type="button"
+                  className="notice__link"
+                  onClick={() => {
+                    if (update.url) void window.shotai.openExternal(update.url);
+                  }}
+                >
+                  Open the download page
+                </button>
+              </Notice>
+            )}
           </div>
         )}
 

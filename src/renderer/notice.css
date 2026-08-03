@@ -50,6 +50,24 @@
   flex: 1 1 auto;
 }
 
+/* An inline action inside a notice (e.g. the update notice's download link). Styled
+   as a link rather than a button so it reads as secondary to the notice's text, but
+   it IS a button — the click opens an external URL through the main process. */
+.notice__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.notice__link:hover {
+  text-decoration: none;
+}
+
 .notice__dismiss {
   flex: none;
   background: transparent;
