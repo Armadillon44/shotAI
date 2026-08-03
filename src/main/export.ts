@@ -14,14 +14,13 @@ import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
 import {
-  HTML_IMG_WEBP_QUALITY,
+  HTML_IMG_JPEG_QUALITY,
   htmlEmbedPolicy,
   htmlImageSize,
   type EmbedPolicy,
   zoomCropRect,
 } from './export-geometry';
 import { DOC_CSS, PLAIN_CSS } from './export-css';
-import { WebpEncoder } from './webp-encode';
 import { buildDocx } from './export-docx';
 import { buildPptx } from './export-pptx';
 import { getReportByline } from './settings';
@@ -249,7 +248,6 @@ interface InlineImage {
 async function inlineImageForHtml(
   it: Extract<ExportItem, { kind: 'shot' }>,
   policy: EmbedPolicy,
-  webp: WebpEncoder | null,
 ): Promise<InlineImage> {
   const { buffer, width, height } = await loadItemImage(it);
   // The DISPLAY size is always 1x the column, whatever resolution gets embedded —
@@ -257,43 +255,45 @@ async function inlineImageForHtml(
   const shown = htmlImageSize(width, height);
   const sizeAttr = shown ? ` width="${shown.w}" height="${shown.h}"` : '';
 
-  // Step 1 — resolution. `embedMaxW: null` is the PDF: keep every source pixel for
-  // print. Otherwise cap, but never upscale a capture that's already smaller.
-  let bytes = buffer;
-  let mediaType: string = it.mediaType;
   const cap = policy.embedMaxW;
-  if (cap != null && width > cap && height >= 1) {
-    try {
-      const h = Math.max(1, Math.round(height * (cap / width)));
-      const resized = nativeImage
-        .createFromBuffer(buffer)
-        // 'best' (not the cheaper 'good'): this is the only copy of the pixels a
-        // reader ever sees and it's a multi-x downscale of UI text, where the
-        // filter choice is plainly visible. Matches macOS's .high.
-        .resize({ width: cap, height: h, quality: 'best' })
-        .toPNG();
-      if (resized.length > 0) {
-        bytes = resized;
-        mediaType = 'image/png';
-      }
-    } catch (e) {
-      mainLog.warn('export: image resample failed, embedding the original:', e);
-    }
+  // `embedMaxW: null` + png is the PDF: hand it the source bytes untouched.
+  if (cap == null && policy.codec === 'png') {
+    return { bytes: buffer, mediaType: it.mediaType, sizeAttr };
   }
 
-  // Step 2 — codec. WebP is ~13x smaller than PNG on screenshots, which is what
-  // makes the styled export pasteable; it's skipped for the Word-paste variety
-  // because Word cannot read WebP. Falls back to the PNG on any failure.
-  if (policy.codec === 'webp' && webp) {
-    const encoded = await webp.encode(bytes, HTML_IMG_WEBP_QUALITY);
-    if (encoded) {
-      bytes = encoded;
-      mediaType = 'image/webp';
+  let bytes = buffer;
+  let mediaType: string = it.mediaType;
+  try {
+    const img = nativeImage.createFromBuffer(buffer);
+    // Resolution: cap, but never upscale a capture that's already smaller.
+    const scaled =
+      cap != null && width > cap && height >= 1
+        ? img.resize({
+            width: cap,
+            height: Math.max(1, Math.round(height * (cap / width))),
+            // 'best' (not the cheaper 'good'): this is the only copy of the pixels a
+            // reader ever sees and it's a multi-x downscale of UI text, where the
+            // filter choice is plainly visible. Matches macOS's .high.
+            quality: 'best',
+          })
+        : img;
+    // Codec: JPEG only for the styled export, where the destination editor requires
+    // a format it can re-upload (see htmlEmbedPolicy). Losing alpha is safe — step
+    // renders are fully opaque.
+    const out =
+      policy.codec === 'jpeg'
+        ? { b: scaled.toJPEG(HTML_IMG_JPEG_QUALITY), t: 'image/jpeg' }
+        : { b: scaled.toPNG(), t: 'image/png' };
+    if (out.b.length > 0) {
+      bytes = out.b;
+      mediaType = out.t;
     }
+  } catch (e) {
+    mainLog.warn('export: image re-encode failed, embedding the original:', e);
   }
 
   // Never let the pipeline make a step BIGGER than shipping the original would have.
-  if (bytes.length >= buffer.length && bytes !== buffer) {
+  if (bytes !== buffer && bytes.length >= buffer.length) {
     return { bytes: buffer, mediaType: it.mediaType, sizeAttr };
   }
   return { bytes, mediaType, sizeAttr };
@@ -381,7 +381,6 @@ async function buildHtmlDoc(
   items: ExportItem[],
   createdLine: string,
   policy: EmbedPolicy,
-  webp: WebpEncoder | null,
 ): Promise<string> {
   const parts: string[] = [];
   for (const it of items) {
@@ -427,7 +426,7 @@ async function buildHtmlDoc(
       );
       continue;
     }
-    const img = await inlineImageForHtml(it, policy, webp);
+    const img = await inlineImageForHtml(it, policy);
     const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
     const title = escapeHtml(it.caption || `Step ${it.n}`);
     const instr = it.body ? `<p class="step__instr">${escapeHtml(it.body)}</p>` : '';
@@ -521,7 +520,7 @@ async function buildPlainHtmlDoc(
       // and sized with width/height ATTRIBUTES, because Word / Google Docs drop
       // CSS max-width on paste and would lay the capture out at full pixel size.
       // html-plain embeds PNG at 1x: Word cannot read WebP (htmlEmbedPolicy).
-      const img = await inlineImageForHtml(it, htmlEmbedPolicy('html-plain'), null);
+      const img = await inlineImageForHtml(it, htmlEmbedPolicy('html-plain'));
       const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
       block.push(`<h2>${it.n}. ${escapeHtml(it.caption || `Step ${it.n}`)}</h2>`);
       block.push(
@@ -757,24 +756,17 @@ export async function exportProject(
   } else if (format === 'html-plain') {
     await fs.writeFile(outputPath, await buildPlainHtmlDoc(manifest, items), 'utf8');
   } else if (format === 'html') {
-    // The only variety that needs the WebP encoder; dispose it even on failure or
-    // the hidden renderer leaks and keeps the app alive after the window closes.
-    const webp = new WebpEncoder();
-    try {
-      await fs.writeFile(
-        outputPath,
-        await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format), webp),
-        'utf8',
-      );
-    } finally {
-      webp.dispose();
-    }
+    await fs.writeFile(
+      outputPath,
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format)),
+      'utf8',
+    );
   } else {
     // pdf — same builder as the .html export, so it must opt OUT of the resample and
     // the codec explicitly, or it silently inherits them and prints soft (#56 scope).
     await htmlToPdf(
       dir,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format), null),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format)),
       outputPath,
     );
   }

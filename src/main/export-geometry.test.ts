@@ -97,17 +97,19 @@ describe('htmlEmbedPolicy', () => {
   // bitmap, so capping at 738px would put a Letter print near 110 DPI where the full
   // render gives ~355. macOS asserts the same boundary
   // (testPdfAndMarkdownKeepFullResolution).
-  it('embeds the styled HTML as WebP at 2x the display width', () => {
-    // WebP is what makes the base64 payload pasteable, and it is efficient enough to
-    // afford 2x — so a reader can still zoom in and read the UI text.
+  it('embeds the styled HTML as JPEG at 2x the display width', () => {
+    // JPEG, NOT WebP/AVIF: Freshservice's editor re-uploads each pasted image and
+    // rejects both, leaving broken images ("No link in upload response"). Its
+    // efficiency still affords 2x, so a reader can zoom in and read the UI text —
+    // at 1x a full-desktop capture's dialog text is an illegible blur.
     expect(htmlEmbedPolicy('html')).toEqual({
       embedMaxW: HTML_IMG_EMBED_MAX_W,
-      codec: 'webp',
+      codec: 'jpeg',
     });
     expect(HTML_IMG_EMBED_MAX_W).toBe(HTML_IMG_MAX_W * 2);
   });
 
-  it('keeps the Word-paste variety on PNG at 1x, because Word cannot read WebP', () => {
+  it('keeps the Word-paste variety on PNG at 1x, PNG is the safest thing to hand Word', () => {
     expect(htmlEmbedPolicy('html-plain')).toEqual({
       embedMaxW: HTML_IMG_MAX_W,
       codec: 'png',

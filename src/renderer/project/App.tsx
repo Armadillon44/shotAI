@@ -239,6 +239,27 @@ export function App(): React.JSX.Element {
   const showDetail = !recording && !!openPath;
   const showHome = !recording && !openPath;
 
+  // `.project__body` is ONE scroll container whose children swap between the home
+  // list, a project, and Settings — the element itself never unmounts, so its
+  // scrollTop used to survive the switch and a project would open part-way down the
+  // page. Opening a project (or Settings) starts at the top; the home list keeps its
+  // place, so going back lands where you left off.
+  const bodyRef = React.useRef<HTMLElement | null>(null);
+  const homeScroll = React.useRef(0);
+  const atHome = showHome && !showSettings;
+  const wasAtHome = React.useRef(atHome);
+  React.useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || wasAtHome.current === atHome) return;
+    if (atHome) {
+      el.scrollTop = homeScroll.current;
+    } else {
+      homeScroll.current = el.scrollTop;
+      el.scrollTop = 0;
+    }
+    wasAtHome.current = atHome;
+  }, [atHome]);
+
   // When a capture session that ran on the open project ends, reload its
   // manifest so the newly captured steps appear in the detail report.
   const wasRecording = React.useRef(false);
@@ -417,6 +438,7 @@ export function App(): React.JSX.Element {
       )}
 
       <section
+        ref={bodyRef}
         className={`project__body${showDetail && !showSettings ? ' project__body--detail' : ''}`}
       >
         {error && (

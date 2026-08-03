@@ -94,29 +94,45 @@ export const HTML_IMG_MAX_W = 738;
  */
 export const HTML_IMG_EMBED_MAX_W = HTML_IMG_MAX_W * 2;
 
-/** WebP quality for the styled export. 0.85 is the knee of the curve on screenshot
- *  text — 0.8 is visibly smeary, 0.9 costs ~30% more for no visible gain. Mirrors
- *  the quality macOS picked for AVIF. */
-export const HTML_IMG_WEBP_QUALITY = 0.85;
+/**
+ * JPEG quality (0-100, as `nativeImage.toJPEG` takes it) for the styled export.
+ * At the 2x embed width, 85 is legible on UI text — measured against a real capture,
+ * "Add Printer" / "Search by keywords" read cleanly, where the 1x PNG is a blur. 90
+ * costs ~30% more for no visible gain at the size it's displayed.
+ */
+export const HTML_IMG_JPEG_QUALITY = 85;
 
 /** How an export format embeds its step images. */
 export interface EmbedPolicy {
   /** Cap the embedded pixels at this width, or null to embed at full resolution. */
   embedMaxW: number | null;
-  /** Container for the embedded bytes. `png` is also the fallback if webp fails. */
-  codec: 'png' | 'webp';
+  /** Container for the embedded bytes. `png` is also the fallback if jpeg fails. */
+  codec: 'png' | 'jpeg';
 }
 
 /**
  * How a given export format should embed its step images (#56).
  *
- * - **`html`** — WebP at 2x the display width. It inlines pixels as base64 in the
- *   document, and that payload is what breaks pasting a long SOP into a Freshservice
- *   KB article; WebP makes it ~13x smaller than the equivalent PNG, which in turn
- *   buys back enough headroom to keep 2x detail.
- * - **`html-plain`** — PNG at 1x. This is the Word/Google-Docs paste target and
- *   **Word cannot read WebP**, so it must stay PNG; and PNG at 2x costs 11.75 MB,
- *   so it stays 1x. (macOS keeps its plain export on PNG for the same reason.)
+ * - **`html`** — JPEG at 2x the display width. It inlines pixels as base64, and that
+ *   payload is what breaks pasting a long SOP into a Freshservice KB article.
+ *
+ *   **The codec is constrained by the DESTINATION, not by what compresses best.**
+ *   Freshservice's editor (Froala) does not keep a pasted data URI — it re-uploads
+ *   each image to its own server and rewrites the `src`. So the format has to be one
+ *   that endpoint accepts, or every image lands broken. WebP was tried and fails
+ *   exactly that way: Froala reports error 2, "No link in upload response", and only
+ *   the last image survives a save. Froala's default `imageAllowedTypes` is
+ *   `['jpeg','jpg','png','gif']` and Freshworks documents JPEG/PNG/GIF — **neither
+ *   WebP nor AVIF is accepted**, so macOS's AVIF is not portable here either (and
+ *   Electron cannot encode either format anyway).
+ *
+ *   JPEG is therefore the only lossy option on the list. Measured on a real 13-step
+ *   SOP: PNG@1x 3.12 MB · JPEG@2x q85 1.02 MB (~56 KB/image) — 3x smaller than the
+ *   PNG that does paste, and legible where the 1x PNG is a blur. Safe because step
+ *   renders are fully opaque (verified: no non-255 alpha), so losing the alpha
+ *   channel costs nothing.
+ * - **`html-plain`** — PNG at 1x. This is the Word/Google-Docs paste target; PNG is
+ *   the safest thing to hand Word, and PNG at 2x would cost 11.75 MB.
  * - **`pdf`** — full resolution, and this is the trap: on Windows the PDF is printed
  *   from the very same `buildHtmlDoc` output, so it inherits anything done for the
  *   HTML unless excluded on purpose. `printToPDF` embeds the SOURCE bitmap, so
@@ -128,7 +144,7 @@ export interface EmbedPolicy {
  */
 export function htmlEmbedPolicy(format: string): EmbedPolicy {
   if (format === 'html') {
-    return { embedMaxW: HTML_IMG_EMBED_MAX_W, codec: 'webp' };
+    return { embedMaxW: HTML_IMG_EMBED_MAX_W, codec: 'jpeg' };
   }
   if (format === 'html-plain') {
     return { embedMaxW: HTML_IMG_MAX_W, codec: 'png' };
