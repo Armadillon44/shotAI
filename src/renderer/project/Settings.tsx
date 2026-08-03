@@ -65,6 +65,40 @@ export function Settings({
   const [captureScale, setCaptureScale] = React.useState(CAPTURE_SCALE_DEFAULT);
   const [userName, setUserName] = React.useState('');
   const [includeName, setIncludeName] = React.useState(false);
+  // Update check (#54): the daily-check opt-out, plus a manual check that bypasses
+  // the throttle. `updateMsg` reports the outcome inline — including "up to date",
+  // which the automatic check deliberately stays silent about.
+  const [updateCheck, setUpdateCheck] = React.useState(true);
+  const [updateBusy, setUpdateBusy] = React.useState(false);
+  const [updateMsg, setUpdateMsg] = React.useState<string | null>(null);
+  const toggleUpdateCheck = async (value: boolean) => {
+    setUpdateCheck(value);
+    setUpdateMsg(null);
+    try {
+      setUpdateCheck(await window.shotai.settings.setUpdateCheckEnabled(value));
+    } catch {
+      setUpdateCheck(!value); // put the switch back if it didn't persist
+    }
+  };
+  const checkNow = async () => {
+    setUpdateBusy(true);
+    setUpdateMsg(null);
+    try {
+      const r = await window.shotai.updates.check();
+      if (r.available && r.url) {
+        setUpdateMsg(`shotAI ${r.version} is available.`);
+        void window.shotai.openExternal(r.url);
+      } else if (r.error) {
+        setUpdateMsg(`Couldn't check: ${r.error}`);
+      } else {
+        setUpdateMsg("You're up to date.");
+      }
+    } catch (e) {
+      setUpdateMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
   const [archiveAge, setArchiveAge] = React.useState(90);
   const [theme, setTheme] = React.useState<ThemePref>('system');
   const [tab, setTab] = React.useState<SettingsTab>('ai');
@@ -91,18 +125,20 @@ export function Settings({
   };
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir, noHide, scale, name, incl, age, themePref] = await Promise.all([
-      window.shotai.settings.getSop(),
-      window.shotai.claude.keyStatus(),
-      window.shotai.getAppInfo(),
-      window.shotai.projects.getDir(),
-      window.shotai.settings.getCaptureNoHide(),
-      window.shotai.settings.getCaptureScale(),
-      window.shotai.settings.getUserName(),
-      window.shotai.settings.getIncludeNameInReports(),
-      window.shotai.settings.getArchiveAgeDays(),
-      window.shotai.settings.getTheme(),
-    ]);
+    const [s, ks, info, dir, noHide, scale, name, incl, age, themePref, updChk] =
+      await Promise.all([
+        window.shotai.settings.getSop(),
+        window.shotai.claude.keyStatus(),
+        window.shotai.getAppInfo(),
+        window.shotai.projects.getDir(),
+        window.shotai.settings.getCaptureNoHide(),
+        window.shotai.settings.getCaptureScale(),
+        window.shotai.settings.getUserName(),
+        window.shotai.settings.getIncludeNameInReports(),
+        window.shotai.settings.getArchiveAgeDays(),
+        window.shotai.settings.getTheme(),
+        window.shotai.settings.getUpdateCheckEnabled(),
+      ]);
     setSop(s);
     setKeyStatus(ks);
     setAppInfo(info);
@@ -113,6 +149,7 @@ export function Settings({
     setIncludeName(incl);
     setArchiveAge(age);
     setTheme(themePref);
+    setUpdateCheck(updChk);
   }, []);
 
   const toggleCaptureNoHide = async (value: boolean) => {
@@ -665,9 +702,40 @@ export function Settings({
                   <h3 className="settings__h">About</h3>
                   <p className="settings__hint">
                     {appInfo
-                      ? `${appInfo.name} · ${appInfo.platform}/${appInfo.arch} · Electron ${appInfo.electron}`
+                      ? `${appInfo.name} ${appInfo.version} · ${appInfo.platform}/${appInfo.arch} · Electron ${appInfo.electron}`
                       : '…'}
                   </p>
+                </div>
+                <div className="settings__group">
+                  <h3 className="settings__h">Updates</h3>
+                  <label className="settings__toggle">
+                    <span className="settings__toggle-text">
+                      <strong>Check for updates</strong>
+                      <span className="settings__hint">
+                        Asks GitHub once a day, when shotAI starts, whether a newer
+                        version has been released, and tells you if one has. This is the
+                        only time shotAI contacts the internet on its own. It never
+                        installs anything by itself.
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="settings__switch"
+                      checked={updateCheck}
+                      onChange={(e) => void toggleUpdateCheck(e.target.checked)}
+                    />
+                  </label>
+                  <div className="settings__dirrow" style={{ marginTop: '0.75rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      disabled={updateBusy}
+                      onClick={() => void checkNow()}
+                    >
+                      {updateBusy ? 'Checking…' : '↻ Check now'}
+                    </button>
+                    {updateMsg && <span className="settings__hint">{updateMsg}</span>}
+                  </div>
                 </div>
                 {onReplayTour && (
                   <div className="settings__group">

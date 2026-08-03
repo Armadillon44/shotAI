@@ -11,7 +11,12 @@ import {
   captureNoHideNow,
   getCaptureScale,
   getArchiveAgeDays,
+  getUpdateCheckEnabled,
+  getLastUpdateCheckAt,
+  setLastUpdateCheckAt,
 } from './settings';
+import { checkForUpdate, startupCheckDecision } from './update-check';
+import { setPendingUpdate } from './update-state';
 import { IpcChannels } from '../shared/ipc';
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
@@ -424,6 +429,49 @@ app.whenReady().then(async () => {
       }
     } catch (e) {
       mainLog.warn('startup auto-archive failed (non-fatal):', e);
+    }
+  })();
+
+  // #54: once a day, on startup, ask GitHub whether a newer release exists. This is
+  // the app's ONLY unsolicited network call, so it is skippable via a setting and
+  // stays entirely quiet unless there is actually something newer — nothing is shown
+  // for "up to date", and a failure (offline, rate-limited) is logged, not surfaced.
+  void (async () => {
+    try {
+      const decision = startupCheckDecision({
+        enabled: await getUpdateCheckEnabled(),
+        lastCheckedMs: await getLastUpdateCheckAt(),
+        nowMs: Date.now(),
+      });
+      if (!decision.run) {
+        mainLog.debug(`update check skipped (${decision.reason})`);
+        return;
+      }
+      const result = await checkForUpdate({
+        currentVersion: app.getVersion(),
+        fetchImpl: fetch,
+      });
+      // Stamp the attempt either way, so a persistent failure retries tomorrow
+      // rather than on every launch.
+      await setLastUpdateCheckAt(Date.now());
+      if (result.error) {
+        mainLog.info(`update check could not complete: ${result.error}`);
+        return;
+      }
+      if (!result.available) {
+        mainLog.debug(`update check: up to date (${app.getVersion()})`);
+        return;
+      }
+      mainLog.info(`update available: ${result.version}`);
+      // Stash it BEFORE pushing: the renderer usually isn't subscribed yet at this
+      // point (webContents.send doesn't buffer), so the pull on mount is what actually
+      // delivers it most of the time. The push covers a check that lands later.
+      setPendingUpdate(result);
+      if (projectWindow && !projectWindow.isDestroyed()) {
+        projectWindow.webContents.send(IpcChannels.updateAvailable, result);
+      }
+    } catch (e) {
+      mainLog.warn('startup update check failed (non-fatal):', e);
     }
   })();
 });
