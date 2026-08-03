@@ -6,10 +6,15 @@ annotated step-by-step guide. Its differentiator: **Claude** rewrites the captur
 into a polished Standard Operating Procedure — overview, per-step instructions, and
 cautions/callouts.
 
-Everything runs and is stored **on your machine**. The only network call is to Anthropic's
-API, and only when you ask shotAI to write the SOP. **Windows first**, macOS later.
+Everything runs and is stored **on your machine**. It makes exactly two kinds of network
+call: to Anthropic's API when you ask shotAI to write the SOP, and a once-a-day check for a
+newer shotAI release (switchable off in Settings). **Windows first**, macOS later.
 
-> **Status:** **1.1.5** — the **HTML export now pastes into a knowledge-base article**
+> **Status:** **1.1.6** — shotAI now **tells you when a newer version is available**:
+> once a day at startup it checks the Releases page and shows a notice with a download
+> link. It never installs anything itself, says nothing when you're up to date, and can
+> be switched off in **Settings → About** (it's the only time the app contacts the
+> internet on its own). 1.1.5 made the **HTML export paste into a knowledge-base article**
 > (Freshservice and similar): step cards hold the document column instead of stretching
 > to the editor's full width, and screenshots are embedded as **AVIF**, which cuts a
 > 13-step SOP from ~48 MB to ~170 KB — small enough for the editor to accept, while
@@ -91,8 +96,17 @@ API, and only when you ask shotAI to write the SOP. **Windows first**, macOS lat
 Projects (screenshots, manifest, exports) live in a folder you choose. Nothing is uploaded
 except SOP-generation requests, which go only to Anthropic (`api.anthropic.com`, pinned).
 The API key is yours, stored encrypted via Electron `safeStorage` (or read from
-`ANTHROPIC_API_KEY`). No telemetry. The renderer runs sandboxed with a single allowlisted
-"open in browser" path (Anthropic docs only).
+`ANTHROPIC_API_KEY`). **No telemetry.**
+
+The one other outbound call is the **update check**: once a day at startup, a plain GET to
+GitHub's public releases API for this repo, to see whether a newer version exists. It sends
+nothing about you or your projects, is unauthenticated, and can be turned off in
+**Settings → About**. shotAI never downloads or installs an update by itself — it only
+tells you one exists and offers the release page.
+
+The renderer runs sandboxed, and its "open in browser" path is allowlisted to exactly two
+hosts: `anthropic.com` (+ subdomains) for the API-key docs, and `github.com` for that
+release page.
 
 ## Tech stack
 
