@@ -84,6 +84,17 @@ const config: ForgeConfig = {
     // Keep asar, but UNPACK native binaries (.node) — uiohook-napi,
     // node-screenshots, get-windows, and koffi (+ its @koromix/* binary) can't be
     // loaded from inside an asar archive.
+    //
+    // @jsquash/avif (the styled HTML export's AVIF encoder) is deliberately NOT
+    // unpacked. Both things it needs work from inside the archive — verified against
+    // a packed app on Electron 42: the dynamic ESM import() of its encode.js
+    // succeeds, and so does reading its 3.4 MB .wasm. Unpacking it actively BREAKS
+    // the load instead: encode.js statically imports `wasm-feature-detect`, which npm
+    // hoists to node_modules/ and would stay in the archive, and app.asar.unpacked is
+    // not asar-redirected — so the unpacked copy resolves its own path but then dies
+    // with ERR_MODULE_NOT_FOUND on that sibling. Unpacking would also move ~8 MB of
+    // executable WASM outside the archive that EnableEmbeddedAsarIntegrityValidation
+    // covers, for no benefit.
     asar: { unpack: '**/*.node' },
     // Ship the native UI-element-locator dll AND the runtime app icon (PNG, used
     // for the window/taskbar icon + About dialog via appIconPath) into the app's

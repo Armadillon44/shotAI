@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { PLAIN_IMG_MAX_W, plainImageSize, zoomCropRect } from './export-geometry';
+import {
+  HTML_IMG_EMBED_MAX_W,
+  HTML_IMG_MAX_W,
+  htmlEmbedPolicy,
+  htmlImageSize,
+  zoomCropRect,
+} from './export-geometry';
 
 describe('zoomCropRect', () => {
   it('returns null at zoom 1 (whole image visible)', () => {
@@ -59,27 +65,73 @@ describe('zoomCropRect', () => {
   });
 });
 
-describe('plainImageSize', () => {
+describe('htmlImageSize', () => {
   it('caps a wide capture at the macOS-matched 738px, preserving aspect', () => {
     // 2560x1440 → scale 738/2560; height rounds to 415.
-    expect(plainImageSize(2560, 1440)).toEqual({ w: 738, h: 415 });
+    expect(htmlImageSize(2560, 1440)).toEqual({ w: 738, h: 415 });
   });
 
   it('leaves a capture already narrower than the cap at its native size', () => {
-    expect(plainImageSize(400, 300)).toEqual({ w: 400, h: 300 });
-    expect(plainImageSize(PLAIN_IMG_MAX_W, 450)).toEqual({ w: 738, h: 450 });
+    expect(htmlImageSize(400, 300)).toEqual({ w: 400, h: 300 });
+    expect(htmlImageSize(HTML_IMG_MAX_W, 450)).toEqual({ w: 738, h: 450 });
   });
 
   it('never rounds a very wide/short image away to zero height', () => {
     // 3000x1 → scale 0.246; height would round to 0 without the floor.
-    expect(plainImageSize(3000, 1)).toEqual({ w: 738, h: 1 });
+    expect(htmlImageSize(3000, 1)).toEqual({ w: 738, h: 1 });
   });
 
   it('returns null for an undecodable size so the caller omits the attributes', () => {
-    expect(plainImageSize(0, 0)).toBeNull();
-    expect(plainImageSize(NaN, 100)).toBeNull();
-    expect(plainImageSize(100, NaN)).toBeNull();
-    expect(plainImageSize(-800, 600)).toBeNull();
-    expect(plainImageSize(Infinity, 600)).toBeNull();
+    expect(htmlImageSize(0, 0)).toBeNull();
+    expect(htmlImageSize(NaN, 100)).toBeNull();
+    expect(htmlImageSize(100, NaN)).toBeNull();
+    expect(htmlImageSize(-800, 600)).toBeNull();
+    expect(htmlImageSize(Infinity, 600)).toBeNull();
+  });
+});
+
+describe('htmlEmbedPolicy', () => {
+  // The scope boundary from #56, and the trap it guards: on Windows the PDF is
+  // printed from the SAME buildHtmlDoc output as the .html export, so it inherits
+  // anything done there unless excluded on purpose. printToPDF embeds the source
+  // bitmap, so capping at 738px would put a Letter print near 110 DPI where the full
+  // render gives ~355. macOS asserts the same boundary
+  // (testPdfAndMarkdownKeepFullResolution).
+  it('embeds the styled HTML as AVIF at 2x, the only codec under the payload ceiling', () => {
+    // Freshservice's editor re-uploads every pasted image and cannot cope with too
+    // much data at once. Measured base64 for one real 13-step SOP: PNG@1x 3.12 MB,
+    // JPEG@2x 1.02 MB, WebP@2x 524 KB, JPEG@1x 414 KB all FAIL to paste; AVIF@2x is
+    // 168 KB and the macOS app's ~164 KB AVIF works. AVIF is the only codec that
+    // fits while keeping 2x, which is what makes UI text readable at all.
+    expect(htmlEmbedPolicy('html')).toEqual({
+      embedMaxW: HTML_IMG_EMBED_MAX_W,
+      codec: 'avif',
+    });
+    expect(HTML_IMG_EMBED_MAX_W).toBe(HTML_IMG_MAX_W * 2);
+  });
+
+  it('keeps the Word-paste variety on PNG at 1x, PNG is the safest thing to hand Word', () => {
+    expect(htmlEmbedPolicy('html-plain')).toEqual({
+      embedMaxW: HTML_IMG_MAX_W,
+      codec: 'png',
+    });
+  });
+
+  it('leaves the PDF at full resolution, in PNG, for print', () => {
+    expect(htmlEmbedPolicy('pdf')).toEqual({ embedMaxW: null, codec: 'png' });
+  });
+
+  it('leaves the formats that never route through buildHtmlDoc alone', () => {
+    for (const f of ['markdown', 'docx', 'pptx']) {
+      expect(htmlEmbedPolicy(f), `${f} must not resample or transcode`).toEqual({
+        embedMaxW: null,
+        codec: 'png',
+      });
+    }
+  });
+
+  it('defaults an unknown format to full-resolution PNG (never transcodes blindly)', () => {
+    expect(htmlEmbedPolicy('')).toEqual({ embedMaxW: null, codec: 'png' });
+    expect(htmlEmbedPolicy('someFutureFormat')).toEqual({ embedMaxW: null, codec: 'png' });
   });
 });

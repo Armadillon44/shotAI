@@ -16,6 +16,11 @@ export default defineConfig({
         // tesseract.js (OCR) ships worker scripts + a WASM core it loads from
         // node_modules at runtime; keep it external so Vite doesn't bundle it.
         'tesseract.js',
+        // @jsquash/avif (styled-HTML export codec) is the same shape: an ESM package
+        // loaded via dynamic import() that reads its own 3.3 MB .wasm from
+        // node_modules at runtime. Bundling it would break both the import and the
+        // wasm path resolution in avif-encode.ts.
+        /^@jsquash\/avif/,
         /^electron-log/,
         // Claude SDK (Phase 3) — large, pulls in node built-ins + dynamic
         // requires; keep it external so main require()s it at runtime. The regex

@@ -10,10 +10,20 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
-import type { ExportFormat, ExportResult } from '../shared/ipc';
+import type { ExportFormat, ExportProgress, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
-import { plainImageSize, zoomCropRect } from './export-geometry';
+import {
+  HTML_IMG_AVIF_QUALITY,
+  HTML_IMG_AVIF_SPEED,
+  HTML_IMG_JPEG_QUALITY,
+  htmlEmbedPolicy,
+  htmlImageSize,
+  type EmbedPolicy,
+  zoomCropRect,
+} from './export-geometry';
+import { DOC_CSS, PLAIN_CSS } from './export-css';
+import { encodeAvif } from './avif-encode';
 import { buildDocx } from './export-docx';
 import { buildPptx } from './export-pptx';
 import { getReportByline } from './settings';
@@ -208,6 +218,128 @@ export async function loadItemImage(
 }
 
 /**
+ * `nativeImage.toBitmap()` hands back BGRA; the AVIF encoder wants RGBA. Swaps the
+ * red/blue channels into a fresh buffer (the encoder needs a Uint8ClampedArray).
+ *
+ * Electron's bitmap is PREMULTIPLIED and libavif is handed it as straight alpha, which
+ * is only harmless because every step render is fully opaque (verified: no pixel below
+ * alpha 255, since captures and flattened editor renders are both opaque). If a
+ * partially transparent render ever reaches here its colours would come out dark —
+ * un-premultiply first if that day comes.
+ */
+function toRgba(bgra: Buffer): Uint8ClampedArray {
+  const rgba = new Uint8ClampedArray(bgra.length);
+  for (let i = 0; i < bgra.length; i += 4) {
+    rgba[i] = bgra[i + 2];
+    rgba[i + 1] = bgra[i + 1];
+    rgba[i + 2] = bgra[i];
+    rgba[i + 3] = bgra[i + 3];
+  }
+  return rgba;
+}
+
+/** What an HTML export inlines for one shot: bytes, media type, and the size attrs. */
+interface InlineImage {
+  bytes: Buffer;
+  mediaType: string;
+  /** ` width="W" height="H"`, or '' when the size couldn't be read. */
+  sizeAttr: string;
+}
+
+/**
+ * Resolve a shot to the bytes an HTML export should inline, resampled down to the
+ * width it is ever displayed at (HTML_IMG_MAX_W) — issue #56.
+ *
+ * Both HTML varieties embed images as base64 data URIs, so a full-resolution render
+ * shipped several times more pixels than are ever shown plus base64's ~33%
+ * overhead. That payload is what makes copying a long SOP out of a browser into
+ * another system (a Freshservice KB article) fall over.
+ *
+ * NEVER upscales — an image already narrower than the column is left byte-identical,
+ * both to avoid inventing detail and because re-encoding a crisp screenshot can make
+ * it BIGGER (interpolation turns flat colour runs into many unique colours, which
+ * PNG compresses worse). For the same reason the re-encode is discarded if it didn't
+ * actually come out smaller.
+ *
+ * Degrades safely at every step: an unreadable size, a failed resize, or a resize
+ * that didn't help all fall back to the original bytes. The worst case is the old
+ * behaviour, never a wrong or missing image.
+ *
+ * Runs strictly AFTER the fail-closed render gate, on already redaction-baked and
+ * zoom-cropped pixels — resampling can only destroy information, never recover a
+ * redacted region.
+ */
+async function inlineImageForHtml(
+  it: Extract<ExportItem, { kind: 'shot' }>,
+  policy: EmbedPolicy,
+): Promise<InlineImage> {
+  const { buffer, width, height } = await loadItemImage(it);
+  // The DISPLAY size is always 1x the column, whatever resolution gets embedded —
+  // an embedded @2x image is still laid out at 738 by these attributes.
+  const shown = htmlImageSize(width, height);
+  const sizeAttr = shown ? ` width="${shown.w}" height="${shown.h}"` : '';
+
+  const cap = policy.embedMaxW;
+  // `embedMaxW: null` + png is the PDF: hand it the source bytes untouched.
+  if (cap == null && policy.codec === 'png') {
+    return { bytes: buffer, mediaType: it.mediaType, sizeAttr };
+  }
+
+  let bytes = buffer;
+  let mediaType: string = it.mediaType;
+  try {
+    const img = nativeImage.createFromBuffer(buffer);
+    // Resolution: cap, but never upscale a capture that's already smaller.
+    const scaled =
+      cap != null && width > cap && height >= 1
+        ? img.resize({
+            width: cap,
+            height: Math.max(1, Math.round(height * (cap / width))),
+            // 'best' (not the cheaper 'good'): this is the only copy of the pixels a
+            // reader ever sees and it's a multi-x downscale of UI text, where the
+            // filter choice is plainly visible. Matches macOS's .high.
+            quality: 'best',
+          })
+        : img;
+
+    // Codec. AVIF is the styled export's only way under the destination's payload
+    // ceiling (see htmlEmbedPolicy); it needs a WASM encoder, so it degrades to JPEG
+    // and then to the original bytes. Losing alpha is safe either way — step renders
+    // are fully opaque.
+    let out: { b: Buffer; t: string } | null = null;
+    if (policy.codec === 'avif') {
+      const { width: sw, height: sh } = scaled.getSize();
+      const avif = await encodeAvif(
+        toRgba(scaled.toBitmap()),
+        sw,
+        sh,
+        HTML_IMG_AVIF_QUALITY,
+        HTML_IMG_AVIF_SPEED,
+      );
+      if (avif) out = { b: avif, t: 'image/avif' };
+    }
+    if (!out) {
+      out =
+        policy.codec === 'png'
+          ? { b: scaled.toPNG(), t: 'image/png' }
+          : { b: scaled.toJPEG(HTML_IMG_JPEG_QUALITY), t: 'image/jpeg' };
+    }
+    if (out.b.length > 0) {
+      bytes = out.b;
+      mediaType = out.t;
+    }
+  } catch (e) {
+    mainLog.warn('export: image re-encode failed, embedding the original:', e);
+  }
+
+  // Never let the pipeline make a step BIGGER than shipping the original would have.
+  if (bytes !== buffer && bytes.length >= buffer.length) {
+    return { bytes: buffer, mediaType: it.mediaType, sizeAttr };
+  }
+  return { bytes, mediaType, sizeAttr };
+}
+
+/**
  * Resolve the project's steps into an ordered export list. Numbering matches the
  * in-app report: every NON-callout step — shots AND non-empty plain text steps —
  * consumes a contiguous 1..N number; callouts are un-numbered annotations. Empty
@@ -275,52 +407,29 @@ async function collectSteps(
   return items;
 }
 
-// Step framing (#40): every step is a distinct CARD — the number/glyph badge sits
-// in a left gutter, and a tinted rounded card (.step__main) holds the content to
-// its right. Callouts are the same card, tinted by kind. Mirrors the in-app report
-// and the macOS port (shotAI_MacOS#45). Light-only (exports don't theme).
-const DOC_CSS = `
-*{box-sizing:border-box}
-html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1f2937;background:#fff;line-height:1.6}
-.doc{max-width:880px;margin:0 auto;padding:40px 32px 64px}
-.doc__title{font-size:1.9rem;line-height:1.25;margin:0 0 4px}
-.doc__meta{color:#6b7280;font-size:.85rem;margin:0 0 28px}
-.doc__intro{margin:0 0 28px;padding:14px 18px;border:1px solid #e7e4f2;border-left:4px solid #6344f1;border-radius:8px;background:#efeafe}
-.doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:#6b7280;margin:0 0 6px}
-.doc__intro-h{margin:0 0 6px;font-size:1.15rem}
-.doc__intro-b{margin:0;color:#374151;white-space:pre-wrap}
-/* Offset by the step gutter (46px) so a section aligns with the step content
-   column; the 2px top rule denotes the SOP moving into a new section. Values
-   match the macOS export for parity. */
-.section{margin:28px 0 4px 46px;padding:14px 16px 0;border-top:2px solid #e7e4f2;break-inside:avoid}
-.section__h{font-size:1.2rem;font-weight:700;margin:0 0 4px;color:#191826}
-.section__b{margin:0;color:#5a5772;white-space:pre-wrap}
-.step{display:flex;gap:16px;margin:0 0 18px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
-.step__num{flex:0 0 auto;width:30px;height:30px;margin-top:14px;border-radius:50%;background:#6344f1;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
-.step__num--note{background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7}
-.step__num--caution{background:#fffbeb;color:#92400e;border:1px solid #fcd34d}
-.step__num--warning{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5}
-.step__main{flex:1 1 auto;min-width:0;padding:14px 16px;border:1px solid #e7e4f2;border-radius:12px;background:#faf9ff}
-.step__main--note{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
-.step__main--caution{background:#fffbeb;border-color:#fcd34d;color:#92400e}
-.step__main--warning{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
-.step__title{font-size:1.15rem;margin:0 0 10px}
-.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid #e5e7eb;border-radius:8px}
-.step__instr{margin:10px 0 0;white-space:pre-wrap;font-size:1.02rem}
-.step--textonly .step__instr{margin-top:0}
-.callout__h{display:block;font-weight:700;margin-bottom:.25rem}
-.callout__b{white-space:pre-wrap}
-@media print{.doc{max-width:none;padding:0 6px}}
-`.trim();
 
-/** Build the full self-contained HTML document (images as base64 data: URIs). */
+/**
+ * Build the full self-contained HTML document (images as base64 data: URIs).
+ *
+ * `policy` decides how each screenshot is embedded and MUST come from
+ * htmlEmbedPolicy(format) — the PDF is printed from this same output, so it has to be
+ * given the full-resolution PNG policy or it inherits the .html export's resample and
+ * prints soft (#56). `onProgress` reports per-image encode progress; AVIF costs ~1s
+ * an image, so a caller with a UI should pass it.
+ */
 async function buildHtmlDoc(
   manifest: ProjectManifest,
   items: ExportItem[],
   createdLine: string,
+  policy: EmbedPolicy,
+  onProgress?: (p: ExportProgress) => void,
 ): Promise<string> {
   const parts: string[] = [];
+  // Encoding is the slow part (AVIF runs ~1s per image), so report per image rather
+  // than per step — text steps and callouts cost nothing and would skew the count.
+  const shotTotal = items.reduce((n, it) => (it.kind === 'shot' ? n + 1 : n), 0);
+  let shotDone = 0;
+  onProgress?.({ done: 0, total: shotTotal });
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout === 'section') {
@@ -328,7 +437,12 @@ async function buildHtmlDoc(
         // no colored box). Reuses the .section / .section__h / .section__b styles.
         const h = it.heading ? `<h2 class="section__h">${escapeHtml(it.heading)}</h2>` : '';
         const b = it.body ? `<p class="section__b">${escapeHtml(it.body)}</p>` : '';
-        parts.push(`<section class="section">${h}${b}</section>`);
+        // The rule lives on an INNER div so .section can carry the document column
+        // while the rule still aligns with the step content column. Inner elements
+        // survive a KB-editor paste; whole-document wrappers do not (#57).
+        parts.push(
+          `<section class="section"><div class="section__inner">${h}${b}</div></section>`,
+        );
         continue;
       }
       if (it.callout) {
@@ -359,8 +473,9 @@ async function buildHtmlDoc(
       );
       continue;
     }
-    const bytes = it.bytes ?? (await fs.readFile(it.abs));
-    const dataUri = `data:${it.mediaType};base64,${bytes.toString('base64')}`;
+    const img = await inlineImageForHtml(it, policy);
+    onProgress?.({ done: ++shotDone, total: shotTotal });
+    const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
     const title = escapeHtml(it.caption || `Step ${it.n}`);
     const instr = it.body ? `<p class="step__instr">${escapeHtml(it.body)}</p>` : '';
     parts.push(
@@ -368,7 +483,8 @@ async function buildHtmlDoc(
         `<div class="step__num">${it.n}</div>` +
         `<div class="step__main">` +
         `<h2 class="step__title">${title}</h2>` +
-        `<img class="step__img" src="${dataUri}" alt="Screenshot for step ${it.n}">` +
+        // width/height ATTRIBUTES: a KB editor strips max-width off <img> (#57).
+        `<img class="step__img" src="${dataUri}"${img.sizeAttr} alt="Screenshot for step ${it.n}">` +
         `${instr}` +
         `</div>` +
         `</section>`,
@@ -392,28 +508,17 @@ async function buildHtmlDoc(
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<title>${title}</title>\n` +
     `<style>${DOC_CSS}</style>\n` +
-    `</head>\n<body>\n<main class="doc">\n` +
+    // A plain <div>, not <main>: this wrapper gets unwrapped on a KB-editor paste
+    // either way (which is why every block carries its own column — see DOC_CSS),
+    // and semantic tags are commonly off a sanitizer's allowlist. It only pads.
+    `</head>\n<body>\n<div class="doc">\n` +
     `<h1 class="doc__title">${title}</h1>\n` +
     `<p class="doc__meta">${escapeHtml(createdLine)}</p>\n` +
     introHtml +
     parts.join('\n') +
-    `\n</main>\n</body>\n</html>\n`
+    `\n</div>\n</body>\n</html>\n`
   );
 }
-
-// Simple, lightly-styled HTML: a standard sans-serif (Arial) body + basic header /
-// bold / spacing formatting so it reads well on its own — while staying plain
-// enough to paste into Word / Google Docs (they honor these basic tags/styles).
-const PLAIN_CSS = [
-  'body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.5;max-width:800px;margin:24px auto;padding:0 20px}',
-  'h1{font-size:1.8rem;font-weight:700;margin:0 0 .3rem}',
-  'h2{font-size:1.2rem;font-weight:700;margin:1.3rem 0 .4rem}',
-  'p{margin:.5rem 0}',
-  'strong{font-weight:700}',
-  'img{max-width:100%;height:auto}',
-  'blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid #cbd5e1;color:#374151}',
-  'hr{border:0;border-top:1px solid #e5e7eb;margin:1.4rem 0}',
-].join('');
 
 /**
  * Simple, lightly-styled standalone HTML: semantic tags (h1/h2/p/img/blockquote/
@@ -459,16 +564,15 @@ async function buildPlainHtmlDoc(
         }
       }
     } else {
-      const { buffer, width, height } = await loadItemImage(it);
-      const dataUri = `data:${it.mediaType};base64,${buffer.toString('base64')}`;
-      // Size the image with width/height ATTRIBUTES rather than relying on the
-      // stylesheet: Word / Google Docs drop CSS max-width on paste and would lay
-      // the capture out at full pixel size. Matches the macOS export.
-      const size = plainImageSize(width, height);
-      const sizeAttr = size ? ` width="${size.w}" height="${size.h}"` : '';
+      // Same pipeline as the styled export: resampled to the display width (#56)
+      // and sized with width/height ATTRIBUTES, because Word / Google Docs drop
+      // CSS max-width on paste and would lay the capture out at full pixel size.
+      // html-plain embeds PNG at 1x: Word cannot read WebP (htmlEmbedPolicy).
+      const img = await inlineImageForHtml(it, htmlEmbedPolicy('html-plain'));
+      const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
       block.push(`<h2>${it.n}. ${escapeHtml(it.caption || `Step ${it.n}`)}</h2>`);
       block.push(
-        `<p><img src="${dataUri}"${sizeAttr} alt="Screenshot for step ${it.n}"></p>`,
+        `<p><img src="${dataUri}"${img.sizeAttr} alt="Screenshot for step ${it.n}"></p>`,
       );
       if (it.body) block.push(`<p>${br(it.body)}</p>`);
     }
@@ -630,7 +734,13 @@ async function buildMarkdown(
 export async function exportProject(
   projectPath: string,
   format: ExportFormat,
-  opts: { saveAs?: boolean; targetDir?: string; reveal?: boolean } = {},
+  opts: {
+    saveAs?: boolean;
+    targetDir?: string;
+    reveal?: boolean;
+    /** Per-image encode progress; only the image-embedding formats call it. */
+    onProgress?: (p: ExportProgress) => void;
+  } = {},
 ): Promise<ExportResult> {
   // Reveal the written file unless told not to — bulk exports (to a shared folder
   // or to each project's own folder) suppress the per-file reveal so N folders
@@ -700,10 +810,19 @@ export async function exportProject(
   } else if (format === 'html-plain') {
     await fs.writeFile(outputPath, await buildPlainHtmlDoc(manifest, items), 'utf8');
   } else if (format === 'html') {
-    await fs.writeFile(outputPath, await buildHtmlDoc(manifest, items, createdLine), 'utf8');
+    await fs.writeFile(
+      outputPath,
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format), opts.onProgress),
+      'utf8',
+    );
   } else {
-    // pdf
-    await htmlToPdf(dir, await buildHtmlDoc(manifest, items, createdLine), outputPath);
+    // pdf — same builder as the .html export, so it must opt OUT of the resample and
+    // the codec explicitly, or it silently inherits them and prints soft (#56 scope).
+    await htmlToPdf(
+      dir,
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format), opts.onProgress),
+      outputPath,
+    );
   }
 
   mainLog.info(`exported ${format} → ${outputPath}`);

@@ -3,7 +3,7 @@
 // edited. Shown when a project is open (store.projectPath set).
 import React from 'react';
 import type { CalloutKind, CaptureTarget, ProjectStep } from '../../shared/project';
-import type { ExportFormat } from '../../shared/ipc';
+import type { ExportFormat, ExportProgress } from '../../shared/ipc';
 import { useProjectStore } from './store';
 import { ensureFlattened } from './sop-prepare';
 import { Report, type InsertKind } from './Report';
@@ -81,6 +81,12 @@ export function ProjectDetail({
   // the report whether or not Claude was run.
   const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
   const [exporting, setExporting] = React.useState<ExportFormat | null>(null);
+  // Per-image encode progress for the export in flight; null between exports.
+  const [exportProgress, setExportProgress] = React.useState<ExportProgress | null>(null);
+  React.useEffect(() => {
+    const off = window.shotai.projects.onExportProgress(setExportProgress);
+    return off;
+  }, []);
   const [exportErr, setExportErr] = React.useState<string | null>(null);
   const exportRef = React.useRef<HTMLDivElement | null>(null);
   // Shareable-package export: a small dialog picks redacted-only (default) vs.
@@ -135,6 +141,7 @@ export function ProjectDetail({
     } finally {
       if (exportAbortRef.current === controller) exportAbortRef.current = null;
       setExporting(null);
+      setExportProgress(null);
     }
   };
 
@@ -290,7 +297,12 @@ export function ProjectDetail({
               {packageBusy
                 ? 'Packaging…'
                 : exporting
-                  ? `Exporting ${EXPORT_LABEL[exporting]}…`
+                  ? // Count the images as they encode — the styled HTML export runs
+                    // each through a WASM AVIF encoder (~1s each), long enough that a
+                    // static "Exporting…" reads as a frozen app.
+                    exportProgress && exportProgress.total > 0
+                    ? `Exporting ${EXPORT_LABEL[exporting]}… ${exportProgress.done}/${exportProgress.total}`
+                    : `Exporting ${EXPORT_LABEL[exporting]}…`
                   : '⬇ Export'}
             </button>
             {exportMenuOpen && (

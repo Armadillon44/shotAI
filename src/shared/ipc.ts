@@ -86,6 +86,18 @@ export interface SopProgress {
 /** Output format for an exported report/SOP. */
 export type ExportFormat = 'html' | 'html-plain' | 'pdf' | 'markdown' | 'docx' | 'pptx';
 
+/**
+ * Per-image progress while an export encodes its screenshots. The styled HTML export
+ * runs each shot through a WASM AVIF encoder (~1s each), so a long SOP takes long
+ * enough that a static "Exporting…" reads as a hang.
+ */
+export interface ExportProgress {
+  /** Images encoded so far. */
+  done: number;
+  /** Total images to encode. 0 when a format embeds no images. */
+  total: number;
+}
+
 /** Result of an export — the file that was written (revealed in the OS file manager). */
 export interface ExportResult {
   format: ExportFormat;
@@ -163,6 +175,8 @@ export const IpcChannels = {
   revertSop: 'projects:revert-sop',
   // main -> renderer: SOP generation progress
   claudeSopProgress: 'claude:sop-progress',
+  /** Per-image progress while an export encodes screenshots (see ExportProgress). */
+  exportProgress: 'projects:export-progress',
   captureStart: 'capture:start',
   captureSingle: 'capture:single',
   captureScreenshot: 'capture:screenshot',
@@ -292,6 +306,11 @@ export interface ShotaiApi {
      * On success the file is revealed in the OS file manager.
      */
     export(projectPath: string, format: ExportFormat): Promise<ExportResult>;
+    /**
+     * Per-image encode progress for the export in flight (see ExportProgress).
+     * Returns an unsubscribe function. Only formats that embed images emit this.
+     */
+    onExportProgress(cb: (p: ExportProgress) => void): () => void;
     /**
      * Export into a specific folder (bulk export — the destination is chosen once
      * via `chooseExportDir`, then every selected project writes into it with

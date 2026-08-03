@@ -48,29 +48,138 @@ function clamp01(n: number): number {
 }
 
 /**
- * Max width (px) for a shot image in the plain "HTML (for Word)" export. Matches
- * the macOS app's `plainExportImageMaxWidth` so both platforms paste at the same
- * size.
+ * The width a step image is DISPLAYED at in either HTML export: a step card's
+ * content column, `HTML_COL_W` 816 − 30 (badge) − 16 (gap) − 32 (card padding) =
+ * 738px. **Keep in sync with export-css.ts.** Matches the macOS app's
+ * `htmlExportImageMaxWidth`.
+ *
+ * Measured footnote: `.step__main` also has a 1px border each side, and
+ * `*{box-sizing:border-box}` makes that eat the content box — so an image actually
+ * lays out at **736px**. 738 is kept anyway (it's the macOS constant, and erring
+ * 2px high can only over-supply pixels, never render an image upscaled/soft).
+ *
+ * Both HTML varieties also RESAMPLE the embedded pixels to this width (#56). They
+ * inline images as base64 data URIs, so shipping the full render meant far more
+ * pixels than are ever shown, plus base64's ~33% overhead — enough that copying a
+ * long SOP out of a browser into another system (a Freshservice KB article) chokes.
  */
-export const PLAIN_IMG_MAX_W = 738;
+export const HTML_IMG_MAX_W = 738;
 
 /**
- * The width/height ATTRIBUTES for a plain-export `<img>`, or null when the decoded
- * size is unusable (the caller then emits no attributes rather than a bogus size).
+ * The width/height ATTRIBUTES for an inlined export `<img>`, or null when the
+ * decoded size is unusable (the caller then emits no attributes rather than a
+ * bogus size). Caps at HTML_IMG_MAX_W preserving aspect; an image already narrower
+ * keeps its native size — never upscaled.
  *
- * Attributes, not CSS: Word and Google Docs drop the stylesheet's `max-width` on
- * paste and lay the image out at its native pixel size, so a 2560px capture pastes
- * in far oversized. The attributes survive the paste. Caps at PLAIN_IMG_MAX_W
- * preserving aspect; a capture already narrower than the cap keeps its native
- * size. Mirrors macOS ExportKit/HTMLExport.swift.
+ * Attributes, not CSS, because every rich-text destination drops the `<style>`
+ * block: Word and Google Docs ignore `max-width` on paste and would lay a capture
+ * out at its full pixel size, and a KB editor strips it off `<img>` outright.
+ * In a browser the CSS still wins for shrinking (`max-width:100%;height:auto`), so
+ * the file stays responsive; the attributes only pin the intrinsic size, which
+ * also avoids layout shift while the data URI decodes.
+ *
+ * Mirrors macOS ExportKit/HTMLExport.swift.
  */
-export function plainImageSize(
+/**
+ * The @2x embed width — twice the display width, so the `width`/`height` attributes
+ * still lay the image out at HTML_IMG_MAX_W while it carries enough pixels to stay
+ * sharp on a high-DPI screen and legible when a reader zooms in.
+ *
+ * Affordable only because the styled export is AVIF: at ~10 KB/image it fits under
+ * the destination's payload ceiling with room to spare, where 2x in any other codec
+ * does not (see htmlEmbedPolicy). Worth having — at 1x a full-desktop 2924px
+ * capture's dialog text is unreadable no matter the codec.
+ */
+export const HTML_IMG_EMBED_MAX_W = HTML_IMG_MAX_W * 2;
+
+/**
+ * JPEG quality (0-100, as `nativeImage.toJPEG` takes it). Used as the FALLBACK for
+ * the styled export when AVIF is unavailable, and nowhere else.
+ */
+export const HTML_IMG_JPEG_QUALITY = 85;
+
+/** AVIF quality (0-100) for the styled export. 50 is libavif's default and, measured
+ *  at the 2x embed width, keeps UI text clean at ~10 KB/image. */
+export const HTML_IMG_AVIF_QUALITY = 50;
+
+/**
+ * libavif encoder effort, 0-10 where HIGHER IS FASTER. 7 measured as the clear knee:
+ * identical output size to the slower 6 (8 KB on a sample, 168 vs 173 KB across a
+ * 13-step SOP) at HALF the time (11.4 s vs 23.3 s for 13 images), and visually
+ * indistinguishable from it. 8 and above are much faster still but visibly smear fine
+ * UI text while producing LARGER files, which is the worst of both.
+ */
+export const HTML_IMG_AVIF_SPEED = 7;
+
+/** How an export format embeds its step images. */
+export interface EmbedPolicy {
+  /** Cap the embedded pixels at this width, or null to embed at full resolution. */
+  embedMaxW: number | null;
+  /**
+   * Container for the embedded bytes. `avif` degrades to `jpeg` and then to the
+   * original bytes if the WASM encoder isn't available.
+   */
+  codec: 'png' | 'jpeg' | 'avif';
+}
+
+/**
+ * How a given export format should embed its step images (#56).
+ *
+ * - **`html`** — AVIF at 2x the display width. It inlines pixels as base64, and that
+ *   payload is what breaks pasting a long SOP into a Freshservice KB article.
+ *
+ *   **The constraint is a TOTAL PAYLOAD ceiling in the destination**, not a format
+ *   allowlist. Freshservice's editor re-uploads every pasted image and falls over
+ *   when handed too much data at once. Measured base64 for one real 13-step SOP:
+ *   PNG@1x 3.12 MB, JPEG@2x 1.02 MB, WebP@2x 524 KB and JPEG@1x 414 KB **all fail to
+ *   paste**; AVIF@2x is 168 KB and pastes (macOS's ~164 KB AVIF was the known-good
+ *   reference). An earlier read of this — that Froala's `imageAllowedTypes` was
+ *   rejecting the container — was wrong: JPEG is on that list and still failed.
+ *
+ *   So AVIF is not a preference, it's the only codec that fits while keeping 2x, and
+ *   2x is what makes a full-desktop capture's UI text legible at all. It needs a WASM
+ *   encoder (see avif-encode.ts) and degrades to JPEG then to the original bytes.
+ *   Losing alpha is safe either way — step renders are fully opaque (verified: no
+ *   pixel below alpha 255).
+ * - **`html-plain`** — PNG at 1x. This is the Word/Google-Docs paste target; PNG is
+ *   the safest thing to hand Word, and PNG at 2x would cost 11.75 MB.
+ * - **`pdf`** — full resolution, and this is the trap: on Windows the PDF is printed
+ *   from the very same `buildHtmlDoc` output, so it inherits anything done for the
+ *   HTML unless excluded on purpose. `printToPDF` embeds the SOURCE bitmap, so
+ *   capping at 738px would put a Letter print near 110 DPI where the full render
+ *   gives ~355. macOS draws the same boundary but gets it for free, because its PDF
+ *   renders natively rather than through the HTML.
+ * - Anything else (`markdown`/`docx`/`pptx`) never routes through the HTML builder
+ *   and keeps full resolution for the same print-quality reason.
+ */
+export function htmlEmbedPolicy(format: string): EmbedPolicy {
+  if (format === 'html') {
+    // AVIF at 2x. The constraint here is a TOTAL PAYLOAD ceiling in the destination:
+    // Freshservice's editor re-uploads every pasted image and cannot cope with too
+    // much data at once. Measured base64 for one real 13-step SOP —
+    //   PNG  @1x  3.12 MB   fails to paste
+    //   JPEG @2x  1.02 MB   fails
+    //   WebP @2x   524 KB   fails
+    //   JPEG @1x   414 KB   fails
+    //   AVIF @2x   168 KB   <- this, and the macOS app's ~164 KB AVIF works
+    // So AVIF is not a preference, it is the only codec that fits under the ceiling
+    // while keeping 2x, which is what makes a full-desktop capture's UI text
+    // readable at all (at 1x it is an illegible blur in every codec).
+    return { embedMaxW: HTML_IMG_EMBED_MAX_W, codec: 'avif' };
+  }
+  if (format === 'html-plain') {
+    return { embedMaxW: HTML_IMG_MAX_W, codec: 'png' };
+  }
+  return { embedMaxW: null, codec: 'png' };
+}
+
+export function htmlImageSize(
   width: number,
   height: number,
 ): { w: number; h: number } | null {
   if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
   if (!(width >= 1) || !(height >= 1)) return null; // 0x0 / negative → undecodable
-  const scale = Math.min(1, PLAIN_IMG_MAX_W / width);
+  const scale = Math.min(1, HTML_IMG_MAX_W / width);
   return {
     w: Math.max(1, Math.round(width * scale)),
     h: Math.max(1, Math.round(height * scale)),

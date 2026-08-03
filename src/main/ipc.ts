@@ -507,11 +507,17 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IpcChannels.exportProject,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+    (event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
       devLog('ipc: projects:export');
-      // Single export → prompt a Save dialog (issue #37).
+      // Single export → prompt a Save dialog (issue #37). Per-image encode progress
+      // streams back to the window that asked (same pattern as claudeSopProgress) so
+      // a slow AVIF encode doesn't read as a hang.
+      const sender = event.sender;
       return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
         saveAs: true,
+        onProgress: (p) => {
+          if (!sender.isDestroyed()) sender.send(IpcChannels.exportProgress, p);
+        },
       });
     },
   );
