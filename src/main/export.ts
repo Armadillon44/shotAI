@@ -14,6 +14,8 @@ import type { ExportFormat, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
 import {
+  HTML_IMG_AVIF_QUALITY,
+  HTML_IMG_AVIF_SPEED,
   HTML_IMG_JPEG_QUALITY,
   htmlEmbedPolicy,
   htmlImageSize,
@@ -21,6 +23,7 @@ import {
   zoomCropRect,
 } from './export-geometry';
 import { DOC_CSS, PLAIN_CSS } from './export-css';
+import { encodeAvif } from './avif-encode';
 import { buildDocx } from './export-docx';
 import { buildPptx } from './export-pptx';
 import { getReportByline } from './settings';
@@ -214,6 +217,21 @@ export async function loadItemImage(
   return { buffer, width, height };
 }
 
+/**
+ * `nativeImage.toBitmap()` hands back BGRA; the AVIF encoder wants RGBA. Swaps the
+ * red/blue channels into a fresh buffer (the encoder needs a Uint8ClampedArray).
+ */
+function toRgba(bgra: Buffer): Uint8ClampedArray {
+  const rgba = new Uint8ClampedArray(bgra.length);
+  for (let i = 0; i < bgra.length; i += 4) {
+    rgba[i] = bgra[i + 2];
+    rgba[i + 1] = bgra[i + 1];
+    rgba[i + 2] = bgra[i];
+    rgba[i + 3] = bgra[i + 3];
+  }
+  return rgba;
+}
+
 /** What an HTML export inlines for one shot: bytes, media type, and the size attrs. */
 interface InlineImage {
   bytes: Buffer;
@@ -277,13 +295,29 @@ async function inlineImageForHtml(
             quality: 'best',
           })
         : img;
-    // Codec: JPEG only for the styled export, where the destination editor requires
-    // a format it can re-upload (see htmlEmbedPolicy). Losing alpha is safe — step
-    // renders are fully opaque.
-    const out =
-      policy.codec === 'jpeg'
-        ? { b: scaled.toJPEG(HTML_IMG_JPEG_QUALITY), t: 'image/jpeg' }
-        : { b: scaled.toPNG(), t: 'image/png' };
+
+    // Codec. AVIF is the styled export's only way under the destination's payload
+    // ceiling (see htmlEmbedPolicy); it needs a WASM encoder, so it degrades to JPEG
+    // and then to the original bytes. Losing alpha is safe either way — step renders
+    // are fully opaque.
+    let out: { b: Buffer; t: string } | null = null;
+    if (policy.codec === 'avif') {
+      const { width: sw, height: sh } = scaled.getSize();
+      const avif = await encodeAvif(
+        toRgba(scaled.toBitmap()),
+        sw,
+        sh,
+        HTML_IMG_AVIF_QUALITY,
+        HTML_IMG_AVIF_SPEED,
+      );
+      if (avif) out = { b: avif, t: 'image/avif' };
+    }
+    if (!out) {
+      out =
+        policy.codec === 'png'
+          ? { b: scaled.toPNG(), t: 'image/png' }
+          : { b: scaled.toJPEG(HTML_IMG_JPEG_QUALITY), t: 'image/jpeg' };
+    }
     if (out.b.length > 0) {
       bytes = out.b;
       mediaType = out.t;

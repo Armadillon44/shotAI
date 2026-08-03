@@ -85,27 +85,41 @@ export const HTML_IMG_MAX_W = 738;
  * still lay the image out at HTML_IMG_MAX_W while it carries enough pixels to stay
  * sharp on a high-DPI screen and legible when a reader zooms in.
  *
- * **Currently PARKED — see htmlEmbedPolicy.** It is the treatment we want (at 1x a
- * full-desktop 2924px capture's dialog text is unreadable in any codec), but 2x is
- * on hold while we work out why non-AVIF images fail to paste into a Freshservice KB
- * article. Every failed attempt so far was at 2x, so it is a suspect.
+ * Affordable only because the styled export is AVIF: at ~10 KB/image it fits under
+ * the destination's payload ceiling with room to spare, where 2x in any other codec
+ * does not (see htmlEmbedPolicy). Worth having — at 1x a full-desktop 2924px
+ * capture's dialog text is unreadable no matter the codec.
  */
 export const HTML_IMG_EMBED_MAX_W = HTML_IMG_MAX_W * 2;
 
 /**
- * JPEG quality (0-100, as `nativeImage.toJPEG` takes it) for the styled export.
- * At the 2x embed width, 85 is legible on UI text — measured against a real capture,
- * "Add Printer" / "Search by keywords" read cleanly, where the 1x PNG is a blur. 90
- * costs ~30% more for no visible gain at the size it's displayed.
+ * JPEG quality (0-100, as `nativeImage.toJPEG` takes it). Used as the FALLBACK for
+ * the styled export when AVIF is unavailable, and nowhere else.
  */
 export const HTML_IMG_JPEG_QUALITY = 85;
+
+/** AVIF quality (0-100) for the styled export. 50 is libavif's default and, measured
+ *  at the 2x embed width, keeps UI text clean at ~10 KB/image. */
+export const HTML_IMG_AVIF_QUALITY = 50;
+
+/**
+ * libavif encoder effort, 0-10 where HIGHER IS FASTER. 7 measured as the clear knee:
+ * identical output size to the slower 6 (8 KB on a sample, 168 vs 173 KB across a
+ * 13-step SOP) at HALF the time (11.4 s vs 23.3 s for 13 images), and visually
+ * indistinguishable from it. 8 and above are much faster still but visibly smear fine
+ * UI text while producing LARGER files, which is the worst of both.
+ */
+export const HTML_IMG_AVIF_SPEED = 7;
 
 /** How an export format embeds its step images. */
 export interface EmbedPolicy {
   /** Cap the embedded pixels at this width, or null to embed at full resolution. */
   embedMaxW: number | null;
-  /** Container for the embedded bytes. `png` is also the fallback if jpeg fails. */
-  codec: 'png' | 'jpeg';
+  /**
+   * Container for the embedded bytes. `avif` degrades to `jpeg` and then to the
+   * original bytes if the WASM encoder isn't available.
+   */
+  codec: 'png' | 'jpeg' | 'avif';
 }
 
 /**
@@ -142,21 +156,18 @@ export interface EmbedPolicy {
  */
 export function htmlEmbedPolicy(format: string): EmbedPolicy {
   if (format === 'html') {
-    // JPEG at 1x — deliberately matching the size/dimension profile of the macOS
-    // AVIF export, which is confirmed to paste into a Freshservice KB article, so
-    // that the codec is the ONLY remaining difference.
-    //
-    // This is a DIAGNOSTIC configuration. Two attempts have failed to paste (WebP,
-    // then JPEG) and both were at 2x — 40 KB and 56 KB per image against macOS's
-    // ~18 KB — so the failure has been blamed on the codec while resolution and
-    // payload changed at the same time. JPEG is on Froala's default
-    // `imageAllowedTypes` and is documented by Freshworks, so "JPEG rejected but AVIF
-    // accepted" is implausible on format grounds alone; payload size is the better
-    // suspect. At 1x this is ~32 KB/image, 414 KB for a 13-step SOP (vs 1.02 MB at
-    // 2x). If it pastes, size was the cause and 2x needs a smaller codec. If it
-    // still fails, the codec is confirmed and AVIF is the answer — see
-    // HTML_IMG_EMBED_MAX_W and the AVIF findings in the PR.
-    return { embedMaxW: HTML_IMG_MAX_W, codec: 'jpeg' };
+    // AVIF at 2x. The constraint here is a TOTAL PAYLOAD ceiling in the destination:
+    // Freshservice's editor re-uploads every pasted image and cannot cope with too
+    // much data at once. Measured base64 for one real 13-step SOP —
+    //   PNG  @1x  3.12 MB   fails to paste
+    //   JPEG @2x  1.02 MB   fails
+    //   WebP @2x   524 KB   fails
+    //   JPEG @1x   414 KB   fails
+    //   AVIF @2x   168 KB   <- this, and the macOS app's ~164 KB AVIF works
+    // So AVIF is not a preference, it is the only codec that fits under the ceiling
+    // while keeping 2x, which is what makes a full-desktop capture's UI text
+    // readable at all (at 1x it is an illegible blur in every codec).
+    return { embedMaxW: HTML_IMG_EMBED_MAX_W, codec: 'avif' };
   }
   if (format === 'html-plain') {
     return { embedMaxW: HTML_IMG_MAX_W, codec: 'png' };

@@ -84,7 +84,13 @@ const config: ForgeConfig = {
     // Keep asar, but UNPACK native binaries (.node) — uiohook-napi,
     // node-screenshots, get-windows, and koffi (+ its @koromix/* binary) can't be
     // loaded from inside an asar archive.
-    asar: { unpack: '**/*.node' },
+    //
+    // @jsquash/avif is unpacked as a DIRECTORY (unpackDir) for the styled HTML
+    // export's AVIF encoder: it is an ESM package loaded by dynamic import() AND it
+    // reads a 3.3 MB .wasm at runtime, and neither is reliable from inside an asar.
+    // avif-encode.ts resolves the app.asar -> app.asar.unpacked path itself, but it
+    // can only work if the files are actually unpacked here.
+    asar: { unpack: '**/*.node', unpackDir: '**/node_modules/@jsquash/**' },
     // Ship the native UI-element-locator dll AND the runtime app icon (PNG, used
     // for the window/taskbar icon + About dialog via appIconPath) into the app's
     // resources/. Neither is a .node, so the unpack rule doesn't cover them —
