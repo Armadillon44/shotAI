@@ -8,6 +8,7 @@ import {
   type CaptureState,
   type ExportFormat,
   type ShotaiApi,
+  type ExportProgress,
   type SopProgress,
 } from '../shared/ipc';
 import type { CalloutKind, CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch, ThemePref } from '../shared/project';
@@ -98,6 +99,11 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),
     export: (projectPath: string, format: ExportFormat) =>
       ipcRenderer.invoke(IpcChannels.exportProject, projectPath, format),
+    onExportProgress: (cb: (p: ExportProgress) => void) => {
+      const listener = (_e: IpcRendererEvent, p: ExportProgress) => cb(p);
+      ipcRenderer.on(IpcChannels.exportProgress, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.exportProgress, listener);
+    },
     exportToDir: (projectPath: string, format: ExportFormat, dir: string) =>
       ipcRenderer.invoke(IpcChannels.exportToDir, projectPath, format, dir),
     exportToOwnFolder: (projectPath: string, format: ExportFormat) =>

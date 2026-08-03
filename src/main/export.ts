@@ -10,7 +10,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
-import type { ExportFormat, ExportResult } from '../shared/ipc';
+import type { ExportFormat, ExportProgress, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
 import {
@@ -415,8 +415,14 @@ async function buildHtmlDoc(
   items: ExportItem[],
   createdLine: string,
   policy: EmbedPolicy,
+  onProgress?: (p: ExportProgress) => void,
 ): Promise<string> {
   const parts: string[] = [];
+  // Encoding is the slow part (AVIF runs ~1s per image), so report per image rather
+  // than per step — text steps and callouts cost nothing and would skew the count.
+  const shotTotal = items.reduce((n, it) => (it.kind === 'shot' ? n + 1 : n), 0);
+  let shotDone = 0;
+  onProgress?.({ done: 0, total: shotTotal });
   for (const it of items) {
     if (it.kind === 'text') {
       if (it.callout === 'section') {
@@ -461,6 +467,7 @@ async function buildHtmlDoc(
       continue;
     }
     const img = await inlineImageForHtml(it, policy);
+    onProgress?.({ done: ++shotDone, total: shotTotal });
     const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
     const title = escapeHtml(it.caption || `Step ${it.n}`);
     const instr = it.body ? `<p class="step__instr">${escapeHtml(it.body)}</p>` : '';
@@ -720,7 +727,13 @@ async function buildMarkdown(
 export async function exportProject(
   projectPath: string,
   format: ExportFormat,
-  opts: { saveAs?: boolean; targetDir?: string; reveal?: boolean } = {},
+  opts: {
+    saveAs?: boolean;
+    targetDir?: string;
+    reveal?: boolean;
+    /** Per-image encode progress; only the image-embedding formats call it. */
+    onProgress?: (p: ExportProgress) => void;
+  } = {},
 ): Promise<ExportResult> {
   // Reveal the written file unless told not to — bulk exports (to a shared folder
   // or to each project's own folder) suppress the per-file reveal so N folders
@@ -792,7 +805,7 @@ export async function exportProject(
   } else if (format === 'html') {
     await fs.writeFile(
       outputPath,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format)),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format), opts.onProgress),
       'utf8',
     );
   } else {
@@ -800,7 +813,7 @@ export async function exportProject(
     // the codec explicitly, or it silently inherits them and prints soft (#56 scope).
     await htmlToPdf(
       dir,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format)),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format), opts.onProgress),
       outputPath,
     );
   }
