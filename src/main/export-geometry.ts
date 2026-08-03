@@ -81,16 +81,14 @@ export const HTML_IMG_MAX_W = 738;
  * Mirrors macOS ExportKit/HTMLExport.swift.
  */
 /**
- * Pixel density the styled HTML export embeds at: 2x the display width, i.e. a
- * @2x asset. The `width`/`height` attributes still pin it to HTML_IMG_MAX_W, so
- * layout is unchanged — the extra pixels only serve high-DPI screens and a reader
- * zooming in to actually read the UI text in a screenshot.
+ * The @2x embed width — twice the display width, so the `width`/`height` attributes
+ * still lay the image out at HTML_IMG_MAX_W while it carries enough pixels to stay
+ * sharp on a high-DPI screen and legible when a reader zooms in.
  *
- * 1x was tried first and is too destructive: a full-desktop 2924px capture
- * downscaled to 738 leaves its dialog text unreadable no matter the codec. WebP is
- * efficient enough to afford 2x — measured on a real 13-step SOP, base64 payload:
- * PNG@738 3.12 MB · WebP@738 233 KB · **WebP@1476 524 KB** · WebP@native 1.15 MB.
- * So 2x costs ~290 KB over 1x and is still 6x smaller than the PNG it replaces.
+ * **Currently PARKED — see htmlEmbedPolicy.** It is the treatment we want (at 1x a
+ * full-desktop 2924px capture's dialog text is unreadable in any codec), but 2x is
+ * on hold while we work out why non-AVIF images fail to paste into a Freshservice KB
+ * article. Every failed attempt so far was at 2x, so it is a suspect.
  */
 export const HTML_IMG_EMBED_MAX_W = HTML_IMG_MAX_W * 2;
 
@@ -144,7 +142,21 @@ export interface EmbedPolicy {
  */
 export function htmlEmbedPolicy(format: string): EmbedPolicy {
   if (format === 'html') {
-    return { embedMaxW: HTML_IMG_EMBED_MAX_W, codec: 'jpeg' };
+    // JPEG at 1x — deliberately matching the size/dimension profile of the macOS
+    // AVIF export, which is confirmed to paste into a Freshservice KB article, so
+    // that the codec is the ONLY remaining difference.
+    //
+    // This is a DIAGNOSTIC configuration. Two attempts have failed to paste (WebP,
+    // then JPEG) and both were at 2x — 40 KB and 56 KB per image against macOS's
+    // ~18 KB — so the failure has been blamed on the codec while resolution and
+    // payload changed at the same time. JPEG is on Froala's default
+    // `imageAllowedTypes` and is documented by Freshworks, so "JPEG rejected but AVIF
+    // accepted" is implausible on format grounds alone; payload size is the better
+    // suspect. At 1x this is ~32 KB/image, 414 KB for a 13-step SOP (vs 1.02 MB at
+    // 2x). If it pastes, size was the cause and 2x needs a smaller codec. If it
+    // still fails, the codec is confirmed and AVIF is the answer — see
+    // HTML_IMG_EMBED_MAX_W and the AVIF findings in the PR.
+    return { embedMaxW: HTML_IMG_MAX_W, codec: 'jpeg' };
   }
   if (format === 'html-plain') {
     return { embedMaxW: HTML_IMG_MAX_W, codec: 'png' };

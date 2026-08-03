@@ -97,15 +97,16 @@ describe('htmlEmbedPolicy', () => {
   // bitmap, so capping at 738px would put a Letter print near 110 DPI where the full
   // render gives ~355. macOS asserts the same boundary
   // (testPdfAndMarkdownKeepFullResolution).
-  it('embeds the styled HTML as JPEG at 2x the display width', () => {
-    // JPEG, NOT WebP/AVIF: Freshservice's editor re-uploads each pasted image and
-    // rejects both, leaving broken images ("No link in upload response"). Its
-    // efficiency still affords 2x, so a reader can zoom in and read the UI text —
-    // at 1x a full-desktop capture's dialog text is an illegible blur.
+  it('embeds the styled HTML as JPEG at 1x while the paste failure is diagnosed', () => {
+    // DIAGNOSTIC (see htmlEmbedPolicy): 1x matches the size/dimension profile of the
+    // macOS AVIF export that is confirmed to paste into a Freshservice KB article,
+    // leaving the codec as the only difference. Both prior failures (WebP, JPEG) were
+    // at 2x with 2-3x the per-image bytes, so resolution/payload was never ruled out.
     expect(htmlEmbedPolicy('html')).toEqual({
-      embedMaxW: HTML_IMG_EMBED_MAX_W,
+      embedMaxW: HTML_IMG_MAX_W,
       codec: 'jpeg',
     });
+    // The 2x width stays defined as the treatment we want once pasting is understood.
     expect(HTML_IMG_EMBED_MAX_W).toBe(HTML_IMG_MAX_W * 2);
   });
 
