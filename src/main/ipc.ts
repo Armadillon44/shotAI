@@ -12,6 +12,7 @@ import { revertSop } from './sop-apply';
 import { exportProject, chooseExportDirectory, revealExportDir } from './export';
 import { exportPackage, importPackage } from './export-package';
 import { checkForUpdate } from './update-check';
+import { getPendingUpdate, setPendingUpdate } from './update-state';
 import type { CaptureController } from './CaptureController';
 import type { RegionService } from './RegionService';
 import type {
@@ -686,6 +687,13 @@ export function registerIpcHandlers(
     devLog('ipc: settings:set-update-check');
     return setUpdateCheckEnabled(value === true);
   });
+  ipcMain.handle(IpcChannels.updatePending, () => {
+    devLog('ipc: update:pending');
+    // The startup check usually finishes BEFORE the renderer subscribes, and
+    // webContents.send doesn't buffer — so this pull, not the push, is what normally
+    // delivers the notice. See update-state.ts.
+    return getPendingUpdate();
+  });
   ipcMain.handle(IpcChannels.updateCheck, async () => {
     devLog('ipc: update:check');
     // The MANUAL check from Settings — deliberately ignores the once-a-day throttle,
@@ -695,6 +703,10 @@ export function registerIpcHandlers(
       fetchImpl: fetch,
     });
     await setLastUpdateCheckAt(Date.now());
+    // Keep the cached result in step with what was just learned: a manual find should
+    // also raise the home notice, and a manual "up to date" should clear a stale one
+    // (setPendingUpdate stores only actual updates, so this handles both).
+    setPendingUpdate(result);
     return result;
   });
   ipcMain.handle(IpcChannels.claudeKeyStatus, () => {

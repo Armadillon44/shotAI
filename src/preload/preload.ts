@@ -144,6 +144,7 @@ const api: ShotaiApi = {
   },
   updates: {
     check: () => ipcRenderer.invoke(IpcChannels.updateCheck),
+    pending: () => ipcRenderer.invoke(IpcChannels.updatePending),
     onAvailable: (cb: (r: UpdateCheckResult) => void) => {
       const listener = (_e: IpcRendererEvent, r: UpdateCheckResult) => cb(r);
       ipcRenderer.on(IpcChannels.updateAvailable, listener);

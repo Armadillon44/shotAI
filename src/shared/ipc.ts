@@ -194,6 +194,8 @@ export const IpcChannels = {
   exportProgress: 'projects:export-progress',
   // Update check (#54) — renderer asks, and main pushes once on startup.
   updateCheck: 'update:check',
+  /** Renderer pulls the startup check's result (the push often lands too early). */
+  updatePending: 'update:pending',
   updateAvailable: 'update:available',
   getUpdateCheckEnabled: 'settings:get-update-check',
   setUpdateCheckEnabled: 'settings:set-update-check',
@@ -410,6 +412,12 @@ export interface ShotaiApi {
      * throws — a failure comes back as `{available:false, error}`.
      */
     check(): Promise<UpdateCheckResult>;
+    /**
+     * The update found by this launch's startup check, or null. The renderer MUST
+     * call this on mount: the check normally completes before the renderer has
+     * subscribed, and webContents.send does not buffer, so onAvailable alone drops it.
+     */
+    pending(): Promise<UpdateCheckResult | null>;
     /**
      * Push: main found an update during its once-a-day startup check. Fires at most
      * once per launch, and only when an update actually exists.

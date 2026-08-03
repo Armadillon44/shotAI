@@ -16,6 +16,7 @@ import {
   setLastUpdateCheckAt,
 } from './settings';
 import { checkForUpdate, startupCheckDecision } from './update-check';
+import { setPendingUpdate } from './update-state';
 import { IpcChannels } from '../shared/ipc';
 import { installAppMenu } from './menu';
 import { appIconPath } from './paths';
@@ -462,6 +463,10 @@ app.whenReady().then(async () => {
         return;
       }
       mainLog.info(`update available: ${result.version}`);
+      // Stash it BEFORE pushing: the renderer usually isn't subscribed yet at this
+      // point (webContents.send doesn't buffer), so the pull on mount is what actually
+      // delivers it most of the time. The push covers a check that lands later.
+      setPendingUpdate(result);
       if (projectWindow && !projectWindow.isDestroyed()) {
         projectWindow.webContents.send(IpcChannels.updateAvailable, result);
       }

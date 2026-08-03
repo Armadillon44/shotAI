@@ -51,9 +51,19 @@ export function App(): React.JSX.Element {
   // this session; the next launch (a day later) offers it again.
   const [update, setUpdate] = React.useState<{ version?: string; url?: string } | null>(null);
   React.useEffect(() => {
+    // PULL on mount as well as listening: the startup check usually finishes before
+    // this component exists, and webContents.send doesn't buffer, so the push alone
+    // silently loses the notice (measured: main found it 40s before the renderer's
+    // first IPC in dev). Whichever arrives first wins; the other is a no-op.
     const off = window.shotai.updates.onAvailable((r) =>
       setUpdate(r.available ? { version: r.version, url: r.url } : null),
     );
+    window.shotai.updates
+      .pending()
+      .then((r) => {
+        if (r?.available) setUpdate({ version: r.version, url: r.url });
+      })
+      .catch(() => undefined); // an update nudge is never worth an error
     return off;
   }, []);
   // First-run coach-mark tour (R2). Opens once on first launch; replayable from
