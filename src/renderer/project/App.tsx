@@ -248,15 +248,19 @@ export function App(): React.JSX.Element {
   const homeScroll = React.useRef(0);
   const atHome = showHome && !showSettings;
   const wasAtHome = React.useRef(atHome);
+  // Record the home position AS IT SCROLLS, not when the view changes. An effect runs
+  // after the DOM has already swapped in the project, and if that content is shorter
+  // the browser has clamped scrollTop by then — so reading it there would save a
+  // truncated value (usually 0) and "return to where you were" would be a lie.
+  const onBodyScroll = React.useCallback(() => {
+    if (atHome && bodyRef.current) homeScroll.current = bodyRef.current.scrollTop;
+  }, [atHome]);
   React.useEffect(() => {
     const el = bodyRef.current;
     if (!el || wasAtHome.current === atHome) return;
-    if (atHome) {
-      el.scrollTop = homeScroll.current;
-    } else {
-      homeScroll.current = el.scrollTop;
-      el.scrollTop = 0;
-    }
+    // Only ever WRITE here: restore the remembered home position, or start a project
+    // (or Settings) at the top.
+    el.scrollTop = atHome ? homeScroll.current : 0;
     wasAtHome.current = atHome;
   }, [atHome]);
 
@@ -439,6 +443,7 @@ export function App(): React.JSX.Element {
 
       <section
         ref={bodyRef}
+        onScroll={onBodyScroll}
         className={`project__body${showDetail && !showSettings ? ' project__body--detail' : ''}`}
       >
         {error && (

@@ -40,39 +40,24 @@ let encoder: EncodeFn | null | undefined;
 let loading: Promise<EncodeFn | null> | null = null;
 
 /**
- * Candidate locations for the encoder's WASM. `require.resolve` finds it in dev and
- * in an unpacked app; the `app.asar` -> `app.asar.unpacked` rewrite covers a packaged
- * build (forge.config.ts unpacks it, since a WASM module can't be instantiated from
- * inside an asar as reliably as a plain read).
+ * Where the encoder lives: whatever `require.resolve` says, in dev and when packaged
+ * alike. Inside an asar is fine — verified on Electron 42 that both the dynamic ESM
+ * import of encode.js and the `fs` read of its .wasm work from within the archive.
+ *
+ * Do NOT "improve" this by unpacking the package and preferring an
+ * app.asar.unpacked path: encode.js statically imports `wasm-feature-detect`, npm
+ * hoists that to node_modules/, and app.asar.unpacked is not asar-redirected — so an
+ * unpacked copy resolves but then dies with ERR_MODULE_NOT_FOUND on the sibling. That
+ * was tried; see the note in forge.config.ts.
  */
-function wasmCandidates(): string[] {
-  const out: string[] = [];
+function encoderPaths(): { module: string; wasm: string } | null {
   try {
-    const encodeJs = require.resolve('@jsquash/avif/encode.js');
-    const wasm = path.join(path.dirname(encodeJs), 'codec', 'enc', 'avif_enc.wasm');
-    out.push(wasm);
-    if (wasm.includes(`app.asar${path.sep}`)) {
-      out.push(wasm.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`));
-    }
-  } catch {
-    /* package missing entirely — handled by the caller's fallback */
+    const module = require.resolve('@jsquash/avif/encode.js');
+    return { module, wasm: path.join(path.dirname(module), 'codec', 'enc', 'avif_enc.wasm') };
+  } catch (e) {
+    mainLog.warn('avif: @jsquash/avif is not installed:', e);
+    return null;
   }
-  return out;
-}
-
-/** The module URL to dynamic-import, preferring the unpacked copy when packaged. */
-function encoderUrls(): string[] {
-  const out: string[] = [];
-  try {
-    const encodeJs = require.resolve('@jsquash/avif/encode.js');
-    if (encodeJs.includes(`app.asar${path.sep}`)) {
-      out.push(encodeJs.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`));
-    }
-    out.push(encodeJs);
-  } catch {
-    /* handled below */
-  }
-  return out;
 }
 
 /**
@@ -84,36 +69,20 @@ async function load(): Promise<EncodeFn | null> {
   if (loading) return loading;
   loading = (async () => {
     try {
-      let mod: JsquashModule | null = null;
-      for (const p of encoderUrls()) {
-        try {
-          // The package is ESM; the main process is CJS, hence the dynamic import.
-          mod = (await import(pathToFileURL(p).href)) as JsquashModule;
-          break;
-        } catch {
-          /* try the next candidate */
-        }
+      const paths = encoderPaths();
+      if (!paths) {
+        encoder = null;
+        return null;
       }
+      // The package is ESM; the main process is CJS, hence the dynamic import.
+      const mod = (await import(pathToFileURL(paths.module).href)) as JsquashModule;
       if (!mod?.init || typeof mod.default !== 'function') {
-        mainLog.warn('avif: @jsquash/avif could not be imported; falling back');
+        mainLog.warn('avif: @jsquash/avif exports look wrong; falling back');
         encoder = null;
         return null;
       }
       // Node has no fetch-for-file, so the .wasm has to be handed over explicitly.
-      let bytes: Buffer | null = null;
-      for (const c of wasmCandidates()) {
-        try {
-          bytes = await fs.readFile(c);
-          break;
-        } catch {
-          /* try the next candidate */
-        }
-      }
-      if (!bytes) {
-        mainLog.warn('avif: avif_enc.wasm not found; falling back');
-        encoder = null;
-        return null;
-      }
+      const bytes = await fs.readFile(paths.wasm);
       // Hand over just this Buffer's bytes — a Buffer can be a view into a larger
       // pooled ArrayBuffer, so passing .buffer directly could include foreign bytes.
       await mod.init({

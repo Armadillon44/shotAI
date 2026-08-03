@@ -220,6 +220,12 @@ export async function loadItemImage(
 /**
  * `nativeImage.toBitmap()` hands back BGRA; the AVIF encoder wants RGBA. Swaps the
  * red/blue channels into a fresh buffer (the encoder needs a Uint8ClampedArray).
+ *
+ * Electron's bitmap is PREMULTIPLIED and libavif is handed it as straight alpha, which
+ * is only harmless because every step render is fully opaque (verified: no pixel below
+ * alpha 255, since captures and flattened editor renders are both opaque). If a
+ * partially transparent render ever reaches here its colours would come out dark —
+ * un-premultiply first if that day comes.
  */
 function toRgba(bgra: Buffer): Uint8ClampedArray {
   const rgba = new Uint8ClampedArray(bgra.length);
@@ -405,10 +411,11 @@ async function collectSteps(
 /**
  * Build the full self-contained HTML document (images as base64 data: URIs).
  *
- * `resample` MUST be false for the PDF: it is printed from this same output, and a
- * PDF wants full-resolution pixels for print rather than the display-width
- * resample the .html export needs to keep its base64 payload pasteable (#56). See
- * resamplesEmbeddedImages.
+ * `policy` decides how each screenshot is embedded and MUST come from
+ * htmlEmbedPolicy(format) — the PDF is printed from this same output, so it has to be
+ * given the full-resolution PNG policy or it inherits the .html export's resample and
+ * prints soft (#56). `onProgress` reports per-image encode progress; AVIF costs ~1s
+ * an image, so a caller with a UI should pass it.
  */
 async function buildHtmlDoc(
   manifest: ProjectManifest,

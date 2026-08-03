@@ -125,24 +125,22 @@ export interface EmbedPolicy {
 /**
  * How a given export format should embed its step images (#56).
  *
- * - **`html`** — JPEG at 2x the display width. It inlines pixels as base64, and that
+ * - **`html`** — AVIF at 2x the display width. It inlines pixels as base64, and that
  *   payload is what breaks pasting a long SOP into a Freshservice KB article.
  *
- *   **The codec is constrained by the DESTINATION, not by what compresses best.**
- *   Freshservice's editor (Froala) does not keep a pasted data URI — it re-uploads
- *   each image to its own server and rewrites the `src`. So the format has to be one
- *   that endpoint accepts, or every image lands broken. WebP was tried and fails
- *   exactly that way: Froala reports error 2, "No link in upload response", and only
- *   the last image survives a save. Froala's default `imageAllowedTypes` is
- *   `['jpeg','jpg','png','gif']` and Freshworks documents JPEG/PNG/GIF — **neither
- *   WebP nor AVIF is accepted**, so macOS's AVIF is not portable here either (and
- *   Electron cannot encode either format anyway).
+ *   **The constraint is a TOTAL PAYLOAD ceiling in the destination**, not a format
+ *   allowlist. Freshservice's editor re-uploads every pasted image and falls over
+ *   when handed too much data at once. Measured base64 for one real 13-step SOP:
+ *   PNG@1x 3.12 MB, JPEG@2x 1.02 MB, WebP@2x 524 KB and JPEG@1x 414 KB **all fail to
+ *   paste**; AVIF@2x is 168 KB and pastes (macOS's ~164 KB AVIF was the known-good
+ *   reference). An earlier read of this — that Froala's `imageAllowedTypes` was
+ *   rejecting the container — was wrong: JPEG is on that list and still failed.
  *
- *   JPEG is therefore the only lossy option on the list. Measured on a real 13-step
- *   SOP: PNG@1x 3.12 MB · JPEG@2x q85 1.02 MB (~56 KB/image) — 3x smaller than the
- *   PNG that does paste, and legible where the 1x PNG is a blur. Safe because step
- *   renders are fully opaque (verified: no non-255 alpha), so losing the alpha
- *   channel costs nothing.
+ *   So AVIF is not a preference, it's the only codec that fits while keeping 2x, and
+ *   2x is what makes a full-desktop capture's UI text legible at all. It needs a WASM
+ *   encoder (see avif-encode.ts) and degrades to JPEG then to the original bytes.
+ *   Losing alpha is safe either way — step renders are fully opaque (verified: no
+ *   pixel below alpha 255).
  * - **`html-plain`** — PNG at 1x. This is the Word/Google-Docs paste target; PNG is
  *   the safest thing to hand Word, and PNG at 2x would cost 11.75 MB.
  * - **`pdf`** — full resolution, and this is the trap: on Windows the PDF is printed
