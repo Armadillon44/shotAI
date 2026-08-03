@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  HTML_IMG_EMBED_MAX_W,
   HTML_IMG_MAX_W,
+  htmlEmbedPolicy,
   htmlImageSize,
-  resamplesEmbeddedImages,
   zoomCropRect,
 } from './export-geometry';
 
@@ -89,30 +90,45 @@ describe('htmlImageSize', () => {
   });
 });
 
-describe('resamplesEmbeddedImages', () => {
+describe('htmlEmbedPolicy', () => {
   // The scope boundary from #56, and the trap it guards: on Windows the PDF is
   // printed from the SAME buildHtmlDoc output as the .html export, so it inherits
   // anything done there unless excluded on purpose. printToPDF embeds the source
-  // bitmap, so resampling to 738px would cap a Letter print near 110 DPI where the
-  // full render gives ~355. macOS asserts the same boundary
+  // bitmap, so capping at 738px would put a Letter print near 110 DPI where the full
+  // render gives ~355. macOS asserts the same boundary
   // (testPdfAndMarkdownKeepFullResolution).
-  it('resamples ONLY the two HTML varieties, which inline base64', () => {
-    expect(resamplesEmbeddedImages('html')).toBe(true);
-    expect(resamplesEmbeddedImages('html-plain')).toBe(true);
+  it('embeds the styled HTML as WebP at 2x the display width', () => {
+    // WebP is what makes the base64 payload pasteable, and it is efficient enough to
+    // afford 2x — so a reader can still zoom in and read the UI text.
+    expect(htmlEmbedPolicy('html')).toEqual({
+      embedMaxW: HTML_IMG_EMBED_MAX_W,
+      codec: 'webp',
+    });
+    expect(HTML_IMG_EMBED_MAX_W).toBe(HTML_IMG_MAX_W * 2);
   });
 
-  it('leaves the PDF at full resolution for print', () => {
-    expect(resamplesEmbeddedImages('pdf')).toBe(false);
+  it('keeps the Word-paste variety on PNG at 1x, because Word cannot read WebP', () => {
+    expect(htmlEmbedPolicy('html-plain')).toEqual({
+      embedMaxW: HTML_IMG_MAX_W,
+      codec: 'png',
+    });
+  });
+
+  it('leaves the PDF at full resolution, in PNG, for print', () => {
+    expect(htmlEmbedPolicy('pdf')).toEqual({ embedMaxW: null, codec: 'png' });
   });
 
   it('leaves the formats that never route through buildHtmlDoc alone', () => {
     for (const f of ['markdown', 'docx', 'pptx']) {
-      expect(resamplesEmbeddedImages(f), `${f} must not resample`).toBe(false);
+      expect(htmlEmbedPolicy(f), `${f} must not resample or transcode`).toEqual({
+        embedMaxW: null,
+        codec: 'png',
+      });
     }
   });
 
-  it('defaults to NOT resampling for an unknown format', () => {
-    expect(resamplesEmbeddedImages('')).toBe(false);
-    expect(resamplesEmbeddedImages('someFutureFormat')).toBe(false);
+  it('defaults an unknown format to full-resolution PNG (never transcodes blindly)', () => {
+    expect(htmlEmbedPolicy('')).toEqual({ embedMaxW: null, codec: 'png' });
+    expect(htmlEmbedPolicy('someFutureFormat')).toEqual({ embedMaxW: null, codec: 'png' });
   });
 });

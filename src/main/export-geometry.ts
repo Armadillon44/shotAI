@@ -81,25 +81,59 @@ export const HTML_IMG_MAX_W = 738;
  * Mirrors macOS ExportKit/HTMLExport.swift.
  */
 /**
- * Whether an export format should RESAMPLE its embedded images down to
- * HTML_IMG_MAX_W, as opposed to only sizing them with attributes.
+ * Pixel density the styled HTML export embeds at: 2x the display width, i.e. a
+ * @2x asset. The `width`/`height` attributes still pin it to HTML_IMG_MAX_W, so
+ * layout is unchanged — the extra pixels only serve high-DPI screens and a reader
+ * zooming in to actually read the UI text in a screenshot.
  *
- * Only the two HTML varieties do (#56): they inline pixels as base64 in the
- * document itself, so resolution beyond what's displayed is pure payload, and that
- * payload is what breaks pasting a long SOP into a KB article.
- *
- * **`pdf` deliberately does NOT**, and it is the trap here: on Windows the PDF is
- * printed from the very same `buildHtmlDoc` output, so it inherits anything done
- * for the HTML unless it's excluded on purpose. A PDF has no base64 payload problem
- * and is meant for print — printToPDF embeds the SOURCE bitmap, so resampling to
- * 738px would cap it near 110 DPI on Letter where the full render gives ~355.
- * macOS draws the same boundary (`downscalePNG` is called only by its HTML
- * exporters) but gets it for free, because its PDF renders natively rather than
- * through the HTML. `markdown`/`docx`/`pptx` don't route through here at all and
- * keep full resolution for the same print-quality reason.
+ * 1x was tried first and is too destructive: a full-desktop 2924px capture
+ * downscaled to 738 leaves its dialog text unreadable no matter the codec. WebP is
+ * efficient enough to afford 2x — measured on a real 13-step SOP, base64 payload:
+ * PNG@738 3.12 MB · WebP@738 233 KB · **WebP@1476 524 KB** · WebP@native 1.15 MB.
+ * So 2x costs ~290 KB over 1x and is still 6x smaller than the PNG it replaces.
  */
-export function resamplesEmbeddedImages(format: string): boolean {
-  return format === 'html' || format === 'html-plain';
+export const HTML_IMG_EMBED_MAX_W = HTML_IMG_MAX_W * 2;
+
+/** WebP quality for the styled export. 0.85 is the knee of the curve on screenshot
+ *  text — 0.8 is visibly smeary, 0.9 costs ~30% more for no visible gain. Mirrors
+ *  the quality macOS picked for AVIF. */
+export const HTML_IMG_WEBP_QUALITY = 0.85;
+
+/** How an export format embeds its step images. */
+export interface EmbedPolicy {
+  /** Cap the embedded pixels at this width, or null to embed at full resolution. */
+  embedMaxW: number | null;
+  /** Container for the embedded bytes. `png` is also the fallback if webp fails. */
+  codec: 'png' | 'webp';
+}
+
+/**
+ * How a given export format should embed its step images (#56).
+ *
+ * - **`html`** — WebP at 2x the display width. It inlines pixels as base64 in the
+ *   document, and that payload is what breaks pasting a long SOP into a Freshservice
+ *   KB article; WebP makes it ~13x smaller than the equivalent PNG, which in turn
+ *   buys back enough headroom to keep 2x detail.
+ * - **`html-plain`** — PNG at 1x. This is the Word/Google-Docs paste target and
+ *   **Word cannot read WebP**, so it must stay PNG; and PNG at 2x costs 11.75 MB,
+ *   so it stays 1x. (macOS keeps its plain export on PNG for the same reason.)
+ * - **`pdf`** — full resolution, and this is the trap: on Windows the PDF is printed
+ *   from the very same `buildHtmlDoc` output, so it inherits anything done for the
+ *   HTML unless excluded on purpose. `printToPDF` embeds the SOURCE bitmap, so
+ *   capping at 738px would put a Letter print near 110 DPI where the full render
+ *   gives ~355. macOS draws the same boundary but gets it for free, because its PDF
+ *   renders natively rather than through the HTML.
+ * - Anything else (`markdown`/`docx`/`pptx`) never routes through the HTML builder
+ *   and keeps full resolution for the same print-quality reason.
+ */
+export function htmlEmbedPolicy(format: string): EmbedPolicy {
+  if (format === 'html') {
+    return { embedMaxW: HTML_IMG_EMBED_MAX_W, codec: 'webp' };
+  }
+  if (format === 'html-plain') {
+    return { embedMaxW: HTML_IMG_MAX_W, codec: 'png' };
+  }
+  return { embedMaxW: null, codec: 'png' };
 }
 
 export function htmlImageSize(
