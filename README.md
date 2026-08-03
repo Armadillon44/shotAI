@@ -9,7 +9,13 @@ cautions/callouts.
 Everything runs and is stored **on your machine**. The only network call is to Anthropic's
 API, and only when you ask shotAI to write the SOP. **Windows first**, macOS later.
 
-> **Status:** **1.1.4** — **HTML (for Word)** now sizes its screenshots so they
+> **Status:** **1.1.5** — the **HTML export now pastes into a knowledge-base article**
+> (Freshservice and similar): step cards hold the document column instead of stretching
+> to the editor's full width, and screenshots are embedded as **AVIF**, which cuts a
+> 13-step SOP from ~48 MB to ~170 KB — small enough for the editor to accept, while
+> carrying enough detail to stay readable. Export shows per-image progress, and the
+> home list no longer carries its scroll position into a project. 1.1.4 made
+> **HTML (for Word)** size its screenshots so they
 > paste into Word / Google Docs at a sane width instead of full resolution, the
 > **capture pill surfaces an error** if a capture fails mid-recording (the main
 > window is hidden then, so a long recording could previously fail silently), and
