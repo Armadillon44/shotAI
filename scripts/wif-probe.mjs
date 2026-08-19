@@ -18,7 +18,6 @@
 // its own client id from federation config and must never use this one.
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
-import { PublicClientApplication } from '@azure/msal-node';
 import Anthropic from '@anthropic-ai/sdk';
 import { validateFederationConfig } from '../src/main/entra/config-validate.ts';
 import {
@@ -27,6 +26,8 @@ import {
   exchangeAssertion,
   hasAppRole,
 } from '../src/main/entra/federation.ts';
+import { createNetworkModule } from '../src/main/entra/net-module.ts';
+import { createEntraClient, scopeFor } from '../src/main/entra/msal.ts';
 
 const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
 const LOCAL = 'src/main/entra/federation.local.json';
@@ -70,49 +71,48 @@ info(`rule ${cfg.federationRuleId} / workspace ${cfg.workspaceId ?? '(rule defau
 
 // ------------------------------------------------------------ Leg 1: Entra token
 leg(1, 'Microsoft Entra sign-in (system browser)');
-const scope = `api://${cfg.audienceAppId}/user_impersonation`;
-info(`scope ${scope}`);
+info(`scope ${scopeFor(cfg)}`);
 info('probe client: Azure CLI public client (see the header note)');
 
-const pca = new PublicClientApplication({
-  auth: {
-    clientId: AZURE_CLI_CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${cfg.tenantId}`,
-    // No redirectUri: acquireTokenInteractive throws if it is set without a
-    // native broker, and MSAL's loopback client owns the URI it builds.
-  },
-  // No cachePlugin on purpose: every run is a FRESH sign-in, which sidesteps the
-  // trap where a cached 60-90 minute token predates a role assignment and carries
-  // no roles claim, making a correct rule look broken.
-});
+// Prove MSAL actually drives our INetworkModule rather than its own client. This
+// is the mitigation for msal-node v5 dropping proxyUrl/customAgentOptions; the app
+// passes Electron net.fetch here so Chromium's proxy and cert-store handling apply.
+// The probe counts the calls, because "the option is typed" is not the same as
+// "MSAL used it".
+let netCalls = 0;
+const countingFetch = (url, init) => {
+  netCalls++;
+  return fetch(url, init);
+};
 
-let assertion;
-try {
-  const res = await pca.acquireTokenInteractive({
-    scopes: [scope],
-    // NOT responseMode: 'form_post'. #63 recommends it (it keeps the auth code
-    // out of the URL bar and history), but MSAL's built-in loopback server is
-    // built around the default query mode, and whether it parses a POSTed body
-    // has not been verified here. Left at MSAL's default: the code rides a
-    // localhost-only request, is single-use, and is PKCE-bound.
+const entra = createEntraClient(
+  // Client id overridden for the PROBE only; audience, tenant and rule are real.
+  { ...cfg, clientAppId: AZURE_CLI_CLIENT_ID },
+  {
     openBrowser: async (url) => {
-      // NOT cmd /c start: cmd re-parses the command line it receives and '&' is
+      info(`handing off authorize URL (scope present: ${new URL(url).searchParams.has('scope')})`);
+      // NOT `cmd /c start`: cmd re-parses the command line it receives and '&' is
       // its command separator, so the URL arrives TRUNCATED at the first '&' —
-      // client_id survives, scope does not, and Entra answers AADSTS900144
-      // "request body must contain the following parameter: 'scope'". rundll32
-      // takes the URL as a single argv with no shell parsing. Probe-only: the app
-      // uses shell.openExternal, which never involves a shell.
-      info('handing off authorize URL (scope present: ' + new URL(url).searchParams.has('scope') + ')');
+      // client_id survives, scope does not, and Entra answers AADSTS900144 "the
+      // request body must contain the following parameter: 'scope'". rundll32 takes
+      // the URL as one argv with no shell parsing. Probe-only: the app uses
+      // shell.openExternal, which never involves a shell at all.
       spawn('rundll32', ['url.dll,FileProtocolHandler', url], {
         detached: true,
         stdio: 'ignore',
       }).unref();
     },
-    successTemplate: '<h2>Signed in</h2><p>Return to the terminal.</p>',
-    errorTemplate: '<h2>Sign-in failed</h2><p>Return to the terminal.</p>',
-  });
-  assertion = res?.accessToken;
-  if (!assertion) throw new Error('no access token in the result');
+    networkClient: createNetworkModule(countingFetch),
+    // No cachePlugin: memory-only, so EVERY run is a fresh sign-in. That sidesteps
+    // the trap where a cached 60-90 minute token predates a role assignment, carries
+    // no roles claim, and makes a correct rule look broken.
+    log: (l) => info(l),
+  },
+);
+
+let assertion;
+try {
+  assertion = await entra.signInInteractive();
 } catch (e) {
   bad(`sign-in failed: ${e?.errorCode ?? e?.name ?? 'Error'} ${e?.message ?? ''}`.trim());
   info('AADSTS50011 => http://localhost is not a registered public-client redirect URI.');
@@ -120,6 +120,8 @@ try {
   process.exit(1);
 }
 ok('Entra returned a delegated access token');
+if (netCalls > 0) ok(`MSAL routed ${netCalls} request(s) through our INetworkModule`);
+else bad('MSAL did NOT use our INetworkModule — the proxy mitigation is not in effect');
 
 const claims = peek(assertion) ?? {};
 const bytes = Buffer.byteLength(assertion, 'utf8');
@@ -129,6 +131,9 @@ info(`tid ${claims.tid}  ${claims.tid === cfg.tenantId ? '(matches config)' : '(
 info(`iss ${claims.iss}  ${String(claims.iss ?? '').endsWith('/v2.0') ? '(v2.0, correct)' : '(NOT v2.0 - the rule expects the v2.0 issuer)'}`);
 const lifetime = Number(claims.exp) - Number(claims.iat);
 info(`lifetime ${Number.isFinite(lifetime) ? `${lifetime}s (${Math.round(lifetime / 60)} min)` : 'unknown'}`);
+if (Number.isFinite(lifetime) && lifetime > 3600) {
+  info('over an hour, and accepted below => the issuer max_jwt_lifetime_seconds is NOT at its 1-hour default.');
+}
 info(`assertion size ${(bytes / 1024).toFixed(1)} KiB of the 16 KiB cap`);
 
 const role = hasAppRole(assertion, REQUIRED_APP_ROLE);
@@ -187,3 +192,10 @@ try {
 }
 
 console.log('\nAll legs passed.');
+if (role !== false) {
+  console.log('');
+  console.log('NOTE: this proves ACCEPTANCE only. A tid-only rule accepts every user in');
+  console.log('the tenant and passes identically to a correctly scoped one, so proving');
+  console.log('that the rule discriminates needs one run with a non-admin account that');
+  console.log('has NO assignment.');
+}
