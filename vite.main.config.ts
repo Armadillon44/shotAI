@@ -37,6 +37,14 @@ export default defineConfig({
         'docx',
         'pptxgenjs',
         'jszip',
+        // @azure/msal-node (Entra sign-in, #63) is pure JS but must still be
+        // external: it resolves @azure/msal-common from node_modules and is
+        // only ever loaded in main. The regex covers subpaths. It pulls no
+        // native code (deps are msal-common + jsonwebtoken only), which is why
+        // @azure/msal-node-extensions is deliberately NOT used — that one hard-
+        // depends on archived keytar plus ~44 MB of WAM binaries.
+        /^@azure\/msal-node(\/|$)/,
+        /^@azure\/msal-common(\/|$)/,
       ],
     },
   },
