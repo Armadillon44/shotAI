@@ -16,7 +16,12 @@
 export interface FederationConfig {
   /** Entra tenant (directory) id. */
   tenantId: string;
-  /** The DESKTOP CLIENT registration — the app signing the user in. */
+  /** The registration the desktop client authenticates AS. Defaults to
+   *  audienceAppId: today one registration serves as both client and audience
+   *  (which is what macOS does, so both platforms share one Entra object and six
+   *  config values). Delivering ClientAppId separately splits them — #63's
+   *  recommendation, to keep redirect-URI churn off the object the Anthropic
+   *  federation rule matches by id — with no code change. */
   clientAppId: string;
   /** The API/audience registration — the token's `aud`, and what the Anthropic
    *  federation rule matches by id. Distinct from clientAppId on purpose. */
@@ -92,8 +97,8 @@ function isHttpsUrl(v: string): boolean {
 /**
  * Validate raw delivered values into a FederationConfig, or explain why not.
  *
- * Required: tenant, client app, audience app, rule, organization, service
- * account. A missing OR malformed one fails the whole config closed.
+ * Required: tenant, audience app, rule, organization, service account. A
+ * missing OR malformed one fails the whole config closed.
  *
  * `WorkspaceId` is optional, but present-and-malformed also fails closed: it
  * takes part in the exchange, so a typo there produces the same opaque 401 as a
@@ -121,8 +126,16 @@ export function validateFederationConfig(raw: RawFederationConfig): FederationCo
   };
 
   const tenantId = required('TenantId', GUID);
-  const clientAppId = required('ClientAppId', GUID);
   const audienceAppId = required('AudienceAppId', GUID);
+  // Optional: absent means the audience registration is also the client. Present
+  // but malformed still fails closed — it would aim the sign-in at a client that
+  // does not exist and surface as an opaque AADSTS error at the browser.
+  const rawClient = norm(raw.ClientAppId);
+  let clientAppId = audienceAppId;
+  if (rawClient !== null) {
+    if (GUID.test(rawClient)) clientAppId = rawClient;
+    else invalid.push('ClientAppId');
+  }
   const federationRuleId = required('FederationRuleId', TAGGED.fdrl);
   const organizationId = required('OrganizationId', GUID);
   const serviceAccountId = required('ServiceAccountId', TAGGED.svac);
@@ -163,4 +176,26 @@ export function validateFederationConfig(raw: RawFederationConfig): FederationCo
  */
 export function isUnconfigured(raw: RawFederationConfig): boolean {
   return FEDERATION_KEYS.every((k) => norm(raw[k]) === null);
+}
+
+/**
+ * Merge the two delivery mechanisms. HKLM policy wins per key over the values
+ * baked into the build, mirroring macOS's ChainedFederationConfig: the build is
+ * the normal path (nothing to deploy, nothing to type) and managed policy is the
+ * exception, so IT can correct a rotated rule without shipping an installer.
+ *
+ * A blank policy value does NOT clear a baked one. Blank means "not set" in every
+ * other part of this module, and an administrator half-clearing a policy key must
+ * not silently disable federation for the fleet.
+ */
+export function mergeFederationSources(
+  baked: RawFederationConfig,
+  policy: RawFederationConfig,
+): RawFederationConfig {
+  const out: RawFederationConfig = { ...baked };
+  for (const k of FEDERATION_KEYS) {
+    const v = policy[k];
+    if (typeof v === 'string' && v.trim().length) out[k] = v;
+  }
+  return out;
 }

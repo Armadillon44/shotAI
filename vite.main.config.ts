@@ -1,9 +1,40 @@
 import { defineConfig } from 'vite';
+import fs from 'node:fs';
+
+// Entra federation values (#63), baked into the main bundle at build time — the
+// same shape macOS uses (a gitignored Federation.plist bundled at build), and for
+// the same reasons: nothing to deploy, nothing for the user to type, and a fresh
+// clone of this PUBLIC repo has no such file so the app falls back to
+// bring-your-own-key. Managed policy (HKLM) still overrides these at runtime.
+//
+// Read here rather than imported so an absent file is "unconfigured" instead of an
+// unresolvable module that fails the build for every external contributor.
+const bakedFederation = (() => {
+  try {
+    const raw = JSON.parse(
+      fs.readFileSync('src/main/entra/federation.local.json', 'utf8'),
+    ) as Record<string, unknown>;
+    // Drop documentation keys and anything non-string; only the flat contract
+    // reaches the bundle.
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (!k.startsWith('_') && typeof v === 'string' && v.trim()) out[k] = v.trim();
+    }
+    return out;
+  } catch {
+    return {};
+  }
+})();
 
 // Native (.node) modules can't be bundled by Vite/rollup — keep them external so
 // the main bundle require()s/import()s them at runtime from node_modules. Forge
 // merges this with its base external list (node builtins + electron).
 export default defineConfig({
+  // Inlined as a literal so there is no runtime file read and no asar path to
+  // resolve. Empty object => unconfigured => today's behavior, unchanged.
+  define: {
+    __FEDERATION_BAKED__: JSON.stringify(bakedFederation),
+  },
   build: {
     rollupOptions: {
       external: [

@@ -5,10 +5,13 @@ import {
   type RawFederationConfig,
 } from './config-validate';
 
-/** A complete, valid delivery. Individual tests override one key at a time. */
+/**
+ * A complete, valid delivery — the SIX values actually deployed today, where one
+ * Entra registration is both the client and the audience. ClientAppId is added
+ * only by the tests that cover the split-registration topology.
+ */
 const full = (over: RawFederationConfig = {}): RawFederationConfig => ({
   TenantId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
-  ClientAppId: '11111111-2222-3333-4444-555555555555',
   AudienceAppId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
   FederationRuleId: 'fdrl_01ABCdef',
   OrganizationId: '00000000-0000-0000-0000-000000000000',
@@ -28,10 +31,22 @@ describe('validateFederationConfig — happy path', () => {
     expect(r.config.supportUrl).toBeUndefined();
   });
 
-  it('keeps client and audience app ids DISTINCT (they are different registrations)', () => {
+  it('defaults clientAppId to the audience id when none is delivered', () => {
+    // The deployed topology: one registration is both client and audience, which
+    // is what macOS ships, so both platforms share one Entra object.
     const r = validateFederationConfig(full());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    expect(r.config.clientAppId).toBe(r.config.audienceAppId);
+  });
+
+  it('uses a separately delivered ClientAppId, so the split topology needs no code change', () => {
+    const r = validateFederationConfig(
+      full({ ClientAppId: '11111111-2222-3333-4444-555555555555' }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.config.clientAppId).toBe('11111111-2222-3333-4444-555555555555');
     expect(r.config.clientAppId).not.toBe(r.config.audienceAppId);
   });
 
@@ -58,7 +73,6 @@ describe('validateFederationConfig — happy path', () => {
 describe('validateFederationConfig — fails closed', () => {
   const requiredKeys = [
     'TenantId',
-    'ClientAppId',
     'AudienceAppId',
     'FederationRuleId',
     'OrganizationId',
@@ -114,6 +128,15 @@ describe('validateFederationConfig — fails closed', () => {
     // Half a policy must not yield half a federation.
     expect(r.missing.length).toBeGreaterThan(0);
     expect(r.invalid).toContain('TenantId');
+  });
+
+  it('fails closed on a malformed ClientAppId even though it is optional', () => {
+    // Aiming sign-in at a client that does not exist surfaces as an opaque
+    // AADSTS error in the browser, with nothing pointing back at the config.
+    const r = validateFederationConfig(full({ ClientAppId: 'not-a-guid' }));
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.invalid).toContain('ClientAppId');
   });
 
   it('fails closed on a malformed WorkspaceId even though it is optional', () => {
