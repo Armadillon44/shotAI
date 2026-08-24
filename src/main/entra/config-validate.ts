@@ -45,9 +45,21 @@ export type FederationConfigResult =
   | { ok: true; config: FederationConfig }
   | { ok: false; missing: string[]; invalid: string[] };
 
-/** The registry value / preference-key names, exactly as an administrator writes
- *  them. Shared verbatim with the macOS side so one ADMX and one configuration
- *  profile describe the same contract. */
+/** The registry value names, exactly as a Windows administrator writes them.
+ *
+ *  NOT shared with macOS, despite what this comment used to claim. Verified against
+ *  Armadillon44/shotAI_MacOS Packages/EntraKit/Sources/EntraKit/FederationConfig.swift:
+ *  macOS reads its own managed-preference keys (federationEntraTenantId,
+ *  federationEntraClientId, federationEntraAudienceAppId, federationRuleId,
+ *  federationOrganizationId, federationServiceAccountId, federationWorkspaceId) and has
+ *  no SupportUrl equivalent at all. It also requires all SEVEN of its keys, where
+ *  Windows treats ClientAppId and WorkspaceId as optional.
+ *
+ *  What IS shared is the logical contract: the same underlying values, resolved the same
+ *  way, failing closed on an incomplete set. The SPELLING is per-platform, so one ADMX
+ *  and one configuration profile are two different documents describing one contract.
+ *  See docs/MANAGED-CONFIG.md for the mapping. Do not "align" these names to macOS: an
+ *  administrator's deployed policy is keyed on them. */
 export const FEDERATION_KEYS = [
   'TenantId',
   'ClientAppId',

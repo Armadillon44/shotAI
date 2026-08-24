@@ -4,12 +4,36 @@ The eight values that let shotAI call the Anthropic API with no API key on any m
 Users sign in with Microsoft Entra ID, their token is exchanged for a short-lived Anthropic
 token, and access is an Entra role assignment.
 
-This page is the shared contract. The eight value **names** are shared verbatim between
-Windows and macOS (asserted in `config-validate.ts`), which is the part that must never
-drift on one side only. The required set and the fail-closed behavior described here are
-the **Windows** implementation, verified in this repo; treat the macOS specifics as owned
-by [the macOS SSO doc](https://github.com/Armadillon44/shotAI_MacOS/blob/main/docs/SSO-WIF.md)
-rather than assumed identical.
+This page is the shared contract, and the first thing to be clear about is what "shared"
+means. The **values** are the same on both platforms and are resolved the same way. The
+**key names are not**, and neither is the required set:
+
+| Value | Windows (`REG_SZ`) | macOS (managed preference) |
+|---|---|---|
+| Entra tenant | `TenantId` | `federationEntraTenantId` |
+| Entra client app | `ClientAppId` *(optional)* | `federationEntraClientId` *(required)* |
+| Entra audience app | `AudienceAppId` | `federationEntraAudienceAppId` |
+| Federation rule | `FederationRuleId` | `federationRuleId` |
+| Anthropic organization | `OrganizationId` | `federationOrganizationId` |
+| Service account | `ServiceAccountId` | `federationServiceAccountId` |
+| Workspace | `WorkspaceId` *(optional)* | `federationWorkspaceId` *(required)* |
+| Request-access URL | `SupportUrl` *(optional)* | no equivalent |
+
+So Windows has eight names of which five are required, and macOS has seven of which all
+seven are required. Verified against
+[`FederationConfig.swift`](https://github.com/Armadillon44/shotAI_MacOS/blob/main/Packages/EntraKit/Sources/EntraKit/FederationConfig.swift),
+not inferred.
+
+An earlier version of this page claimed the names were shared verbatim, citing a comment
+in `config-validate.ts` that said so. Both were wrong. A profile written from the Windows
+names would deliver nothing on macOS, and vice versa, so do not "align" either side: an
+administrator's deployed configuration is keyed on these exact strings.
+
+What genuinely IS matched: the values themselves, the precedence (baked, then overridden
+by managed configuration), and failing closed on an incomplete set rather than attempting
+a half-configured sign-in. The rest of this page is the **Windows** implementation,
+verified in this repo; macOS specifics are owned by
+[the macOS SSO doc](https://github.com/Armadillon44/shotAI_MacOS/blob/main/docs/SSO-WIF.md).
 
 The Windows delivery sections below overlap deliberately with
 [`Intune/Windows/README.md`](../Intune/Windows/README.md), which stays the operational
