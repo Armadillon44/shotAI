@@ -37,8 +37,10 @@ export function resolveFederationNow(): Promise<ResolvedFederation> {
 }
 
 // Cached for the process lifetime: the policy read costs a process spawn and the
-// answer only changes when an administrator rewrites policy. Settings drops the
-// cache on open so a correction is picked up without a restart.
+// answer only changes when an administrator rewrites policy. The auth:status IPC
+// drops the cache, so a correction is picked up when Settings or a project opens,
+// without a restart. Keep that call: without it this cache is process-lifetime and
+// the managed-config docs promise a behavior the app does not have.
 let cached: Promise<FederationConfig | null> | null = null;
 
 /**
@@ -69,7 +71,12 @@ export function getFederationConfig(): Promise<FederationConfig | null> {
   return cached;
 }
 
-/** Drop the cache so the next read re-reads policy (called when Settings opens). */
+/**
+ * Drop the cache so the next read re-reads policy. Called from the auth:status IPC
+ * handler, which Settings and the SOP panel both hit on mount. Guarded by
+ * federation-cache-wiring.test.ts, because an uncalled invalidator typechecks
+ * perfectly and silently makes the documented behavior false.
+ */
 export function invalidateFederationConfig(): void {
   cached = null;
 }

@@ -67,7 +67,7 @@ import {
   cancelClaude,
 } from './claude-service';
 import { appAuth } from './claude-auth';
-import { getFederationConfig } from './entra/config';
+import { getFederationConfig, invalidateFederationConfig } from './entra/config';
 import { DEFAULT_SUPPORT_URL } from './entra/config-validate';
 import { ipcLog } from './logger';
 
@@ -754,6 +754,17 @@ export function registerIpcHandlers(
   // this boundary, and the log lines carry channel names only.
   ipcMain.handle(IpcChannels.authStatus, async (): Promise<AuthStatus> => {
     devLog('ipc: auth:status');
+    // Drop the federation cache so an administrator's policy correction is picked
+    // up without a restart. THIS CALL IS THE WHOLE POINT of the invalidator:
+    // config.ts cached for the process lifetime and its comment claimed Settings
+    // dropped the cache, but nothing called it, so the ADMX help text and
+    // Intune/Windows/README.md both promised a reopen-Settings behavior that did
+    // not exist. Settings and the SOP panel both read this channel on mount.
+    //
+    // Safe to re-read: a failing reg query returns {} (config-sources.ts treats a
+    // missing key as normal), so a transient failure degrades to the baked values
+    // rather than flipping federation off.
+    invalidateFederationConfig();
     const auth = appAuth();
     const cfg = await auth.federation();
     const entra = cfg ? await auth.entra() : null;
