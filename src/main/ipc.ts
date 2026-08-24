@@ -42,6 +42,8 @@ import {
   setSopSettings,
   getCaptureNoHide,
   setCaptureNoHide,
+  getRemoteVisible,
+  setRemoteVisible,
   getCaptureScale,
   setCaptureScale,
   getHasSeenTour,
@@ -68,6 +70,7 @@ import {
 } from './claude-service';
 import { appAuth } from './claude-auth';
 import { getFederationConfig, invalidateFederationConfig } from './entra/config';
+import { applyRemoteVisibility } from './remote-visibility';
 import { DEFAULT_SUPPORT_URL } from './entra/config-validate';
 import { ipcLog } from './logger';
 
@@ -625,6 +628,22 @@ export function registerIpcHandlers(
     (_event: IpcMainInvokeEvent, patch: unknown) => {
       devLog('ipc: settings:set-sop');
       return setSopSettings(parseSopPatch(patch));
+    },
+  );
+  ipcMain.handle(IpcChannels.getRemoteVisible, () => {
+    devLog('ipc: settings:get-remote-visible');
+    return getRemoteVisible();
+  });
+  ipcMain.handle(
+    IpcChannels.setRemoteVisible,
+    async (_event: IpcMainInvokeEvent, value: unknown) => {
+      devLog('ipc: settings:set-remote-visible');
+      const next = await setRemoteVisible(value === true);
+      // Apply to the OPEN windows too, so the toggle works without a restart.
+      // Without this the setting would only bite on the next launch, which reads
+      // as "the toggle does nothing" for the user who just flipped it.
+      applyRemoteVisibility(next);
+      return next;
     },
   );
   ipcMain.handle(IpcChannels.getCaptureNoHide, () => {

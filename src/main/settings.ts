@@ -61,6 +61,23 @@ export interface Settings {
    */
   captureNoHide: boolean;
   /**
+   * Let shotAI be seen over a remote-control session or a screen share.
+   *
+   * shotAI sets contentProtection on every window, which is what keeps it out of
+   * its own screenshots. On Windows that is WDA_EXCLUDEFROMCAPTURE, and it cannot
+   * tell OUR capture from Teams' or Splashtop's: both are screen capture. So the
+   * only way to have both is temporal, and this flag drives it. When true,
+   * protection is OFF while the app is merely being used, and CaptureController
+   * flips it ON around each grab (measured free: the toggle is synchronous, no
+   * settle needed, unlike the 350ms window-hide settle).
+   *
+   * NOT the same as captureNoHide. This does not change what is HIDDEN during a
+   * recording: the project window still hides, so it never appears in a capture
+   * and a remote viewer sees only the pill while recording. Read synchronously
+   * via remoteVisibleNow() because the capture path cannot afford an async hop.
+   */
+  remoteVisible: boolean;
+  /**
    * Screenshot quality: target downscale factor for captures (CAPTURE_SCALE_MIN..1,
    * default 0.85). Lower = smaller files + cheaper AI, softer text. CaptureController
    * enforces a readability floor on top of this. Read synchronously via
@@ -123,6 +140,7 @@ async function load(): Promise<Settings> {
         : [],
       sop: coerceSopSettings(parsed.sop),
       captureNoHide: typeof parsed.captureNoHide === 'boolean' ? parsed.captureNoHide : false,
+      remoteVisible: typeof parsed.remoteVisible === 'boolean' ? parsed.remoteVisible : false,
       captureScale: clampCaptureScale(parsed.captureScale),
       hasSeenTour: typeof parsed.hasSeenTour === 'boolean' ? parsed.hasSeenTour : false,
       userName: coerceUserName(parsed.userName),
@@ -143,6 +161,7 @@ async function load(): Promise<Settings> {
       recents: [],
       sop: DEFAULT_SOP_SETTINGS,
       captureNoHide: false,
+      remoteVisible: false,
       captureScale: CAPTURE_SCALE_DEFAULT,
       hasSeenTour: false,
       userName: '',
@@ -239,6 +258,32 @@ export function setCaptureNoHide(value: boolean): Promise<boolean> {
   captureNoHideCache = value; // reflect immediately for the next recording
   return mutate((s) => {
     s.captureNoHide = value;
+    return value;
+  });
+}
+
+// Same sync-cache reasoning as captureNoHide, and here it is load-bearing for a
+// different reason: CaptureController reads this INSIDE the shield around every
+// grab. An async read there would open a window in which the pill is capturable,
+// which is exactly the leak the shield exists to prevent. Default false = fully
+// protected, i.e. today's behavior for anyone who never touches the setting.
+let remoteVisibleCache = false;
+
+/** Current remoteVisible value, synchronously (safe default false = protected). */
+export function remoteVisibleNow(): boolean {
+  return remoteVisibleCache;
+}
+
+export async function getRemoteVisible(): Promise<boolean> {
+  remoteVisibleCache = (await load()).remoteVisible;
+  return remoteVisibleCache;
+}
+
+/** Persist remoteVisible and update the synchronous cache. Returns the new value. */
+export function setRemoteVisible(value: boolean): Promise<boolean> {
+  remoteVisibleCache = value; // the next grab must see this, not the persisted value
+  return mutate((s) => {
+    s.remoteVisible = value;
     return value;
   });
 }

@@ -9,12 +9,14 @@ import { resolveProjectFile, autoArchiveStale } from './project-store';
 import {
   getCaptureNoHide,
   captureNoHideNow,
+  getRemoteVisible,
   getCaptureScale,
   getArchiveAgeDays,
   getUpdateCheckEnabled,
   getLastUpdateCheckAt,
   setLastUpdateCheckAt,
 } from './settings';
+import { applyRemoteVisibility } from './remote-visibility';
 import { checkForUpdate, startupCheckDecision } from './update-check';
 import { setPendingUpdate } from './update-state';
 import { IpcChannels } from '../shared/ipc';
@@ -445,6 +447,14 @@ app.whenReady().then(async () => {
     projectWindow && !projectWindow.isDestroyed() ? projectWindow : null,
   );
   createWindows();
+  // Windows are constructed with contentProtection ON and only opened up
+  // afterwards if the setting says so. That ordering is deliberate and
+  // fail-closed: the setting load is async, so seeding it at construction would
+  // leave a window briefly capturable on every launch. Protected-then-relaxed
+  // cannot leak; the reverse can.
+  void getRemoteVisible()
+    .then(applyRemoteVisibility)
+    .catch(() => undefined);
 
   // F2: auto-archive stale projects in the background, then tell the home to
   // re-list so anything newly archived moves to the Archive tab. Best-effort.
@@ -514,5 +524,9 @@ app.on('activate', () => {
   // On macOS re-create windows when the dock icon is clicked and none are open.
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindows();
+    // Re-created windows start protected, so re-apply (same fail-closed order).
+    void getRemoteVisible()
+      .then(applyRemoteVisibility)
+      .catch(() => undefined);
   }
 });
