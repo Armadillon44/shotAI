@@ -40,8 +40,6 @@ import {
 import {
   getSopSettings,
   setSopSettings,
-  getCaptureNoHide,
-  setCaptureNoHide,
   getRemoteVisible,
   setRemoteVisible,
   getCaptureScale,
@@ -644,17 +642,6 @@ export function registerIpcHandlers(
       // as "the toggle does nothing" for the user who just flipped it.
       applyRemoteVisibility(next);
       return next;
-    },
-  );
-  ipcMain.handle(IpcChannels.getCaptureNoHide, () => {
-    devLog('ipc: settings:get-capture-no-hide');
-    return getCaptureNoHide();
-  });
-  ipcMain.handle(
-    IpcChannels.setCaptureNoHide,
-    (_event: IpcMainInvokeEvent, value: unknown) => {
-      devLog('ipc: settings:set-capture-no-hide');
-      return setCaptureNoHide(value === true);
     },
   );
   ipcMain.handle(IpcChannels.getCaptureScale, () => {

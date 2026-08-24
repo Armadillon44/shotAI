@@ -7,8 +7,6 @@ import { createCaptureController } from './CaptureController';
 import { RegionService } from './RegionService';
 import { resolveProjectFile, autoArchiveStale } from './project-store';
 import {
-  getCaptureNoHide,
-  captureNoHideNow,
   getRemoteVisible,
   getCaptureScale,
   getArchiveAgeDays,
@@ -398,16 +396,17 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  // Prime the "keep visible during capture" (demo) setting into its synchronous
-  // cache so onRecordingChange can read it without an async race. Toggled live in
-  // Settings; setCaptureNoHide updates the cache immediately.
-  void getCaptureNoHide();
   void getCaptureScale(); // prime the screenshot-quality cache for downscalePng (D1)
   const capture = createCaptureController({
     // Hide the main window while recording (the always-on-top toolbar pill is the
-    // control); restore + focus it when recording stops. Demo mode (Settings →
-    // "Keep shotAI visible during capture") keeps it visible throughout — handy
-    // for screen-shares, though the window then appears in the screenshots.
+    // control); restore + focus it when recording stops.
+    //
+    // UNCONDITIONAL. A "Keep shotAI visible during capture" toggle used to make
+    // this optional. It was removed because its stated benefit (an audience can
+    // watch) is served properly by remote-session visibility, while its actual
+    // effect was a window parked over the thing being captured. Its warning that
+    // the window would then appear in the screenshots was never even true:
+    // contentProtection has always excluded it.
     onRecordingChange: (recording, opts) => {
       const showPill = opts?.pill ?? true;
       const proj =
@@ -415,9 +414,7 @@ app.whenReady().then(async () => {
       const pill =
         toolbarWindow && !toolbarWindow.isDestroyed() ? toolbarWindow : null;
       if (recording) {
-        // forceHide (the no-click one-shot) hides even in demo mode — a deliberate
-        // screenshot must never include shotAI.
-        if (opts?.forceHide || !captureNoHideNow()) proj?.hide();
+        proj?.hide();
         // The no-click one-shot (+Screenshot) hides the window but suppresses the
         // pill — no recording HUD, and the pill can't become the focused own-window.
         if (showPill) {

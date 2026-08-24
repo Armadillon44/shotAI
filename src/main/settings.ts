@@ -54,13 +54,6 @@ export interface Settings {
   /** SOP generation settings (Phase 3; NON-SECRET — the API key is in secrets.ts). */
   sop: SopSettings;
   /**
-   * Keep the app window VISIBLE during capture instead of hiding it (demo /
-   * screen-share mode). Default false = hide while recording (so the window
-   * doesn't appear in the screenshots). Read synchronously at recording-start via
-   * captureNoHideNow(); replaces the old SHOTAI_CAPTURE_NO_HIDE env var.
-   */
-  captureNoHide: boolean;
-  /**
    * Let shotAI be seen over a remote-control session or a screen share.
    *
    * shotAI sets contentProtection on every window, which is what keeps it out of
@@ -71,10 +64,10 @@ export interface Settings {
    * flips it ON around each grab (measured free: the toggle is synchronous, no
    * settle needed, unlike the 350ms window-hide settle).
    *
-   * NOT the same as captureNoHide. This does not change what is HIDDEN during a
-   * recording: the project window still hides, so it never appears in a capture
-   * and a remote viewer sees only the pill while recording. Read synchronously
-   * via remoteVisibleNow() because the capture path cannot afford an async hop.
+   * This does NOT change what is hidden during a recording: the project window
+   * always hides, so it never appears in a capture and a remote viewer sees only
+   * the pill while recording. Read synchronously via remoteVisibleNow() because
+   * the capture path cannot afford an async hop.
    */
   remoteVisible: boolean;
   /**
@@ -139,7 +132,6 @@ async function load(): Promise<Settings> {
         ? parsed.recents.filter((p): p is string => typeof p === 'string')
         : [],
       sop: coerceSopSettings(parsed.sop),
-      captureNoHide: typeof parsed.captureNoHide === 'boolean' ? parsed.captureNoHide : false,
       remoteVisible: typeof parsed.remoteVisible === 'boolean' ? parsed.remoteVisible : false,
       captureScale: clampCaptureScale(parsed.captureScale),
       hasSeenTour: typeof parsed.hasSeenTour === 'boolean' ? parsed.hasSeenTour : false,
@@ -160,7 +152,6 @@ async function load(): Promise<Settings> {
       projectsDir: defaultProjectsDir(),
       recents: [],
       sop: DEFAULT_SOP_SETTINGS,
-      captureNoHide: false,
       remoteVisible: false,
       captureScale: CAPTURE_SCALE_DEFAULT,
       hasSeenTour: false,
@@ -237,33 +228,8 @@ export function setRecents(recents: string[]): Promise<void> {
   });
 }
 
-// In-memory mirror of captureNoHide so the capture path can read it SYNCHRONOUSLY
-// at recording-start — an async load there would risk a frame where the window is
-// still visible and leaks into the first screenshot. Primed at startup via
-// getCaptureNoHide() and updated immediately by setCaptureNoHide().
-let captureNoHideCache = false;
-
-/** Current captureNoHide value, synchronously (safe default false = hide). */
-export function captureNoHideNow(): boolean {
-  return captureNoHideCache;
-}
-
-export async function getCaptureNoHide(): Promise<boolean> {
-  captureNoHideCache = (await load()).captureNoHide;
-  return captureNoHideCache;
-}
-
-/** Persist captureNoHide and update the synchronous cache. Returns the new value. */
-export function setCaptureNoHide(value: boolean): Promise<boolean> {
-  captureNoHideCache = value; // reflect immediately for the next recording
-  return mutate((s) => {
-    s.captureNoHide = value;
-    return value;
-  });
-}
-
-// Same sync-cache reasoning as captureNoHide, and here it is load-bearing for a
-// different reason: CaptureController reads this INSIDE the shield around every
+// The capture path reads this SYNCHRONOUSLY, and here that is load-bearing:
+// CaptureController reads it INSIDE the shield around every
 // grab. An async read there would open a window in which the pill is capturable,
 // which is exactly the leak the shield exists to prevent. Default false = fully
 // protected, i.e. today's behavior for anyone who never touches the setting.

@@ -68,13 +68,12 @@ const HIDE_SETTLE_MS = 350;
 // The main-window hide/restore hook. `pill` (default true) controls whether the
 // always-on-top recording pill is shown too — a full recording shows it; the
 // no-click one-shot suppresses it (no recording HUD, and the pill must not become
-// the focused own-window that trips captureStep's guard). `forceHide` hides the
-// app window even in demo mode ("keep shotAI visible") — a deliberate screenshot
-// must never include shotAI, whereas demo mode only concerns live recording.
-type RecordingChange = (
-  recording: boolean,
-  opts?: { pill?: boolean; forceHide?: boolean },
-) => void;
+// the focused own-window that trips captureStep's guard).
+//
+// There is no forceHide any more. It existed only to override the "keep shotAI
+// visible during capture" demo toggle, and with that gone the hide is
+// unconditional, so every caller already gets what forceHide used to ask for.
+type RecordingChange = (recording: boolean, opts?: { pill?: boolean }) => void;
 
 // Modest downscale applied to every captured screenshot (T2) to cut PNG file
 // size AND Claude vision token cost. Kept gentle so small UI text Claude must
@@ -871,11 +870,10 @@ export class CaptureController {
     );
     // Hide the app window WITHOUT the recording pill (the pill would flash a
     // misleading "recording" HUD and could become the focused own-window that
-    // trips captureStep's guard). forceHide so it hides even in demo mode — the
-    // hide is now the sole thing keeping shotAI out of the shot (guard skipped).
-    // Deliberately do NOT emitState() — a recording status would unmount the
-    // report view mid-grab.
-    this.onRecordingChange?.(true, { pill: false, forceHide: true });
+    // trips captureStep's guard). The hide is unconditional now, so this no
+    // longer has to ask for it specially. Deliberately do NOT emitState(): a
+    // recording status would unmount the report view mid-grab.
+    this.onRecordingChange?.(true, { pill: false });
     try {
       await new Promise((r) => setTimeout(r, HIDE_SETTLE_MS));
       const step = await this.captureStep('hotkey', null, 'left', {

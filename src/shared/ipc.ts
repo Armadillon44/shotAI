@@ -207,8 +207,6 @@ export const IpcChannels = {
   // SOP settings + Claude key management (Phase 3)
   getSopSettings: 'settings:get-sop',
   setSopSettings: 'settings:set-sop',
-  getCaptureNoHide: 'settings:get-capture-no-hide',
-  setCaptureNoHide: 'settings:set-capture-no-hide',
   getRemoteVisible: 'settings:get-remote-visible',
   setRemoteVisible: 'settings:set-remote-visible',
   getCaptureScale: 'settings:get-capture-scale',
@@ -423,10 +421,6 @@ export interface ShotaiApi {
     getSop(): Promise<SopSettings>;
     /** Patch SOP settings; returns the full coerced settings. */
     setSop(patch: Partial<SopSettings>): Promise<SopSettings>;
-    /** Whether the app window stays visible during capture (demo/screen-share). */
-    getCaptureNoHide(): Promise<boolean>;
-    /** Set the capture-no-hide (demo) mode; returns the new value. */
-    setCaptureNoHide(value: boolean): Promise<boolean>;
     /** Whether shotAI is visible to remote-control sessions and screen shares. */
     getRemoteVisible(): Promise<boolean>;
     /**

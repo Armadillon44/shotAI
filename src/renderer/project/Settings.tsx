@@ -66,7 +66,6 @@ export function Settings({
   const [error, setError] = React.useState<string | null>(null);
   const [appInfo, setAppInfo] = React.useState<AppInfo | null>(null);
   const [projectsDir, setProjectsDir] = React.useState('');
-  const [captureNoHide, setCaptureNoHide] = React.useState(false);
   const [remoteVisible, setRemoteVisible] = React.useState(false);
   const [captureScale, setCaptureScale] = React.useState(CAPTURE_SCALE_DEFAULT);
   const [userName, setUserName] = React.useState('');
@@ -131,13 +130,12 @@ export function Settings({
   };
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir, noHide, remoteVis, scale, name, incl, age, themePref, updChk, auth] =
+    const [s, ks, info, dir, remoteVis, scale, name, incl, age, themePref, updChk, auth] =
       await Promise.all([
         window.shotai.settings.getSop(),
         window.shotai.claude.keyStatus(),
         window.shotai.getAppInfo(),
         window.shotai.projects.getDir(),
-        window.shotai.settings.getCaptureNoHide(),
         window.shotai.settings.getRemoteVisible(),
         window.shotai.settings.getCaptureScale(),
         window.shotai.settings.getUserName(),
@@ -151,7 +149,6 @@ export function Settings({
     setKeyStatus(ks);
     setAppInfo(info);
     setProjectsDir(dir);
-    setCaptureNoHide(noHide);
     setRemoteVisible(remoteVis);
     setCaptureScale(scale);
     setUserName(name);
@@ -186,15 +183,6 @@ export function Settings({
     try {
       await window.shotai.auth.signOut();
       await refresh();
-    } catch (e) {
-      fail(e);
-    }
-  };
-
-  const toggleCaptureNoHide = async (value: boolean) => {
-    setError(null);
-    try {
-      setCaptureNoHide(await window.shotai.settings.setCaptureNoHide(value));
     } catch (e) {
       fail(e);
     }
@@ -768,24 +756,6 @@ export function Settings({
                   />
                 </label>
 
-                <label className="settings__toggle">
-                  <span className="settings__toggle-text">
-                    <strong>Keep shotAI visible during capture</strong>
-                    <span className="settings__hint">
-                      Demo mode: don’t hide the window while recording, so an audience
-                      can watch what you are doing. Your screenshots are unaffected
-                      either way, because shotAI is excluded from each shot as it is
-                      taken. Leave it off unless you are presenting: a visible window
-                      covers the thing you are trying to capture.
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="settings__switch"
-                    checked={captureNoHide}
-                    onChange={(e) => void toggleCaptureNoHide(e.target.checked)}
-                  />
-                </label>
               </>
             )}
 
