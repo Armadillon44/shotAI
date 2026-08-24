@@ -15,7 +15,7 @@ import { z } from 'zod/v4';
 import { promises as fs } from 'node:fs';
 import type { SopEditPlan, SopModelId } from '../shared/sop';
 import type { ProjectManifest } from '../shared/project';
-import type { SopEstimate, SopProgress, TestKeyResult } from '../shared/ipc';
+import type { SopEstimate, SopProgress, TestConnectionResult } from '../shared/ipc';
 import { appAuth, type AuthMode } from './claude-auth';
 import { SignInRequiredError } from './entra/msal';
 import { FederationExchangeError } from './entra/federation';
@@ -111,12 +111,43 @@ function friendlyError(e: unknown, mode: AuthMode): string {
  * Validate the configured key + model with a cheap, free call (Models API). Does
  * NOT run when SOP generation is disabled (no network when the feature is off).
  */
-export async function testKey(): Promise<TestKeyResult> {
+export async function testConnection(): Promise<TestConnectionResult> {
   const sop = await getSopSettings();
   if (!sop.enabled) return { ok: false, error: 'AI SOP generation is turned off.' };
+  const auth = appAuth();
+  const federated = !!(await auth.federation()) && (await auth.isSignedIn());
+
+  if (federated) {
+    // THREE LEGS, reported separately. This is the only place a user can tell
+    // "not signed in" from "not assigned the shotAI role" from "the rule scope or
+    // model is wrong" BEFORE committing to a generation — every assertion denial
+    // from Anthropic is the same opaque 401 by design.
+    const v = await auth.verifyFederation();
+    if (!v.ok) {
+      claudeLog.warn(`connection test failed at the ${v.leg} leg.`);
+      return { ok: false, mode: 'federated', leg: v.leg, error: friendlyError(v.error, 'federated') };
+    }
+    if (v.hasRole === false) {
+      // The exchange SUCCEEDED, so the federation rule accepted this token; the
+      // local claims check disagreeing is worth a log line but must not fail the
+      // test. The rule is the authority, not our unverified peek at the JWT.
+      claudeLog.info('connection test: exchange succeeded although the local roles check saw no shotAI.User.');
+    }
+    try {
+      const { client } = await auth.makeClient();
+      await client.models.retrieve(sop.model);
+    } catch (e) {
+      return { ok: false, mode: 'federated', leg: 'api', error: friendlyError(e, 'federated') };
+    }
+    claudeLog.info(`connection verified against ${sop.model} (mode=federated, 3 legs).`);
+    return { ok: true, mode: 'federated', model: sop.model };
+  }
+
+  // API-key path (including a federation-configured machine nobody has signed into
+  // yet): one call IS the whole path, so there are no legs to isolate.
   let mode: AuthMode = 'apiKey';
   try {
-    const built = await appAuth().makeClient();
+    const built = await auth.makeClient();
     mode = built.mode;
     await built.client.models.retrieve(sop.model);
     claudeLog.info(`credential validated against ${sop.model} (mode=${mode}).`);
@@ -126,7 +157,7 @@ export async function testKey(): Promise<TestKeyResult> {
     // message it carries already names the option that applies on this machine.
     const error = friendlyError(e, mode);
     claudeLog.warn(`connection test failed (mode=${mode}): ${error}`);
-    return { ok: false, error, mode };
+    return { ok: false, error, mode, leg: 'api' };
   }
 }
 

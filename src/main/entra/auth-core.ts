@@ -14,6 +14,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { oidcFederationProvider } from '@anthropic-ai/sdk/lib/credentials/oidc-federation';
 import type { ICachePlugin } from '@azure/msal-node';
 import { createEntraClient, SignInRequiredError, type EntraClient } from './msal';
+import { exchangeAssertion, hasAppRole, REQUIRED_APP_ROLE } from './federation';
 import { createNetworkModule } from './net-module';
 import type { FederationConfig } from './config-validate';
 
@@ -48,6 +49,21 @@ export interface Auth {
   entra(): Promise<EntraClient | null>;
   /** True when a usable Entra account is cached. */
   isSignedIn(): Promise<boolean>;
+  /**
+   * Legs 1 and 2 of the connection test: acquire an Entra token silently, then
+   * exchange it. Split out because every assertion denial from Anthropic is the
+   * same opaque 401 BY DESIGN, so isolating the legs is the only way a user can
+   * tell "not signed in" from "not assigned the role" from "config is wrong".
+   *
+   * Uses the diagnostic exchange rather than the SDK credentials path on purpose:
+   * here the raw status and our own wording are the point. `hasRole` is the
+   * advisory local claims check and is informational only — the CEL condition on
+   * the federation rule is the authority.
+   */
+  verifyFederation(): Promise<
+    | { ok: true; hasRole: boolean | null }
+    | { ok: false; leg: 'signIn' | 'exchange'; error: unknown }
+  >;
   /** A ready client plus the mode it authenticated with. Throws
    *  SignInRequiredError naming the option that applies when neither is available. */
   makeClient(): Promise<{ client: Anthropic; mode: AuthMode }>;
@@ -87,6 +103,37 @@ export function createAuth(deps: AuthDeps): Auth {
     federation,
     entra,
     isSignedIn,
+
+    async verifyFederation() {
+      const cfg = await federation();
+      if (!cfg) {
+        return {
+          ok: false as const,
+          leg: 'signIn' as const,
+          error: new SignInRequiredError(
+            'shotAI is not set up for Microsoft sign-in on this machine.',
+          ),
+        };
+      }
+      let assertion: string;
+      try {
+        assertion = await entraFrom(cfg).acquireSilent();
+      } catch (e) {
+        return { ok: false as const, leg: 'signIn' as const, error: e };
+      }
+      // Advisory, fail-open: null means the token could not be parsed, which must
+      // not stop the exchange from being attempted.
+      const hasRole = hasAppRole(assertion, REQUIRED_APP_ROLE);
+      try {
+        await exchangeAssertion(assertion, cfg, {
+          fetchImpl: deps.fetchImpl,
+          log: deps.log,
+        });
+      } catch (e) {
+        return { ok: false as const, leg: 'exchange' as const, error: e };
+      }
+      return { ok: true as const, hasRole };
+    },
 
     async makeClient(): Promise<{ client: Anthropic; mode: AuthMode }> {
       const cfg = await federation();

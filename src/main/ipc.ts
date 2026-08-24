@@ -61,7 +61,7 @@ import {
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
 import {
-  testKey as claudeTestKey,
+  testConnection as claudeTestConnection,
   estimate as claudeEstimate,
   generateSop as claudeGenerateSop,
   cancelClaude,
@@ -788,9 +788,9 @@ export function registerIpcHandlers(
     // deliberately NOT touched: signing out must not destroy the other credential.
     await entra?.signOut();
   });
-  ipcMain.handle(IpcChannels.claudeTestKey, () => {
-    devLog('ipc: claude:test-key');
-    return claudeTestKey();
+  ipcMain.handle(IpcChannels.claudeTestConnection, () => {
+    devLog('ipc: claude:test-connection');
+    return claudeTestConnection();
   });
   ipcMain.handle(
     IpcChannels.revertSop,

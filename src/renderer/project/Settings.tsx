@@ -315,15 +315,29 @@ export function Settings({
     }
   };
 
-  const testKey = async () => {
+  const testConnection = async () => {
     setTesting(true);
     setTestResult(null);
     setError(null);
     try {
-      const r = await window.shotai.claude.testKey();
+      const r = await window.shotai.claude.testConnection();
+      // Name the leg that failed. Under federation the three legs are the only way
+      // to distinguish "not signed in" from "not assigned the role" from a scope or
+      // model problem, because every assertion denial from Anthropic is the same
+      // opaque 401 by design.
+      const legLabel =
+        r.leg === 'signIn'
+          ? 'Microsoft sign-in'
+          : r.leg === 'exchange'
+            ? 'Claude access'
+            : r.leg === 'api'
+              ? 'Claude API'
+              : null;
       setTestResult({
         ok: r.ok,
-        msg: r.ok ? `Connected${r.model ? ` (${r.model})` : ''}.` : (r.error ?? 'Test failed.'),
+        msg: r.ok
+          ? 'Connected' + (r.model ? ' (' + r.model + ')' : '') + '.'
+          : (legLabel ? legLabel + ': ' : '') + (r.error ?? 'Test failed.'),
       });
     } catch (e) {
       fail(e);
@@ -458,7 +472,7 @@ export function Settings({
                             <button
                               type="button"
                               className="btn btn--small"
-                              onClick={() => void testKey()}
+                              onClick={() => void testConnection()}
                               disabled={testing}
                             >
                               {testing ? 'Testing…' : 'Test connection'}
@@ -587,7 +601,7 @@ export function Settings({
                         <button
                           type="button"
                           className="btn btn--small"
-                          onClick={() => void testKey()}
+                          onClick={() => void testConnection()}
                           disabled={testing || !keyStatus?.hasKey}
                         >
                           {testing ? 'Testing…' : 'Test connection'}

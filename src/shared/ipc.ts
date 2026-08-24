@@ -89,8 +89,12 @@ export interface ApiKeyStatus {
   hasStoredCiphertext: boolean;
 }
 
+/** Which stage of a federated connection test failed. The API-key path is a
+ *  single call, so it only ever reports 'api'. */
+export type ConnectionLeg = 'signIn' | 'exchange' | 'api';
+
 /** Result of a connectivity test (expected failures are returned, not thrown). */
-export interface TestKeyResult {
+export interface TestConnectionResult {
   ok: boolean;
   /** Which credential was tested. A literal union rather than an import from
    *  main, so this shared contract stays main-agnostic. */
@@ -99,6 +103,9 @@ export interface TestKeyResult {
   model?: string;
   /** Friendly failure reason (on failure). */
   error?: string;
+  /** Which leg failed. Present on failure; the whole point of the three-leg test,
+   *  since every assertion denial from Anthropic is the same opaque 401. */
+  leg?: ConnectionLeg;
 }
 
 /** Pre-send cost estimate for SOP generation (shown on the review screen). */
@@ -217,12 +224,12 @@ export const IpcChannels = {
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
-  claudeTestKey: 'claude:test-key',
+  claudeTestConnection: 'claude:test-connection',
   claudeEstimate: 'claude:estimate',
   claudeGenerateSop: 'claude:generate-sop',
   claudeCancel: 'claude:cancel',
   // Entra sign-in (#63). Verbs, not values: nothing here returns a token, an
-  // assertion, or any claim. Connectivity testing stays on claude:test-key,
+  // assertion, or any claim. Connectivity testing stays on claude:test-connection,
   // which now reports which credential it tested.
   authStatus: 'auth:status',
   authSignIn: 'auth:sign-in',
@@ -485,8 +492,12 @@ export interface ShotaiApi {
     setApiKey(key: string): Promise<void>;
     /** Remove the stored API key. */
     clearApiKey(): Promise<void>;
-    /** Validate connectivity using the stored/env key + the selected model. */
-    testKey(): Promise<TestKeyResult>;
+    /**
+     * Validate connectivity end to end. Under federation this runs THREE legs
+     * separately (silent Entra token, token exchange, then an API call) and names
+     * the one that failed; on the API-key path it is a single call.
+     */
+    testConnection(): Promise<TestConnectionResult>;
     /** Estimate the token count + cost of generating the SOP for this project. */
     estimate(projectPath: string): Promise<SopEstimate>;
     /**

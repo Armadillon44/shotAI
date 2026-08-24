@@ -160,7 +160,7 @@ const api: ShotaiApi = {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),
     setApiKey: (key: string) => ipcRenderer.invoke(IpcChannels.claudeSetKey, key),
     clearApiKey: () => ipcRenderer.invoke(IpcChannels.claudeClearKey),
-    testKey: () => ipcRenderer.invoke(IpcChannels.claudeTestKey),
+    testConnection: () => ipcRenderer.invoke(IpcChannels.claudeTestConnection),
     estimate: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.claudeEstimate, projectPath),
     generateSop: (projectPath: string) =>

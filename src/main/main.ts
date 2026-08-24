@@ -149,6 +149,33 @@ if (started) {
     mainLog,
   );
   app.quit();
+} else if (!app.requestSingleInstanceLock()) {
+  // Single instance, and the `else if` placement is load-bearing: a Squirrel
+  // lifecycle invocation (--squirrel-install / --updated) must NOT be gated on the
+  // lock, or it would lose the race against an already-running app and skip
+  // fixArpIconOnSquirrelEvent above, silently reverting the Add/Remove-Programs
+  // icon fix from v1.0.1.
+  //
+  // Why a lock at all: two instances share one projects directory and one
+  // userData. ProjectStore's writeQueue serializes manifest writes WITHIN a
+  // process and cannot see another one, and the Entra token cache (#63) is a
+  // hand-rolled safeStorage ICachePlugin with no cross-process lock — the thing
+  // @azure/msal-node-extensions would have provided, and which was given up
+  // deliberately to avoid its archived keytar dependency. A torn cache write
+  // self-heals into one interactive sign-in; a torn manifest write does not.
+  mainLog.info('another instance already holds the lock — exiting.');
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    // Launching again should surface the existing window, which is what a user
+    // double-clicking the icon expects, rather than doing nothing at all.
+    const win = projectWindow;
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+  });
 }
 
 const preloadPath = path.join(__dirname, 'preload.js');
