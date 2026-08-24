@@ -3,8 +3,10 @@
  * generation. Ships the key-connectivity test, the system-prompt helper
  * (`buildSystemPrompt`), and the streaming vision/structured-output generation.
  *
- * The API key never leaves main (read here via secrets.getApiKey) and is never
- * logged. Model + tone come from the user's SOP settings.
+ * Credentials never leave main and are never logged. How this machine
+ * authenticates — a federated Entra sign-in with no key anywhere, or the
+ * bring-your-own API key — is decided in ONE place, claude-auth.appAuth(), so
+ * nothing here reads a credential directly. Model + tone come from SOP settings.
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
@@ -14,7 +16,9 @@ import { promises as fs } from 'node:fs';
 import type { SopEditPlan, SopModelId } from '../shared/sop';
 import type { ProjectManifest } from '../shared/project';
 import type { SopEstimate, SopProgress, TestKeyResult } from '../shared/ipc';
-import { getApiKey } from './secrets';
+import { appAuth, type AuthMode } from './claude-auth';
+import { SignInRequiredError } from './entra/msal';
+import { FederationExchangeError } from './entra/federation';
 import { getSopSettings } from './settings';
 import { getProjectForRead } from './project-store';
 import { applySopEdits } from './sop-apply';
@@ -55,29 +59,53 @@ const BASE_SYSTEM_PROMPT = [
 ].join('\n\n');
 
 /** Map an SDK error to a short, user-facing message (never leaks the key). */
-function friendlyError(e: unknown): string {
-  if (e instanceof Anthropic.AuthenticationError) return 'Invalid API key.';
-  if (e instanceof Anthropic.PermissionDeniedError)
-    return 'This key lacks permission for the selected model.';
-  if (e instanceof Anthropic.NotFoundError)
-    return 'The selected model is unavailable for this key.';
-  if (e instanceof Anthropic.RateLimitError)
-    return 'Rate limited — wait a moment and try again.';
+function friendlyError(e: unknown, mode: AuthMode): string {
+  // Connection errors FIRST. Offline must never render as a sign-in prompt: even
+  // with a valid cached Entra token the exchange itself needs api.anthropic.com,
+  // so offline means generation is unavailable regardless of sign-in state. This
+  // also has to precede the APIError branch, since APIConnectionError extends it.
   if (e instanceof Anthropic.APIConnectionError)
     return 'Could not reach Anthropic — check your network connection.';
+
+  // A sign-in requirement surfaces either directly (from makeClient) or from
+  // inside a request, when the SDK's credentials provider calls acquireSilent on a
+  // refresh. Which way the SDK wraps a provider failure is not documented, so
+  // check the cause chain too rather than depending on the answer.
+  const signIn =
+    e instanceof SignInRequiredError
+      ? e
+      : (e as { cause?: unknown })?.cause instanceof SignInRequiredError
+        ? (e as { cause: SignInRequiredError }).cause
+        : null;
+  if (signIn) return signIn.message;
+  if (e instanceof FederationExchangeError) return e.message; // already user-safe
+
+  if (mode === 'federated') {
+    // The BYO-key wording below is actively WRONG under federation and would send
+    // users hunting for a key they never had.
+    if (e instanceof Anthropic.AuthenticationError)
+      return 'Your Claude access was refused. Check that your account still has the shotAI role.';
+    if (e instanceof Anthropic.PermissionDeniedError)
+      return "This sign-in does not have permission for that (the federation rule's scope).";
+    if (e instanceof Anthropic.NotFoundError)
+      return 'The selected model is unavailable for this sign-in.';
+  } else {
+    if (e instanceof Anthropic.AuthenticationError) return 'Invalid API key.';
+    if (e instanceof Anthropic.PermissionDeniedError)
+      return 'This key lacks permission for the selected model.';
+    if (e instanceof Anthropic.NotFoundError)
+      return 'The selected model is unavailable for this key.';
+  }
+
+  if (e instanceof Anthropic.RateLimitError)
+    return 'Rate limited — wait a moment and try again.';
   if (e instanceof Anthropic.APIError)
     return e.message || `API error${e.status ? ` (${e.status})` : ''}.`;
   return e instanceof Error ? e.message : String(e);
 }
 
-// Pin the Anthropic egress host. Without an explicit baseURL the SDK defaults to
-// process.env.ANTHROPIC_BASE_URL, which would let a poisoned environment redirect
-// the API key (x-api-key header) AND the captured screenshots to an attacker host.
-// shotAI only ever talks to the real API.
-const ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
-function makeClient(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, baseURL: ANTHROPIC_BASE_URL });
-}
+// Client construction, the egress pin, and the federated-vs-key decision now all
+// live in claude-auth.ts, so the three call sites below cannot drift apart.
 
 /**
  * Validate the configured key + model with a cheap, free call (Models API). Does
@@ -86,17 +114,19 @@ function makeClient(apiKey: string): Anthropic {
 export async function testKey(): Promise<TestKeyResult> {
   const sop = await getSopSettings();
   if (!sop.enabled) return { ok: false, error: 'AI SOP generation is turned off.' };
-  const key = await getApiKey();
-  if (!key) return { ok: false, error: 'No API key set.' };
+  let mode: AuthMode = 'apiKey';
   try {
-    const client = makeClient(key);
-    await client.models.retrieve(sop.model);
-    claudeLog.info(`API key validated against ${sop.model}.`);
-    return { ok: true, model: sop.model };
+    const built = await appAuth().makeClient();
+    mode = built.mode;
+    await built.client.models.retrieve(sop.model);
+    claudeLog.info(`credential validated against ${sop.model} (mode=${mode}).`);
+    return { ok: true, model: sop.model, mode };
   } catch (e) {
-    const error = friendlyError(e);
-    claudeLog.warn(`testKey failed: ${error}`);
-    return { ok: false, error };
+    // makeClient throws before a mode is known when NEITHER credential exists; the
+    // message it carries already names the option that applies on this machine.
+    const error = friendlyError(e, mode);
+    claudeLog.warn(`connection test failed (mode=${mode}): ${error}`);
+    return { ok: false, error, mode };
   }
 }
 
@@ -228,10 +258,8 @@ export async function estimate(projectPath: string): Promise<SopEstimate> {
   try {
     const settings = await getSopSettings();
     if (!settings.enabled) throw new Error('AI SOP generation is turned off.');
-    const key = await getApiKey();
-    if (!key) throw new Error('No API key set.');
+    const { client, mode } = await appAuth().makeClient();
     const { system, messages } = await assembleRequest(projectPath);
-    const client = makeClient(key);
     const params = MODEL_PARAMS[settings.model];
     let inputTokens: number;
     try {
@@ -241,7 +269,7 @@ export async function estimate(projectPath: string): Promise<SopEstimate> {
       );
       inputTokens = r.input_tokens;
     } catch (e) {
-      throw new Error(friendlyError(e));
+      throw new Error(friendlyError(e, mode));
     }
     const estCostUsd =
       (inputTokens / 1e6) * params.inputPerMTok +
@@ -263,13 +291,14 @@ export async function generateSop(
 ): Promise<ProjectManifest> {
   const settings = await getSopSettings();
   if (!settings.enabled) throw new Error('AI SOP generation is turned off.');
-  const key = await getApiKey();
-  if (!key) throw new Error('No API key set.');
+  // Resolve the credential BEFORE assembling megabytes of screenshots, so a
+  // sign-in prompt or an entitlement failure surfaces ahead of the spend decision
+  // rather than after the user has committed to it.
+  const { client, mode } = await appAuth().makeClient();
 
   onProgress?.({ stage: 'preparing' });
   const { system, messages } = await assembleRequest(projectPath);
   const params = MODEL_PARAMS[settings.model];
-  const client = makeClient(key);
 
   const CUTOFF_MSG =
     'The SOP was cut off at the output limit. Try again, or split the project into fewer steps.';
@@ -330,7 +359,7 @@ export async function generateSop(
     finalText = textBlock.text;
   } catch (e) {
     if (stopReason === 'max_tokens') throw new Error(CUTOFF_MSG);
-    throw new Error(friendlyError(e));
+    throw new Error(friendlyError(e, mode));
   } finally {
     if (currentRun === controller) currentRun = null;
   }

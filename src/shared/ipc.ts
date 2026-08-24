@@ -61,6 +61,9 @@ export interface ApiKeyStatus {
 /** Result of a connectivity test (expected failures are returned, not thrown). */
 export interface TestKeyResult {
   ok: boolean;
+  /** Which credential was tested. A literal union rather than an import from
+   *  main, so this shared contract stays main-agnostic. */
+  mode?: 'federated' | 'apiKey';
   /** Model the test validated against (on success). */
   model?: string;
   /** Friendly failure reason (on failure). */
