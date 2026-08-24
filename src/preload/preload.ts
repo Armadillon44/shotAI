@@ -151,6 +151,11 @@ const api: ShotaiApi = {
       return () => ipcRenderer.removeListener(IpcChannels.updateAvailable, listener);
     },
   },
+  auth: {
+    status: () => ipcRenderer.invoke(IpcChannels.authStatus),
+    signIn: () => ipcRenderer.invoke(IpcChannels.authSignIn),
+    signOut: () => ipcRenderer.invoke(IpcChannels.authSignOut),
+  },
   claude: {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),
     setApiKey: (key: string) => ipcRenderer.invoke(IpcChannels.claudeSetKey, key),

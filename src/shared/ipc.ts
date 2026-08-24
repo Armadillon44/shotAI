@@ -46,6 +46,33 @@ export interface CaptureState {
 export type ApiKeySource = 'stored' | 'env' | 'none';
 
 /** Whether a key is available and how — the key itself is NEVER sent to the renderer. */
+/** Which credential shotAI authenticates with. */
+export type AuthCredentialMode = 'federated' | 'apiKey';
+
+/**
+ * Everything the RENDERER is allowed to know about authentication (#63).
+ *
+ * Deliberately absent: expiresAt, scope, request ids, any token prefix, any JWT
+ * claim. The renderer has no decision to make with them, and a countdown in the
+ * UI is not worth leaking the token's lifetime shape. The renderer's whole
+ * vocabulary is this status object plus the auth:* verbs.
+ */
+export interface AuthStatus {
+  /** The credential that would be used right now, or 'none'. */
+  mode: AuthCredentialMode | 'none';
+  /** Federation is configured on this machine at all. False for every external
+   *  user, and the signal to say nothing about Entra anywhere in the UI. */
+  federationAvailable: boolean;
+  /** A usable Entra account is cached. */
+  signedIn: boolean;
+  /** UPN, for "Signed in as ...". Not a credential, but it IS personal data:
+   *  keep it out of logs, diagnostics and exports. */
+  account: string | null;
+  /** safeStorage availability, mirroring ApiKeyStatus. */
+  encryptionAvailable: boolean;
+  hasStoredCiphertext: boolean;
+}
+
 export interface ApiKeyStatus {
   hasKey: boolean;
   source: ApiKeySource;
@@ -63,7 +90,7 @@ export interface TestKeyResult {
   ok: boolean;
   /** Which credential was tested. A literal union rather than an import from
    *  main, so this shared contract stays main-agnostic. */
-  mode?: 'federated' | 'apiKey';
+  mode?: AuthCredentialMode;
   /** Model the test validated against (on success). */
   model?: string;
   /** Friendly failure reason (on failure). */
@@ -190,6 +217,12 @@ export const IpcChannels = {
   claudeEstimate: 'claude:estimate',
   claudeGenerateSop: 'claude:generate-sop',
   claudeCancel: 'claude:cancel',
+  // Entra sign-in (#63). Verbs, not values: nothing here returns a token, an
+  // assertion, or any claim. Connectivity testing stays on claude:test-key,
+  // which now reports which credential it tested.
+  authStatus: 'auth:status',
+  authSignIn: 'auth:sign-in',
+  authSignOut: 'auth:sign-out',
   revertSop: 'projects:revert-sop',
   // main -> renderer: SOP generation progress
   claudeSopProgress: 'claude:sop-progress',
@@ -426,6 +459,20 @@ export interface ShotaiApi {
      * once per launch, and only when an update actually exists.
      */
     onAvailable(cb: (r: UpdateCheckResult) => void): () => void;
+  };
+  auth: {
+    /** How this machine authenticates. Never returns a token or a claim. */
+    status(): Promise<AuthStatus>;
+    /**
+     * Interactive Microsoft sign-in in the SYSTEM browser. User-initiated only.
+     * Also the correct action for "retry after IT granted me the role": an
+     * interactive sign-in always returns fresh claims, whereas a silent retry
+     * re-serves a cached token that predates the assignment and carries no
+     * roles claim, which looks exactly like a broken rule.
+     */
+    signIn(): Promise<void>;
+    /** Forget the cached Entra account. Leaves any stored API key untouched. */
+    signOut(): Promise<void>;
   };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */

@@ -6,7 +6,12 @@ import {
   shell,
   type IpcMainInvokeEvent,
 } from 'electron';
-import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
+import {
+  IpcChannels,
+  type AppInfo,
+  type AuthStatus,
+  type ExportFormat,
+} from '../shared/ipc';
 import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
 import { exportProject, chooseExportDirectory, revealExportDir } from './export';
@@ -61,6 +66,7 @@ import {
   generateSop as claudeGenerateSop,
   cancelClaude,
 } from './claude-service';
+import { appAuth } from './claude-auth';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -724,6 +730,44 @@ export function registerIpcHandlers(
   ipcMain.handle(IpcChannels.claudeClearKey, () => {
     devLog('ipc: claude:clear-key');
     return clearApiKey();
+  });
+
+  // --- Entra sign-in (#63). Verbs only; no token, assertion or claim crosses
+  // this boundary, and the log lines carry channel names only.
+  ipcMain.handle(IpcChannels.authStatus, async (): Promise<AuthStatus> => {
+    devLog('ipc: auth:status');
+    const auth = appAuth();
+    const cfg = await auth.federation();
+    const entra = cfg ? await auth.entra() : null;
+    const account = entra ? await entra.signedInAccount() : null;
+    const key = await getApiKeyStatus();
+    const signedIn = !!account;
+    return {
+      mode: signedIn ? 'federated' : key.hasKey ? 'apiKey' : 'none',
+      federationAvailable: !!cfg,
+      signedIn,
+      account: account?.username ?? null,
+      encryptionAvailable: key.encryptionAvailable,
+      hasStoredCiphertext: key.hasStoredCiphertext,
+    };
+  });
+  ipcMain.handle(IpcChannels.authSignIn, async () => {
+    devLog('ipc: auth:sign-in');
+    const entra = await appAuth().entra();
+    if (!entra) {
+      throw new Error('shotAI is not set up for Microsoft sign-in on this machine.');
+    }
+    // Discard the returned token: it must not cross the IPC boundary, and the
+    // SDK re-acquires silently from the cache this call just populated.
+    await entra.signInInteractive();
+  });
+  ipcMain.handle(IpcChannels.authSignOut, async () => {
+    devLog('ipc: auth:sign-out');
+    const entra = await appAuth().entra();
+    // Removing the accounts flushes the MSAL cache through the safeStorage
+    // plugin, so no refresh token is left readable. A stored API key is
+    // deliberately NOT touched: signing out must not destroy the other credential.
+    await entra?.signOut();
   });
   ipcMain.handle(IpcChannels.claudeTestKey, () => {
     devLog('ipc: claude:test-key');
