@@ -102,3 +102,10 @@ assets/_loading-preview.png
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Entra federation values (#63): per-organization, non-secret but org-identifying.
+# Baked into the main bundle at build time by vite.main.config.ts. Deliberately never
+# committed: this repo is PUBLIC, and a repo naming a tenant and an Anthropic org is
+# free reconnaissance that would live in git history forever. Copy
+# src/main/entra/federation.example.json and fill it in.
+src/main/entra/federation.local.json
