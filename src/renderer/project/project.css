@@ -1602,6 +1602,16 @@ body {
 .rep__imgwrap {
   display: inline-block;
   max-width: 100%;
+  /* Belt and braces against inline-formatting height. This container only ever
+     holds one block image, so it needs no line box; without this, a strut
+     descender under an inline-block child can add a few px of phantom height,
+     which the pan-restore then centres and scrolls off the top of the image.
+     A review reported measuring exactly that (scrollHeight 4px over
+     clientHeight). I could NOT reproduce it in an Electron harness, and could
+     not show that harness sensitive enough to detect it either, so this is
+     applied as a zero-cost precaution rather than a verified fix: measured
+     inert here, and it cannot change layout for a lone block child. */
+  line-height: 0;
   border: 1px solid var(--hair);
   border-radius: 10px;
   /* hidden (not auto): drag-pan still works via programmatic scrollLeft/Top, but

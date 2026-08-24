@@ -27,11 +27,22 @@ function setProtection(on: boolean): void {
   }
 }
 
+/** Outstanding shields. Protection is only restored when this returns to 0. */
+let shieldDepth = 0;
+/** What to restore at depth 0. Latched when the first shield is taken. */
+let shieldRestore = true;
+
 /**
  * Apply the setting to every open window, so the toggle takes effect without a
  * restart. Called after the setting loads at startup and whenever it changes.
+ *
+ * If a shield is currently held, this does NOT touch protection now: it only
+ * changes what the shield restores when it releases. Toggling the setting during a
+ * grab would otherwise un-protect mid-capture and put shotAI in that screenshot.
  */
 export function applyRemoteVisibility(visible: boolean): void {
+  shieldRestore = !visible;
+  if (shieldDepth > 0) return;
   setProtection(!visible);
 }
 
@@ -42,6 +53,13 @@ export function applyRemoteVisibility(visible: boolean): void {
  * Returns the release function rather than taking a callback so it composes with
  * both the sync and async grab paths through a plain try/finally.
  *
+ * REFERENCE COUNTED, and that is load-bearing rather than defensive. Grabs DO
+ * overlap: the menu poller runs on a timer, outside the capture queue, so its
+ * grab can be in flight when a click capture starts. Without a count, the first
+ * release un-protects while the second grab is still capturing, and the recording
+ * pill lands in a saved screenshot. Found by review, not by testing, because the
+ * failure needs two grabs to overlap and leaves nothing behind but a wrong image.
+ *
  * When remoteVisible is off this is a no-op pair (protection is already on), which
  * is deliberate: one code path, so the shielded grab helpers cannot drift into
  * being correct in one mode and wrong in the other.
@@ -50,7 +68,23 @@ export function applyRemoteVisibility(visible: boolean): void {
  * gap in which the pill is capturable, which is the exact leak this prevents.
  */
 export function shieldOwnWindows(): () => void {
-  const visible = remoteVisibleNow();
-  setProtection(true);
-  return () => setProtection(!visible);
+  if (shieldDepth === 0) {
+    shieldRestore = !remoteVisibleNow();
+    setProtection(true);
+  }
+  shieldDepth += 1;
+  let released = false;
+  return () => {
+    // Idempotent: a double release (a retry path calling finally twice) must not
+    // underflow the count and drop protection while another grab still holds it.
+    if (released) return;
+    released = true;
+    shieldDepth -= 1;
+    if (shieldDepth === 0) setProtection(shieldRestore);
+  };
+}
+
+/** Test-only view of the shield state. */
+export function __shieldDepthForTest(): number {
+  return shieldDepth;
 }

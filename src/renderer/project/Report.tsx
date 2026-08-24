@@ -122,6 +122,13 @@ function StepFigure({
   const onPanStart = (e: React.MouseEvent) => {
     const el = wrapRef.current;
     if (!el) return;
+    // Gate on zoom FIRST. Measuring overflow alone is not sufficient: any stray
+    // pixel of phantom overflow (an inline-formatting artifact, a rounding
+    // difference) makes the box read as pannable at zoom 1, and a stray drag then
+    // writes reportPanX/Y to the manifest, silently discarding a framing the user
+    // had saved at a higher zoom. At zoom 1 the image fits by construction, so
+    // there is nothing to pan and nothing to persist.
+    if (zoom <= 1) return;
     if (el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight) return;
     e.preventDefault();
     drag.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };

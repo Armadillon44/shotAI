@@ -82,7 +82,11 @@ vi.mock('electron', () => ({
 }));
 vi.mock('./settings', () => ({ remoteVisibleNow: () => state.visible }));
 
-import { shieldOwnWindows, applyRemoteVisibility } from './remote-visibility';
+import {
+  shieldOwnWindows,
+  applyRemoteVisibility,
+  __shieldDepthForTest,
+} from './remote-visibility';
 
 const win = () => ({ p: [] as boolean[], dead: false });
 
@@ -115,6 +119,82 @@ describe('shieldOwnWindows', () => {
     release();
     expect(state.wins[0].p).toEqual([]);
     expect(state.wins[1].p.length).toBe(2);
+  });
+});
+
+describe('shieldOwnWindows is re-entrant (overlapping grabs)', () => {
+  beforeEach(() => {
+    state.visible = true;
+    state.wins = [win()];
+  });
+
+  it('does NOT un-protect when an inner shield releases while an outer one is held', () => {
+    // THE BUG THIS FIXES, found by review rather than testing: grabs DO overlap.
+    // The menu poller runs on a timer, outside the capture queue, so its grab can be
+    // in flight when a click capture starts. Without a refcount the first release
+    // un-protected while the second grab was still capturing, and the recording pill
+    // landed in a saved screenshot. Nothing failed and nothing was logged; the only
+    // evidence would be a wrong image in a finished SOP.
+    const outer = shieldOwnWindows();
+    const inner = shieldOwnWindows();
+    expect(state.wins[0].p).toEqual([true]); // protected once, not twice
+    inner();
+    expect(state.wins[0].p).toEqual([true]); // still protected: outer holds it
+    outer();
+    expect(state.wins[0].p).toEqual([true, false]); // only now restored
+  });
+
+  it('restores exactly once no matter how deep the nesting went', () => {
+    const rs = [shieldOwnWindows(), shieldOwnWindows(), shieldOwnWindows()];
+    rs.forEach((r) => r());
+    expect(state.wins[0].p).toEqual([true, false]);
+    expect(__shieldDepthForTest()).toBe(0);
+  });
+
+  it('treats a double release as idempotent, so the count cannot underflow', () => {
+    // A retry path that runs its finally twice would otherwise drop the depth below
+    // zero and un-protect while a later grab still holds the shield.
+    const outer = shieldOwnWindows();
+    const inner = shieldOwnWindows();
+    inner();
+    inner();
+    inner();
+    expect(__shieldDepthForTest()).toBe(1);
+    expect(state.wins[0].p).toEqual([true]); // outer still holds it
+    outer();
+    expect(state.wins[0].p).toEqual([true, false]);
+  });
+
+  it('leaves depth at zero after a balanced pair, so state does not leak between grabs', () => {
+    shieldOwnWindows()();
+    expect(__shieldDepthForTest()).toBe(0);
+  });
+});
+
+describe('toggling the setting during a grab', () => {
+  beforeEach(() => {
+    state.visible = true;
+    state.wins = [win()];
+  });
+
+  it('does not un-protect mid-capture, and applies on release instead', () => {
+    // Flipping the setting on while a grab is in flight must not expose the window
+    // for the remainder of that capture.
+    const release = shieldOwnWindows();
+    expect(state.wins[0].p).toEqual([true]);
+    applyRemoteVisibility(true);
+    expect(state.wins[0].p).toEqual([true]); // unchanged while the shield is held
+    release();
+    expect(state.wins[0].p).toEqual([true, false]); // the new value lands here
+  });
+
+  it('honors a mid-grab switch to NOT visible by restoring protection on', () => {
+    state.visible = true;
+    const release = shieldOwnWindows();
+    applyRemoteVisibility(false);
+    release();
+    // Restores to protected, per the setting as it now stands.
+    expect(state.wins[0].p).toEqual([true, true]);
   });
 });
 
