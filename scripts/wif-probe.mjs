@@ -29,7 +29,13 @@ import {
 import { scopeFor } from '../src/main/entra/msal.ts';
 import { createAuth } from '../src/main/entra/auth-core.ts';
 
+// Fallback client for DIAGNOSIS only. The Azure CLI's well-known public client
+// ships with http://localhost registered by Microsoft and is pre-authorized on the
+// audience app, which is how this flow was first verified before the tenant had a
+// redirect URI of its own. Opt in with WIF_PROBE_CLI_CLIENT=1 to tell "our
+// registration is misconfigured" apart from "the rule rejected us".
 const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
+const USE_CLI_CLIENT = process.env.WIF_PROBE_CLI_CLIENT === '1';
 const LOCAL = 'src/main/entra/federation.local.json';
 
 const ok = (m) => console.log(`  [ok]   ${m}`);
@@ -72,7 +78,11 @@ info(`rule ${cfg.federationRuleId} / workspace ${cfg.workspaceId ?? '(rule defau
 // ------------------------------------------------------------ Leg 1: Entra token
 leg(1, 'Microsoft Entra sign-in (system browser)');
 info(`scope ${scopeFor(cfg)}`);
-info('probe client: Azure CLI public client (see the header note)');
+info(
+  USE_CLI_CLIENT
+    ? 'client: Azure CLI public client (WIF_PROBE_CLI_CLIENT=1 fallback)'
+    : `client: shotAI's own registration ${cfg.clientAppId}`,
+);
 
 // Prove MSAL actually drives our INetworkModule rather than its own client. This
 // is the mitigation for msal-node v5 dropping proxyUrl/customAgentOptions; the app
@@ -103,7 +113,9 @@ const auth = createAuth({
   // No cachePlugin: memory-only, so EVERY run is a fresh sign-in. That sidesteps
   // the trap where a cached 60-90 minute token predates a role assignment, carries
   // no roles claim, and makes a correct rule look broken.
-  getFederationConfig: async () => ({ ...cfg, clientAppId: AZURE_CLI_CLIENT_ID }),
+  // Defaults to the REAL config, i.e. exactly what the app will use.
+  getFederationConfig: async () =>
+    USE_CLI_CLIENT ? { ...cfg, clientAppId: AZURE_CLI_CLIENT_ID } : cfg,
   // Force the federated branch: a stray ANTHROPIC_API_KEY must not decide this.
   getApiKey: async () => null,
   log: (l) => info(l),
@@ -121,6 +133,8 @@ try {
 } catch (e) {
   bad(`sign-in failed: ${e?.errorCode ?? e?.name ?? 'Error'} ${e?.message ?? ''}`.trim());
   info('AADSTS50011 => http://localhost is not a registered public-client redirect URI.');
+  info('AADSTS7000218 => set Authentication > Advanced settings > Allow public client flows.');
+  info('AADSTS65001 or a consent prompt => the client is not authorized for the audience scope.');
   info('AADSTS650057 => the audience app does not pre-authorize this client id.');
   process.exit(1);
 }
