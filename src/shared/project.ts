@@ -259,6 +259,16 @@ export interface ProjectStep {
    *  heading (bold heading + thin rule + muted body), not a box. */
   callout?: CalloutKind;
   /**
+   * True once the AUTHOR has edited this caption by hand. Set by updateStep and
+   * CLEARED by applySopEdits when Claude overwrites the caption, so it never
+   * outlives the human text it describes.
+   *
+   * CROSS-PLATFORM: macOS writes and reads this same field (their #73). It is what
+   * lets a regenerate rewrite from a human correction instead of falling back to
+   * the original auto-caption. Do not rename or repurpose it on one platform only.
+   */
+  captionEditedByUser?: boolean;
+  /**
    * True for a text step that Claude's SOP generation inserted (intro / section
    * heading). Stripped + regenerated on the next run so they don't accumulate;
    * author-written text steps (no flag) are always preserved.

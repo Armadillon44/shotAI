@@ -20,7 +20,13 @@ import { getProjectForRead } from './project-store';
 import { applySopEdits } from './sop-apply';
 import { resolveSendableRender } from './render-gate';
 import { MODEL_PARAMS, TONE_PROMPT } from './claude-models';
-import { authorIntro, authorIntroBlock, textStepLabel } from './sop-input';
+import {
+  authorBlockGuidance,
+  authorIntro,
+  authorIntroBlock,
+  captionForPrompt,
+  textStepLabel,
+} from './sop-input';
 import { claudeLog } from './logger';
 
 /**
@@ -53,8 +59,6 @@ const BASE_SYSTEM_PROMPT = [
   'Write each instruction about the control inside or directly under the marked ring — that ring is exactly where the user clicked, so describe THAT element, not some other field on the screen. If the screenshot does not show the result of the click (e.g. a menu or dropdown that opened only after clicking is not visible), describe the click itself and do not invent the resulting menu or its contents.',
   'Some steps include a "UI element" line in their metadata — the accessibility name and control type (e.g. Button, MenuItem, Hyperlink) of the control under the click, read from the operating system. Treat it as a STRONG, reliable signal for WHICH control was clicked. But choose the FRIENDLIEST name for the reader, based primarily on the screenshot: the accessibility name is occasionally technical or internal (e.g. an internal class/identifier, an overly long tooltip, or a developer string) rather than the label a person sees. When the element name and the visible on-screen label differ, name the control by what the user actually sees on screen; use the accessibility name only to confirm the target or when no clear visible label exists.',
   'Keep the screenshots in their original order — do not drop, reorder, or merge them; you only rewrite their text and insert text blocks between them. Ground every instruction in what the screenshots and metadata actually show; never invent UI elements, values, or steps that are not evidenced. Leave author-written text steps alone. Do not transcribe or guess at any redacted/blurred regions of the images.',
-  'Author-written text blocks are interleaved with the screenshots and are labeled by role. "Text step N" is a plain numbered step. "Note callout" (informational), "Caution callout", and "Warning callout" are un-numbered highlighted boxes the author considers important. "Section heading" is an un-numbered phase divider marking where the procedure moves to a new phase. Leave all of their text exactly as written, and use them as context: do not restate a caution or warning the author has already given, pitch the surrounding instructions so they account for it, and respect an existing section structure rather than re-dividing a phase the author has already divided or placing your own `sectionHeading` directly beside one.',
-  'If an "Author overview" block appears below, the author wrote it and it states their intent for the whole procedure. Let it inform every caption and instruction you write, and preserve its substance in your `intro`: you may tighten wording, fix grammar, or supply a heading if it lacks one, but never discard, contradict, or replace what it says. When no Author overview is supplied, write one from scratch.',
 ].join('\n\n');
 
 /** Map an SDK error to a short, user-facing message (never leaks the key). */
@@ -172,6 +176,11 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
       const parts = [textStepLabel(n, step.callout)];
       if (step.heading) parts.push(`Heading: ${step.heading}`);
       if (step.body) parts.push(`Body: ${step.body}`);
+      // Kind-specific guidance sits WITH the block rather than in the system
+      // prompt: "leave it alone" does not tell Claude how the block relates to
+      // the steps around it, and the advice differs per kind.
+      const guidance = authorBlockGuidance(step.callout);
+      if (guidance) parts.push(guidance);
       content.push({ type: 'text', text: parts.join('\n') });
       continue;
     }
@@ -185,15 +194,10 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
     });
 
     const orig = originalById?.get(step.id);
-    // Pre-AI caption, so a regenerate never feeds Claude its own prior rewrite.
-    // KNOWN LIMITATION (#62 gap 3, deliberately not fixed here): this also
-    // discards a caption the USER hand-edited after a generation — an AI rewrite
-    // and a human correction both differ from the backup identically, and nothing
-    // recorded tells them apart. A fix needs a new signal in project.json (a
-    // per-step dirty flag, or an at-apply snapshot of the AI output), which is a
-    // schema change to a byte-compatible cross-platform contract and has to be
-    // agreed with the macOS side first.
-    const caption = orig?.caption ?? step.caption;
+    // Pre-AI original by default so a regenerate is never fed Claude's own prior
+    // rewrite, EXCEPT when the author hand-edited the caption after a generation —
+    // that is a deliberate human correction and is exactly what to rewrite from.
+    const caption = captionForPrompt(step, orig);
     const meta = [`--- Screenshot step ${n} ---`];
     if (step.window?.app) meta.push(`App: ${step.window.app}`);
     if (step.window?.title) meta.push(`Window: ${step.window.title}`);

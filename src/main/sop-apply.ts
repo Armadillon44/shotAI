@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import type { CalloutKind, ProjectManifest, ProjectStep, SopBackup } from '../shared/project';
 import type { SopEditPlan, SopTone } from '../shared/sop';
 import { mutate, renumber, normalizeSteps } from './project-store';
+import { mergeAiStepText } from './sop-input';
 
 /** Build a fresh text step. `aiInserted` marks SOP-generated intro/section steps;
  *  `callout` optionally styles it (e.g. a non-counted `section` divider). */
@@ -93,12 +94,8 @@ export function applySopEdits(
         // Claude's phase headings stop injecting redundant numbered steps.
         next.push(makeTextStep(e.sectionHeading, e.sectionBody ?? '', true, 'section'));
       }
-      next.push({
-        ...step,
-        // Fall back to existing text if the model returns blank (don't wipe).
-        caption: e.caption.trim() || step.caption,
-        body: e.body.trim() || step.body || '',
-      });
+      const merged = mergeAiStepText(step, e.caption, e.body);
+      next.push(merged);
     });
 
     manifest.steps = next;

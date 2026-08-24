@@ -44,3 +44,47 @@ describe('applyPatchAndInvalidate (S3 redaction-freshness backstop)', () => {
     expect(s.markerBaked).toBe(true);
   });
 });
+
+describe('captionEditedByUser (#62 gap 3)', () => {
+  it('flags the step when a caption arrives in a patch', () => {
+    // A caption only reaches here from the report's inline editor. The SOP apply
+    // path writes captions through ProjectStore.mutate and never comes this way.
+    const s = step();
+    applyPatchAndInvalidate(s, patch({ caption: 'Click Save' }), false);
+    expect(s.captionEditedByUser).toBe(true);
+    expect(s.caption).toBe('Click Save');
+  });
+
+  it('does NOT flag the step for an annotation save', () => {
+    // The false positive that would matter: flagging every step on an editor save
+    // would defeat the pre-AI-original rule entirely, since every step would then
+    // look hand-edited.
+    const s = step();
+    applyPatchAndInvalidate(
+      s,
+      patch({ annotations: [{ type: 'blur' }], crop: null, markerBaked: true }),
+      true,
+    );
+    expect(s.captionEditedByUser).toBeUndefined();
+  });
+
+  it('does NOT flag the step for a heading or body edit', () => {
+    const s = step();
+    applyPatchAndInvalidate(s, patch({ heading: 'H', body: 'B' }), false);
+    expect(s.captionEditedByUser).toBeUndefined();
+  });
+
+  it('flags an empty-string caption too — clearing it is still a human edit', () => {
+    const s = step();
+    applyPatchAndInvalidate(s, patch({ caption: '' }), false);
+    expect(s.captionEditedByUser).toBe(true);
+  });
+
+  it('is set even when a fresh PNG accompanies the patch', () => {
+    // hasFreshPng returns early from the INVALIDATION logic; the flag must be
+    // recorded before that return, not after it.
+    const s = step();
+    applyPatchAndInvalidate(s, patch({ caption: 'edited' }), true);
+    expect(s.captionEditedByUser).toBe(true);
+  });
+});
