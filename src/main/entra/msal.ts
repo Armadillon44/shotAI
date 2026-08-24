@@ -141,8 +141,14 @@ export function createEntraClient(cfg: FederationConfig, deps: EntraDeps): Entra
         // Do NOT pass `loopbackClient` (deprecated in msal-node 5.x); use
         // preferredPort if a fixed port ever needs registering.
         openBrowser: deps.openBrowser,
-        successTemplate: '<h2>Signed in to shotAI</h2><p>You can close this tab.</p>',
-        errorTemplate: '<h2>Sign-in failed</h2><p>Return to shotAI and try again.</p>',
+        // PLAIN TEXT, not HTML. MSAL's loopback server calls res.end(template)
+        // with no Content-Type header at all, so a browser renders markup
+        // literally — tags and everything. Its own default is prose for the same
+        // reason ("Auth code was successfully acquired. You can close this window
+        // now."). There is no API to set the content type, so the template has to
+        // read correctly as plain text.
+        successTemplate: 'Signed in to shotAI. You can close this tab and return to the app.',
+        errorTemplate: 'shotAI sign-in failed. Close this tab and try again from the app.',
       });
       if (!res?.accessToken) throw new SignInRequiredError();
       deps.log?.('entra: interactive sign-in completed.');

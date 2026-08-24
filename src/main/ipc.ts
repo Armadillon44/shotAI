@@ -67,6 +67,8 @@ import {
   cancelClaude,
 } from './claude-service';
 import { appAuth } from './claude-auth';
+import { getFederationConfig } from './entra/config';
+import { DEFAULT_SUPPORT_URL } from './entra/config-validate';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -276,9 +278,25 @@ export function registerIpcHandlers(
     // the release page an update notice links to (#54). github.com is matched EXACTLY
     // — not `.github.com` — so this can't be widened into user-content subdomains like
     // raw./objects./codeload.github.com.
-    const allowed =
+    let allowed =
       parsed.protocol === 'https:' &&
       (host === 'anthropic.com' || host.endsWith('.anthropic.com') || host === 'github.com');
+    // A configured SupportUrl (#63) is delivered by an administrator via HKLM or
+    // the build, so it is trusted the same way the policy key itself is. Matched by
+    // exact ORIGIN so it cannot widen into sibling hosts, and only consulted when
+    // federation is actually configured. Without this, the "Request access" link
+    // would be silently refused and logged — exactly how the v1.1.6 update-check
+    // download link failed.
+    if (!allowed && parsed.protocol === 'https:') {
+      const cfg = await getFederationConfig();
+      if (cfg?.supportUrl) {
+        try {
+          allowed = new URL(cfg.supportUrl).origin === parsed.origin;
+        } catch {
+          /* a malformed configured URL never widens the allowlist */
+        }
+      }
+    }
     if (!allowed) {
       ipcLog.warn(`refused openExternal for non-allowlisted URL: ${parsed.origin}`);
       return false;
@@ -749,6 +767,7 @@ export function registerIpcHandlers(
       account: account?.username ?? null,
       encryptionAvailable: key.encryptionAvailable,
       hasStoredCiphertext: key.hasStoredCiphertext,
+      supportUrl: cfg ? (cfg.supportUrl ?? DEFAULT_SUPPORT_URL) : null,
     };
   });
   ipcMain.handle(IpcChannels.authSignIn, async () => {

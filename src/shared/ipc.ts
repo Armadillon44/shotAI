@@ -71,6 +71,10 @@ export interface AuthStatus {
   /** safeStorage availability, mirroring ApiKeyStatus. */
   encryptionAvailable: boolean;
   hasStoredCiphertext: boolean;
+  /** Where "Request access" sends an unassigned user. Null when federation is
+   *  not configured. Always openExternal-permitted: it is either this repo's
+   *  issues page or an admin-delivered URL whose origin is allowlisted. */
+  supportUrl: string | null;
 }
 
 export interface ApiKeyStatus {

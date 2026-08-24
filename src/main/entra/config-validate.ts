@@ -64,6 +64,11 @@ export type FederationKey = (typeof FEDERATION_KEYS)[number];
 /** Raw values as read from the platform store; absent keys may be null/undefined. */
 export type RawFederationConfig = Partial<Record<FederationKey, string | null | undefined>>;
 
+/** Where "Request access" points when no SupportUrl was delivered. github.com is
+ *  already on the openExternal allowlist, so this default always opens; a custom
+ *  SupportUrl has its origin added to that allowlist at request time. */
+export const DEFAULT_SUPPORT_URL = 'https://github.com/Armadillon44/shotAI/issues';
+
 const GUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 /** Anthropic tagged ids: a fixed prefix then an alphanumeric body. */
