@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  shotAI federation policy (#63).
+
+  Writes the per-organization Entra / Anthropic federation values to
+  HKLM\SOFTWARE\Policies\shotAI\Federation as REG_SZ. HKLM is deliberate: it is the
+  Windows integrity analog of macOS's objectIsForced, so only an administrator or MDM
+  can set them and a standard user cannot repoint their own client at another tenant
+  or federation rule. shotAI reads HKLM only, never HKCU.
+
+  These values OVERRIDE whatever was baked into the build, which is how a rotated
+  federation rule gets corrected without shipping a new installer. Delivering nothing
+  is a valid state: the app then uses its baked values, or falls back to
+  bring-your-own-key if it has none.
+
+  Partial delivery FAILS CLOSED. shotAI validates the whole set and reverts to
+  bring-your-own-key if any required value is missing or malformed, rather than
+  attempting a half-configured sign-in that would fail with an opaque 401.
+
+  None of these is a credential — the Entra JWT is what authenticates, and an OAuth
+  client id is expected to be public — but together they identify one organization's
+  tenant and Anthropic org, which is why they are not committed to the shotAI repo.
+
+  SOFTWARE\Policies\shotAI is outside the three namespaces Intune's ADMX ingestion
+  blocks (System, Software\Microsoft, Software\Policies\Microsoft), so this file is
+  permitted for import.
+-->
+<policyDefinitions revision="1.0" schemaVersion="1.0"
+    xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="shotAI" namespace="LFI.Policies.shotAI" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_shotAI_Federation"
+                  displayName="$(string.SUPPORTED_shotAI_Federation)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="shotAI" displayName="$(string.Cat_shotAI)" />
+    <category name="Federation" displayName="$(string.Cat_Federation)">
+      <parentCategory ref="shotAI" />
+    </category>
+  </categories>
+  <policies>
+    <policy name="FederationConfig" class="Machine"
+            displayName="$(string.FederationConfig)"
+            explainText="$(string.FederationConfig_Explain)"
+            key="SOFTWARE\Policies\shotAI\Federation"
+            presentation="$(presentation.FederationConfig)">
+      <parentCategory ref="Federation" />
+      <supportedOn ref="SUPPORTED_shotAI_Federation" />
+      <elements>
+        <!-- Required. Missing or malformed => the whole config is rejected. -->
+        <text id="TenantId" valueName="TenantId" required="true" maxLength="64" />
+        <text id="AudienceAppId" valueName="AudienceAppId" required="true" maxLength="64" />
+        <text id="FederationRuleId" valueName="FederationRuleId" required="true" maxLength="128" />
+        <text id="OrganizationId" valueName="OrganizationId" required="true" maxLength="64" />
+        <text id="ServiceAccountId" valueName="ServiceAccountId" required="true" maxLength="128" />
+        <!-- Optional. Leave blank unless the note in the help text applies. -->
+        <text id="ClientAppId" valueName="ClientAppId" maxLength="64" />
+        <text id="WorkspaceId" valueName="WorkspaceId" maxLength="128" />
+        <text id="SupportUrl" valueName="SupportUrl" maxLength="512" />
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>
