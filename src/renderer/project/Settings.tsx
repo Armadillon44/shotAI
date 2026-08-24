@@ -6,7 +6,7 @@ import {
   SOP_CUSTOM_INSTRUCTIONS_MAX,
   type SopSettings,
 } from '../../shared/sop';
-import type { ApiKeyStatus, AppInfo } from '../../shared/ipc';
+import type { ApiKeyStatus, AppInfo, AuthStatus } from '../../shared/ipc';
 import {
   CAPTURE_SCALE_MIN,
   CAPTURE_SCALE_MAX,
@@ -55,6 +55,11 @@ export function Settings({
   const [sop, setSop] = React.useState<SopSettings | null>(null);
   const [keyStatus, setKeyStatus] = React.useState<ApiKeyStatus | null>(null);
   const [keyInput, setKeyInput] = React.useState('');
+  // Entra sign-in (#63). `showKeyFallback` backs the opt-out disclosure: a
+  // federation-configured machine can still choose to use its own API key.
+  const [authStatus, setAuthStatus] = React.useState<AuthStatus | null>(null);
+  const [signingIn, setSigningIn] = React.useState(false);
+  const [showKeyFallback, setShowKeyFallback] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
   const [testResult, setTestResult] = React.useState<{ ok: boolean; msg: string } | null>(null);
@@ -125,7 +130,7 @@ export function Settings({
   };
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir, noHide, scale, name, incl, age, themePref, updChk] =
+    const [s, ks, info, dir, noHide, scale, name, incl, age, themePref, updChk, auth] =
       await Promise.all([
         window.shotai.settings.getSop(),
         window.shotai.claude.keyStatus(),
@@ -138,6 +143,7 @@ export function Settings({
         window.shotai.settings.getArchiveAgeDays(),
         window.shotai.settings.getTheme(),
         window.shotai.settings.getUpdateCheckEnabled(),
+        window.shotai.auth.status(),
       ]);
     setSop(s);
     setKeyStatus(ks);
@@ -150,7 +156,37 @@ export function Settings({
     setArchiveAge(age);
     setTheme(themePref);
     setUpdateCheck(updChk);
+    setAuthStatus(auth);
   }, []);
+
+  const signIn = async () => {
+    setError(null);
+    setTestResult(null);
+    setSigningIn(true);
+    try {
+      // Interactive every time, deliberately. After IT grants the app role a
+      // SILENT retry keeps failing, because the cached 60-90 minute Entra token
+      // predates the assignment and carries no roles claim — which reads as a
+      // broken rule. An interactive sign-in always returns fresh claims.
+      await window.shotai.auth.signIn();
+      await refresh();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const signOut = async () => {
+    setError(null);
+    setTestResult(null);
+    try {
+      await window.shotai.auth.signOut();
+      await refresh();
+    } catch (e) {
+      fail(e);
+    }
+  };
 
   const toggleCaptureNoHide = async (value: boolean) => {
     setError(null);
@@ -279,15 +315,29 @@ export function Settings({
     }
   };
 
-  const testKey = async () => {
+  const testConnection = async () => {
     setTesting(true);
     setTestResult(null);
     setError(null);
     try {
-      const r = await window.shotai.claude.testKey();
+      const r = await window.shotai.claude.testConnection();
+      // Name the leg that failed. Under federation the three legs are the only way
+      // to distinguish "not signed in" from "not assigned the role" from a scope or
+      // model problem, because every assertion denial from Anthropic is the same
+      // opaque 401 by design.
+      const legLabel =
+        r.leg === 'signIn'
+          ? 'Microsoft sign-in'
+          : r.leg === 'exchange'
+            ? 'Claude access'
+            : r.leg === 'api'
+              ? 'Claude API'
+              : null;
       setTestResult({
         ok: r.ok,
-        msg: r.ok ? `Connected${r.model ? ` (${r.model})` : ''}.` : (r.error ?? 'Test failed.'),
+        msg: r.ok
+          ? 'Connected' + (r.model ? ' (' + r.model + ')' : '') + '.'
+          : (legLabel ? legLabel + ': ' : '') + (r.error ?? 'Test failed.'),
       });
     } catch (e) {
       fail(e);
@@ -295,6 +345,13 @@ export function Settings({
       setTesting(false);
     }
   };
+
+  // Three states (#63): unconfigured (every external user — the AI tab is
+  // byte-identical to before, with no mention of Entra anywhere, because a
+  // greyed-out SSO control in a public repo is a permanent support-question
+  // generator), configured, and configured-but-opted-out.
+  const fed = !!authStatus?.federationAvailable;
+  const signedIn = !!authStatus?.signedIn;
 
   return (
     <section className="settings">
@@ -351,8 +408,9 @@ export function Settings({
                     <strong>AI SOP generation</strong>
                     <span className="settings__hint">
                       Use Claude to write a step-by-step guide from your capture —
-                      this needs an Anthropic API key (below). When off, no Claude
-                      features appear and nothing ever leaves your machine.
+                      this needs {fed ? 'you to sign in below' : 'an Anthropic API key (below)'}.
+                      When off, no Claude features appear and nothing ever leaves your
+                      machine.
                     </span>
                   </span>
                   <input
@@ -366,12 +424,115 @@ export function Settings({
                 {!sop.enabled && (
                   <p className="settings__off">
                     Claude SOP generation is off. Turn it on to choose a model and tone
-                    and connect your Anthropic API key.
+                    and {fed ? 'sign in with your work account' : 'connect your Anthropic API key'}.
                   </p>
                 )}
 
                 {sop.enabled && (
                   <>
+                    {fed && (
+                      <div className="settings__group">
+                        <h3 className="settings__h">Microsoft sign-in</h3>
+                        {signedIn ? (
+                          <>
+                            <p className="settings__hint">
+                              shotAI uses your work account for AI features. No API key
+                              needed. Configured by your organization.
+                            </p>
+                            <p className="settings__hint">
+                              Signed in as <b>{authStatus?.account}</b>
+                            </p>
+                          </>
+                        ) : (
+                          <p className="settings__hint">
+                            Sign in with your work account to use AI features. No API key
+                            needed — access is granted by your organization.
+                          </p>
+                        )}
+                        <div className="settings__keyactions">
+                          {testResult && (
+                            <span
+                              className={`settings__chip ${testResult.ok ? 'settings__chip--ok' : 'settings__chip--err'}`}
+                              title={testResult.msg}
+                            >
+                              {testResult.ok ? '● Connected' : '● Error'}
+                            </span>
+                          )}
+                          {signedIn && (
+                            <button
+                              type="button"
+                              className="btn btn--small"
+                              onClick={() => void signOut()}
+                              disabled={busy || signingIn}
+                            >
+                              Sign out
+                            </button>
+                          )}
+                          {signedIn && (
+                            <button
+                              type="button"
+                              className="btn btn--small"
+                              onClick={() => void testConnection()}
+                              disabled={testing}
+                            >
+                              {testing ? 'Testing…' : 'Test connection'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn btn--small btn--primary"
+                            onClick={() => void signIn()}
+                            disabled={signingIn || busy}
+                          >
+                            {signingIn
+                              ? 'Waiting for your browser…'
+                              : signedIn
+                                ? 'Sign in again'
+                                : 'Sign in with Microsoft'}
+                          </button>
+                        </div>
+                        {testResult && !testResult.ok && (
+                          <>
+                            <p className="project__error" style={{ marginTop: '0.5rem' }}>
+                              {testResult.msg}
+                            </p>
+                            {authStatus?.supportUrl && (
+                              <p className="settings__hint">
+                                Your sign-in worked. If Claude access has not been granted
+                                to your account yet,{' '}
+                                <a
+                                  className="settings__link"
+                                  href={authStatus.supportUrl}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    void window.shotai.openExternal(
+                                      authStatus.supportUrl as string,
+                                    );
+                                  }}
+                                >
+                                  request access
+                                </a>
+                                , then use <b>Sign in with Microsoft</b> again — a retry only
+                                picks up a new grant after a fresh sign-in.
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {fed && (
+                      <button
+                        type="button"
+                        className="btn btn--small"
+                        aria-expanded={showKeyFallback}
+                        onClick={() => setShowKeyFallback((v) => !v)}
+                      >
+                        {showKeyFallback ? '▾' : '▸'} Use my own Anthropic API key instead
+                      </button>
+                    )}
+
+                    {(!fed || showKeyFallback) && (
                     <div className="settings__group">
                       <h3 className="settings__h">Anthropic API key</h3>
                       <p className="settings__hint">
@@ -440,7 +601,7 @@ export function Settings({
                         <button
                           type="button"
                           className="btn btn--small"
-                          onClick={() => void testKey()}
+                          onClick={() => void testConnection()}
                           disabled={testing || !keyStatus?.hasKey}
                         >
                           {testing ? 'Testing…' : 'Test connection'}
@@ -460,6 +621,7 @@ export function Settings({
                         </p>
                       )}
                     </div>
+                    )}
 
                     <div className="settings__group">
                       <h3 className="settings__h">Model</h3>

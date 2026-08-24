@@ -46,6 +46,37 @@ export interface CaptureState {
 export type ApiKeySource = 'stored' | 'env' | 'none';
 
 /** Whether a key is available and how — the key itself is NEVER sent to the renderer. */
+/** Which credential shotAI authenticates with. */
+export type AuthCredentialMode = 'federated' | 'apiKey';
+
+/**
+ * Everything the RENDERER is allowed to know about authentication (#63).
+ *
+ * Deliberately absent: expiresAt, scope, request ids, any token prefix, any JWT
+ * claim. The renderer has no decision to make with them, and a countdown in the
+ * UI is not worth leaking the token's lifetime shape. The renderer's whole
+ * vocabulary is this status object plus the auth:* verbs.
+ */
+export interface AuthStatus {
+  /** The credential that would be used right now, or 'none'. */
+  mode: AuthCredentialMode | 'none';
+  /** Federation is configured on this machine at all. False for every external
+   *  user, and the signal to say nothing about Entra anywhere in the UI. */
+  federationAvailable: boolean;
+  /** A usable Entra account is cached. */
+  signedIn: boolean;
+  /** UPN, for "Signed in as ...". Not a credential, but it IS personal data:
+   *  keep it out of logs, diagnostics and exports. */
+  account: string | null;
+  /** safeStorage availability, mirroring ApiKeyStatus. */
+  encryptionAvailable: boolean;
+  hasStoredCiphertext: boolean;
+  /** Where "Request access" sends an unassigned user. Null when federation is
+   *  not configured. Always openExternal-permitted: it is either this repo's
+   *  issues page or an admin-delivered URL whose origin is allowlisted. */
+  supportUrl: string | null;
+}
+
 export interface ApiKeyStatus {
   hasKey: boolean;
   source: ApiKeySource;
@@ -58,13 +89,23 @@ export interface ApiKeyStatus {
   hasStoredCiphertext: boolean;
 }
 
+/** Which stage of a federated connection test failed. The API-key path is a
+ *  single call, so it only ever reports 'api'. */
+export type ConnectionLeg = 'signIn' | 'exchange' | 'api';
+
 /** Result of a connectivity test (expected failures are returned, not thrown). */
-export interface TestKeyResult {
+export interface TestConnectionResult {
   ok: boolean;
+  /** Which credential was tested. A literal union rather than an import from
+   *  main, so this shared contract stays main-agnostic. */
+  mode?: AuthCredentialMode;
   /** Model the test validated against (on success). */
   model?: string;
   /** Friendly failure reason (on failure). */
   error?: string;
+  /** Which leg failed. Present on failure; the whole point of the three-leg test,
+   *  since every assertion denial from Anthropic is the same opaque 401. */
+  leg?: ConnectionLeg;
 }
 
 /** Pre-send cost estimate for SOP generation (shown on the review screen). */
@@ -183,10 +224,16 @@ export const IpcChannels = {
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
-  claudeTestKey: 'claude:test-key',
+  claudeTestConnection: 'claude:test-connection',
   claudeEstimate: 'claude:estimate',
   claudeGenerateSop: 'claude:generate-sop',
   claudeCancel: 'claude:cancel',
+  // Entra sign-in (#63). Verbs, not values: nothing here returns a token, an
+  // assertion, or any claim. Connectivity testing stays on claude:test-connection,
+  // which now reports which credential it tested.
+  authStatus: 'auth:status',
+  authSignIn: 'auth:sign-in',
+  authSignOut: 'auth:sign-out',
   revertSop: 'projects:revert-sop',
   // main -> renderer: SOP generation progress
   claudeSopProgress: 'claude:sop-progress',
@@ -424,6 +471,20 @@ export interface ShotaiApi {
      */
     onAvailable(cb: (r: UpdateCheckResult) => void): () => void;
   };
+  auth: {
+    /** How this machine authenticates. Never returns a token or a claim. */
+    status(): Promise<AuthStatus>;
+    /**
+     * Interactive Microsoft sign-in in the SYSTEM browser. User-initiated only.
+     * Also the correct action for "retry after IT granted me the role": an
+     * interactive sign-in always returns fresh claims, whereas a silent retry
+     * re-serves a cached token that predates the assignment and carries no
+     * roles claim, which looks exactly like a broken rule.
+     */
+    signIn(): Promise<void>;
+    /** Forget the cached Entra account. Leaves any stored API key untouched. */
+    signOut(): Promise<void>;
+  };
   claude: {
     /** Whether an API key is available and how — never returns the key itself. */
     keyStatus(): Promise<ApiKeyStatus>;
@@ -431,8 +492,12 @@ export interface ShotaiApi {
     setApiKey(key: string): Promise<void>;
     /** Remove the stored API key. */
     clearApiKey(): Promise<void>;
-    /** Validate connectivity using the stored/env key + the selected model. */
-    testKey(): Promise<TestKeyResult>;
+    /**
+     * Validate connectivity end to end. Under federation this runs THREE legs
+     * separately (silent Entra token, token exchange, then an API call) and names
+     * the one that failed; on the API-key path it is a single call.
+     */
+    testConnection(): Promise<TestConnectionResult>;
     /** Estimate the token count + cost of generating the SOP for this project. */
     estimate(projectPath: string): Promise<SopEstimate>;
     /**

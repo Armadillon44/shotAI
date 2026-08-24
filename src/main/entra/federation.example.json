@@ -1,0 +1,26 @@
+{
+  "_README": [
+    "Entra SSO / Workload Identity Federation values (#63).",
+    "Copy this file to federation.local.json (gitignored) and fill it in.",
+    "vite.main.config.ts bakes it into the main bundle at build time. If the file",
+    "is absent the app is simply unconfigured and behaves exactly as it does today",
+    "(bring-your-own-key), which is correct for anyone outside the organization.",
+    "The registry policy key HKLM\\SOFTWARE\\Policies\\shotAI\\Federation overrides",
+    "any value here, so IT can correct a rotated rule without a new installer.",
+    "None of these is a credential (the Entra JWT is what authenticates), but",
+    "together they identify one organization's tenant and Anthropic org, which is",
+    "why they are never committed to this public repository.",
+    "AudienceAppId must be the BARE app-ID GUID, with no api:// prefix.",
+    "ClientAppId is optional: omit it when one registration is both the client and",
+    "the audience, which is the deployed topology and what macOS ships.",
+    "WorkspaceId is optional; omit it to let a single-workspace rule pick its own.",
+    "SupportUrl is optional and must be https. Its host must also be permitted by",
+    "the openExternal allowlist in ipc.ts, or the link is silently refused."
+  ],
+  "TenantId": "00000000-0000-0000-0000-000000000000",
+  "AudienceAppId": "00000000-0000-0000-0000-000000000000",
+  "FederationRuleId": "fdrl_REPLACE_ME",
+  "OrganizationId": "00000000-0000-0000-0000-000000000000",
+  "ServiceAccountId": "svac_REPLACE_ME",
+  "WorkspaceId": "wrkspc_REPLACE_ME"
+}

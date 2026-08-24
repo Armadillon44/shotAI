@@ -151,11 +151,16 @@ const api: ShotaiApi = {
       return () => ipcRenderer.removeListener(IpcChannels.updateAvailable, listener);
     },
   },
+  auth: {
+    status: () => ipcRenderer.invoke(IpcChannels.authStatus),
+    signIn: () => ipcRenderer.invoke(IpcChannels.authSignIn),
+    signOut: () => ipcRenderer.invoke(IpcChannels.authSignOut),
+  },
   claude: {
     keyStatus: () => ipcRenderer.invoke(IpcChannels.claudeKeyStatus),
     setApiKey: (key: string) => ipcRenderer.invoke(IpcChannels.claudeSetKey, key),
     clearApiKey: () => ipcRenderer.invoke(IpcChannels.claudeClearKey),
-    testKey: () => ipcRenderer.invoke(IpcChannels.claudeTestKey),
+    testConnection: () => ipcRenderer.invoke(IpcChannels.claudeTestConnection),
     estimate: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.claudeEstimate, projectPath),
     generateSop: (projectPath: string) =>

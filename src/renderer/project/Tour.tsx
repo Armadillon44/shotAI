@@ -39,7 +39,12 @@ const STEPS: TourStep[] = [
   {
     anchor: 'settings',
     headline: 'Let Claude write the guide',
-    body: 'When you’re ready for AI-written instructions, open ⚙ Settings → AI and add an Anthropic API key (your organization may provide one, or create your own — billed per use). Then hit “✨ Generate SOP with Claude”.',
+    // Sign-in leads for EVERY user, not only where federation is configured: it is
+    // the intended default and the only path that costs the user nothing. The
+    // "if sign-in isn't offered" clause is load-bearing rather than hedging, since
+    // Settings renders the Microsoft group only on a configured build, and telling
+    // someone to click a control that is not there is the failure this avoids.
+    body: 'Open ⚙ Settings → AI and choose “Sign in with Microsoft” to use your work account. No API key needed. If sign-in isn’t offered there, your organization hasn’t set it up, so add your own Anthropic API key instead. Then hit “✨ Generate SOP with Claude”.',
   },
 ];
 
@@ -52,10 +57,15 @@ export function Tour({ onClose }: { onClose: () => void }): React.JSX.Element {
   const step = STEPS[i];
 
   const finish = React.useCallback(() => onClose(), [onClose]);
-  const next = React.useCallback(
-    () => setI((n) => (n >= STEPS.length - 1 ? (finish(), n) : n + 1)),
-    [finish],
-  );
+  // finish() must NOT live inside the setI updater. React requires updaters to be
+  // pure and double-invokes them under StrictMode (which the project renderer
+  // enables), so the old form fired onClose TWICE — visible in a real session log as
+  // two settings:set-has-seen-tour writes 2ms apart. Harmless only because that
+  // write happens to be idempotent.
+  const next = React.useCallback(() => {
+    if (i >= STEPS.length - 1) finish();
+    else setI((n) => n + 1);
+  }, [i, finish]);
   const back = React.useCallback(() => setI((n) => Math.max(0, n - 1)), []);
 
   // Measure the anchor for this step, and keep it fresh on resize/scroll.

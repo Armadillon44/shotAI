@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources revision="1.0" schemaVersion="1.0"
+    xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>shotAI</displayName>
+  <description>Policy settings for shotAI.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_shotAI_Federation">shotAI 1.2 and later, Windows</string>
+      <string id="Cat_shotAI">shotAI</string>
+      <string id="Cat_Federation">Authentication</string>
+
+      <string id="FederationConfig">Configure Microsoft Entra sign-in for Claude</string>
+
+      <string id="FederationConfig_Explain">Lets users sign in with their work account instead of pasting a personal Anthropic API key. shotAI trades the resulting Entra token for a short-lived Anthropic token; access is granted by assigning the shotAI.User app role, and revoked by removing it.
+
+None of the values below is a secret. The Entra token is what authenticates, and an OAuth client id is expected to be public. They do identify your tenant and your Anthropic organization, so treat them as internal rather than published.
+
+If this policy is Not Configured or Disabled, shotAI uses whatever values were built into the installer, and falls back to asking each user for their own Anthropic API key if there are none. That is the correct behavior for anyone outside your organization.
+
+Values set here OVERRIDE the built-in ones, which is how a rotated federation rule is corrected without deploying a new installer.
+
+IMPORTANT: the configuration is validated as a whole and FAILS CLOSED. If any required value is missing or malformed, shotAI ignores the entire policy and reverts to bring-your-own-key rather than attempting a half-configured sign-in, which would fail with an error that names no cause. Set all five required values together.
+
+Where to find each value:
+
+Tenant ID, Audience application ID - the Microsoft Entra admin center, on the app registration used for shotAI. The audience value must be the BARE application (client) ID GUID, with no api:// prefix.
+
+Federation rule ID, Organization ID, Service account ID, Workspace ID - the Claude Console, under Settings then Workload identity.
+
+After changing this policy, users must restart shotAI, or reopen Settings, for the new values to be read.</string>
+
+      <string id="TenantId">Tenant ID (required)</string>
+      <string id="TenantId_Help">The Microsoft Entra directory (tenant) ID. A GUID.</string>
+
+      <string id="AudienceAppId">Audience application ID (required)</string>
+      <string id="AudienceAppId_Help">The application (client) ID of the app registration that the Anthropic federation rule expects as the token audience. Enter the bare GUID, NOT the api:// identifier URI.</string>
+
+      <string id="FederationRuleId">Federation rule ID (required)</string>
+      <string id="FederationRuleId_Help">From the Claude Console, Settings then Workload identity. Begins with fdrl_.</string>
+
+      <string id="OrganizationId">Anthropic organization ID (required)</string>
+      <string id="OrganizationId_Help">Your Anthropic organization ID. A GUID.</string>
+
+      <string id="ServiceAccountId">Service account ID (required)</string>
+      <string id="ServiceAccountId_Help">The Anthropic service account the federated token acts as. Begins with svac_. Usage and rate limits are attributed to this account, shared by every signed-in user.</string>
+
+      <string id="ClientAppId">Client application ID (optional)</string>
+      <string id="ClientAppId_Help">Leave blank when one app registration serves as both the desktop client and the token audience, which is the usual arrangement. Set it only if you registered a SEPARATE client application for the desktop app. A value here must be a GUID; a malformed one fails the whole policy closed.</string>
+
+      <string id="WorkspaceId">Workspace ID (optional)</string>
+      <string id="WorkspaceId_Help">Begins with wrkspc_. Leave blank to let a single-workspace federation rule choose its own workspace. Required only when the rule is enabled in more than one. A malformed value fails the whole policy closed, because it takes part in the token exchange and a typo there produces the same error as a missing app role.</string>
+
+      <string id="SupportUrl">Request access URL (optional)</string>
+      <string id="SupportUrl_Help">Where shotAI sends a user who signed in successfully but has not been granted the shotAI.User role - a ticket form, for example. Must be https. Leave blank to point at the shotAI project's issues page. A malformed value is ignored and the default is used; it does not fail the policy.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="FederationConfig">
+        <textBox refId="TenantId">
+          <label>Tenant ID (required)</label>
+        </textBox>
+        <textBox refId="AudienceAppId">
+          <label>Audience application ID, bare GUID (required)</label>
+        </textBox>
+        <textBox refId="FederationRuleId">
+          <label>Federation rule ID, fdrl_... (required)</label>
+        </textBox>
+        <textBox refId="OrganizationId">
+          <label>Anthropic organization ID (required)</label>
+        </textBox>
+        <textBox refId="ServiceAccountId">
+          <label>Service account ID, svac_... (required)</label>
+        </textBox>
+        <textBox refId="ClientAppId">
+          <label>Client application ID (optional)</label>
+        </textBox>
+        <textBox refId="WorkspaceId">
+          <label>Workspace ID, wrkspc_... (optional)</label>
+        </textBox>
+        <textBox refId="SupportUrl">
+          <label>Request access URL, https (optional)</label>
+        </textBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

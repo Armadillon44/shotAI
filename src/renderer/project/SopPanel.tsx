@@ -6,7 +6,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import type { ProjectStep } from '../../shared/project';
-import type { SopEstimate, SopProgress } from '../../shared/ipc';
+import type { SopEstimate, SopProgress, AuthStatus } from '../../shared/ipc';
 import { shotUrl, useProjectStore } from './store';
 import { ensureFlattened } from './sop-prepare';
 import { useConfirm } from '../useConfirm';
@@ -52,7 +52,11 @@ export function SopPanel({
   const [error, setError] = React.useState<string | null>(null);
   const [estimate, setEstimate] = React.useState<SopEstimate | null>(null);
   const [progress, setProgress] = React.useState<SopProgress | null>(null);
+  // EITHER credential is enough to generate: a federated Entra sign-in or a
+  // stored API key. Gating on the key alone silently blocked signed-in users,
+  // even though main had already authenticated them.
   const [hasKey, setHasKey] = React.useState(false);
+  const [auth, setAuth] = React.useState<AuthStatus | null>(null);
   // Abort the pre-send flatten (renderer) alongside the main-side estimate when
   // the user cancels; canceledRef suppresses the resulting rejection so no error
   // banner flashes for a user-initiated cancel (C2).
@@ -62,13 +66,40 @@ export function SopPanel({
 
   React.useEffect(() => {
     if (!sopEnabled) return;
-    window.shotai.claude
-      .keyStatus()
-      .then((k) => setHasKey(k.hasKey))
-      .catch(() => undefined);
+    let alive = true;
+    const read = async () => {
+      try {
+        const [k, a] = await Promise.all([
+          window.shotai.claude.keyStatus(),
+          window.shotai.auth.status(),
+        ]);
+        if (!alive) return;
+        setHasKey(k.hasKey);
+        setAuth(a);
+      } catch {
+        /* leave the affordance disabled rather than guessing */
+      }
+    };
+    void read();
+    // Re-read on focus: signing in happens in Settings (and in a browser), so
+    // without this the button can stay disabled after a successful sign-in until
+      // the panel happens to remount. Same pattern the home list already uses.
+    window.addEventListener('focus', read);
+    return () => {
+      alive = false;
+      window.removeEventListener('focus', read);
+    };
   }, [sopEnabled]);
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+
+  // Federation available => point at sign-in; otherwise at the API key. main
+  // decides which credential is actually used (claude-auth.makeClient).
+  const fedAvailable = !!auth?.federationAvailable;
+  const canGenerate = !!auth?.signedIn || hasKey;
+  const needCredentialMsg = fedAvailable
+    ? 'Sign in with Microsoft in ⚙ Settings first'
+    : 'Set an Anthropic API key in ⚙ Settings first';
 
   // Steps actually sent to Claude = current steps minus a prior run's inserts
   // (matches assembleRequest), so the review preview + numbering are accurate.
@@ -170,11 +201,11 @@ export function SopPanel({
           <button
             type="button"
             className="btn btn--primary"
-            disabled={busy || shotCount === 0 || !hasKey}
+            disabled={busy || shotCount === 0 || !canGenerate}
             onClick={() => void startGenerate()}
             title={
-              !hasKey
-                ? 'Set an Anthropic API key in Settings first'
+              !canGenerate
+                ? needCredentialMsg
                 : shotCount === 0
                   ? 'Capture or import at least one screenshot first'
                   : 'Have Claude write headings + instructions for each screenshot'
@@ -192,17 +223,17 @@ export function SopPanel({
             ↩ Revert AI edits
           </button>
         )}
-        {sopEnabled && !hasKey && (
+        {sopEnabled && !canGenerate && (
           <span className="sopbar__hint">
             {onOpenSettings ? (
               <>
                 <button type="button" className="sopbar__link" onClick={onOpenSettings}>
-                  Add an API key in ⚙ Settings
+                  {fedAvailable ? 'Sign in with Microsoft in ⚙ Settings' : 'Add an API key in ⚙ Settings'}
                 </button>{' '}
                 to generate.
               </>
             ) : (
-              'Set an API key in ⚙ Settings to generate.'
+              `${needCredentialMsg} to generate.`
             )}
           </span>
         )}

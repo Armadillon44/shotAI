@@ -6,7 +6,12 @@ import {
   shell,
   type IpcMainInvokeEvent,
 } from 'electron';
-import { IpcChannels, type AppInfo, type ExportFormat } from '../shared/ipc';
+import {
+  IpcChannels,
+  type AppInfo,
+  type AuthStatus,
+  type ExportFormat,
+} from '../shared/ipc';
 import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
 import { exportProject, chooseExportDirectory, revealExportDir } from './export';
@@ -56,11 +61,14 @@ import {
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
 import {
-  testKey as claudeTestKey,
+  testConnection as claudeTestConnection,
   estimate as claudeEstimate,
   generateSop as claudeGenerateSop,
   cancelClaude,
 } from './claude-service';
+import { appAuth } from './claude-auth';
+import { getFederationConfig } from './entra/config';
+import { DEFAULT_SUPPORT_URL } from './entra/config-validate';
 import { ipcLog } from './logger';
 
 function devLog(message: string): void {
@@ -270,9 +278,25 @@ export function registerIpcHandlers(
     // the release page an update notice links to (#54). github.com is matched EXACTLY
     // — not `.github.com` — so this can't be widened into user-content subdomains like
     // raw./objects./codeload.github.com.
-    const allowed =
+    let allowed =
       parsed.protocol === 'https:' &&
       (host === 'anthropic.com' || host.endsWith('.anthropic.com') || host === 'github.com');
+    // A configured SupportUrl (#63) is delivered by an administrator via HKLM or
+    // the build, so it is trusted the same way the policy key itself is. Matched by
+    // exact ORIGIN so it cannot widen into sibling hosts, and only consulted when
+    // federation is actually configured. Without this, the "Request access" link
+    // would be silently refused and logged — exactly how the v1.1.6 update-check
+    // download link failed.
+    if (!allowed && parsed.protocol === 'https:') {
+      const cfg = await getFederationConfig();
+      if (cfg?.supportUrl) {
+        try {
+          allowed = new URL(cfg.supportUrl).origin === parsed.origin;
+        } catch {
+          /* a malformed configured URL never widens the allowlist */
+        }
+      }
+    }
     if (!allowed) {
       ipcLog.warn(`refused openExternal for non-allowlisted URL: ${parsed.origin}`);
       return false;
@@ -725,9 +749,48 @@ export function registerIpcHandlers(
     devLog('ipc: claude:clear-key');
     return clearApiKey();
   });
-  ipcMain.handle(IpcChannels.claudeTestKey, () => {
-    devLog('ipc: claude:test-key');
-    return claudeTestKey();
+
+  // --- Entra sign-in (#63). Verbs only; no token, assertion or claim crosses
+  // this boundary, and the log lines carry channel names only.
+  ipcMain.handle(IpcChannels.authStatus, async (): Promise<AuthStatus> => {
+    devLog('ipc: auth:status');
+    const auth = appAuth();
+    const cfg = await auth.federation();
+    const entra = cfg ? await auth.entra() : null;
+    const account = entra ? await entra.signedInAccount() : null;
+    const key = await getApiKeyStatus();
+    const signedIn = !!account;
+    return {
+      mode: signedIn ? 'federated' : key.hasKey ? 'apiKey' : 'none',
+      federationAvailable: !!cfg,
+      signedIn,
+      account: account?.username ?? null,
+      encryptionAvailable: key.encryptionAvailable,
+      hasStoredCiphertext: key.hasStoredCiphertext,
+      supportUrl: cfg ? (cfg.supportUrl ?? DEFAULT_SUPPORT_URL) : null,
+    };
+  });
+  ipcMain.handle(IpcChannels.authSignIn, async () => {
+    devLog('ipc: auth:sign-in');
+    const entra = await appAuth().entra();
+    if (!entra) {
+      throw new Error('shotAI is not set up for Microsoft sign-in on this machine.');
+    }
+    // Discard the returned token: it must not cross the IPC boundary, and the
+    // SDK re-acquires silently from the cache this call just populated.
+    await entra.signInInteractive();
+  });
+  ipcMain.handle(IpcChannels.authSignOut, async () => {
+    devLog('ipc: auth:sign-out');
+    const entra = await appAuth().entra();
+    // Removing the accounts flushes the MSAL cache through the safeStorage
+    // plugin, so no refresh token is left readable. A stored API key is
+    // deliberately NOT touched: signing out must not destroy the other credential.
+    await entra?.signOut();
+  });
+  ipcMain.handle(IpcChannels.claudeTestConnection, () => {
+    devLog('ipc: claude:test-connection');
+    return claudeTestConnection();
   });
   ipcMain.handle(
     IpcChannels.revertSop,
