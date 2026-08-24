@@ -167,7 +167,14 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
   // without ever seeing it. Send it (when present) ahead of the steps so it
   // frames every caption and instruction that follows.
   const intro = authorIntro(manifest);
-  if (intro) content.push({ type: 'text', text: authorIntroBlock(intro) });
+  if (intro) {
+    // The second argument is the whole point of #64: the same text gets opposite
+    // instructions depending on whether a human wrote it.
+    content.push({
+      type: 'text',
+      text: authorIntroBlock(intro, manifest.introEditedByUser === true),
+    });
+  }
 
   for (let idx = 0; idx < source.length; idx++) {
     const step = source[idx];

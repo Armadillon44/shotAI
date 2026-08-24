@@ -58,6 +58,7 @@ export function applySopEdits(
       steps: structuredClone(manifest.steps),
       title: manifest.title,
       intro: manifest.intro,
+      ...(manifest.introEditedByUser === true ? { introEditedByUser: true } : {}),
       model: provenance.model,
       tone: provenance.tone,
       at: new Date().toISOString(),
@@ -66,10 +67,32 @@ export function applySopEdits(
     // The overview is a PREAMBLE, not a step (E4): store it on the manifest and
     // render it above the steps. A fresh generate replaces it (or clears it if
     // the model returned none).
-    manifest.intro =
-      plan.intro && (plan.intro.heading || plan.intro.body)
-        ? { heading: plan.intro.heading, body: plan.intro.body }
+    const aiIntro =
+      plan.intro && (plan.intro.heading || plan.intro.body) ? plan.intro : null;
+    if (manifest.introEditedByUser === true) {
+      // #64 gentle massage: an overview the AUTHOR wrote is reworded, never
+      // replaced. The heading is PINNED here rather than merely requested in the
+      // prompt, because an instruction the model can quietly ignore is not a
+      // guarantee — and the heading is precisely what a regeneration was seen to
+      // overwrite.
+      const authorHeading = (manifest.intro?.heading ?? '').trim();
+      // These two fallbacks ARE the no-delete guarantee: a model that returns no
+      // intro leaves the author's own heading and body in place, where the old
+      // unconditional assignment wiped the overview entirely. The ternary’s null
+      // arm is unreachable in practice — setProjectIntro only flags a NON-empty
+      // intro — but it keeps the types honest for a hand-edited manifest.
+      const body = (aiIntro?.body ?? '').trim() || (manifest.intro?.body ?? '');
+      const heading = authorHeading || (aiIntro?.heading ?? '');
+      manifest.intro = heading || body ? { heading, body } : null;
+      // The flag SURVIVES on purpose: the author's heading is still in there
+      // verbatim, so the next run has to protect it too. Contrast mergeAiStepText,
+      // which DROPS captionEditedByUser — there Claude's caption replaces the
+      // human text outright, so the flag must not outlive it.
+    } else {
+      manifest.intro = aiIntro
+        ? { heading: aiIntro.heading, body: aiIntro.body }
         : null;
+    }
 
     // Rebuild from the non-AI base (current steps minus a prior run's inserts),
     // matching the numbering assembleRequest showed Claude. Author text steps and
@@ -118,6 +141,10 @@ export function revertSop(projectPath: string): Promise<ProjectManifest> {
     manifest.steps = normalizeSteps(manifest.sopBackup.steps);
     manifest.title = manifest.sopBackup.title;
     manifest.intro = manifest.sopBackup.intro;
+    // Restore WHY it was protected, not just the text (#64). Dropping the flag
+    // here would leave a reverted author overview freely rewritable next run.
+    if (manifest.sopBackup.introEditedByUser === true) manifest.introEditedByUser = true;
+    else delete manifest.introEditedByUser;
     manifest.sopBackup = null;
   });
 }

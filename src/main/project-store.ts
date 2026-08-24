@@ -91,6 +91,9 @@ function coerceSopBackup(raw: unknown): SopBackup | null {
     steps: normalizeSteps(r.steps),
     title: r.title,
     intro: coerceIntro(r.intro),
+    // Omitted rather than stored false, so a manifest that never had an authored
+    // overview stays byte-identical to one written before #64.
+    ...(r.introEditedByUser === true ? { introEditedByUser: true as const } : {}),
     model: typeof r.model === 'string' ? r.model : '',
     tone: isSopTone(r.tone) ? r.tone : DEFAULT_SOP_TONE,
     at: typeof r.at === 'string' ? r.at : '',
@@ -120,6 +123,11 @@ export function coerceManifest(
     captureSettings: parsed.captureSettings ?? null,
     steps: normalizeSteps(parsed.steps),
     intro: coerceIntro(parsed.intro),
+    // MUST be coerced explicitly. This function rebuilds the manifest field by
+    // field, so an uncoerced field is silently dropped on EVERY read — the flag
+    // would never survive a reload, and a macOS-authored project's flag would be
+    // discarded on open, handing Claude an overview it is free to rewrite.
+    ...(parsed.introEditedByUser === true ? { introEditedByUser: true as const } : {}),
     sopBackup: coerceSopBackup(parsed.sopBackup),
     archived: parsed.archived === true,
     archivedAt: typeof parsed.archivedAt === 'string' ? parsed.archivedAt : null,
@@ -556,6 +564,12 @@ export function setProjectIntro(
   const clean = coerceIntro(intro);
   return mutate(projectPath, (manifest) => {
     manifest.intro = clean;
+    // THE human-edit seam (#64). This is the only path a person's own overview
+    // reaches the manifest through — sop-apply assigns manifest.intro directly —
+    // so flagging here cannot mistake Claude's text for the author's. Clearing the
+    // overview clears the flag: there is nothing left to protect.
+    if (clean) manifest.introEditedByUser = true;
+    else delete manifest.introEditedByUser;
   });
 }
 

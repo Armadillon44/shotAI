@@ -155,6 +155,47 @@ describe('authorIntroBlock', () => {
   });
 });
 
+describe('authorIntroBlock — the two modes (#64)', () => {
+  const intro = { heading: 'Onboarding a vendor', body: 'Finance staff only.' };
+
+  it('tells Claude it may rewrite an overview no human touched', () => {
+    const t = authorIntroBlock(intro, false);
+    expect(t).toContain('AUTHORITATIVE CONTEXT');
+    expect(t).toContain('rewrite it freely');
+  });
+
+  it('tells Claude to massage, not replace, an overview the author wrote', () => {
+    const t = authorIntroBlock(intro, true);
+    expect(t).toContain('kept exactly as written');
+    expect(t).toContain('reword only for clarity');
+    // The opposite instruction must be GONE, not merely outweighed — the observed
+    // failure was Claude following the permissive half of a mixed message.
+    expect(t).not.toContain('rewrite it freely');
+    expect(t).not.toContain('not as text to protect');
+  });
+
+  it('says the heading is restored, because sop-apply pins it', () => {
+    // The prompt must not promise something the code does not enforce, and must
+    // not stay silent about enforcement either: telling the model its heading is
+    // kept stops it burning effort rewording a field that gets overwritten.
+    expect(authorIntroBlock(intro, true)).toContain('shotAI restores it');
+  });
+
+  it('carries the heading and body in both modes', () => {
+    for (const edited of [true, false]) {
+      const t = authorIntroBlock(intro, edited);
+      expect(t).toContain('Onboarding a vendor');
+      expect(t).toContain('Finance staff only.');
+    }
+  });
+
+  it('defaults to the permissive mode when the flag is omitted', () => {
+    // Documents the default deliberately: an un-updated caller gets the PRE-#64
+    // behavior rather than silently protecting machine-written text.
+    expect(authorIntroBlock(intro)).toContain('rewrite it freely');
+  });
+});
+
 describe('captionForPrompt', () => {
   it('uses the pre-AI original by default, so regeneration cannot compound', () => {
     expect(

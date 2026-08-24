@@ -88,26 +88,51 @@ export function authorIntro(manifest: Pick<ProjectManifest, 'intro'>): SopIntro 
 }
 
 /**
- * The author-overview block, wording matched to macOS.
+ * The author-overview block, in one of TWO modes (#64).
  *
- * "Authoritative context, not text to protect" is the deliberate stance. Telling
- * Claude to preserve the literal text produces a worse overview than letting it
- * rewrite for clarity while forbidding the thing that actually harms the user:
- * contradicting or quietly dropping facts and constraints only the author knows.
+ * The distinction exists because the overview has no other provenance. An intro
+ * Claude wrote last run and an intro the author wrote look identical on disk, so
+ * `edited` — set only by setProjectIntro, the human path — is the only thing that
+ * says whose words these are.
+ *
+ * NOT edited: the original stance, matched to macOS. Claude may rewrite freely,
+ * because "preserve this text" applied to Claude's own prior output just freezes
+ * the first draft forever. What it may never do is contradict or silently drop a
+ * fact only the author knows.
+ *
+ * Edited: gentle massage. The author's wording carries intent the screenshots
+ * cannot show, so it survives. The HEADING is not merely requested — sop-apply
+ * pins it back after the reply, and the prompt says so, because an instruction the
+ * model can quietly ignore is not a guarantee. The body is theirs to reword for
+ * clarity and voice, never to replace.
  */
-export function authorIntroBlock(intro: SopIntro): string {
-  const parts = ['--- The author already wrote this overview ---'];
+export function authorIntroBlock(intro: SopIntro, edited = false): string {
+  const parts = [
+    edited
+      ? '--- The author WROTE this overview themselves — their words ---'
+      : '--- The author already wrote this overview ---',
+  ];
   if (intro.heading) parts.push(`Heading: ${intro.heading}`);
   if (intro.body) parts.push(`Body: ${intro.body}`);
   parts.push(
     '',
-    'Treat this as AUTHORITATIVE CONTEXT, not as text to protect. It states intent, ' +
-      'audience, scope or constraints that the screenshots cannot show you, and it is the ' +
-      "author's own knowledge of the process. Let it inform the whole guide: your `intro` " +
-      'and the wording and emphasis of every step. You may rewrite it freely for clarity, ' +
-      'structure and tone — write the best overview you can. What you must not do is ' +
-      'CONTRADICT or SILENTLY DROP the facts and constraints it states; those are things ' +
-      'the author knows and you do not.',
+    edited
+      ? "This is the AUTHOR'S OWN overview and they have edited it, so their wording " +
+        'states intent, audience, scope or constraints the screenshots cannot show you. ' +
+        'Their HEADING is kept exactly as written — shotAI restores it after you reply, ' +
+        'so do not spend effort rewording it. For the BODY: reword only for clarity, ' +
+        'grammar and voice, and you may ADD context the steps reveal. Do NOT restructure ' +
+        'it, do NOT replace it with your own framing, and do NOT drop any fact, ' +
+        'constraint or audience note it states. If it already reads well, return it ' +
+        'essentially unchanged — that is a correct answer here. Substituting a better ' +
+        'overview of your own is not.'
+      : 'Treat this as AUTHORITATIVE CONTEXT, not as text to protect. It states intent, ' +
+        'audience, scope or constraints that the screenshots cannot show you, and it is ' +
+        "the author's own knowledge of the process. Let it inform the whole guide: your " +
+        '`intro` and the wording and emphasis of every step. You may rewrite it freely ' +
+        'for clarity, structure and tone — write the best overview you can. What you ' +
+        'must not do is CONTRADICT or SILENTLY DROP the facts and constraints it ' +
+        'states; those are things the author knows and you do not.',
   );
   return parts.join('\n');
 }
