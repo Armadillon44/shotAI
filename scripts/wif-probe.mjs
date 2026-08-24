@@ -26,8 +26,8 @@ import {
   exchangeAssertion,
   hasAppRole,
 } from '../src/main/entra/federation.ts';
-import { createNetworkModule } from '../src/main/entra/net-module.ts';
-import { createEntraClient, scopeFor } from '../src/main/entra/msal.ts';
+import { scopeFor } from '../src/main/entra/msal.ts';
+import { createAuth } from '../src/main/entra/auth-core.ts';
 
 const AZURE_CLI_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
 const LOCAL = 'src/main/entra/federation.local.json';
@@ -85,30 +85,35 @@ const countingFetch = (url, init) => {
   return fetch(url, init);
 };
 
-const entra = createEntraClient(
-  // Client id overridden for the PROBE only; audience, tenant and rule are real.
-  { ...cfg, clientAppId: AZURE_CLI_CLIENT_ID },
-  {
-    openBrowser: async (url) => {
-      info(`handing off authorize URL (scope present: ${new URL(url).searchParams.has('scope')})`);
-      // NOT `cmd /c start`: cmd re-parses the command line it receives and '&' is
-      // its command separator, so the URL arrives TRUNCATED at the first '&' —
-      // client_id survives, scope does not, and Entra answers AADSTS900144 "the
-      // request body must contain the following parameter: 'scope'". rundll32 takes
-      // the URL as one argv with no shell parsing. Probe-only: the app uses
-      // shell.openExternal, which never involves a shell at all.
-      spawn('rundll32', ['url.dll,FileProtocolHandler', url], {
-        detached: true,
-        stdio: 'ignore',
-      }).unref();
-    },
-    networkClient: createNetworkModule(countingFetch),
-    // No cachePlugin: memory-only, so EVERY run is a fresh sign-in. That sidesteps
-    // the trap where a cached 60-90 minute token predates a role assignment, carries
-    // no roles claim, and makes a correct rule look broken.
-    log: (l) => info(l),
+const auth = createAuth({
+  // Counted, and used for BOTH the MSAL network module and the SDK token exchange.
+  fetchImpl: countingFetch,
+  openBrowser: async (url) => {
+    info(`handing off authorize URL (scope present: ${new URL(url).searchParams.has('scope')})`);
+    // NOT `cmd /c start`: cmd re-parses the command line it receives and '&' is its
+    // command separator, so the URL arrives TRUNCATED at the first '&' — client_id
+    // survives, scope does not, and Entra answers AADSTS900144. rundll32 takes the
+    // URL as one argv with no shell parsing. Probe-only: the app uses
+    // shell.openExternal, which never involves a shell at all.
+    spawn('rundll32', ['url.dll,FileProtocolHandler', url], {
+      detached: true,
+      stdio: 'ignore',
+    }).unref();
   },
-);
+  // No cachePlugin: memory-only, so EVERY run is a fresh sign-in. That sidesteps
+  // the trap where a cached 60-90 minute token predates a role assignment, carries
+  // no roles claim, and makes a correct rule look broken.
+  getFederationConfig: async () => ({ ...cfg, clientAppId: AZURE_CLI_CLIENT_ID }),
+  // Force the federated branch: a stray ANTHROPIC_API_KEY must not decide this.
+  getApiKey: async () => null,
+  log: (l) => info(l),
+});
+
+const entra = await auth.entra();
+if (!entra) {
+  bad('createAuth reported federation unavailable');
+  process.exit(1);
+}
 
 let assertion;
 try {
@@ -188,6 +193,28 @@ try {
 } catch (e) {
   bad(`${e?.constructor?.name ?? 'Error'}: ${e?.message ?? String(e)}`);
   info('A 403 AFTER a successful exchange means the rule scope is too narrow.');
+  process.exit(1);
+}
+
+// ------------------------------------- Leg 4: the PRODUCTION auth path
+leg(4, 'production path: SDK oidcFederationProvider + the client TokenCache');
+try {
+  const { client, mode } = await auth.makeClient();
+  ok(`makeClient() chose mode: ${mode}`);
+  if (mode !== 'federated') bad('expected the federated branch');
+  const before = netCalls;
+  const model = await client.models.retrieve('claude-sonnet-5');
+  ok(`models.retrieve through the SDK credentials path: ${model.id}`);
+  info(`the SDK made ${netCalls - before} exchange call(s) through our injected fetch`);
+  // A second call proves the client TokenCache serves the cached token rather than
+  // re-exchanging per request (oidcFederationProvider alone exchanges every time).
+  const mid = netCalls;
+  await client.models.retrieve('claude-sonnet-5');
+  const extra = netCalls - mid;
+  if (extra === 0) ok("second call re-used the cached token (0 extra exchanges)");
+  else bad(`second call triggered ${extra} extra exchange(s) — the TokenCache is not engaged`);
+} catch (e) {
+  bad(`${e?.constructor?.name ?? 'Error'}: ${e?.message ?? String(e)}`);
   process.exit(1);
 }
 
