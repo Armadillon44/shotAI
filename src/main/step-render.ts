@@ -20,6 +20,14 @@ export function applyPatchAndInvalidate(
   hasFreshPng: boolean,
 ): void {
   Object.assign(step, patch);
+  // A caption arriving in a PATCH is a human edit. The SOP apply path writes
+  // captions directly through ProjectStore.mutate and never comes through here,
+  // and the renderer only ever sends { caption } from the report's inline editor
+  // (which itself early-returns when the text is unchanged), so this cannot be
+  // tripped by an annotation save. Recording it is what lets a regenerate rewrite
+  // from the correction instead of falling back to the original auto-caption
+  // (#62 gap 3). Shared field: macOS reads and writes it too.
+  if (typeof patch.caption === 'string') step.captionEditedByUser = true;
   if (hasFreshPng) return; // caller writes the fresh render + sets flattened/renderRev
   if ('annotations' in patch || 'crop' in patch) {
     step.flattened = null;

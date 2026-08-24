@@ -259,6 +259,16 @@ export interface ProjectStep {
    *  heading (bold heading + thin rule + muted body), not a box. */
   callout?: CalloutKind;
   /**
+   * True once the AUTHOR has edited this caption by hand. Set by updateStep and
+   * CLEARED by applySopEdits when Claude overwrites the caption, so it never
+   * outlives the human text it describes.
+   *
+   * CROSS-PLATFORM: macOS writes and reads this same field (their #73). It is what
+   * lets a regenerate rewrite from a human correction instead of falling back to
+   * the original auto-caption. Do not rename or repurpose it on one platform only.
+   */
+  captionEditedByUser?: boolean;
+  /**
    * True for a text step that Claude's SOP generation inserted (intro / section
    * heading). Stripped + regenerated on the next run so they don't accumulate;
    * author-written text steps (no flag) are always preserved.
@@ -337,6 +347,12 @@ export interface SopBackup {
   title: string;
   /** The intro at snapshot time, so revert restores the pre-AI preamble too. */
   intro: SopIntro | null;
+  /**
+   * The authored-overview flag at snapshot time (#64), so revert restores WHY the
+   * intro was protected and not just its text. Without it, reverting an overview
+   * the author wrote would leave it unflagged and freely rewritable next run.
+   */
+  introEditedByUser?: boolean;
   /** Model + tone the (subsequent) generation used — for the "Revert" provenance label. */
   model: string;
   tone: SopTone;
@@ -359,6 +375,19 @@ export interface ProjectManifest {
   steps: ProjectStep[];
   /** SOP overview rendered as a preamble above the steps (not a step). */
   intro: SopIntro | null;
+  /**
+   * True once the AUTHOR has written or edited the overview themselves (#64).
+   *
+   * Without this, an overview Claude wrote on a previous run is indistinguishable
+   * from one the author wrote, so protecting the author's text would mean feeding
+   * Claude's own prior overview back as the author's intent, compounding every
+   * regeneration. Set ONLY on the human edit path (setProjectIntro); the SOP apply
+   * path writes manifest.intro directly and must never set it.
+   *
+   * CROSS-PLATFORM: the macOS app reads and writes this same field in the shared
+   * project.json (their #81, ours #64). Do not rename it, and do not repurpose it.
+   */
+  introEditedByUser?: boolean;
   /** Pre-edit snapshot enabling revert of Claude's inline SOP edits (Phase 3). */
   sopBackup: SopBackup | null;
   /**

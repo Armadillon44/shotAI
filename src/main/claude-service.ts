@@ -20,6 +20,13 @@ import { getProjectForRead } from './project-store';
 import { applySopEdits } from './sop-apply';
 import { resolveSendableRender } from './render-gate';
 import { MODEL_PARAMS, TONE_PROMPT } from './claude-models';
+import {
+  authorBlockGuidance,
+  authorIntro,
+  authorIntroBlock,
+  captionForPrompt,
+  textStepLabel,
+} from './sop-input';
 import { claudeLog } from './logger';
 
 /**
@@ -154,13 +161,33 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
     },
   ];
 
+  // #62 gap 1: the Overview used to be write-only — `intro` is in the OUTPUT
+  // schema but was referenced nowhere in the input, so an author who described
+  // the goal of the procedure had it silently replaced by a version written
+  // without ever seeing it. Send it (when present) ahead of the steps so it
+  // frames every caption and instruction that follows.
+  const intro = authorIntro(manifest);
+  if (intro) {
+    // The second argument is the whole point of #64: the same text gets opposite
+    // instructions depending on whether a human wrote it.
+    content.push({
+      type: 'text',
+      text: authorIntroBlock(intro, manifest.introEditedByUser === true),
+    });
+  }
+
   for (let idx = 0; idx < source.length; idx++) {
     const step = source[idx];
     const n = idx + 1;
     if (step.kind === 'text') {
-      const parts = [`--- Text step ${n} (author-written — leave this content alone) ---`];
+      const parts = [textStepLabel(n, step.callout)];
       if (step.heading) parts.push(`Heading: ${step.heading}`);
       if (step.body) parts.push(`Body: ${step.body}`);
+      // Kind-specific guidance sits WITH the block rather than in the system
+      // prompt: "leave it alone" does not tell Claude how the block relates to
+      // the steps around it, and the advice differs per kind.
+      const guidance = authorBlockGuidance(step.callout);
+      if (guidance) parts.push(guidance);
       content.push({ type: 'text', text: parts.join('\n') });
       continue;
     }
@@ -174,7 +201,10 @@ async function assembleRequest(projectPath: string): Promise<AssembledRequest> {
     });
 
     const orig = originalById?.get(step.id);
-    const caption = orig?.caption ?? step.caption;
+    // Pre-AI original by default so a regenerate is never fed Claude's own prior
+    // rewrite, EXCEPT when the author hand-edited the caption after a generation —
+    // that is a deliberate human correction and is exactly what to rewrite from.
+    const caption = captionForPrompt(step, orig);
     const meta = [`--- Screenshot step ${n} ---`];
     if (step.window?.app) meta.push(`App: ${step.window.app}`);
     if (step.window?.title) meta.push(`Window: ${step.window.title}`);
