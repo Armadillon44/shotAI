@@ -6,9 +6,13 @@ annotated step-by-step guide. Its differentiator: **Claude** rewrites the captur
 into a polished Standard Operating Procedure — overview, per-step instructions, and
 cautions/callouts.
 
-Everything runs and is stored **on your machine**. It makes exactly two kinds of network
-call: to Anthropic's API when you ask shotAI to write the SOP, and a once-a-day check for a
-newer shotAI release (switchable off in Settings). **Windows first**, macOS later.
+Everything runs and is stored **on your machine**, and every network call it makes is named.
+Three of them happen **only when you act**: Anthropic's API when you ask shotAI to write the
+SOP, Microsoft (`login.microsoftonline.com`) when you sign in and when shotAI renews that
+sign-in for a request you made, and a
+token exchange with Anthropic (`POST /v1/oauth/token`) that turns that sign-in into a
+short-lived Claude credential. Exactly one is **automatic**: a once-a-day check for a newer
+shotAI release (switchable off in Settings). **Windows first**, macOS later.
 
 > **Status:** **1.1.6** — shotAI now **tells you when a newer version is available**:
 > once a day at startup it checks the Releases page and shows a notice with a download
@@ -71,9 +75,10 @@ newer shotAI release (switchable off in Settings). **Windows first**, macOS late
    **local OCR** (offline) to find and suggest sensitive text. A quality slider controls
    how much screenshots are downscaled (file size vs. sharpness).
 
-3. **Generate the SOP (optional).** With **your own** Anthropic API key, Claude reads the
-   redaction-baked screenshots + captions and writes the guide **in place**: an overview,
-   section headings, and per-step titles + instructions — in your chosen **tone** and
+3. **Generate the SOP (optional).** Signed in with your **work account**, or with **your own**
+   Anthropic API key, Claude reads the redaction-baked screenshots + captions and writes
+   the guide **in place**: an overview,
+   section headings, and per-step titles + instructions, in your chosen **tone** and
    **effort**. Before anything is sent you see exactly which screenshots go out and an
    **estimated cost**; a single click **reverts** to your pre-AI version.
 
@@ -93,20 +98,37 @@ newer shotAI release (switchable off in Settings). **Windows first**, macOS late
 
 ### Privacy & local-first
 
-Projects (screenshots, manifest, exports) live in a folder you choose. Nothing is uploaded
-except SOP-generation requests, which go only to Anthropic (`api.anthropic.com`, pinned).
-The API key is yours, stored encrypted via Electron `safeStorage` (or read from
+Projects (screenshots, manifest, exports) live in a folder you choose. No project content is
+uploaded except in SOP-generation requests, which go only to Anthropic (`api.anthropic.com`,
+pinned). The API key is yours, stored encrypted via Electron `safeStorage` (or read from
 `ANTHROPIC_API_KEY`). **No telemetry.**
 
-The one other outbound call is the **update check**: once a day at startup, a plain GET to
-GitHub's public releases API for this repo, to see whether a newer version exists. It sends
-nothing about you or your projects, is unauthenticated, and can be turned off in
-**Settings → About**. shotAI never downloads or installs an update by itself — it only
+**Microsoft sign-in**, where an organization has configured it, sends nothing about your
+projects. Clicking **Sign in with Microsoft** opens your browser against
+`login.microsoftonline.com` for the configured tenant and requests one delegated scope on the
+app registration your administrator set up; shotAI then posts the resulting Entra access token
+to Anthropic's token endpoint and receives a short-lived Claude credential. The same silent
+renewal reaches Microsoft again without a click, when **Test connection** runs and when a
+generation you started needs a fresh token. The MSAL token
+cache is persisted **encrypted via Electron `safeStorage`** and is never written in plaintext;
+a cache that will not decrypt is treated as a cache miss, so you sign in again rather than
+hitting an error. The minted Claude token is short-lived, never written to disk, and never
+shown. What the renderer is told is deliberately narrow: the signed-in account, whether
+federation is configured, whether a session is signed in, whether OS encryption is available,
+and where **Request access** points. It carries no token, no expiry, no scope, no request id,
+and no claims, because the renderer has no decision to make with them. Still **no
+telemetry** in this mode either.
+
+The only call shotAI makes **on its own** is the **update check**: once a day at startup, a
+plain GET to GitHub's public releases API for this repo, to see whether a newer version
+exists. It sends nothing about you or your projects, is unauthenticated, and can be turned off
+in **Settings → About**. shotAI never downloads or installs an update by itself, it only
 tells you one exists and offers the release page.
 
-The renderer runs sandboxed, and its "open in browser" path is allowlisted to exactly two
-hosts: `anthropic.com` (+ subdomains) for the API-key docs, and `github.com` for that
-release page.
+The renderer runs sandboxed, and its "open in browser" path is allowlisted to
+`anthropic.com` (+ subdomains) for the API-key docs, `github.com` (matched exactly) for that
+release page, and, when Microsoft sign-in is configured, the configured support URL. That last
+one is matched by **exact origin**, so it cannot widen into sibling hosts.
 
 ## Tech stack
 
@@ -118,8 +140,10 @@ release page.
   click hook), `get-windows` (active window), `koffi` (FFI to a small Rust UI-Automation
   addon in `native/element-locator/` for the clicked-element name)
 - `konva` / `react-konva` (annotation editor), `tesseract.js` (local OCR for auto-redaction)
-- `@anthropic-ai/sdk` (SOP generation); `docx` / `pptxgenjs` / `jszip` (Word / PowerPoint /
-  package export + import)
+- `@anthropic-ai/sdk` (SOP generation, and its OIDC-federation credential provider);
+  `@azure/msal-node` (Microsoft sign-in; its token cache is persisted by shotAI, encrypted
+  via Electron `safeStorage`)
+- `docx` / `pptxgenjs` / `jszip` (Word / PowerPoint / package export + import)
 
 ## Architecture
 
@@ -189,14 +213,50 @@ Notes for deployment:
 See the wiki [Installation](https://github.com/Armadillon44/shotAI/wiki/Installation) page for
 the end-user walkthrough and the same deployment notes.
 
-## Claude API key
+## Claude access: work account or API key
 
-SOP generation is **bring-your-own-key** and off until you add one. Set it in
-**Settings → AI** (stored encrypted via Electron `safeStorage`) or via the
-`ANTHROPIC_API_KEY` environment variable. shotAI uses **Claude Sonnet 5** by default; the
-**tone** (Professional / Friendly / Concise / Detailed) and **effort** (Low / Medium /
-High) are configurable. With no key, capture, editing, redaction, and export all still work
-— only the AI SOP step is unavailable.
+SOP generation needs one of two credentials, and is off until it has one. Capture, editing,
+redaction, and export all work regardless; only the AI SOP step is unavailable without a
+credential. shotAI uses **Claude Sonnet 5** by default in either mode; the **tone**
+(Professional / Friendly / Concise / Detailed) and **effort** (Low / Medium / High) are
+configurable.
+
+**Microsoft sign-in (work account).** Where an administrator has configured federation for the
+machine, **Settings → AI** grows a **Microsoft sign-in** group once **AI SOP generation** is
+switched on: **Sign in with Microsoft**
+opens your browser, and from then on shotAI uses that work account for AI features. No API key
+is involved, and access is granted or revoked by the organization rather than by a key a user
+holds. **Test connection** reports its three legs separately (**Microsoft sign-in**, **Claude
+access**, **Claude API**), because every access denial from Anthropic is deliberately the same
+opaque 401 and the legs are the only way to tell them apart. The trap worth knowing: once
+access is granted, the user has to use **Sign in with Microsoft** again. A silent retry
+re-serves a cached Entra token that predates the grant and carries no role claim, which looks
+exactly like broken configuration.
+
+**Bring-your-own-key.** Set a key in **Settings → AI** (stored encrypted via Electron
+`safeStorage`) or via the `ANTHROPIC_API_KEY` environment variable. With federation configured
+the key field is still there, collapsed under **Use my own Anthropic API key instead**; with
+no federation configured the **Anthropic API key** group is shown outright, so nothing changes
+for anyone outside a configured organization.
+
+Precedence, exactly:
+
+1. Federation configured **and** signed in: **federated**. The API key is not consulted at
+   all, and `apiKey` is explicitly set to `null`, so a leftover `ANTHROPIC_API_KEY` cannot
+   silently disable federation.
+2. **Not signed in**: the API key (saved in-app, or `ANTHROPIC_API_KEY`).
+3. **Neither**: generation refuses, with "Sign in with your Microsoft account to use Claude."
+   when federation is configured and "Add an Anthropic API key in Settings to use Claude."
+   when it is not.
+
+Signing in therefore takes precedence over a stored key. A machine with federation configured
+but nobody signed in still works off an existing key, which is deliberate: a rollout strands
+nobody.
+
+Administrators: the federation settings are normally baked into the installer at build time
+and can be overridden by policy. See [docs/MANAGED-CONFIG.md](docs/MANAGED-CONFIG.md) for the
+settings themselves and [Intune/Windows/README.md](Intune/Windows/README.md) for the ADMX and
+the Intune-side rollout.
 
 ## Rendering (GPU)
 
