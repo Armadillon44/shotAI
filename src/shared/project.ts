@@ -373,6 +373,23 @@ export interface ProjectManifest {
   updatedAt: string; // ISO 8601
   captureSettings: CaptureTarget | null;
   steps: ProjectStep[];
+  /**
+   * Per-project document scale (#70): how wide the step cards, callouts, text
+   * steps, overview and screenshots render, in the report AND in every export.
+   *
+   * ABSENT means 1.0. Deliberately optional so every project written before #70
+   * stays byte-identical on disk and renders exactly as it always did, and so a
+   * project left at the default never carries the key at all.
+   *
+   * Legal values are the detents in shared/doc-scale.ts (0.65 to 1.25 by 0.05),
+   * clamped on read AND write. Chrome and font sizes do NOT scale, which is why
+   * the export image width is re-derived per scale rather than multiplied.
+   *
+   * CROSS-PLATFORM: macOS reads and writes this same field (their #83, ours #70).
+   * The name, the range and the clamp must match, or one project renders at two
+   * different widths depending on which app opened it last.
+   */
+  displayScale?: number;
   /** SOP overview rendered as a preamble above the steps (not a step). */
   intro: SopIntro | null;
   /**

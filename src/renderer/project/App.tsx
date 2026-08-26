@@ -326,15 +326,24 @@ export function App(): React.JSX.Element {
   // refresh recents then (while still in the project) so the home list shows the
   // new title immediately on return — not only on a later manual reload.
   const sopBackup = useProjectStore((s) => s.sopBackup);
+  // COMMITTED, not the live preview: see the store comment. Resizing on every drag
+  // step drags the slider out from under the pointer.
+  const committedScale = useProjectStore((s) => s.committedScale);
   React.useEffect(() => {
     refresh().catch(fail);
   }, [sopBackup, refresh]);
 
   // F5: tell main to widen the window to the report size in a project and shrink
-  // it back to the narrow list on the home screen.
+  // it back to the narrow list on the home screen. The project's displayScale
+  // (#70) goes with it, since a scaled-up report needs a wider window.
+  //
+  // This DOES re-run on every scale commit, not just the enter/leave transition,
+  // which is why setDetailView only ever GROWS an open window: setting the target
+  // width outright would discard a window the user had widened or maximized on every
+  // slider nudge. committedScale, not the live preview, or the resize fights the drag.
   React.useEffect(() => {
-    void window.shotai.setDetailView(!!openPath);
-  }, [openPath]);
+    void window.shotai.setDetailView(!!openPath, committedScale);
+  }, [openPath, committedScale]);
 
   // Re-list when main reports the project set changed (e.g. startup auto-archive
   // moved stale projects to the Archive tab).

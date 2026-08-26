@@ -9,6 +9,7 @@ import { ensureFlattened } from './sop-prepare';
 import { Report, type InsertKind } from './Report';
 import { CaptureInsertModal, type CaptureInsertVariant } from './CaptureInsertModal';
 import { SopPanel } from './SopPanel';
+import { SCALE_STEPS, clampScale, isLegalScale } from '../../shared/doc-scale';
 import { Editor } from '../editor/Editor';
 import { Notice } from '../Notice';
 
@@ -21,6 +22,179 @@ const EXPORT_LABEL: Record<ExportFormat, string> = {
   pptx: 'PowerPoint',
 };
 
+/**
+ * Per-project size control (#70). Scales the step cards, callouts, text steps,
+ * overview and screenshots, in the report and in every export.
+ *
+ * A slider plus a typable percentage. The slider range is an INDEX into the detent
+ * list, so dragging can only ever produce a legal value; the number box accepts any
+ * percent and snaps it on commit.
+ *
+ * Persisting happens on RELEASE, not per change. Two reasons, one of which was a real
+ * bug: a write per change event would mean up to 13 serialized disk writes for one
+ * drag, and the window resize that follows a commit was pulling the slider out from
+ * under the pointer, so a drag from 125% ran away to 65% no matter where you let go.
+ * The layout previews live from the store; only the window waits for the commit.
+ */
+function SizeSlider({
+  projectPath,
+}: {
+  projectPath: string;
+}): React.JSX.Element {
+  const displayScale = useProjectStore((s) => s.displayScale);
+  const committedScale = useProjectStore((s) => s.committedScale);
+  const preview = useProjectStore((s) => s.previewDisplayScale);
+  const applyManifest = useProjectStore((s) => s.applyManifest);
+  const idx = Math.max(0, SCALE_STEPS.indexOf(clampScale(displayScale)));
+
+  // Typing needs its own buffer: clamping every keystroke would turn "1" into 65
+  // before the user could reach "10", so a partial entry is held here and snapped on
+  // commit. Null means "not being edited", and the box shows the live scale.
+  const [draft, setDraft] = React.useState<string | null>(null);
+  // MIRRORED IN A REF because blur handlers read it synchronously. setDraft is
+  // async, so Escape doing `setDraft(null); blur()` left commitDraft closed over the
+  // OLD draft and committing the value the user just abandoned. The ref is the truth
+  // for every handler; the state exists only to render.
+  const draftRef = React.useRef<string | null>(null);
+  const setDraftBoth = (v: string | null) => {
+    draftRef.current = v;
+    setDraft(v);
+  };
+
+  // Monotonic id per write. A response older than the newest request must not touch
+  // the store: applyManifest sets displayScale, so a slow write landing after the
+  // user moved the slider again would yank the layout back to the earlier value.
+  const seqRef = React.useRef(0);
+
+  const persist = (value: number) => {
+    // Nothing to write. mutate() bumps updatedAt unconditionally, so a no-op save
+    // re-dates the project and jumps it to the top of the home list under "Today"
+    // purely because the slider was focused or clicked. Every neighbouring save path
+    // (saveCaption, saveBody, setCallout) guards the same way.
+    if (value === committedScale) return;
+    const seq = ++seqRef.current;
+    void window.shotai.projects
+      .setDisplayScale(projectPath, value)
+      .then((m) => {
+        if (seq === seqRef.current) applyManifest(m);
+      })
+      .catch(() => {
+        // Do NOT leave the optimistic value on screen: the report and every export
+        // read the store, so a swallowed failure means the document renders at a
+        // size the manifest does not have. Fall back to what is actually saved.
+        if (seq === seqRef.current) preview(committedScale);
+      });
+  };
+
+  /** Take effect now: abandon any draft, preview, and save. */
+  const apply = (next: number) => {
+    setDraftBoth(null);
+    preview(next);
+    persist(next);
+  };
+
+  /** Move n detents from where we are. Used by the up/down arrows. */
+  const step = (n: number) => {
+    const at = Math.max(0, SCALE_STEPS.indexOf(clampScale(displayScale)));
+    const to = Math.min(SCALE_STEPS.length - 1, Math.max(0, at + n));
+    if (to !== at) apply(SCALE_STEPS[to]);
+  };
+
+  const commitDraft = () => {
+    const held = draftRef.current;
+    if (held === null) return;
+    const pct = Number(held);
+    // An unparseable or empty entry reverts rather than snapping to a bound: the
+    // user cleared the box, they did not ask for 65%.
+    const next =
+      Number.isFinite(pct) && held.trim() !== '' ? clampScale(pct / 100) : displayScale;
+    setDraftBoth(null);
+    preview(next);
+    persist(next);
+  };
+
+  /** Throw the edit away. Blur must NOT then commit it. */
+  const abandonDraft = () => {
+    setDraftBoth(null);
+    preview(committedScale); // discard any live preview the draft produced
+  };
+  return (
+    <span className="detail__scale">
+      <label className="detail__scale-lab" htmlFor="doc-scale-range">
+        Size
+      </label>
+      <input
+        id="doc-scale-range"
+        type="range"
+        className="detail__scale-range"
+        min={0}
+        max={SCALE_STEPS.length - 1}
+        step={1}
+        value={idx}
+        aria-label="Document size"
+        aria-valuetext={`${Math.round(displayScale * 100)} percent`}
+        onChange={(e) => preview(SCALE_STEPS[Number(e.target.value)] ?? 1)}
+        onPointerUp={() => persist(displayScale)}
+        onKeyUp={() => persist(displayScale)}
+      />
+      <input
+        type="number"
+        className="detail__scale-num"
+        min={65}
+        max={125}
+        step={5}
+        aria-label="Document size, percent"
+        value={draft ?? Math.round(displayScale * 100)}
+        // STEPPING takes effect immediately; TYPING waits for Enter or blur.
+        //
+        // Arrow keys are handled here rather than left to the native stepper, so a
+        // press changes the size at once instead of only filling the box and waiting
+        // for Enter, which read as the control ignoring you.
+        //
+        // Deliberately NOT keyed off the input event's `inputType` to tell a step
+        // from a keystroke: a probe appeared to show they differ, but the probe
+        // dispatched its own synthetic event, so it was measuring itself. The rule
+        // below needs no such signal.
+        onChange={(e) => {
+          const raw = e.target.value;
+          const asScale = Number(raw) / 100;
+          // A value that is ALREADY a legal detent can only have come from a stepper
+          // (spinner button or arrow key), or from typing that happens to have landed
+          // exactly on one, in which case applying it is what the user wanted anyway.
+          // Anything else is a partial entry and gets buffered.
+          if (raw !== '' && isLegalScale(asScale)) {
+            apply(asScale);
+          } else {
+            setDraftBoth(raw);
+          }
+        }}
+        onBlur={commitDraft}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowUp') {
+            e.preventDefault(); // suppress the native step; we own the value
+            step(1);
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            step(-1);
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            commitDraft();
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            // Clears the REF too, so the blur that follows sees no draft and
+            // commitDraft returns early instead of saving the abandoned value.
+            abandonDraft();
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      <span className="detail__scale-pct" aria-hidden="true">
+        %
+      </span>
+    </span>
+  );
+}
 export function ProjectDetail({
   onResumeCapture,
   onCaptureInsert,
@@ -265,6 +439,7 @@ export function ProjectDetail({
           {/* SOP generate/revert folds into this one command bar (its review /
               progress modals are fixed overlays, unaffected by placement). */}
           <SopPanel sopEnabled={sopEnabled} onOpenSettings={onOpenSettings} />
+          {projectPath && <SizeSlider projectPath={projectPath} />}
           {onResumeCapture && (
             <button
               type="button"

@@ -12,7 +12,13 @@
  * card's 1px borders make the real content box 736 under `box-sizing:border-box`;
  * see the note on HTML_IMG_MAX_W for why 738 is kept regardless.)
  */
-export const HTML_COL_W = 816;
+import { HTML_COL_BASE, docWidths } from '../shared/doc-scale';
+
+/** The column at scale 1. Per-scale widths come from docWidths(scale). */
+export const HTML_COL_W = HTML_COL_BASE;
+
+/** Plain-export body width at scale 1 (the "HTML for Word" document). */
+export const PLAIN_BODY_W = 800;
 
 /**
  * Every top-level block that must hold the document column. The width is repeated
@@ -58,14 +64,28 @@ const COL_BLOCKS = ['.doc__title', '.doc__meta', '.doc__intro', '.step', '.secti
  * and `<table width="880">`, a `width` on the `<td>`, and `<center>` + table were
  * all probed and all came back full width.
  */
-export const DOC_CSS = `
+/**
+ * The styled-export stylesheet at a given document scale (#70).
+ *
+ * A FUNCTION, not a constant, because the column width is now per project. The
+ * five top-level blocks each carry the column (see the note above), so they must
+ * all be built from the same computed value; a constant plus a per-call override
+ * would let one block drift and only show up as a misaligned section divider.
+ *
+ * Chrome and font sizes are deliberately NOT scaled: only the column and the
+ * image inside it. That is why the image width is re-derived in doc-scale rather
+ * than multiplied.
+ */
+export function docCss(scale = 1): string {
+  const COL = docWidths(scale).htmlCol;
+  return `
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1f2937;background:#fff;line-height:1.6}
 .doc{padding:40px 32px 64px}
-.doc__title{max-width:${HTML_COL_W}px;margin:0 auto 4px;font-size:1.9rem;line-height:1.25}
-.doc__meta{max-width:${HTML_COL_W}px;margin:0 auto 28px;color:#6b7280;font-size:.85rem}
-.doc__intro{max-width:${HTML_COL_W}px;margin:0 auto 28px;padding:14px 18px;border:1px solid #e7e4f2;border-left:4px solid #6344f1;border-radius:8px;background:#efeafe}
+.doc__title{max-width:${COL}px;margin:0 auto 4px;font-size:1.9rem;line-height:1.25}
+.doc__meta{max-width:${COL}px;margin:0 auto 28px;color:#6b7280;font-size:.85rem}
+.doc__intro{max-width:${COL}px;margin:0 auto 28px;padding:14px 18px;border:1px solid #e7e4f2;border-left:4px solid #6344f1;border-radius:8px;background:#efeafe}
 .doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:#6b7280;margin:0 0 6px}
 .doc__intro-h{margin:0 0 6px;font-size:1.15rem}
 .doc__intro-b{margin:0;color:#374151;white-space:pre-wrap}
@@ -73,11 +93,11 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
    rule and text align with the step CONTENT column rather than the badge. The
    rule lives on .section__inner because the padding and the width can't share a
    box once .section carries the column. Values match the macOS export. */
-.section{max-width:${HTML_COL_W}px;margin:28px auto 4px;padding-left:46px;break-inside:avoid}
+.section{max-width:${COL}px;margin:28px auto 4px;padding-left:46px;break-inside:avoid}
 .section__inner{padding:14px 16px 0;border-top:2px solid #e7e4f2}
 .section__h{font-size:1.2rem;font-weight:700;margin:0 0 4px;color:#191826}
 .section__b{margin:0;color:#5a5772;white-space:pre-wrap}
-.step{display:flex;gap:16px;max-width:${HTML_COL_W}px;margin:0 auto 18px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
+.step{display:flex;gap:16px;max-width:${COL}px;margin:0 auto 18px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
 .step__num{flex:0 0 auto;width:30px;height:30px;margin-top:14px;border-radius:50%;background:#6344f1;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
 .step__num--note{background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7}
 .step__num--caution{background:#fffbeb;color:#92400e;border:1px solid #fcd34d}
@@ -95,6 +115,7 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 /* Print/PDF spans the page: lift the column off every block that carries it. */
 @media print{.doc{padding:0 6px}${COL_BLOCKS.join(',')}{max-width:none}}
 `.trim();
+}
 
 /**
  * Minimal Arial stylesheet for the plain "HTML (for Word)" export — enough
@@ -105,16 +126,20 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
  * KB editors all drop it on paste, which is why the exporter also emits width and
  * height attributes (see htmlImageSize).
  */
-export const PLAIN_CSS = [
-  'body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.5;max-width:800px;margin:24px auto;padding:0 20px}',
-  'h1{font-size:1.8rem;font-weight:700;margin:0 0 .3rem}',
-  'h2{font-size:1.2rem;font-weight:700;margin:1.3rem 0 .4rem}',
-  'p{margin:.5rem 0}',
-  'strong{font-weight:700}',
-  'img{max-width:100%;height:auto}',
-  'blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid #cbd5e1;color:#374151}',
-  'hr{border:0;border-top:1px solid #e5e7eb;margin:1.4rem 0}',
-].join('');
+/** The plain "HTML (for Word)" stylesheet at a given document scale (#70). */
+export function plainCss(scale = 1): string {
+  const BODY = Math.round(PLAIN_BODY_W * (docWidths(scale).htmlCol / HTML_COL_BASE));
+  return [
+    `body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.5;max-width:${BODY}px;margin:24px auto;padding:0 20px}`,
+    'h1{font-size:1.8rem;font-weight:700;margin:0 0 .3rem}',
+    'h2{font-size:1.2rem;font-weight:700;margin:1.3rem 0 .4rem}',
+    'p{margin:.5rem 0}',
+    'strong{font-weight:700}',
+    'img{max-width:100%;height:auto}',
+    'blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid #cbd5e1;color:#374151}',
+    'hr{border:0;border-top:1px solid #e5e7eb;margin:1.4rem 0}',
+  ].join('');
+}
 
 /** The blocks that must each carry the column — exported for the invariant test. */
 export const COLUMN_BLOCK_SELECTORS: readonly string[] = COL_BLOCKS;

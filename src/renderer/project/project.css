@@ -1162,6 +1162,52 @@ body {
   gap: 0.5rem;
 }
 
+/* #70: per-project document size. Compact enough to sit in the command bar next
+   to the SOP and capture actions without pushing them to a second row. */
+.detail__scale {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.2rem;
+  font-size: 0.8rem;
+  /* --text-dim does not exist in this stylesheet; the dim-text token is --ink-2.
+     The undefined var made this rule a no-op and the label inherited its colour. */
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.detail__scale-lab {
+  font-weight: 600;
+}
+
+.detail__scale-range {
+  /* Fixed, not flex: the bar wraps, and a growing slider would shove the SOP
+     buttons onto another row at some window widths. */
+  width: 88px;
+  accent-color: var(--accent, #4f8cff);
+  cursor: pointer;
+}
+
+.detail__scale-num {
+  /* Typable, so a target size can be entered directly instead of hunted for on a
+     13-detent slider. Narrow + tabular so the row does not jog between "65" and
+     "100", and the spinners are kept: they step by 5, matching the detents. */
+  width: 3.6em;
+  padding: 0.1rem 0.2rem;
+  border: 1px solid var(--control-bd);
+  border-radius: 4px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.detail__scale-pct {
+  margin-left: -0.15rem;
+}
+
 /* Export button + dropdown menu (HTML / PDF / Markdown). */
 .export {
   position: relative;
@@ -1279,7 +1325,10 @@ body {
 .rep__addintro {
   display: block;
   margin: 0 auto 0.4rem;
-  max-width: 880px;
+  /* Scales with the column (#70). It carried a fixed 880 while .rep scaled, so
+     above ~106% the placeholder sat narrower than the column, and the .rep__intro
+     it turns into (width:100%) snapped wider the moment an overview was saved. */
+  max-width: calc(880px * var(--doc-scale, 1));
   width: 100%;
   padding: 0.6rem 0.9rem;
   border: 1px dashed var(--hair);
@@ -1300,7 +1349,24 @@ body {
   /* Centered column at any window width (the sticky detail bar stays full-bleed).
      880px matches the macOS report content frame (ReportView maxWidth) for parity. */
   margin: 0 auto;
-  max-width: 880px;
+  /* LOAD-BEARING, and the fix for a long-standing bug the size slider exposed.
+
+     .rep is a flex ITEM of .detail (display:flex; flex-direction:column). In a
+     flex container, an auto margin on the CROSS axis disables stretch, so
+     `margin: 0 auto` made this box size to its CONTENT and max-width could only
+     ever cap it, never widen it. Measured with scripts/report-width-probe.cjs:
+     narrow content gave a 286px column at BOTH 100% and 125%, while the same DOM
+     under a block parent gave 880 and 1036. So a small project rendered in a
+     cramped column and the slider appeared to do nothing.
+
+     Predates #70: at 100% it was already 286 instead of 880. Typical content (a
+     capture up to ~820px) filled the column and hid it. */
+  width: 100%;
+  /* #70: per-project document scale. One custom property drives both column
+     widths; Report sets it from manifest.displayScale. The fallback of 1 means a
+     project without the field, and any context that never sets it, renders
+     exactly as before. Chrome and font sizes deliberately do NOT scale. */
+  max-width: calc(880px * var(--doc-scale, 1));
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -1538,8 +1604,10 @@ body {
 .rep__bodywrap {
   min-width: 0;
   /* Match the image's max box (REPORT_BASE_W = 820, macOS parity) so the card
-     frames the screenshot rather than spanning wider than the image. */
-  max-width: 820px;
+     frames the screenshot rather than spanning wider than the image. Scaled by
+     the same --doc-scale as .rep (#70); reportFit MEASURES the result, so the
+     image follows the column without the two needing to agree by arithmetic. */
+  max-width: calc(820px * var(--doc-scale, 1));
   /* #40: the step card — a subtle rounded frame around each step's content. */
   border: 1px solid var(--hair-2);
   border-radius: 12px;

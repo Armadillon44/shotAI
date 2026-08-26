@@ -1,11 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import {
+  describe,
+  it,
+  expect } from 'vitest';
 import {
   HTML_IMG_EMBED_MAX_W,
   HTML_IMG_MAX_W,
   htmlEmbedPolicy,
   htmlImageSize,
   zoomCropRect,
+  docxImgMaxW,
+  DOCX_CARD_INNER_W,
+  DOCX_PAGE_COL_W,
+  DOCX_IMG_BASE_W,
+  DOCX_CELL_INSET_TWIPS,
+  DOCX_CARD_BORDER_EIGHTHS,
+  DOCX_PAGE_W_TWIPS,
+  DOCX_PAGE_MARGIN_TWIPS,
 } from './export-geometry';
+import { SCALE_STEPS } from '../shared/doc-scale';
 
 describe('zoomCropRect', () => {
   it('returns null at zoom 1 (whole image visible)', () => {
@@ -133,5 +145,76 @@ describe('htmlEmbedPolicy', () => {
   it('defaults an unknown format to full-resolution PNG (never transcodes blindly)', () => {
     expect(htmlEmbedPolicy('')).toEqual({ embedMaxW: null, codec: 'png' });
     expect(htmlEmbedPolicy('someFutureFormat')).toEqual({ embedMaxW: null, codec: 'png' });
+  });
+});
+
+describe('Word image ceiling (#70) — the 125% clipping bug', () => {
+  it('never exceeds what fits INSIDE a step card', () => {
+    // The bug, reported from a real 125% export: images were clipped on the right.
+    // The ceiling was the PAGE column (624), but stepCard() spends 12px of cell inset
+    // plus a border on each side, so ~26px of the image had nowhere to go. Word does
+    // not complain, it just cuts the picture off.
+    for (const s of SCALE_STEPS) {
+      expect(docxImgMaxW(s), `scale ${s}`).toBeLessThanOrEqual(DOCX_CARD_INNER_W);
+    }
+    expect(DOCX_CARD_INNER_W).toBeLessThan(DOCX_PAGE_COL_W);
+  });
+
+  it('derives the ceiling from the REAL page geometry, in twips throughout', () => {
+    // Measured by unzipping an actual export, after getting this wrong twice:
+    //   <w:pgSz w:w="11906">                    A4, NOT Letter (the first error)
+    //   <w:pgMar w:left="1440" w:right="1440">
+    //   <w:tcMar><w:left w:w="180"><w:right w:w="180">   (the second error)
+    // Derived in twips end to end so no intermediate rounding creeps in.
+    const px = (t: number) => (t / 20) * (96 / 72);
+    expect(DOCX_CARD_INNER_W).toBe(
+      Math.floor(
+        px(
+          DOCX_PAGE_W_TWIPS -
+            2 * DOCX_PAGE_MARGIN_TWIPS -
+            2 * DOCX_CELL_INSET_TWIPS -
+            2 * (DOCX_CARD_BORDER_EIGHTHS / 8) * 20,
+        ),
+      ),
+    );
+    expect(DOCX_CARD_INNER_W).toBe(576);
+    expect(DOCX_PAGE_COL_W).toBe(601);
+  });
+
+  it('rejects the two widths that actually shipped clipped', () => {
+    // 624 was the Letter-column guess; 598 was the A4 column with the insets still
+    // unaccounted for. A real export embedded 598px (5695950 EMU) and Word cut it
+    // off. Both must now be impossible at every scale.
+    for (const s of SCALE_STEPS) {
+      expect(docxImgMaxW(s)).not.toBe(624);
+      expect(docxImgMaxW(s)).not.toBe(598);
+      expect(docxImgMaxW(s)).toBeLessThanOrEqual(576);
+    }
+  });
+  it('leaves a 100% document byte-identical', () => {
+    // The base width is already inside the ceiling, so nothing changes at 100% and
+    // this fix cannot alter an existing export.
+    expect(docxImgMaxW(1)).toBe(DOCX_IMG_BASE_W);
+    expect(docxImgMaxW()).toBe(DOCX_IMG_BASE_W);
+  });
+
+  it('shrinks below 100% and clamps above it', () => {
+    expect(docxImgMaxW(0.65)).toBe(Math.round(DOCX_IMG_BASE_W * 0.65));
+    expect(docxImgMaxW(0.65)).toBeLessThan(DOCX_IMG_BASE_W);
+    // Above 100% Word cannot actually grow, so the ceiling holds. That is the honest
+    // behavior for a fixed page, not a missing feature.
+    expect(docxImgMaxW(1.25)).toBe(DOCX_CARD_INNER_W);
+    expect(docxImgMaxW(1.2)).toBe(DOCX_CARD_INNER_W);
+    // 700 (560 * 1.25) is what an unclamped scale would have asked for.
+    expect(Math.round(DOCX_IMG_BASE_W * 1.25)).toBeGreaterThan(DOCX_CARD_INNER_W);
+  });
+
+  it('sanitizes a bad scale', () => {
+    for (const bad of [Number.NaN, 99, -1]) {
+      const w = docxImgMaxW(bad as number);
+      expect(Number.isInteger(w)).toBe(true);
+      expect(w).toBeGreaterThan(0);
+      expect(w).toBeLessThanOrEqual(DOCX_CARD_INNER_W);
+    }
   });
 });

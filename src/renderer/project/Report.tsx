@@ -75,7 +75,10 @@ function StepFigure({
   // pans in both axes instead of the box growing taller. reportFit owns that math
   // and sizes the wrap to the image plus its own border, which is what stops the
   // border-box wrap from clipping the image it contains.
-  const fit = reportFit(dims, availW, zoom);
+  // Read from the store rather than threaded through props: StepFigure is
+  // rendered per step and the scale is a whole-project property.
+  const docScale = useProjectStore((s) => s.displayScale);
+  const fit = reportFit(dims, availW, zoom, docScale);
   const { baseW, baseH } = fit;
   const markerColor = markerColorFor(step);
   // Marker as a fraction of the displayed image; subtract crop origin when the
@@ -117,7 +120,10 @@ function StepFigure({
     const rangeY = el.scrollHeight - el.clientHeight;
     el.scrollLeft = rangeX * (step.reportPanX ?? 0.5);
     el.scrollTop = rangeY * (step.reportPanY ?? 0.5);
-  }, [dims, zoom, availW, step.reportPanX, step.reportPanY]);
+    // docScale included deliberately: on a plateau where the measured width does not
+    // change, the scale can still alter the scrollable range, and without it the saved
+    // framing is restored against a stale range.
+  }, [dims, zoom, availW, docScale, step.reportPanX, step.reportPanY]);
 
   const onPanStart = (e: React.MouseEvent) => {
     const el = wrapRef.current;
@@ -394,6 +400,7 @@ export function Report({
 }): React.JSX.Element | null {
   const projectId = useProjectStore((s) => s.projectId);
   const projectPath = useProjectStore((s) => s.projectPath);
+  const displayScale = useProjectStore((s) => s.displayScale);
   const steps = useProjectStore((s) => s.steps);
   const intro = useProjectStore((s) => s.intro);
   const manifestRev = useProjectStore((s) => s.manifestRev);
@@ -791,7 +798,13 @@ export function Report({
 
   if (steps.length === 0) {
     return (
-      <div className="rep rep--empty">
+      // Carries --doc-scale too: this is a SEPARATE root from the one below, so
+      // without it the empty state fell back to scale 1 and its insert zone sat at
+      // a different width than the report the user is about to build.
+      <div
+        className="rep rep--empty"
+        style={{ ['--doc-scale' as string]: String(displayScale) } as React.CSSProperties}
+      >
         {insertZone(0)}
         <p className="project__hint">
           No steps yet. Resume capturing, Import an image, or Add a text step.
@@ -1120,7 +1133,14 @@ export function Report({
 
   const hasIntro = !!(intro && (intro.heading || intro.body));
   return (
-    <div className="rep" role="list">
+    <div
+      className="rep"
+      role="list"
+      // Drives both column widths in CSS. Set here, on the report root, so a
+      // single property scales the frame, the step cards, the callouts, the text
+      // steps and the overview together instead of each carrying its own math.
+      style={{ ['--doc-scale' as string]: String(displayScale) } as React.CSSProperties}
+    >
       {confirmModal}
       {editingIntro ? (
         <div className="rep__intro">

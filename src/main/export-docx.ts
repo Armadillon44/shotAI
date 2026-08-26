@@ -20,10 +20,16 @@ import {
 } from 'docx';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import { loadItemImage, type ExportItem } from './export';
+import {
+  docxImgMaxW,
+  DOCX_PAGE_W_TWIPS,
+  DOCX_PAGE_MARGIN_TWIPS,
+} from './export-geometry';
 
-// Max embedded image width in px; taller/wider shots scale down by aspect. Keeps
-// images inside the page's text column (~6.5in ≈ 624px at 96dpi).
-const MAX_IMG_W = 560;
+// Image width now comes from docxImgMaxW() in export-geometry.ts, which derives the
+// ceiling from stepCard()'s own insets and borders and honors the project scale (#70).
+// It lives there because this module reaches electron through ./export and so cannot
+// be unit-tested, and the clipping bug it fixes was invisible at 100%.
 
 // Step-card colors (#40) — mirror the HTML export / in-app report (light-only).
 const CARD_FILL = 'FAF9FF';
@@ -175,7 +181,9 @@ export async function buildDocx(
     }
     // Shot step: numbered heading, image (aspect-scaled), instruction — all in one card.
     const { buffer, width, height } = await loadItemImage(it);
-    const scale = width > MAX_IMG_W ? MAX_IMG_W / width : 1;
+    // Named `fit` to keep it distinct from the project scale below.
+    const cap = docxImgMaxW(manifest.displayScale);
+    const fit = width > cap ? cap / width : 1;
     const content: Paragraph[] = [
       new Paragraph({
         heading: HeadingLevel.HEADING_2,
@@ -191,7 +199,7 @@ export async function buildDocx(
           new ImageRun({
             type: it.mediaType === 'image/jpeg' ? 'jpg' : 'png',
             data: buffer,
-            transformation: { width: Math.round(width * scale), height: Math.round(height * scale) },
+            transformation: { width: Math.round(width * fit), height: Math.round(height * fit) },
           }),
         ],
       }),
@@ -201,7 +209,25 @@ export async function buildDocx(
     children.push(spacer());
   }
 
-  const section: ISectionOptions = { properties: {}, children };
+  // Page size and margins set EXPLICITLY, matching what the library default was
+  // already producing (verified by unzipping a real export: A4 11906x16838, 1440
+  // twip margins). Stated here so export-geometry.ts can derive the image ceiling
+  // from our own source rather than from a library default. Deliberately NOT
+  // changed to Letter: that would alter every existing export.
+  const section: ISectionOptions = {
+    properties: {
+      page: {
+        size: { width: DOCX_PAGE_W_TWIPS, height: 16838 },
+        margin: {
+          top: DOCX_PAGE_MARGIN_TWIPS,
+          right: DOCX_PAGE_MARGIN_TWIPS,
+          bottom: DOCX_PAGE_MARGIN_TWIPS,
+          left: DOCX_PAGE_MARGIN_TWIPS,
+        },
+      },
+    },
+    children,
+  };
   const doc = new Document({
     creator: 'shotAI',
     title: manifest.title,

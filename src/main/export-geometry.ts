@@ -22,6 +22,75 @@ export interface CropRect {
  * pan is a fraction 0..1 of the scrollable range (0.5 = centered), matching the
  * persisted reportPanX/reportPanY.
  */
+import { clampScale, docWidths } from '../shared/doc-scale';
+
+
+// --- Word (.docx) image geometry -------------------------------------------
+//
+// Lives here, not in export-docx.ts, because that module reaches electron through
+// ./export and so cannot be unit-tested. These constants MUST match stepCard() in
+// export-docx.ts.
+
+// MEASURED from a real export, not assumed. An earlier version of this said
+// "Letter minus 1in margins = 624px", which was wrong twice: the page is A4, and
+// the card insets come off it too. The result was a 125% Word export whose images
+// were clipped on the right, twice, because each fix corrected only one of the two
+// errors. Unzipping the .docx settled it:
+//   <w:pgSz w:w="11906" w:h="16838">        A4, not Letter
+//   <w:pgMar w:left="1440" w:right="1440">  1in each side
+//   <w:tcMar><w:left w:w="180"><w:right w:w="180">
+//   <wp:extent cx="5695950">                = 598px, the width that overflowed
+//
+// export-docx.ts now sets the page size EXPLICITLY to these values instead of
+// inheriting a library default, so this arithmetic is anchored to our own source
+// and a docx upgrade cannot silently move the page under it.
+
+/** A4 page width in twips, set explicitly by export-docx.ts. */
+export const DOCX_PAGE_W_TWIPS = 11906;
+/** Page margin per side, in twips. */
+export const DOCX_PAGE_MARGIN_TWIPS = 1440;
+/** Base image width at scale 1. */
+export const DOCX_IMG_BASE_W = 560;
+/** stepCard() cell inset, per side, in twips. */
+export const DOCX_CELL_INSET_TWIPS = 180;
+/** stepCard() border size, per side, in eighths of a point. */
+export const DOCX_CARD_BORDER_EIGHTHS = 4;
+
+/** twips -> CSS px at 96dpi: /20 gives points, *96/72 gives px. */
+function twipsToPx(t: number): number {
+  return (t / 20) * (96 / 72);
+}
+
+/** The page's text column. */
+export const DOCX_PAGE_COL_W = Math.floor(
+  twipsToPx(DOCX_PAGE_W_TWIPS - 2 * DOCX_PAGE_MARGIN_TWIPS),
+);
+
+/**
+ * What actually fits INSIDE a step card: the text column less the cell insets and
+ * the card borders. This is the number an image must never exceed.
+ */
+export const DOCX_CARD_INNER_W = Math.floor(
+  twipsToPx(
+    DOCX_PAGE_W_TWIPS -
+      2 * DOCX_PAGE_MARGIN_TWIPS -
+      2 * DOCX_CELL_INSET_TWIPS -
+      2 * (DOCX_CARD_BORDER_EIGHTHS / 8) * 20,
+  ),
+);
+
+/**
+ * Word image width at a given project scale, clamped to the card's inner width.
+ *
+ * A HARD ceiling: the page is fixed, so the document scale (#70) can shrink an
+ * image but never grow it past the card. Word does not complain when an image is
+ * too wide, it just cuts the picture off, which is why this was invisible at 100%
+ * (the 560px base is already inside the ceiling) and only showed up at 125%.
+ */
+export function docxImgMaxW(scale = 1): number {
+  return Math.min(DOCX_CARD_INNER_W, Math.round(DOCX_IMG_BASE_W * clampScale(scale)));
+}
+
 export function zoomCropRect(
   width: number,
   height: number,
@@ -63,7 +132,17 @@ function clamp01(n: number): number {
  * pixels than are ever shown, plus base64's ~33% overhead — enough that copying a
  * long SOP out of a browser into another system (a Freshservice KB article) chokes.
  */
-export const HTML_IMG_MAX_W = 738;
+export const HTML_IMG_MAX_W = docWidths(1).htmlImgMax;
+
+/**
+ * The display width at a given project scale (#70). RE-DERIVED, not HTML_IMG_MAX_W
+ * times the scale: the 78px of chrome subtracted from the column is fixed, so the
+ * two agree only at scale 1, which is exactly what makes the wrong version pass a
+ * spot check. doc-scale owns the arithmetic for both the app and the exports.
+ */
+export function htmlImgMaxW(scale = 1): number {
+  return docWidths(scale).htmlImgMax;
+}
 
 /**
  * The width/height ATTRIBUTES for an inlined export `<img>`, or null when the
@@ -90,7 +169,13 @@ export const HTML_IMG_MAX_W = 738;
  * does not (see htmlEmbedPolicy). Worth having — at 1x a full-desktop 2924px
  * capture's dialog text is unreadable no matter the codec.
  */
-export const HTML_IMG_EMBED_MAX_W = HTML_IMG_MAX_W * 2;
+export const HTML_IMG_EMBED_MAX_W = docWidths(1).htmlImgEmbedMax;
+
+/** The @2x embed width at a given project scale. Always exactly 2x the display
+ *  width, or an exported capture silently stops being @2x and its text softens. */
+export function htmlImgEmbedMaxW(scale = 1): number {
+  return docWidths(scale).htmlImgEmbedMax;
+}
 
 /**
  * JPEG quality (0-100, as `nativeImage.toJPEG` takes it). Used as the FALLBACK for
@@ -152,7 +237,15 @@ export interface EmbedPolicy {
  * - Anything else (`markdown`/`docx`/`pptx`) never routes through the HTML builder
  *   and keeps full resolution for the same print-quality reason.
  */
-export function htmlEmbedPolicy(format: string): EmbedPolicy {
+/**
+ * `docScale` (#70) scales the EMBED target with the display width, so an exported
+ * capture stays exactly @2x at any project scale. Leaving it fixed would make a
+ * 65% document embed 2x the OLD width, i.e. ~3x its new display size, inflating a
+ * payload that already has a hard ceiling in the destination editor.
+ *
+ * The pdf branch stays full-resolution regardless: see the trap above.
+ */
+export function htmlEmbedPolicy(format: string, docScale = 1): EmbedPolicy {
   if (format === 'html') {
     // AVIF at 2x. The constraint here is a TOTAL PAYLOAD ceiling in the destination:
     // Freshservice's editor re-uploads every pasted image and cannot cope with too
@@ -165,10 +258,11 @@ export function htmlEmbedPolicy(format: string): EmbedPolicy {
     // So AVIF is not a preference, it is the only codec that fits under the ceiling
     // while keeping 2x, which is what makes a full-desktop capture's UI text
     // readable at all (at 1x it is an illegible blur in every codec).
-    return { embedMaxW: HTML_IMG_EMBED_MAX_W, codec: 'avif' };
+    return { embedMaxW: htmlImgEmbedMaxW(docScale), codec: 'avif' };
   }
   if (format === 'html-plain') {
-    return { embedMaxW: HTML_IMG_MAX_W, codec: 'png' };
+    // 1x for the Word paste target, at the SCALED display width.
+    return { embedMaxW: htmlImgMaxW(docScale), codec: 'png' };
   }
   return { embedMaxW: null, codec: 'png' };
 }
@@ -176,12 +270,15 @@ export function htmlEmbedPolicy(format: string): EmbedPolicy {
 export function htmlImageSize(
   width: number,
   height: number,
+  docScale = 1,
 ): { w: number; h: number } | null {
   if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
   if (!(width >= 1) || !(height >= 1)) return null; // 0x0 / negative → undecodable
-  const scale = Math.min(1, HTML_IMG_MAX_W / width);
+  // Named `fit`, not `scale`: `docScale` is the project scale, and conflating the
+  // two would make a document setting silently rescale the image twice.
+  const fit = Math.min(1, htmlImgMaxW(docScale) / width);
   return {
-    w: Math.max(1, Math.round(width * scale)),
-    h: Math.max(1, Math.round(height * scale)),
+    w: Math.max(1, Math.round(width * fit)),
+    h: Math.max(1, Math.round(height * fit)),
   };
 }
