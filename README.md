@@ -24,7 +24,9 @@ shotAI release (switchable off in Settings). **Windows first**, macOS later.
 > because every access denial from Anthropic is deliberately the same opaque `401`.
 >
 > 1.2.0 also adds a **per-project size slider** (65% to 125%) that scales the step cards,
-> callouts, text steps, overview and screenshots in the report **and in every export**;
+> callouts, text steps, overview and screenshots in the report, and carries into the
+> exports as far as each format allows (HTML fully; the PDF scales its screenshots but
+> still fills the page; Word and PowerPoint shrink but barely grow);
 > a setting to **show shotAI in remote sessions and screen shares** so the app can be
 > seen and driven over Splashtop, GoToAssist or a Teams share while still staying out of
 > the screenshots it takes; and **Claude now sees the text you wrote**, so your callouts
@@ -98,7 +100,9 @@ shotAI release (switchable off in Settings). **Windows first**, macOS later.
    **local OCR** (offline) to find and suggest sensitive text. A quality slider controls
    how much screenshots are downscaled (file size vs. sharpness). A per-project **Size**
    slider (65% to 125%) sets how wide the document renders: the step cards, callouts,
-   text steps, overview and screenshots scale together, and every export honors it.
+   text steps, overview and screenshots scale together in the report, and the exports
+   follow where their format allows (see step 4). Text size is unchanged, so a smaller
+   setting gives a narrower document rather than smaller type.
 
 3. **Generate the SOP (optional).** Signed in with your **work account**, or with **your own**
    Anthropic API key, Claude reads the redaction-baked screenshots + captions and writes
@@ -109,9 +113,12 @@ shotAI release (switchable off in Settings). **Windows first**, macOS later.
 
 4. **Export & share.** Export to **HTML**, **Word** (`.docx`), **PowerPoint** (`.pptx`),
    **PDF**, **Markdown**, or **HTML-for-Word** (paste into Word/Docs). Each is footed with
-   "Created on <date>", optionally "by <your name>". Every format honors the project's
-   **Size** setting. Or export a **shareable package** that another shotAI user can
-   **import** and keep editing.
+   "Created on <date>", optionally "by <your name>". The project's **Size** setting
+   applies where each format allows it: HTML scales fully, the PDF scales its
+   screenshots while the text column still fills the page, Word and PowerPoint can
+   shrink but barely grow (a fixed page and a fixed slide), and Markdown has no layout
+   to scale. Or export a **shareable package** that another shotAI user can **import**
+   and keep editing.
 
 5. **Manage.** The home screen lists projects with **search** (matches the project title
    *and* text inside it — step captions, instructions, and the SOP overview — ranking title
