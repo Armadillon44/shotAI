@@ -1187,12 +1187,23 @@ body {
   cursor: pointer;
 }
 
-.detail__scale-val {
-  /* Tabular + fixed width so the row does not jog as the number changes width
-     between "65%" and "100%". */
-  min-width: 2.6em;
+.detail__scale-num {
+  /* Typable, so a target size can be entered directly instead of hunted for on a
+     13-detent slider. Narrow + tabular so the row does not jog between "65" and
+     "100", and the spinners are kept: they step by 5, matching the detents. */
+  width: 3.6em;
+  padding: 0.1rem 0.2rem;
+  border: 1px solid var(--control-bd);
+  border-radius: 4px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.detail__scale-pct {
+  margin-left: -0.15rem;
 }
 
 /* Export button + dropdown menu (HTML / PDF / Markdown). */

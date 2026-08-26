@@ -23,12 +23,18 @@ const EXPORT_LABEL: Record<ExportFormat, string> = {
 };
 
 /**
- * Per-project size slider (#70). Scales the step cards, callouts, text steps,
+ * Per-project size control (#70). Scales the step cards, callouts, text steps,
  * overview and screenshots, in the report and in every export.
  *
- * Live feedback comes from an optimistic store update; the write happens on
- * RELEASE, matching the screenshot-quality slider in Settings. Persisting per
- * onChange would mean up to 13 serialized disk writes for one drag.
+ * A slider plus a typable percentage. The slider range is an INDEX into the detent
+ * list, so dragging can only ever produce a legal value; the number box accepts any
+ * percent and snaps it on commit.
+ *
+ * Persisting happens on RELEASE, not per change. Two reasons, one of which was a real
+ * bug: a write per change event would mean up to 13 serialized disk writes for one
+ * drag, and the window resize that follows a commit was pulling the slider out from
+ * under the pointer, so a drag from 125% ran away to 65% no matter where you let go.
+ * The layout previews live from the store; only the window waits for the commit.
  */
 function SizeSlider({
   projectPath,
@@ -40,18 +46,38 @@ function SizeSlider({
   const applyManifest = useProjectStore((s) => s.applyManifest);
   const idx = Math.max(0, SCALE_STEPS.indexOf(clampScale(displayScale)));
 
-  const persist = () => {
+  // Typing needs its own buffer: clamping every keystroke would turn "1" into 65
+  // before the user could reach "10", so the box only snaps on commit. Null means
+  // "not being edited", and the box shows the live scale instead.
+  const [draft, setDraft] = React.useState<string | null>(null);
+
+  const persist = (value: number) => {
     void window.shotai.projects
-      .setDisplayScale(projectPath, displayScale)
+      .setDisplayScale(projectPath, value)
       .then(applyManifest)
-      .catch(() => undefined); // the optimistic value already shows; a failed
-    // write is corrected by the next manifest that arrives.
+      // The optimistic value is already on screen; a failed write is corrected by
+      // the next manifest that arrives.
+      .catch(() => undefined);
+  };
+
+  const commitDraft = () => {
+    if (draft === null) return;
+    const pct = Number(draft);
+    // An unparseable or empty entry reverts rather than snapping to a bound: the
+    // user cleared the box, they did not ask for 65%.
+    const next = Number.isFinite(pct) && draft.trim() !== '' ? clampScale(pct / 100) : displayScale;
+    setDraft(null);
+    preview(next);
+    persist(next);
   };
 
   return (
-    <label className="detail__scale" title="Document size: scales the step cards, text and screenshots, in the report and in exports">
-      <span className="detail__scale-lab">Size</span>
+    <span className="detail__scale">
+      <label className="detail__scale-lab" htmlFor="doc-scale-range">
+        Size
+      </label>
       <input
+        id="doc-scale-range"
         type="range"
         className="detail__scale-range"
         min={0}
@@ -61,12 +87,35 @@ function SizeSlider({
         aria-label="Document size"
         aria-valuetext={`${Math.round(displayScale * 100)} percent`}
         onChange={(e) => preview(SCALE_STEPS[Number(e.target.value)] ?? 1)}
-        onPointerUp={persist}
-        onKeyUp={persist}
-        onBlur={persist}
+        onPointerUp={() => persist(displayScale)}
+        onKeyUp={() => persist(displayScale)}
       />
-      <span className="detail__scale-val">{Math.round(displayScale * 100)}%</span>
-    </label>
+      <input
+        type="number"
+        className="detail__scale-num"
+        min={65}
+        max={125}
+        step={5}
+        aria-label="Document size, percent"
+        value={draft ?? Math.round(displayScale * 100)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commitDraft}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commitDraft();
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setDraft(null); // abandon the edit, keep the current scale
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      <span className="detail__scale-pct" aria-hidden="true">
+        %
+      </span>
+    </span>
   );
 }
 export function ProjectDetail({

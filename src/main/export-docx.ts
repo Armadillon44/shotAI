@@ -20,20 +20,12 @@ import {
 } from 'docx';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import { loadItemImage, type ExportItem } from './export';
-import { clampScale } from '../shared/doc-scale';
+import { docxImgMaxW } from './export-geometry';
 
-// Max embedded image width in px; taller/wider shots scale down by aspect. Keeps
-// images inside the page's text column (~6.5in ≈ 624px at 96dpi).
-const MAX_IMG_W = 560;
-// The page's text column. A HARD ceiling: Word has a fixed page, so the document
-// scale (#70) can shrink an image but cannot grow it past the column, or Word
-// reflows it down anyway and the setting would lie about what it did.
-const PAGE_COL_W = 624;
-
-/** Image width for a given project scale, clamped to the page column. */
-function docxImgMaxW(scale: number): number {
-  return Math.min(PAGE_COL_W, Math.round(MAX_IMG_W * clampScale(scale)));
-}
+// Image width now comes from docxImgMaxW() in export-geometry.ts, which derives the
+// ceiling from stepCard()'s own insets and borders and honors the project scale (#70).
+// It lives there because this module reaches electron through ./export and so cannot
+// be unit-tested, and the clipping bug it fixes was invisible at 100%.
 
 // Step-card colors (#40) — mirror the HTML export / in-app report (light-only).
 const CARD_FILL = 'FAF9FF';
@@ -186,7 +178,7 @@ export async function buildDocx(
     // Shot step: numbered heading, image (aspect-scaled), instruction — all in one card.
     const { buffer, width, height } = await loadItemImage(it);
     // Named `fit` to keep it distinct from the project scale below.
-    const cap = docxImgMaxW(manifest.displayScale ?? 1);
+    const cap = docxImgMaxW(manifest.displayScale);
     const fit = width > cap ? cap / width : 1;
     const content: Paragraph[] = [
       new Paragraph({

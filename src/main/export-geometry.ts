@@ -22,7 +22,54 @@ export interface CropRect {
  * pan is a fraction 0..1 of the scrollable range (0.5 = centered), matching the
  * persisted reportPanX/reportPanY.
  */
-import { docWidths } from '../shared/doc-scale';
+import { clampScale, docWidths } from '../shared/doc-scale';
+
+
+// --- Word (.docx) image geometry -------------------------------------------
+//
+// Lives here, not in export-docx.ts, because that module reaches electron through
+// ./export and so cannot be unit-tested. These constants MUST match stepCard() in
+// export-docx.ts.
+
+/** Letter minus 1in margins each side = 6.5in at 96dpi. Word's text column. */
+export const DOCX_PAGE_COL_W = 624;
+/** Base image width at scale 1. */
+export const DOCX_IMG_BASE_W = 560;
+/** stepCard() cell inset, per side, in twips. */
+export const DOCX_CELL_INSET_TWIPS = 180;
+/** stepCard() border size, per side, in eighths of a point. */
+export const DOCX_CARD_BORDER_EIGHTHS = 4;
+
+/** twips -> CSS px at 96dpi: /20 gives points, *96/72 gives px. */
+function twipsToPx(t: number): number {
+  return (t / 20) * (96 / 72);
+}
+
+/**
+ * What actually fits INSIDE a Word step card.
+ *
+ * Clamping to the page column was wrong, and it showed up only at 125%: the image
+ * was sized to the full 624 and Word clipped ~26px off its right edge, because the
+ * card spends 12px of inset plus a border on each side. Derived rather than
+ * re-guessed, so it tracks stepCard() instead of drifting from it.
+ */
+export const DOCX_CARD_INNER_W = Math.floor(
+  DOCX_PAGE_COL_W -
+    2 * twipsToPx(DOCX_CELL_INSET_TWIPS) -
+    2 * twipsToPx((DOCX_CARD_BORDER_EIGHTHS / 8) * 20),
+);
+
+/**
+ * Word image width at a given project scale, clamped to the card's inner width.
+ *
+ * A HARD ceiling: Word has a fixed page, so the document scale (#70) can shrink an
+ * image but never grow it past the card, or Word clips it and the setting lies about
+ * what it did. At scale 1 the base is already inside the ceiling, so 100% documents
+ * are byte-identical to before.
+ */
+export function docxImgMaxW(scale = 1): number {
+  return Math.min(DOCX_CARD_INNER_W, Math.round(DOCX_IMG_BASE_W * clampScale(scale)));
+}
 
 export function zoomCropRect(
   width: number,

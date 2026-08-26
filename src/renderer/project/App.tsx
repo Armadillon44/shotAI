@@ -326,7 +326,9 @@ export function App(): React.JSX.Element {
   // refresh recents then (while still in the project) so the home list shows the
   // new title immediately on return — not only on a later manual reload.
   const sopBackup = useProjectStore((s) => s.sopBackup);
-  const displayScale = useProjectStore((s) => s.displayScale);
+  // COMMITTED, not the live preview: see the store comment. Resizing on every drag
+  // step drags the slider out from under the pointer.
+  const committedScale = useProjectStore((s) => s.committedScale);
   React.useEffect(() => {
     refresh().catch(fail);
   }, [sopBackup, refresh]);
@@ -336,8 +338,8 @@ export function App(): React.JSX.Element {
   // (#70) goes with it, since a scaled-up report needs a wider window; depending
   // on it here also means moving the slider re-runs this and re-fits the window.
   React.useEffect(() => {
-    void window.shotai.setDetailView(!!openPath, displayScale);
-  }, [openPath, displayScale]);
+    void window.shotai.setDetailView(!!openPath, committedScale);
+  }, [openPath, committedScale]);
 
   // Re-list when main reports the project set changed (e.g. startup auto-archive
   // moved stale projects to the Archive tab).

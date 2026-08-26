@@ -24,6 +24,16 @@ interface ProjectState {
    * repeat that defaulting at every use site.
    */
   displayScale: number;
+  /**
+   * The last scale that came from a MANIFEST, i.e. the committed value. Separate
+   * from displayScale on purpose.
+   *
+   * The window is resized from this, and the layout from displayScale. Driving the
+   * resize from the live preview made the slider unusable: each drag step resized
+   * the window, the window moved under the pointer, and the pointer dragged the
+   * slider with it, so a drag from 125% ran away to 65% no matter where you let go.
+   */
+  committedScale: number;
   /** Pre-edit snapshot when Claude's inline SOP edits are applied; enables revert. */
   sopBackup: SopBackup | null;
   /** Manifest updatedAt — also used to cache-bust re-saved flattened renders. */
@@ -73,6 +83,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   steps: [],
   intro: null,
   displayScale: SCALE_DEFAULT,
+  committedScale: SCALE_DEFAULT,
   sopBackup: null,
   updatedAt: '',
   manifestRev: 0,
@@ -92,6 +103,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         steps: manifest.steps,
         intro: manifest.intro,
         displayScale: clampScale(manifest.displayScale),
+        committedScale: clampScale(manifest.displayScale),
         sopBackup: manifest.sopBackup,
         updatedAt: manifest.updatedAt,
         manifestRev: s.manifestRev + 1,
@@ -112,6 +124,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         steps: [],
         intro: null,
         displayScale: SCALE_DEFAULT,
+        committedScale: SCALE_DEFAULT,
         sopBackup: null,
         updatedAt: '',
         selectedStepId: null,
@@ -129,6 +142,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       steps: manifest.steps,
       intro: manifest.intro,
       displayScale: clampScale(manifest.displayScale),
+      committedScale: clampScale(manifest.displayScale),
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,
@@ -145,6 +159,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       steps: [],
       intro: null,
       displayScale: SCALE_DEFAULT,
+      committedScale: SCALE_DEFAULT,
       sopBackup: null,
       updatedAt: '',
       selectedStepId: null,
@@ -161,6 +176,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       title: manifest.title,
       intro: manifest.intro,
       displayScale: clampScale(manifest.displayScale),
+      committedScale: clampScale(manifest.displayScale),
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,
