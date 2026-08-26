@@ -66,7 +66,7 @@ export function Settings({
   const [error, setError] = React.useState<string | null>(null);
   const [appInfo, setAppInfo] = React.useState<AppInfo | null>(null);
   const [projectsDir, setProjectsDir] = React.useState('');
-  const [captureNoHide, setCaptureNoHide] = React.useState(false);
+  const [remoteVisible, setRemoteVisible] = React.useState(false);
   const [captureScale, setCaptureScale] = React.useState(CAPTURE_SCALE_DEFAULT);
   const [userName, setUserName] = React.useState('');
   const [includeName, setIncludeName] = React.useState(false);
@@ -130,13 +130,13 @@ export function Settings({
   };
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir, noHide, scale, name, incl, age, themePref, updChk, auth] =
+    const [s, ks, info, dir, remoteVis, scale, name, incl, age, themePref, updChk, auth] =
       await Promise.all([
         window.shotai.settings.getSop(),
         window.shotai.claude.keyStatus(),
         window.shotai.getAppInfo(),
         window.shotai.projects.getDir(),
-        window.shotai.settings.getCaptureNoHide(),
+        window.shotai.settings.getRemoteVisible(),
         window.shotai.settings.getCaptureScale(),
         window.shotai.settings.getUserName(),
         window.shotai.settings.getIncludeNameInReports(),
@@ -149,7 +149,7 @@ export function Settings({
     setKeyStatus(ks);
     setAppInfo(info);
     setProjectsDir(dir);
-    setCaptureNoHide(noHide);
+    setRemoteVisible(remoteVis);
     setCaptureScale(scale);
     setUserName(name);
     setIncludeName(incl);
@@ -188,10 +188,10 @@ export function Settings({
     }
   };
 
-  const toggleCaptureNoHide = async (value: boolean) => {
+  const toggleRemoteVisible = async (value: boolean) => {
     setError(null);
     try {
-      setCaptureNoHide(await window.shotai.settings.setCaptureNoHide(value));
+      setRemoteVisible(await window.shotai.settings.setRemoteVisible(value));
     } catch (e) {
       fail(e);
     }
@@ -738,20 +738,24 @@ export function Settings({
 
                 <label className="settings__toggle">
                   <span className="settings__toggle-text">
-                    <strong>Keep shotAI visible during capture</strong>
+                    <strong>Show shotAI in remote sessions &amp; screen shares</strong>
                     <span className="settings__hint">
-                      Demo / screen-share mode: don’t hide the window while recording.
-                      Handy when presenting shotAI live — but the window will then appear
-                      in the screenshots it captures, so turn it off for clean SOPs.
+                      By default shotAI is hidden from all screen capture, which is what
+                      keeps it out of its own screenshots, but also makes it invisible in
+                      Teams, Splashtop, GoToAssist and similar. Turn this on to see and
+                      use the app over a remote connection. Your screenshots stay clean:
+                      shotAI still hides itself while recording, and the capture pill is
+                      excluded from each shot as it is taken.
                     </span>
                   </span>
                   <input
                     type="checkbox"
                     className="settings__switch"
-                    checked={captureNoHide}
-                    onChange={(e) => void toggleCaptureNoHide(e.target.checked)}
+                    checked={remoteVisible}
+                    onChange={(e) => void toggleRemoteVisible(e.target.checked)}
                   />
                 </label>
+
               </>
             )}
 

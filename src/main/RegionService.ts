@@ -16,6 +16,7 @@ import { IpcChannels } from '../shared/ipc';
 import type { Rect } from '../shared/project';
 import { parseRect } from '../shared/project';
 import { mainLog } from './logger';
+import { remoteVisibleNow } from './settings';
 
 const MIN_DRAG = 4; // CSS px — anything smaller is a stray click, treat as cancel
 
@@ -76,7 +77,17 @@ export class RegionService {
         sandbox: true,
       },
     });
-    win.setContentProtection(true);
+    // Seeded from the setting, NOT hard-coded true. Overlays are created on
+    // demand long after startup, and applyRemoteVisibility only walks the windows
+    // that exist when it is called, so a hard-coded true made Area selection
+    // permanently invisible over a remote session: the viewer saw the project
+    // window vanish, a bare desktop for the whole drag, then the window return,
+    // with no dimming, no selection rectangle and no size readout. That directly
+    // contradicted the setting's own promise to let you use the app remotely.
+    //
+    // Safe: any grab re-protects every window through shieldOwnWindows(), which
+    // walks getAllWindows(), and the overlay is closed before recording starts.
+    win.setContentProtection(!remoteVisibleNow());
     win.setAlwaysOnTop(true, 'screen-saver');
 
     if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {

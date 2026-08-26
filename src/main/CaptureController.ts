@@ -39,6 +39,7 @@ import { unionRect, clickBox, captureModeFor, cropRect } from './capture-geometr
 import { buildClickCaption } from './click-caption';
 import { captureScaleNow } from './settings';
 import { captureLog } from './logger';
+import { shieldOwnWindows } from './remote-visibility';
 import { getElementAtPoint, warmUpElementLocator } from './element-locator';
 
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+S';
@@ -47,8 +48,17 @@ const DEFAULT_TARGET: CaptureTarget = { mode: 'auto' };
 
 // After hiding the app window for a no-click one-shot grab (+Screenshot), wait
 // this long before capturing so the compositor has presented a frame WITHOUT the
-// window. Hiding is LOAD-BEARING here (node-screenshots BitBlt grabs a visible
-// shotAI window — see main.ts onRecordingChange), and there is no main-process
+// window.
+//
+// CORRECTION, measured: BitBlt does NOT grab a shotAI window while
+// contentProtection is on. This comment used to say it did, and that was the
+// stated reason hiding was load-bearing. scripts/protection-probe.cjs put a
+// VISIBLE protected window in front of the camera and it contributed 0 px to the
+// capture, at every delay tested including 0ms.
+//
+// Hiding still matters, for the two reasons that are actually true: focus moves
+// to the target app, and the user can see the thing they are capturing. So the
+// behavior stays; only the explanation was wrong. There is no main-process
 // repaint signal, so this is a fixed settle comfortably above one present
 // interval (a 60Hz frame ~16ms; generous for slow/RDP displays) yet unobtrusive.
 // The own-window guard in captureStep is the hard backstop against a leak — this
@@ -58,13 +68,12 @@ const HIDE_SETTLE_MS = 350;
 // The main-window hide/restore hook. `pill` (default true) controls whether the
 // always-on-top recording pill is shown too — a full recording shows it; the
 // no-click one-shot suppresses it (no recording HUD, and the pill must not become
-// the focused own-window that trips captureStep's guard). `forceHide` hides the
-// app window even in demo mode ("keep shotAI visible") — a deliberate screenshot
-// must never include shotAI, whereas demo mode only concerns live recording.
-type RecordingChange = (
-  recording: boolean,
-  opts?: { pill?: boolean; forceHide?: boolean },
-) => void;
+// the focused own-window that trips captureStep's guard).
+//
+// There is no forceHide any more. It existed only to override the "keep shotAI
+// visible during capture" demo toggle, and with that gone the hide is
+// unconditional, so every caller already gets what forceHide used to ask for.
+type RecordingChange = (recording: boolean, opts?: { pill?: boolean }) => void;
 
 // Modest downscale applied to every captured screenshot (T2) to cut PNG file
 // size AND Claude vision token cost. Kept gentle so small UI text Claude must
@@ -166,6 +175,40 @@ type Natives = {
 type NsMonitor = InstanceType<Natives['Monitor']>;
 type NsWindow = InstanceType<Natives['Window']>;
 type NsImage = ReturnType<NsMonitor['captureImageSync']>;
+
+// EVERY screen grab goes through one of these two. Nothing may call
+// captureImage/captureImageSync directly, and capture-shield.test.ts fails the
+// build if anything does.
+//
+// Why a funnel rather than shielding each call site: with remoteVisible on,
+// shotAI's windows are deliberately capturable so a remote viewer can see them,
+// and the recording pill is on screen for the whole recording. A single
+// unshielded grab therefore puts the pill into that screenshot. There are seven
+// grab sites today and every future one is a chance to forget, so the invariant
+// is enforced in one place rather than remembered in seven.
+//
+// The shield costs one Win32 call per window per grab and needs no settle. That
+// is measured rather than assumed: scripts/protection-probe.cjs found protection
+// takes effect at a 0ms delay, worst of 5 runs across 8 delays, unlike the 350ms
+// a window HIDE needs.
+async function grabMonitor(mon: NsMonitor): Promise<NsImage> {
+  const release = shieldOwnWindows();
+  try {
+    return await mon.captureImage();
+  } finally {
+    release();
+  }
+}
+
+/** Sync variant for the menu path, where any async hop lets the popup dismiss. */
+function grabMonitorSync(mon: NsMonitor): NsImage {
+  const release = shieldOwnWindows();
+  try {
+    return mon.captureImageSync();
+  } finally {
+    release();
+  }
+}
 
 /** A captured image plus where its top-left sits in global physical pixels. */
 type Grab = {
@@ -446,7 +489,7 @@ export class CaptureController {
         Monitor.all()[0] ??
         null;
       if (!mon) return null;
-      return { image: mon.captureImageSync(), monitor: mon };
+      return { image: grabMonitorSync(mon), monitor: mon };
     } catch (e) {
       captureLog.warn('synchronous menu grab failed:', e);
       return null;
@@ -541,7 +584,7 @@ export class CaptureController {
       const m = mon;
       this.menuPolling = true;
       frames++;
-      m.captureImage()
+      grabMonitor(m)
         .then((image) => {
           if (this.menuFollowUp === cur) cur.menuFrame = { image, monitor: m };
         })
@@ -827,11 +870,10 @@ export class CaptureController {
     );
     // Hide the app window WITHOUT the recording pill (the pill would flash a
     // misleading "recording" HUD and could become the focused own-window that
-    // trips captureStep's guard). forceHide so it hides even in demo mode — the
-    // hide is now the sole thing keeping shotAI out of the shot (guard skipped).
-    // Deliberately do NOT emitState() — a recording status would unmount the
-    // report view mid-grab.
-    this.onRecordingChange?.(true, { pill: false, forceHide: true });
+    // trips captureStep's guard). The hide is unconditional now, so this no
+    // longer has to ask for it specially. Deliberately do NOT emitState(): a
+    // recording status would unmount the report view mid-grab.
+    this.onRecordingChange?.(true, { pill: false });
     try {
       await new Promise((r) => setTimeout(r, HIDE_SETTLE_MS));
       const step = await this.captureStep('hotkey', null, 'left', {
@@ -1170,7 +1212,7 @@ export class CaptureController {
           }
           if (!mon) return null;
           try {
-            full = await mon.captureImage();
+            full = await grabMonitor(mon);
           } catch (e) {
             captureLog.warn('menu-popup capture failed:', e);
             return null;
@@ -1226,7 +1268,7 @@ export class CaptureController {
           const mon = Monitor.fromPoint(winRect.x, winRect.y) ?? clickMonitor;
           if (mon) {
             try {
-              const full = await mon.captureImage();
+              const full = await grabMonitor(mon);
               // Crop tightly to the window bounds — NO generous click box here
               // (that bloated normal captures and pulled in neighboring windows).
               // The menu-popup path keeps its box to catch flipped/overflowing menus.
@@ -1251,7 +1293,7 @@ export class CaptureController {
             const cropY = Math.max(0, Math.min(Math.round(a.y - mon.y()), mon.height() - 1));
             const cropW = Math.max(1, Math.min(Math.round(a.width), mon.width() - cropX));
             const cropH = Math.max(1, Math.min(Math.round(a.height), mon.height() - cropY));
-            const areaImg = await (await mon.captureImage()).crop(cropX, cropY, cropW, cropH);
+            const areaImg = await (await grabMonitor(mon)).crop(cropX, cropY, cropW, cropH);
             return {
               png: await areaImg.toPng(),
               originX: mon.x() + cropX,
@@ -1283,7 +1325,7 @@ export class CaptureController {
           const cy = point.y - mon.y();
           const cropX = Math.max(0, Math.min(cx - Math.floor(boxW / 2), mon.width() - boxW));
           const cropY = Math.max(0, Math.min(cy - Math.floor(boxH / 2), mon.height() - boxH));
-          const regionImg = await (await mon.captureImage()).crop(cropX, cropY, boxW, boxH);
+          const regionImg = await (await grabMonitor(mon)).crop(cropX, cropY, boxW, boxH);
           return {
             png: await regionImg.toPng(),
             originX: mon.x() + cropX,
@@ -1298,7 +1340,7 @@ export class CaptureController {
       // FULLSCREEN — the whole monitor ('auto' desktop/fallback, 'screen').
       try {
         return {
-          png: await (await mon.captureImage()).toPng(),
+          png: await (await grabMonitor(mon)).toPng(),
           originX: mon.x(),
           originY: mon.y(),
           monitor: mon,

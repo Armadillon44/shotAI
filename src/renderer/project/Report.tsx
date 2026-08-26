@@ -13,12 +13,15 @@ import { useConfirm } from '../useConfirm';
 
 /** What the hover-"+" insert menu can add between steps. `capture` records more
  *  steps (mode-picked) starting here; `screenshot` grabs one image (no click). */
+import { reportFit, REPORT_BASE_W, REPORT_BASE_H } from './report-geometry';
+
 export type InsertKind = 'text' | 'image' | 'capture' | 'screenshot' | CalloutKind;
 
-// Base display box for report images (display only — export is full-res). Matches
-// the macOS app's ReportPresentation.baseWidth (820×600) so both render at parity.
-const REPORT_BASE_W = 820;
-const REPORT_BASE_H = 600;
+// Base display box for report images (display only, export is full-res) and the
+// fit math live in report-geometry.ts, pure so the no-crop invariant is testable.
+// REPORT_BASE_W still matches the macOS ReportPresentation.baseWidth for parity;
+// it is now a CAP on the fit rather than the fit itself, because the step card's
+// border and padding mean the figure never actually gets 820px.
 // The default view (zoom 1) already fits the screenshot to the report column, so
 // zoom is IN-only — never shrink below the fit. Enforced on BOTH the write path
 // (setZoom clamps to [ZOOM_MIN, ZOOM_MAX]) and the read path (a persisted or
@@ -48,6 +51,12 @@ function StepFigure({
   onDelete: () => void;
 }): React.JSX.Element {
   const [dims, setDims] = React.useState<{ w: number; h: number } | null>(null);
+  // Measured content width of the figure. The crop bug was fitting to a constant
+  // that did not account for the card's border and padding, so this is measured
+  // rather than derived: padding is in rem, and deriving it would re-introduce the
+  // same class of mistake the moment the card's styling changes.
+  const [availW, setAvailW] = React.useState<number | null>(null);
+  const figRef = React.useRef<HTMLElement | null>(null);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const drag = React.useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
   const flattened = !!step.flattened;
@@ -61,14 +70,13 @@ function StepFigure({
   // allowed 0.5) can never render below the fit — the IN-only invariant holds
   // regardless of what's on disk.
   const zoom = Math.max(ZOOM_MIN, step.reportZoom ?? 1);
-  // Fixed viewport: the image fits within REPORT_BASE (<=820x600) at zoom 1; the
-  // box stays fixed and the image overflows for zoom>1 so it pans in BOTH axes
-  // (instead of the box growing taller). boxScale is 1 for all valid zooms (>=1);
-  // Math.min keeps it defensive if a sub-1 value ever slips past the read floor.
-  const baseScale = dims ? Math.min(REPORT_BASE_W / dims.w, REPORT_BASE_H / dims.h, 1) : 0;
-  const baseW = dims ? dims.w * baseScale : 0;
-  const baseH = dims ? dims.h * baseScale : 0;
-  const boxScale = Math.min(zoom, 1);
+  // Fixed viewport: at zoom 1 the image fits the MEASURED column (capped at
+  // REPORT_BASE), the box stays fixed, and the image overflows for zoom > 1 so it
+  // pans in both axes instead of the box growing taller. reportFit owns that math
+  // and sizes the wrap to the image plus its own border, which is what stops the
+  // border-box wrap from clipping the image it contains.
+  const fit = reportFit(dims, availW, zoom);
+  const { baseW, baseH } = fit;
   const markerColor = markerColorFor(step);
   // Marker as a fraction of the displayed image; subtract crop origin when the
   // displayed image is the cropped flatten; hidden if outside the visible region.
@@ -86,6 +94,20 @@ function StepFigure({
     }
   }
 
+  // Track the figure's usable width. ResizeObserver rather than a one-shot read:
+  // the project window resizes between narrow and report widths, and a stale
+  // measurement would crop again at the new size.
+  React.useLayoutEffect(() => {
+    const el = figRef.current;
+    if (!el) return;
+    const read = () => setAvailW(el.clientWidth || null);
+    read();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Restore the persisted pan (as a fraction of the scrollable range) whenever
   // the rendered size changes (load, zoom). Scrollbars are hidden; you drag.
   React.useEffect(() => {
@@ -95,11 +117,18 @@ function StepFigure({
     const rangeY = el.scrollHeight - el.clientHeight;
     el.scrollLeft = rangeX * (step.reportPanX ?? 0.5);
     el.scrollTop = rangeY * (step.reportPanY ?? 0.5);
-  }, [dims, zoom, step.reportPanX, step.reportPanY]);
+  }, [dims, zoom, availW, step.reportPanX, step.reportPanY]);
 
   const onPanStart = (e: React.MouseEvent) => {
     const el = wrapRef.current;
     if (!el) return;
+    // Gate on zoom FIRST. Measuring overflow alone is not sufficient: any stray
+    // pixel of phantom overflow (an inline-formatting artifact, a rounding
+    // difference) makes the box read as pannable at zoom 1, and a stray drag then
+    // writes reportPanX/Y to the manifest, silently discarding a framing the user
+    // had saved at a higher zoom. At zoom 1 the image fits by construction, so
+    // there is nothing to pan and nothing to persist.
+    if (zoom <= 1) return;
     if (el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight) return;
     e.preventDefault();
     drag.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
@@ -126,7 +155,7 @@ function StepFigure({
   };
 
   return (
-    <figure className="rep__figure">
+    <figure className="rep__figure" ref={figRef}>
       {/* figbox sizes to the image box and is the positioning context for the
           floating controls — kept OUTSIDE imgwrap so they don't scroll with the
           pan or get clipped by its overflow:hidden. */}
@@ -135,7 +164,7 @@ function StepFigure({
           className={`rep__imgwrap${zoom > 1 ? ' rep__imgwrap--pan' : ''}`}
           ref={wrapRef}
           onMouseDown={onPanStart}
-          style={dims ? { width: baseW * boxScale, height: baseH * boxScale } : undefined}
+          style={dims ? { width: fit.wrapW, height: fit.wrapH } : undefined}
         >
           <div className="rep__imginner">
             <img
