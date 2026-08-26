@@ -14,11 +14,34 @@ token exchange with Anthropic (`POST /v1/oauth/token`) that turns that sign-in i
 short-lived Claude credential. Exactly one is **automatic**: a once-a-day check for a newer
 shotAI release (switchable off in Settings). **Windows first**, macOS later.
 
-> **Status:** **1.1.6** — shotAI now **tells you when a newer version is available**:
-> once a day at startup it checks the Releases page and shows a notice with a download
-> link. It never installs anything itself, says nothing when you're up to date, and can
-> be switched off in **Settings → About** (it's the only time the app contacts the
-> internet on its own). 1.1.5 made the **HTML export paste into a knowledge-base article**
+> **Status:** **1.2.0**. Users can now **sign in with their work account** instead of
+> handling an Anthropic API key. Where an administrator has set it up, **Settings → AI**
+> offers **Sign in with Microsoft**: shotAI trades that sign-in for a short-lived Claude
+> credential, so no key is issued, pasted, stored or rotated, and access is granted or
+> revoked centrally by an Entra app-role assignment. Bring-your-own-key still works
+> exactly as before for anyone outside a configured organization. **Test connection**
+> reports its three legs separately (Microsoft sign-in / Claude access / Claude API),
+> because every access denial from Anthropic is deliberately the same opaque `401`.
+>
+> 1.2.0 also adds a **per-project size slider** (65% to 125%) that scales the step cards,
+> callouts, text steps, overview and screenshots in the report **and in every export**;
+> a setting to **show shotAI in remote sessions and screen shares** so the app can be
+> seen and driven over Splashtop, GoToAssist or a Teams share while still staying out of
+> the screenshots it takes; and **Claude now sees the text you wrote**, so your callouts
+> and section headings are left alone and an overview you wrote keeps its heading and its
+> facts instead of being replaced. Two long-standing layout bugs are fixed along the way:
+> report screenshots were being cropped horizontally, and the report column was sizing
+> itself to its content, so a small project rendered in a cramped column. The old
+> "Keep shotAI visible during capture" toggle is **removed**: the remote-session setting
+> covers what it was for, and its warning about appearing in your screenshots was never
+> true.
+>
+> 1.1.6 **tells you when a newer version is available**: once a day at startup it checks
+> the Releases page and shows a notice with a download link. It never installs anything
+> itself, says nothing when you are up to date, and can be switched off in
+> **Settings → About**.
+>
+> 1.1.5 made the **HTML export paste into a knowledge-base article**
 > (Freshservice and similar): step cards hold the document column instead of stretching
 > to the editor's full width, and screenshots are embedded as **AVIF**, which cuts a
 > 13-step SOP from ~48 MB to ~170 KB — small enough for the editor to accept, while
@@ -73,7 +96,9 @@ shotAI release (switchable off in Settings). **Windows first**, macOS later.
    pixels never leave your machine for any export or AI request (the export/send path is
    fail-closed and refuses a step whose redactions aren't baked). **Auto-redact** runs
    **local OCR** (offline) to find and suggest sensitive text. A quality slider controls
-   how much screenshots are downscaled (file size vs. sharpness).
+   how much screenshots are downscaled (file size vs. sharpness). A per-project **Size**
+   slider (65% to 125%) sets how wide the document renders: the step cards, callouts,
+   text steps, overview and screenshots scale together, and every export honors it.
 
 3. **Generate the SOP (optional).** Signed in with your **work account**, or with **your own**
    Anthropic API key, Claude reads the redaction-baked screenshots + captions and writes
@@ -84,8 +109,9 @@ shotAI release (switchable off in Settings). **Windows first**, macOS later.
 
 4. **Export & share.** Export to **HTML**, **Word** (`.docx`), **PowerPoint** (`.pptx`),
    **PDF**, **Markdown**, or **HTML-for-Word** (paste into Word/Docs). Each is footed with
-   "Created on <date>", optionally "by <your name>". Or export a **shareable package** that
-   another shotAI user can **import** and keep editing.
+   "Created on <date>", optionally "by <your name>". Every format honors the project's
+   **Size** setting. Or export a **shareable package** that another shotAI user can
+   **import** and keep editing.
 
 5. **Manage.** The home screen lists projects with **search** (matches the project title
    *and* text inside it — step captions, instructions, and the SOP overview — ranking title
