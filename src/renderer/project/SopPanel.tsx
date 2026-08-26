@@ -262,13 +262,18 @@ export function SopPanel({
       )}
 
       {phase === 'review' && estimate && createPortal(
-        <div className="sop__overlay" role="dialog" aria-label="Review before sending">
+        <div className="sop__overlay" role="dialog" aria-label="Review this generation">
           <div className="sop__modal">
-            <h3 className="sop__modal-title">Review what’s sent to Claude</h3>
+            <h3 className="sop__modal-title">Review this generation</h3>
+            {/* The screenshots have ALREADY gone to Anthropic at this point: the token
+                count and cost below come from a countTokens call that carries the same
+                images. Saying "review before sending" here promised a gate that does not
+                exist, so the wording states what actually happened. */}
             <p className="sop__warn">
-              These {shotCount} screenshot{shotCount === 1 ? '' : 's'} (with any redactions
-              baked in) and their captions are sent to Anthropic to write the SOP, which
-              is then applied to your steps. Nothing else leaves your machine.
+              To measure this, these {shotCount} screenshot{shotCount === 1 ? '' : 's'} (with
+              any redactions baked in) and their captions have already been sent to
+              Anthropic. Generating sends them again to write the SOP, which is then
+              applied to your steps. Nothing else leaves your machine.
               {sopBackup ? ' Your current AI edits will be replaced; you can revert again.' : ''}
             </p>
             <p className="sop__cost">
@@ -277,8 +282,11 @@ export function SopPanel({
               <strong>${estimate.estCostUsd.toFixed(2)}</strong>
             </p>
             <p className="sop__cost-note">
-              Estimated cost for this one generation, billed to your Anthropic key.
-              You can revert or regenerate anytime.
+              Estimated cost for this one generation, billed to{' '}
+              {auth?.signedIn
+                ? "your organization's Anthropic account"
+                : 'your Anthropic key'}
+              . You can revert or regenerate anytime.
             </p>
             <div className="sop__review-list">
               {sentSteps.map((st, i) =>

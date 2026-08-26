@@ -108,8 +108,11 @@ shotAI release (switchable off in Settings). **Windows first**, macOS later.
    Anthropic API key, Claude reads the redaction-baked screenshots + captions and writes
    the guide **in place**: an overview,
    section headings, and per-step titles + instructions, in your chosen **tone** and
-   **effort**. Before anything is sent you see exactly which screenshots go out and an
-   **estimated cost**; a single click **reverts** to your pre-AI version.
+   **effort**. A review screen shows exactly which screenshots are involved and an
+   **estimated cost** before the guide is generated, and a single click **reverts** to
+   your pre-AI version. Note the estimate itself is measured by Anthropic, so the
+   screenshots reach them when the review appears rather than when you confirm: the
+   review is your gate on the generation, not on the images leaving.
 
 4. **Export & share.** Export to **HTML**, **Word** (`.docx`), **PowerPoint** (`.pptx`),
    **PDF**, **Markdown**, or **HTML-for-Word** (paste into Word/Docs). Each is footed with
