@@ -1349,6 +1349,19 @@ body {
   /* Centered column at any window width (the sticky detail bar stays full-bleed).
      880px matches the macOS report content frame (ReportView maxWidth) for parity. */
   margin: 0 auto;
+  /* LOAD-BEARING, and the fix for a long-standing bug the size slider exposed.
+
+     .rep is a flex ITEM of .detail (display:flex; flex-direction:column). In a
+     flex container, an auto margin on the CROSS axis disables stretch, so
+     `margin: 0 auto` made this box size to its CONTENT and max-width could only
+     ever cap it, never widen it. Measured with scripts/report-width-probe.cjs:
+     narrow content gave a 286px column at BOTH 100% and 125%, while the same DOM
+     under a block parent gave 880 and 1036. So a small project rendered in a
+     cramped column and the slider appeared to do nothing.
+
+     Predates #70: at 100% it was already 286 instead of 880. Typical content (a
+     capture up to ~820px) filled the column and hid it. */
+  width: 100%;
   /* #70: per-project document scale. One custom property drives both column
      widths; Report sets it from manifest.displayScale. The fallback of 1 means a
      project without the field, and any context that never sets it, renders

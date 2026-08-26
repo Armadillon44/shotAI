@@ -798,7 +798,13 @@ export function Report({
 
   if (steps.length === 0) {
     return (
-      <div className="rep rep--empty">
+      // Carries --doc-scale too: this is a SEPARATE root from the one below, so
+      // without it the empty state fell back to scale 1 and its insert zone sat at
+      // a different width than the report the user is about to build.
+      <div
+        className="rep rep--empty"
+        style={{ ['--doc-scale' as string]: String(displayScale) } as React.CSSProperties}
+      >
         {insertZone(0)}
         <p className="project__hint">
           No steps yet. Resume capturing, Import an image, or Add a text step.
