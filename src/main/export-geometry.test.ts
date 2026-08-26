@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import {
+  describe,
+  it,
+  expect } from 'vitest';
 import {
   HTML_IMG_EMBED_MAX_W,
   HTML_IMG_MAX_W,
@@ -11,6 +14,8 @@ import {
   DOCX_IMG_BASE_W,
   DOCX_CELL_INSET_TWIPS,
   DOCX_CARD_BORDER_EIGHTHS,
+  DOCX_PAGE_W_TWIPS,
+  DOCX_PAGE_MARGIN_TWIPS,
 } from './export-geometry';
 import { SCALE_STEPS } from '../shared/doc-scale';
 
@@ -155,18 +160,37 @@ describe('Word image ceiling (#70) — the 125% clipping bug', () => {
     expect(DOCX_CARD_INNER_W).toBeLessThan(DOCX_PAGE_COL_W);
   });
 
-  it('derives the ceiling from the card, so it cannot drift from stepCard()', () => {
-    // 624 - 2*12 (insets) - 2*0.67 (borders) = 598.67 -> 598.
+  it('derives the ceiling from the REAL page geometry, in twips throughout', () => {
+    // Measured by unzipping an actual export, after getting this wrong twice:
+    //   <w:pgSz w:w="11906">                    A4, NOT Letter (the first error)
+    //   <w:pgMar w:left="1440" w:right="1440">
+    //   <w:tcMar><w:left w:w="180"><w:right w:w="180">   (the second error)
+    // Derived in twips end to end so no intermediate rounding creeps in.
     const px = (t: number) => (t / 20) * (96 / 72);
     expect(DOCX_CARD_INNER_W).toBe(
       Math.floor(
-        DOCX_PAGE_COL_W -
-          2 * px(DOCX_CELL_INSET_TWIPS) -
-          2 * px((DOCX_CARD_BORDER_EIGHTHS / 8) * 20),
+        px(
+          DOCX_PAGE_W_TWIPS -
+            2 * DOCX_PAGE_MARGIN_TWIPS -
+            2 * DOCX_CELL_INSET_TWIPS -
+            2 * (DOCX_CARD_BORDER_EIGHTHS / 8) * 20,
+        ),
       ),
     );
+    expect(DOCX_CARD_INNER_W).toBe(576);
+    expect(DOCX_PAGE_COL_W).toBe(601);
   });
 
+  it('rejects the two widths that actually shipped clipped', () => {
+    // 624 was the Letter-column guess; 598 was the A4 column with the insets still
+    // unaccounted for. A real export embedded 598px (5695950 EMU) and Word cut it
+    // off. Both must now be impossible at every scale.
+    for (const s of SCALE_STEPS) {
+      expect(docxImgMaxW(s)).not.toBe(624);
+      expect(docxImgMaxW(s)).not.toBe(598);
+      expect(docxImgMaxW(s)).toBeLessThanOrEqual(576);
+    }
+  });
   it('leaves a 100% document byte-identical', () => {
     // The base width is already inside the ceiling, so nothing changes at 100% and
     // this fix cannot alter an existing export.
@@ -181,6 +205,8 @@ describe('Word image ceiling (#70) — the 125% clipping bug', () => {
     // behavior for a fixed page, not a missing feature.
     expect(docxImgMaxW(1.25)).toBe(DOCX_CARD_INNER_W);
     expect(docxImgMaxW(1.2)).toBe(DOCX_CARD_INNER_W);
+    // 700 (560 * 1.25) is what an unclamped scale would have asked for.
+    expect(Math.round(DOCX_IMG_BASE_W * 1.25)).toBeGreaterThan(DOCX_CARD_INNER_W);
   });
 
   it('sanitizes a bad scale', () => {

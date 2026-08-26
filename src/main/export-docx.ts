@@ -20,7 +20,11 @@ import {
 } from 'docx';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import { loadItemImage, type ExportItem } from './export';
-import { docxImgMaxW } from './export-geometry';
+import {
+  docxImgMaxW,
+  DOCX_PAGE_W_TWIPS,
+  DOCX_PAGE_MARGIN_TWIPS,
+} from './export-geometry';
 
 // Image width now comes from docxImgMaxW() in export-geometry.ts, which derives the
 // ceiling from stepCard()'s own insets and borders and honors the project scale (#70).
@@ -205,7 +209,25 @@ export async function buildDocx(
     children.push(spacer());
   }
 
-  const section: ISectionOptions = { properties: {}, children };
+  // Page size and margins set EXPLICITLY, matching what the library default was
+  // already producing (verified by unzipping a real export: A4 11906x16838, 1440
+  // twip margins). Stated here so export-geometry.ts can derive the image ceiling
+  // from our own source rather than from a library default. Deliberately NOT
+  // changed to Letter: that would alter every existing export.
+  const section: ISectionOptions = {
+    properties: {
+      page: {
+        size: { width: DOCX_PAGE_W_TWIPS, height: 16838 },
+        margin: {
+          top: DOCX_PAGE_MARGIN_TWIPS,
+          right: DOCX_PAGE_MARGIN_TWIPS,
+          bottom: DOCX_PAGE_MARGIN_TWIPS,
+          left: DOCX_PAGE_MARGIN_TWIPS,
+        },
+      },
+    },
+    children,
+  };
   const doc = new Document({
     creator: 'shotAI',
     title: manifest.title,

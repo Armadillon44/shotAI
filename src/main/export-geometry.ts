@@ -31,8 +31,24 @@ import { clampScale, docWidths } from '../shared/doc-scale';
 // ./export and so cannot be unit-tested. These constants MUST match stepCard() in
 // export-docx.ts.
 
-/** Letter minus 1in margins each side = 6.5in at 96dpi. Word's text column. */
-export const DOCX_PAGE_COL_W = 624;
+// MEASURED from a real export, not assumed. An earlier version of this said
+// "Letter minus 1in margins = 624px", which was wrong twice: the page is A4, and
+// the card insets come off it too. The result was a 125% Word export whose images
+// were clipped on the right, twice, because each fix corrected only one of the two
+// errors. Unzipping the .docx settled it:
+//   <w:pgSz w:w="11906" w:h="16838">        A4, not Letter
+//   <w:pgMar w:left="1440" w:right="1440">  1in each side
+//   <w:tcMar><w:left w:w="180"><w:right w:w="180">
+//   <wp:extent cx="5695950">                = 598px, the width that overflowed
+//
+// export-docx.ts now sets the page size EXPLICITLY to these values instead of
+// inheriting a library default, so this arithmetic is anchored to our own source
+// and a docx upgrade cannot silently move the page under it.
+
+/** A4 page width in twips, set explicitly by export-docx.ts. */
+export const DOCX_PAGE_W_TWIPS = 11906;
+/** Page margin per side, in twips. */
+export const DOCX_PAGE_MARGIN_TWIPS = 1440;
 /** Base image width at scale 1. */
 export const DOCX_IMG_BASE_W = 560;
 /** stepCard() cell inset, per side, in twips. */
@@ -45,27 +61,31 @@ function twipsToPx(t: number): number {
   return (t / 20) * (96 / 72);
 }
 
+/** The page's text column. */
+export const DOCX_PAGE_COL_W = Math.floor(
+  twipsToPx(DOCX_PAGE_W_TWIPS - 2 * DOCX_PAGE_MARGIN_TWIPS),
+);
+
 /**
- * What actually fits INSIDE a Word step card.
- *
- * Clamping to the page column was wrong, and it showed up only at 125%: the image
- * was sized to the full 624 and Word clipped ~26px off its right edge, because the
- * card spends 12px of inset plus a border on each side. Derived rather than
- * re-guessed, so it tracks stepCard() instead of drifting from it.
+ * What actually fits INSIDE a step card: the text column less the cell insets and
+ * the card borders. This is the number an image must never exceed.
  */
 export const DOCX_CARD_INNER_W = Math.floor(
-  DOCX_PAGE_COL_W -
-    2 * twipsToPx(DOCX_CELL_INSET_TWIPS) -
-    2 * twipsToPx((DOCX_CARD_BORDER_EIGHTHS / 8) * 20),
+  twipsToPx(
+    DOCX_PAGE_W_TWIPS -
+      2 * DOCX_PAGE_MARGIN_TWIPS -
+      2 * DOCX_CELL_INSET_TWIPS -
+      2 * (DOCX_CARD_BORDER_EIGHTHS / 8) * 20,
+  ),
 );
 
 /**
  * Word image width at a given project scale, clamped to the card's inner width.
  *
- * A HARD ceiling: Word has a fixed page, so the document scale (#70) can shrink an
- * image but never grow it past the card, or Word clips it and the setting lies about
- * what it did. At scale 1 the base is already inside the ceiling, so 100% documents
- * are byte-identical to before.
+ * A HARD ceiling: the page is fixed, so the document scale (#70) can shrink an
+ * image but never grow it past the card. Word does not complain when an image is
+ * too wide, it just cuts the picture off, which is why this was invisible at 100%
+ * (the 560px base is already inside the ceiling) and only showed up at 125%.
  */
 export function docxImgMaxW(scale = 1): number {
   return Math.min(DOCX_CARD_INNER_W, Math.round(DOCX_IMG_BASE_W * clampScale(scale)));
