@@ -9,7 +9,7 @@ import { ensureFlattened } from './sop-prepare';
 import { Report, type InsertKind } from './Report';
 import { CaptureInsertModal, type CaptureInsertVariant } from './CaptureInsertModal';
 import { SopPanel } from './SopPanel';
-import { SCALE_STEPS, clampScale } from '../../shared/doc-scale';
+import { SCALE_STEPS, clampScale, isLegalScale } from '../../shared/doc-scale';
 import { Editor } from '../editor/Editor';
 import { Notice } from '../Notice';
 
@@ -47,8 +47,8 @@ function SizeSlider({
   const idx = Math.max(0, SCALE_STEPS.indexOf(clampScale(displayScale)));
 
   // Typing needs its own buffer: clamping every keystroke would turn "1" into 65
-  // before the user could reach "10", so the box only snaps on commit. Null means
-  // "not being edited", and the box shows the live scale instead.
+  // before the user could reach "10", so a partial entry is held here and snapped on
+  // commit. Null means "not being edited", and the box shows the live scale.
   const [draft, setDraft] = React.useState<string | null>(null);
 
   const persist = (value: number) => {
@@ -60,17 +60,31 @@ function SizeSlider({
       .catch(() => undefined);
   };
 
-  const commitDraft = () => {
-    if (draft === null) return;
-    const pct = Number(draft);
-    // An unparseable or empty entry reverts rather than snapping to a bound: the
-    // user cleared the box, they did not ask for 65%.
-    const next = Number.isFinite(pct) && draft.trim() !== '' ? clampScale(pct / 100) : displayScale;
+  /** Take effect now: abandon any draft, preview, and save. */
+  const apply = (next: number) => {
     setDraft(null);
     preview(next);
     persist(next);
   };
 
+  /** Move n detents from where we are. Used by the up/down arrows. */
+  const step = (n: number) => {
+    const at = Math.max(0, SCALE_STEPS.indexOf(clampScale(displayScale)));
+    const to = Math.min(SCALE_STEPS.length - 1, Math.max(0, at + n));
+    if (to !== at) apply(SCALE_STEPS[to]);
+  };
+
+  const commitDraft = () => {
+    if (draft === null) return;
+    const pct = Number(draft);
+    // An unparseable or empty entry reverts rather than snapping to a bound: the
+    // user cleared the box, they did not ask for 65%.
+    const next =
+      Number.isFinite(pct) && draft.trim() !== '' ? clampScale(pct / 100) : displayScale;
+    setDraft(null);
+    preview(next);
+    persist(next);
+  };
   return (
     <span className="detail__scale">
       <label className="detail__scale-lab" htmlFor="doc-scale-range">
@@ -98,10 +112,38 @@ function SizeSlider({
         step={5}
         aria-label="Document size, percent"
         value={draft ?? Math.round(displayScale * 100)}
-        onChange={(e) => setDraft(e.target.value)}
+        // STEPPING takes effect immediately; TYPING waits for Enter or blur.
+        //
+        // Arrow keys are handled here rather than left to the native stepper, so a
+        // press changes the size at once instead of only filling the box and waiting
+        // for Enter, which read as the control ignoring you.
+        //
+        // Deliberately NOT keyed off the input event's `inputType` to tell a step
+        // from a keystroke: a probe appeared to show they differ, but the probe
+        // dispatched its own synthetic event, so it was measuring itself. The rule
+        // below needs no such signal.
+        onChange={(e) => {
+          const raw = e.target.value;
+          const asScale = Number(raw) / 100;
+          // A value that is ALREADY a legal detent can only have come from a stepper
+          // (spinner button or arrow key), or from typing that happens to have landed
+          // exactly on one, in which case applying it is what the user wanted anyway.
+          // Anything else is a partial entry and gets buffered.
+          if (raw !== '' && isLegalScale(asScale)) {
+            apply(asScale);
+          } else {
+            setDraft(raw);
+          }
+        }}
         onBlur={commitDraft}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
+          if (e.key === 'ArrowUp') {
+            e.preventDefault(); // suppress the native step; we own the value
+            step(1);
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            step(-1);
+          } else if (e.key === 'Enter') {
             e.preventDefault();
             commitDraft();
             e.currentTarget.blur();
