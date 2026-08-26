@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { COLUMN_BLOCK_SELECTORS, DOC_CSS, HTML_COL_W, PLAIN_CSS } from './export-css';
-import { HTML_IMG_MAX_W } from './export-geometry';
+import { COLUMN_BLOCK_SELECTORS, docCss, HTML_COL_W, plainCss } from './export-css';
+import { HTML_IMG_MAX_W, htmlImgMaxW } from './export-geometry';
+import { SCALE_STEPS, docWidths } from '../shared/doc-scale';
+
+// The existing suite is the scale-1 spec: at 100% the exported CSS must be exactly
+// what it always was. A second suite below covers the per-scale invariants.
+const DOC_CSS = docCss(1);
+const PLAIN_CSS = plainCss(1);
 
 // The blocks that must each carry the document column, written out HERE on purpose.
 // Do NOT rewrite these loops to iterate COLUMN_BLOCK_SELECTORS instead: that list is
@@ -100,5 +106,72 @@ describe('PLAIN_CSS', () => {
   it('is Arial-first and constrains images for reading the file', () => {
     expect(PLAIN_CSS).toContain('font-family:Arial');
     expect(PLAIN_CSS).toContain('img{max-width:100%;height:auto}');
+  });
+});
+
+describe('per-project document scale (#70)', () => {
+  it('is byte-identical to the pre-scale output at 100%', () => {
+    // The whole feature must be invisible to a project that never touches it.
+    expect(docCss(1)).toBe(docCss());
+    expect(plainCss(1)).toBe(plainCss());
+    expect(docCss(1)).toContain(`max-width:${HTML_COL_W}px`);
+  });
+
+  it('moves EVERY column block together at every scale', () => {
+    // The five blocks each carry their own column, so a scale that updated some and
+    // not others would render a document with misaligned sections. This is the
+    // regression the original #57 test guards, re-asserted per scale.
+    for (const s of SCALE_STEPS) {
+      const css = docCss(s);
+      const col = docWidths(s).htmlCol;
+      for (const sel of EXPECTED_COL_BLOCKS) {
+        const body = ruleBody(css, sel);
+        expect(body, `${sel} missing at scale ${s}`).not.toBeNull();
+        expect(body, `${sel} must carry max-width:${col}px at scale ${s}`).toContain(
+          `max-width:${col}px`,
+        );
+      }
+    }
+  });
+
+  it('still lifts the column for print at every scale', () => {
+    // Miss this and a scaled PDF renders at the screen column instead of the page.
+    for (const s of SCALE_STEPS) {
+      const print = /@media print{(.*)}s*$/.exec(docCss(s))?.[1] ?? '';
+      const lifted = /([^{}]*){max-width:none}/.exec(print)?.[1] ?? '';
+      const list = lifted.split(',').map((x) => x.trim());
+      for (const sel of EXPECTED_COL_BLOCKS) {
+        expect(list, `print must reset ${sel} at scale ${s}`).toContain(sel);
+      }
+    }
+  });
+
+  it('keeps the image inside the card at every scale, re-derived not multiplied', () => {
+    for (const s of SCALE_STEPS) {
+      const col = docWidths(s).htmlCol;
+      expect(htmlImgMaxW(s)).toBe(col - 30 - 16 - 32);
+      // The trap: 738 * s agrees only at s = 1.
+      if (s !== 1) expect(htmlImgMaxW(s)).not.toBe(Math.round(HTML_IMG_MAX_W * s));
+    }
+  });
+
+  it('scales the plain export body, and never emits a bogus width', () => {
+    for (const s of SCALE_STEPS) {
+      const m = /max-width:(\d+)px/.exec(plainCss(s));
+      expect(m, `no body max-width at scale ${s}`).not.toBeNull();
+      expect(Number(m?.[1])).toBeGreaterThan(0);
+    }
+    // Monotonic: a larger document is never a narrower one.
+    const w = (s: number) => Number(/max-width:(\d+)px/.exec(plainCss(s))?.[1]);
+    expect(w(0.65)).toBeLessThan(w(1));
+    expect(w(1)).toBeLessThan(w(1.25));
+  });
+
+  it('sanitizes a bad scale rather than emitting broken CSS', () => {
+    for (const bad of [Number.NaN, 99, -3]) {
+      const css = docCss(bad as number);
+      expect(css).not.toContain('NaN');
+      expect(css).not.toContain('max-width:-');
+    }
   });
 });

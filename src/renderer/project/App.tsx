@@ -326,15 +326,18 @@ export function App(): React.JSX.Element {
   // refresh recents then (while still in the project) so the home list shows the
   // new title immediately on return — not only on a later manual reload.
   const sopBackup = useProjectStore((s) => s.sopBackup);
+  const displayScale = useProjectStore((s) => s.displayScale);
   React.useEffect(() => {
     refresh().catch(fail);
   }, [sopBackup, refresh]);
 
   // F5: tell main to widen the window to the report size in a project and shrink
-  // it back to the narrow list on the home screen.
+  // it back to the narrow list on the home screen. The project's displayScale
+  // (#70) goes with it, since a scaled-up report needs a wider window; depending
+  // on it here also means moving the slider re-runs this and re-fits the window.
   React.useEffect(() => {
-    void window.shotai.setDetailView(!!openPath);
-  }, [openPath]);
+    void window.shotai.setDetailView(!!openPath, displayScale);
+  }, [openPath, displayScale]);
 
   // Re-list when main reports the project set changed (e.g. startup auto-archive
   // moved stale projects to the Archive tab).

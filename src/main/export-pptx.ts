@@ -3,6 +3,7 @@
 // every other exporter, so slides only ever contain the redaction-baked renders.
 // Pure-JS `pptxgenjs` (no CDN, no native deps).
 import pptxgen from 'pptxgenjs';
+import { clampScale } from '../shared/doc-scale';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import { loadItemImage, type ExportItem } from './export';
 
@@ -205,11 +206,19 @@ export async function buildPptx(
     });
     const hasBody = !!it.body;
     const imgTop = INNER.y + 0.75;
+    // #70: the slide is a FIXED canvas, so the document scale can only shrink the
+    // image box, never grow it (min(1, scale)). Shrinking both axes keeps the
+    // proportion whether the capture is width- or height-limited, and the box is
+    // re-centred so a smaller image sits in the middle of the slide rather than
+    // hugging the left edge.
+    const shrink = Math.min(1, clampScale(manifest.displayScale));
+    const fullW = INNER.w;
+    const fullH = hasBody ? INNER.h - 0.75 - 1.2 : INNER.h - 0.75;
     const box = {
-      x: INNER.x,
+      x: INNER.x + (fullW - fullW * shrink) / 2,
       y: imgTop,
-      w: INNER.w,
-      h: hasBody ? INNER.h - 0.75 - 1.2 : INNER.h - 0.75,
+      w: fullW * shrink,
+      h: fullH * shrink,
     };
     const { buffer, width, height } = await loadItemImage(it);
     const b64 = buffer.toString('base64');

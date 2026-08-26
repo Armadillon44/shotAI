@@ -9,6 +9,7 @@ import { ensureFlattened } from './sop-prepare';
 import { Report, type InsertKind } from './Report';
 import { CaptureInsertModal, type CaptureInsertVariant } from './CaptureInsertModal';
 import { SopPanel } from './SopPanel';
+import { SCALE_STEPS, clampScale } from '../../shared/doc-scale';
 import { Editor } from '../editor/Editor';
 import { Notice } from '../Notice';
 
@@ -21,6 +22,53 @@ const EXPORT_LABEL: Record<ExportFormat, string> = {
   pptx: 'PowerPoint',
 };
 
+/**
+ * Per-project size slider (#70). Scales the step cards, callouts, text steps,
+ * overview and screenshots, in the report and in every export.
+ *
+ * Live feedback comes from an optimistic store update; the write happens on
+ * RELEASE, matching the screenshot-quality slider in Settings. Persisting per
+ * onChange would mean up to 13 serialized disk writes for one drag.
+ */
+function SizeSlider({
+  projectPath,
+}: {
+  projectPath: string;
+}): React.JSX.Element {
+  const displayScale = useProjectStore((s) => s.displayScale);
+  const preview = useProjectStore((s) => s.previewDisplayScale);
+  const applyManifest = useProjectStore((s) => s.applyManifest);
+  const idx = Math.max(0, SCALE_STEPS.indexOf(clampScale(displayScale)));
+
+  const persist = () => {
+    void window.shotai.projects
+      .setDisplayScale(projectPath, displayScale)
+      .then(applyManifest)
+      .catch(() => undefined); // the optimistic value already shows; a failed
+    // write is corrected by the next manifest that arrives.
+  };
+
+  return (
+    <label className="detail__scale" title="Document size: scales the step cards, text and screenshots, in the report and in exports">
+      <span className="detail__scale-lab">Size</span>
+      <input
+        type="range"
+        className="detail__scale-range"
+        min={0}
+        max={SCALE_STEPS.length - 1}
+        step={1}
+        value={idx}
+        aria-label="Document size"
+        aria-valuetext={`${Math.round(displayScale * 100)} percent`}
+        onChange={(e) => preview(SCALE_STEPS[Number(e.target.value)] ?? 1)}
+        onPointerUp={persist}
+        onKeyUp={persist}
+        onBlur={persist}
+      />
+      <span className="detail__scale-val">{Math.round(displayScale * 100)}%</span>
+    </label>
+  );
+}
 export function ProjectDetail({
   onResumeCapture,
   onCaptureInsert,
@@ -265,6 +313,7 @@ export function ProjectDetail({
           {/* SOP generate/revert folds into this one command bar (its review /
               progress modals are fixed overlays, unaffected by placement). */}
           <SopPanel sopEnabled={sopEnabled} onOpenSettings={onOpenSettings} />
+          {projectPath && <SizeSlider projectPath={projectPath} />}
           {onResumeCapture && (
             <button
               type="button"

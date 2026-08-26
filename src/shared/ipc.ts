@@ -190,6 +190,7 @@ export const IpcChannels = {
   mergeSteps: 'projects:merge-steps',
   addTextStep: 'projects:add-text-step',
   setProjectIntro: 'projects:set-intro',
+  setDisplayScale: 'projects:set-display-scale',
   redactScan: 'projects:redact-scan',
   exportProject: 'projects:export',
   exportToDir: 'projects:export-to-dir',
@@ -285,7 +286,12 @@ export interface ShotaiApi {
   onImportProject(cb: () => void): () => void;
   /** Tell main the user entered (true) / left (false) a project, so the window
    *  grows to the report width and shrinks back on the list (F5). */
-  setDetailView(open: boolean): Promise<void>;
+  /**
+   * Switch the window between list and report widths. `scale` is the project's
+   * displayScale (#70): a scaled-up report needs a wider window or the frame is
+   * capped by the window and the slider looks inert.
+   */
+  setDetailView(open: boolean, scale?: number): Promise<void>;
   projects: {
     getDir(): Promise<string>;
     chooseDir(): Promise<string | null>;
@@ -364,6 +370,8 @@ export interface ShotaiApi {
     redactScan(projectPath: string, stepId: string): Promise<Rect[]>;
     /** Set (or clear, with null) the SOP overview preamble. Returns the manifest. */
     setIntro(projectPath: string, intro: SopIntro | null): Promise<ProjectManifest>;
+    /** Per-project document scale (#70). Clamped main-side to a legal detent. */
+    setDisplayScale(projectPath: string, scale: number): Promise<ProjectManifest>;
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
     revertSop(projectPath: string): Promise<ProjectManifest>;
     /**

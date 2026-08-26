@@ -1,6 +1,7 @@
 // Zustand store for the project-detail / editor view. The home view (recents +
 // capture-mode picker) stays in App.tsx; this owns the currently-open project.
 import { create } from 'zustand';
+import { SCALE_DEFAULT, clampScale } from '../../shared/doc-scale';
 import type {
   ProjectManifest,
   ProjectStep,
@@ -17,6 +18,12 @@ interface ProjectState {
   steps: ProjectStep[];
   /** SOP overview preamble (rendered above the steps, not as a step). */
   intro: SopIntro | null;
+  /**
+   * Per-project document scale (#70). Always a resolved number here, never
+   * undefined: the manifest omits the default, and the report should not have to
+   * repeat that defaulting at every use site.
+   */
+  displayScale: number;
   /** Pre-edit snapshot when Claude's inline SOP edits are applied; enables revert. */
   sopBackup: SopBackup | null;
   /** Manifest updatedAt — also used to cache-bust re-saved flattened renders. */
@@ -50,6 +57,13 @@ interface ProjectState {
   selectStep: (id: string | null) => void;
   /** Re-sync from a manifest returned by a mutation (e.g. an editor save). */
   applyManifest: (manifest: ProjectManifest) => void;
+  /**
+   * Optimistic scale change for live slider feedback (#70). The report re-renders
+   * from this immediately; the drag is persisted on release and the authoritative
+   * manifest then comes back through applyManifest. Clamped, so a bad value cannot
+   * reach the layout even transiently.
+   */
+  previewDisplayScale: (scale: number) => void;
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -58,6 +72,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   title: '',
   steps: [],
   intro: null,
+  displayScale: SCALE_DEFAULT,
   sopBackup: null,
   updatedAt: '',
   manifestRev: 0,
@@ -76,6 +91,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         title: manifest.title,
         steps: manifest.steps,
         intro: manifest.intro,
+        displayScale: clampScale(manifest.displayScale),
         sopBackup: manifest.sopBackup,
         updatedAt: manifest.updatedAt,
         manifestRev: s.manifestRev + 1,
@@ -95,6 +111,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         title: '',
         steps: [],
         intro: null,
+        displayScale: SCALE_DEFAULT,
         sopBackup: null,
         updatedAt: '',
         selectedStepId: null,
@@ -111,6 +128,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       title: manifest.title,
       steps: manifest.steps,
       intro: manifest.intro,
+      displayScale: clampScale(manifest.displayScale),
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,
@@ -126,6 +144,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       title: '',
       steps: [],
       intro: null,
+      displayScale: SCALE_DEFAULT,
       sopBackup: null,
       updatedAt: '',
       selectedStepId: null,
@@ -134,11 +153,14 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   selectStep: (id) => set({ selectedStepId: id }),
 
+  previewDisplayScale: (scale) => set({ displayScale: clampScale(scale) }),
+
   applyManifest: (manifest) =>
     set((s) => ({
       steps: manifest.steps,
       title: manifest.title,
       intro: manifest.intro,
+      displayScale: clampScale(manifest.displayScale),
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,

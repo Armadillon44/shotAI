@@ -16,6 +16,7 @@ import {
   type StepPatch,
 } from '../shared/project';
 import { DEFAULT_SOP_TONE, isSopTone } from '../shared/sop';
+import { SCALE_DEFAULT, clampScale } from '../shared/doc-scale';
 import {
   addRecent,
   getProjectsDir,
@@ -122,6 +123,13 @@ export function coerceManifest(
     updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
     captureSettings: parsed.captureSettings ?? null,
     steps: normalizeSteps(parsed.steps),
+    // MUST be coerced explicitly: coerceManifest rebuilds the manifest field by
+    // field, so an uncoerced field is dropped on EVERY read (the exact trap that
+    // nearly shipped with introEditedByUser). Omitted when it is the default, so
+    // a project that never touched the slider stays byte-identical on disk.
+    ...(clampScale(parsed.displayScale) !== SCALE_DEFAULT
+      ? { displayScale: clampScale(parsed.displayScale) }
+      : {}),
     intro: coerceIntro(parsed.intro),
     // MUST be coerced explicitly. This function rebuilds the manifest field by
     // field, so an uncoerced field is silently dropped on EVERY read — the flag
@@ -557,6 +565,19 @@ export function mutate(
 
 /** Set (or clear, with a null/empty value) the SOP overview preamble (E8). The
  *  intro is coerced from untrusted (IPC) input — a bad shape becomes null. */
+/** Set the per-project document scale (#70). Clamped to a legal detent; the
+ *  default is stored as ABSENT so an unscaled project keeps a clean manifest. */
+export function setProjectDisplayScale(
+  projectPath: string,
+  scale: unknown,
+): Promise<ProjectManifest> {
+  const clean = clampScale(scale);
+  return mutate(projectPath, (manifest) => {
+    if (clean === SCALE_DEFAULT) delete manifest.displayScale;
+    else manifest.displayScale = clean;
+  });
+}
+
 export function setProjectIntro(
   projectPath: string,
   intro: unknown,

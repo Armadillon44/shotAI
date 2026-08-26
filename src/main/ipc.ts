@@ -825,6 +825,18 @@ export function registerIpcHandlers(
     },
   );
   ipcMain.handle(
+    IpcChannels.setDisplayScale,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, scale: unknown) => {
+      devLog('ipc: projects:set-display-scale');
+      // Clamped main-side (setProjectDisplayScale -> clampScale), so an untrusted
+      // value cannot widen a document past what the app supports.
+      return projectStore.setProjectDisplayScale(
+        asString(projectPath, 'projectPath'),
+        scale,
+      );
+    },
+  );
+  ipcMain.handle(
     IpcChannels.claudeEstimate,
     (_event: IpcMainInvokeEvent, projectPath: unknown) => {
       devLog('ipc: claude:estimate');

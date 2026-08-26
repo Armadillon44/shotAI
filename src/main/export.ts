@@ -22,7 +22,8 @@ import {
   type EmbedPolicy,
   zoomCropRect,
 } from './export-geometry';
-import { DOC_CSS, PLAIN_CSS } from './export-css';
+import { docCss, plainCss } from './export-css';
+import { clampScale } from '../shared/doc-scale';
 import { encodeAvif } from './avif-encode';
 import { buildDocx } from './export-docx';
 import { buildPptx } from './export-pptx';
@@ -272,11 +273,14 @@ interface InlineImage {
 async function inlineImageForHtml(
   it: Extract<ExportItem, { kind: 'shot' }>,
   policy: EmbedPolicy,
+  docScale = 1,
 ): Promise<InlineImage> {
   const { buffer, width, height } = await loadItemImage(it);
-  // The DISPLAY size is always 1x the column, whatever resolution gets embedded —
-  // an embedded @2x image is still laid out at 738 by these attributes.
-  const shown = htmlImageSize(width, height);
+  // The DISPLAY size is always 1x the column, whatever resolution gets embedded:
+  // an embedded @2x image is still laid out at the column width by these
+  // attributes. The column is per-project now (#70), so the size attributes have
+  // to follow it or a scaled document lays its images out at the wrong width.
+  const shown = htmlImageSize(width, height, docScale);
   const sizeAttr = shown ? ` width="${shown.w}" height="${shown.h}"` : '';
 
   const cap = policy.embedMaxW;
@@ -424,6 +428,9 @@ async function buildHtmlDoc(
   policy: EmbedPolicy,
   onProgress?: (p: ExportProgress) => void,
 ): Promise<string> {
+  // Per-project document scale (#70). Clamped here rather than trusted: this is
+  // the boundary where a manifest value becomes a rendered width.
+  const docScale = clampScale(manifest.displayScale);
   const parts: string[] = [];
   // Encoding is the slow part (AVIF runs ~1s per image), so report per image rather
   // than per step — text steps and callouts cost nothing and would skew the count.
@@ -473,7 +480,7 @@ async function buildHtmlDoc(
       );
       continue;
     }
-    const img = await inlineImageForHtml(it, policy);
+    const img = await inlineImageForHtml(it, policy, docScale);
     onProgress?.({ done: ++shotDone, total: shotTotal });
     const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
     const title = escapeHtml(it.caption || `Step ${it.n}`);
@@ -507,7 +514,7 @@ async function buildHtmlDoc(
     `<meta charset="utf-8">\n` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<title>${title}</title>\n` +
-    `<style>${DOC_CSS}</style>\n` +
+    `<style>${docCss(docScale)}</style>\n` +
     // A plain <div>, not <main>: this wrapper gets unwrapped on a KB-editor paste
     // either way (which is why every block carries its own column — see DOC_CSS),
     // and semantic tags are commonly off a sanitizer's allowlist. It only pads.
@@ -530,6 +537,7 @@ async function buildPlainHtmlDoc(
   manifest: ProjectManifest,
   items: ExportItem[],
 ): Promise<string> {
+  const docScale = clampScale(manifest.displayScale);
   const br = (s: string) => escapeHtml(s).replace(/\n/g, '<br>');
   const parts: string[] = [`<h1>${escapeHtml(manifest.title)}</h1>`];
   if (manifest.intro && (manifest.intro.heading || manifest.intro.body)) {
@@ -568,7 +576,11 @@ async function buildPlainHtmlDoc(
       // and sized with width/height ATTRIBUTES, because Word / Google Docs drop
       // CSS max-width on paste and would lay the capture out at full pixel size.
       // html-plain embeds PNG at 1x: Word cannot read WebP (htmlEmbedPolicy).
-      const img = await inlineImageForHtml(it, htmlEmbedPolicy('html-plain'));
+      const img = await inlineImageForHtml(
+        it,
+        htmlEmbedPolicy('html-plain', docScale),
+        docScale,
+      );
       const dataUri = `data:${img.mediaType};base64,${img.bytes.toString('base64')}`;
       block.push(`<h2>${it.n}. ${escapeHtml(it.caption || `Step ${it.n}`)}</h2>`);
       block.push(
@@ -582,7 +594,7 @@ async function buildPlainHtmlDoc(
   return (
     `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n` +
     `<title>${escapeHtml(manifest.title)}</title>\n` +
-    `<style>${PLAIN_CSS}</style>\n</head>\n<body>\n` +
+    `<style>${plainCss(docScale)}</style>\n</head>\n<body>\n` +
     parts.join('\n') +
     `\n</body>\n</html>\n`
   );
@@ -812,7 +824,7 @@ export async function exportProject(
   } else if (format === 'html') {
     await fs.writeFile(
       outputPath,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format), opts.onProgress),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress),
       'utf8',
     );
   } else {
@@ -820,7 +832,7 @@ export async function exportProject(
     // the codec explicitly, or it silently inherits them and prints soft (#56 scope).
     await htmlToPdf(
       dir,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format), opts.onProgress),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress),
       outputPath,
     );
   }

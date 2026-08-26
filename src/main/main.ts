@@ -15,6 +15,7 @@ import {
   setLastUpdateCheckAt,
 } from './settings';
 import { applyRemoteVisibility } from './remote-visibility';
+import { detailWindowWidth } from '../shared/doc-scale';
 import { checkForUpdate, startupCheckDecision } from './update-check';
 import { setPendingUpdate } from './update-state';
 import { IpcChannels } from '../shared/ipc';
@@ -225,18 +226,28 @@ const wireLoadDiagnostics = (win: BrowserWindow, label: string): void => {
  * with the inline image editor, SOP generation, and export. Where editing happens.
  */
 // Project-window widths (F5): the home/project list is NARROW; opening a project
-// expands the window to fit the report column (REPORT column max-width 910 +
-// margins/scrollbar), and returning to the list shrinks it back.
+// expands to fit the report column, and returning to the list shrinks it back.
+//
+// The detail width now comes from shared/doc-scale (detailWindowWidth), because it
+// depends on the project's displayScale (#70) and the same base has to be shared
+// with the renderer rather than duplicated here.
 const LIST_WIDTH = 720;
-const DETAIL_WIDTH = 1010;
 
 /** Resize the project window to the list (narrow) or detail (report) width,
  *  preserving the visual center + clamping to the current display's work area. */
-const setDetailView = (open: boolean): void => {
+const setDetailView = (open: boolean, scale = 1): void => {
   const win = projectWindow;
   if (!win || win.isDestroyed()) return;
   const b = win.getBounds();
-  const newW = open ? DETAIL_WIDTH : LIST_WIDTH;
+  const wa0 = screen.getDisplayMatching(b).workArea;
+  // #70: a project scaled ABOVE 100% needs a wider window, or the report frame
+  // is capped by the window and the slider has no visible effect. Clamped to the
+  // display, and never narrower than the base detail width, so scaling DOWN
+  // narrows the column rather than shrinking the window.
+  //
+  // Applied only on this transition, matching the existing behavior, so a window
+  // the user resized by hand is not fought over on every slider nudge.
+  const newW = open ? detailWindowWidth(scale, wa0.width) : LIST_WIDTH;
   if (b.width === newW) return;
   const centerX = b.x + b.width / 2;
   const wa = screen.getDisplayMatching(b).workArea;
@@ -437,8 +448,8 @@ app.whenReady().then(async () => {
   registerIpcHandlers(capture, region);
   // F5: the renderer signals when it enters/leaves a project so the window can
   // grow to the report width and shrink back on the list.
-  ipcMain.handle(IpcChannels.setDetailView, (_e, open: unknown) => {
-    setDetailView(open === true);
+  ipcMain.handle(IpcChannels.setDetailView, (_e, open: unknown, scale: unknown) => {
+    setDetailView(open === true, typeof scale === 'number' ? scale : 1);
   });
   installAppMenu(() =>
     projectWindow && !projectWindow.isDestroyed() ? projectWindow : null,

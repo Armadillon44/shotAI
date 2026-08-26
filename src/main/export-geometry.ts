@@ -22,6 +22,8 @@ export interface CropRect {
  * pan is a fraction 0..1 of the scrollable range (0.5 = centered), matching the
  * persisted reportPanX/reportPanY.
  */
+import { docWidths } from '../shared/doc-scale';
+
 export function zoomCropRect(
   width: number,
   height: number,
@@ -63,7 +65,17 @@ function clamp01(n: number): number {
  * pixels than are ever shown, plus base64's ~33% overhead — enough that copying a
  * long SOP out of a browser into another system (a Freshservice KB article) chokes.
  */
-export const HTML_IMG_MAX_W = 738;
+export const HTML_IMG_MAX_W = docWidths(1).htmlImgMax;
+
+/**
+ * The display width at a given project scale (#70). RE-DERIVED, not HTML_IMG_MAX_W
+ * times the scale: the 78px of chrome subtracted from the column is fixed, so the
+ * two agree only at scale 1, which is exactly what makes the wrong version pass a
+ * spot check. doc-scale owns the arithmetic for both the app and the exports.
+ */
+export function htmlImgMaxW(scale = 1): number {
+  return docWidths(scale).htmlImgMax;
+}
 
 /**
  * The width/height ATTRIBUTES for an inlined export `<img>`, or null when the
@@ -90,7 +102,13 @@ export const HTML_IMG_MAX_W = 738;
  * does not (see htmlEmbedPolicy). Worth having — at 1x a full-desktop 2924px
  * capture's dialog text is unreadable no matter the codec.
  */
-export const HTML_IMG_EMBED_MAX_W = HTML_IMG_MAX_W * 2;
+export const HTML_IMG_EMBED_MAX_W = docWidths(1).htmlImgEmbedMax;
+
+/** The @2x embed width at a given project scale. Always exactly 2x the display
+ *  width, or an exported capture silently stops being @2x and its text softens. */
+export function htmlImgEmbedMaxW(scale = 1): number {
+  return docWidths(scale).htmlImgEmbedMax;
+}
 
 /**
  * JPEG quality (0-100, as `nativeImage.toJPEG` takes it). Used as the FALLBACK for
@@ -152,7 +170,15 @@ export interface EmbedPolicy {
  * - Anything else (`markdown`/`docx`/`pptx`) never routes through the HTML builder
  *   and keeps full resolution for the same print-quality reason.
  */
-export function htmlEmbedPolicy(format: string): EmbedPolicy {
+/**
+ * `docScale` (#70) scales the EMBED target with the display width, so an exported
+ * capture stays exactly @2x at any project scale. Leaving it fixed would make a
+ * 65% document embed 2x the OLD width, i.e. ~3x its new display size, inflating a
+ * payload that already has a hard ceiling in the destination editor.
+ *
+ * The pdf branch stays full-resolution regardless: see the trap above.
+ */
+export function htmlEmbedPolicy(format: string, docScale = 1): EmbedPolicy {
   if (format === 'html') {
     // AVIF at 2x. The constraint here is a TOTAL PAYLOAD ceiling in the destination:
     // Freshservice's editor re-uploads every pasted image and cannot cope with too
@@ -165,10 +191,11 @@ export function htmlEmbedPolicy(format: string): EmbedPolicy {
     // So AVIF is not a preference, it is the only codec that fits under the ceiling
     // while keeping 2x, which is what makes a full-desktop capture's UI text
     // readable at all (at 1x it is an illegible blur in every codec).
-    return { embedMaxW: HTML_IMG_EMBED_MAX_W, codec: 'avif' };
+    return { embedMaxW: htmlImgEmbedMaxW(docScale), codec: 'avif' };
   }
   if (format === 'html-plain') {
-    return { embedMaxW: HTML_IMG_MAX_W, codec: 'png' };
+    // 1x for the Word paste target, at the SCALED display width.
+    return { embedMaxW: htmlImgMaxW(docScale), codec: 'png' };
   }
   return { embedMaxW: null, codec: 'png' };
 }
@@ -176,12 +203,15 @@ export function htmlEmbedPolicy(format: string): EmbedPolicy {
 export function htmlImageSize(
   width: number,
   height: number,
+  docScale = 1,
 ): { w: number; h: number } | null {
   if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
   if (!(width >= 1) || !(height >= 1)) return null; // 0x0 / negative → undecodable
-  const scale = Math.min(1, HTML_IMG_MAX_W / width);
+  // Named `fit`, not `scale`: `docScale` is the project scale, and conflating the
+  // two would make a document setting silently rescale the image twice.
+  const fit = Math.min(1, htmlImgMaxW(docScale) / width);
   return {
-    w: Math.max(1, Math.round(width * scale)),
-    h: Math.max(1, Math.round(height * scale)),
+    w: Math.max(1, Math.round(width * fit)),
+    h: Math.max(1, Math.round(height * fit)),
   };
 }
