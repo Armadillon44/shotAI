@@ -238,16 +238,20 @@ const LIST_WIDTH = 720;
 const setDetailView = (open: boolean, scale = 1): void => {
   const win = projectWindow;
   if (!win || win.isDestroyed()) return;
+  // A maximized window has no width to give and resizing it would un-maximize.
+  if (open && win.isMaximized()) return;
   const b = win.getBounds();
   const wa0 = screen.getDisplayMatching(b).workArea;
-  // #70: a project scaled ABOVE 100% needs a wider window, or the report frame
-  // is capped by the window and the slider has no visible effect. Clamped to the
-  // display, and never narrower than the base detail width, so scaling DOWN
-  // narrows the column rather than shrinking the window.
+  // #70: a project scaled ABOVE 100% needs a wider window, or the report frame is
+  // capped by the window and the slider has no visible effect.
   //
-  // Applied only on this transition, matching the existing behavior, so a window
-  // the user resized by hand is not fought over on every slider nudge.
-  const newW = open ? detailWindowWidth(scale, wa0.width) : LIST_WIDTH;
+  // GROW-ONLY while a project is open. This runs on every scale commit, not just
+  // the enter/leave transition, so setting the target width outright would discard
+  // a window the user had widened or maximized, every time they nudged the slider.
+  // Math.max also covers the scale-DOWN case for free: a smaller scale narrows the
+  // column, never the window.
+  const target = detailWindowWidth(scale, wa0.width);
+  const newW = open ? Math.max(b.width, target) : LIST_WIDTH;
   if (b.width === newW) return;
   const centerX = b.x + b.width / 2;
   const wa = screen.getDisplayMatching(b).workArea;

@@ -120,7 +120,10 @@ function StepFigure({
     const rangeY = el.scrollHeight - el.clientHeight;
     el.scrollLeft = rangeX * (step.reportPanX ?? 0.5);
     el.scrollTop = rangeY * (step.reportPanY ?? 0.5);
-  }, [dims, zoom, availW, step.reportPanX, step.reportPanY]);
+    // docScale included deliberately: on a plateau where the measured width does not
+    // change, the scale can still alter the scrollable range, and without it the saved
+    // framing is restored against a stale range.
+  }, [dims, zoom, availW, docScale, step.reportPanX, step.reportPanY]);
 
   const onPanStart = (e: React.MouseEvent) => {
     const el = wrapRef.current;

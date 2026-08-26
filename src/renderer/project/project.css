@@ -1170,7 +1170,9 @@ body {
   gap: 0.4rem;
   padding: 0 0.2rem;
   font-size: 0.8rem;
-  color: var(--text-dim);
+  /* --text-dim does not exist in this stylesheet; the dim-text token is --ink-2.
+     The undefined var made this rule a no-op and the label inherited its colour. */
+  color: var(--ink-2);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1323,7 +1325,10 @@ body {
 .rep__addintro {
   display: block;
   margin: 0 auto 0.4rem;
-  max-width: 880px;
+  /* Scales with the column (#70). It carried a fixed 880 while .rep scaled, so
+     above ~106% the placeholder sat narrower than the column, and the .rep__intro
+     it turns into (width:100%) snapped wider the moment an overview was saved. */
+  max-width: calc(880px * var(--doc-scale, 1));
   width: 100%;
   padding: 0.6rem 0.9rem;
   border: 1px dashed var(--hair);

@@ -335,8 +335,12 @@ export function App(): React.JSX.Element {
 
   // F5: tell main to widen the window to the report size in a project and shrink
   // it back to the narrow list on the home screen. The project's displayScale
-  // (#70) goes with it, since a scaled-up report needs a wider window; depending
-  // on it here also means moving the slider re-runs this and re-fits the window.
+  // (#70) goes with it, since a scaled-up report needs a wider window.
+  //
+  // This DOES re-run on every scale commit, not just the enter/leave transition,
+  // which is why setDetailView only ever GROWS an open window: setting the target
+  // width outright would discard a window the user had widened or maximized on every
+  // slider nudge. committedScale, not the live preview, or the resize fights the drag.
   React.useEffect(() => {
     void window.shotai.setDetailView(!!openPath, committedScale);
   }, [openPath, committedScale]);

@@ -42,6 +42,7 @@ function SizeSlider({
   projectPath: string;
 }): React.JSX.Element {
   const displayScale = useProjectStore((s) => s.displayScale);
+  const committedScale = useProjectStore((s) => s.committedScale);
   const preview = useProjectStore((s) => s.previewDisplayScale);
   const applyManifest = useProjectStore((s) => s.applyManifest);
   const idx = Math.max(0, SCALE_STEPS.indexOf(clampScale(displayScale)));
@@ -50,19 +51,44 @@ function SizeSlider({
   // before the user could reach "10", so a partial entry is held here and snapped on
   // commit. Null means "not being edited", and the box shows the live scale.
   const [draft, setDraft] = React.useState<string | null>(null);
+  // MIRRORED IN A REF because blur handlers read it synchronously. setDraft is
+  // async, so Escape doing `setDraft(null); blur()` left commitDraft closed over the
+  // OLD draft and committing the value the user just abandoned. The ref is the truth
+  // for every handler; the state exists only to render.
+  const draftRef = React.useRef<string | null>(null);
+  const setDraftBoth = (v: string | null) => {
+    draftRef.current = v;
+    setDraft(v);
+  };
+
+  // Monotonic id per write. A response older than the newest request must not touch
+  // the store: applyManifest sets displayScale, so a slow write landing after the
+  // user moved the slider again would yank the layout back to the earlier value.
+  const seqRef = React.useRef(0);
 
   const persist = (value: number) => {
+    // Nothing to write. mutate() bumps updatedAt unconditionally, so a no-op save
+    // re-dates the project and jumps it to the top of the home list under "Today"
+    // purely because the slider was focused or clicked. Every neighbouring save path
+    // (saveCaption, saveBody, setCallout) guards the same way.
+    if (value === committedScale) return;
+    const seq = ++seqRef.current;
     void window.shotai.projects
       .setDisplayScale(projectPath, value)
-      .then(applyManifest)
-      // The optimistic value is already on screen; a failed write is corrected by
-      // the next manifest that arrives.
-      .catch(() => undefined);
+      .then((m) => {
+        if (seq === seqRef.current) applyManifest(m);
+      })
+      .catch(() => {
+        // Do NOT leave the optimistic value on screen: the report and every export
+        // read the store, so a swallowed failure means the document renders at a
+        // size the manifest does not have. Fall back to what is actually saved.
+        if (seq === seqRef.current) preview(committedScale);
+      });
   };
 
   /** Take effect now: abandon any draft, preview, and save. */
   const apply = (next: number) => {
-    setDraft(null);
+    setDraftBoth(null);
     preview(next);
     persist(next);
   };
@@ -75,15 +101,22 @@ function SizeSlider({
   };
 
   const commitDraft = () => {
-    if (draft === null) return;
-    const pct = Number(draft);
+    const held = draftRef.current;
+    if (held === null) return;
+    const pct = Number(held);
     // An unparseable or empty entry reverts rather than snapping to a bound: the
     // user cleared the box, they did not ask for 65%.
     const next =
-      Number.isFinite(pct) && draft.trim() !== '' ? clampScale(pct / 100) : displayScale;
-    setDraft(null);
+      Number.isFinite(pct) && held.trim() !== '' ? clampScale(pct / 100) : displayScale;
+    setDraftBoth(null);
     preview(next);
     persist(next);
+  };
+
+  /** Throw the edit away. Blur must NOT then commit it. */
+  const abandonDraft = () => {
+    setDraftBoth(null);
+    preview(committedScale); // discard any live preview the draft produced
   };
   return (
     <span className="detail__scale">
@@ -132,7 +165,7 @@ function SizeSlider({
           if (raw !== '' && isLegalScale(asScale)) {
             apply(asScale);
           } else {
-            setDraft(raw);
+            setDraftBoth(raw);
           }
         }}
         onBlur={commitDraft}
@@ -149,7 +182,9 @@ function SizeSlider({
             e.currentTarget.blur();
           } else if (e.key === 'Escape') {
             e.preventDefault();
-            setDraft(null); // abandon the edit, keep the current scale
+            // Clears the REF too, so the blur that follows sees no draft and
+            // commitDraft returns early instead of saving the abandoned value.
+            abandonDraft();
             e.currentTarget.blur();
           }
         }}
