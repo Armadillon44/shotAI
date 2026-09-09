@@ -7,6 +7,9 @@ import {
   KNOWN_DIVERGENCES,
   hexNoHash,
   paletteFor,
+  DOC_EXTRAS,
+  SLIDE_EXTRAS,
+  INTERNAL_SPLITS,
   type Palette,
 } from './theme-palette';
 
@@ -197,5 +200,75 @@ describe('paletteFor', () => {
     expect(paletteFor('app')).toBe(APP_LIGHT);
     expect(paletteFor('doc')).toBe(DOC_LIGHT);
     expect(paletteFor('slide')).toBe(SLIDE_LIGHT);
+  });
+});
+
+describe('the export-only roles record what actually ships', () => {
+  it('pins each extra to the value it replaced', () => {
+    // These are the nine literals that could not be folded into a surface palette,
+    // because the surface renders BOTH ramps. Pinned so a later change is deliberate.
+    expect(DOC_EXTRAS.cardBd).toBe('#e7e4f2');
+    expect(DOC_EXTRAS.sectionH).toBe('#191826');
+    expect(DOC_EXTRAS.sectionB).toBe('#5a5772');
+    expect(SLIDE_EXTRAS.bodyInk).toBe('#374151');
+    expect(SLIDE_EXTRAS.captionInk).toBe('#6b7280');
+  });
+
+  it('exists only because the value differs from the surface palette', () => {
+    // An extra whose value already equals the surface role is not an extra: it is a
+    // missed substitution, and it would silently freeze that element out of a future
+    // brand change. cardBd vs DOC hair is the canonical case.
+    expect(DOC_EXTRAS.cardBd).not.toBe(DOC_LIGHT.hair);
+    expect(DOC_EXTRAS.sectionH).not.toBe(DOC_LIGHT.ink);
+    expect(DOC_EXTRAS.sectionB).not.toBe(DOC_LIGHT.ink2);
+    expect(SLIDE_EXTRAS.bodyInk).not.toBe(SLIDE_LIGHT.ink2);
+    expect(SLIDE_EXTRAS.captionInk).not.toBe(SLIDE_LIGHT.ink3);
+  });
+
+  it('takes each extra value from the APP or DOC ramp, never invents one', () => {
+    // Every extra should be a value already in use somewhere, or it is a colour
+    // someone typed by hand and phase 0 has quietly blessed.
+    const known = new Set([
+      ...Object.values(APP_LIGHT),
+      ...Object.values(DOC_LIGHT),
+      ...Object.values(SLIDE_LIGHT),
+    ]);
+    for (const [k, v] of Object.entries({ ...DOC_EXTRAS, ...SLIDE_EXTRAS })) {
+      expect(known.has(v), `${k} = ${v} is not a value any palette uses`).toBe(true);
+    }
+  });
+});
+
+describe('INTERNAL_SPLITS documents the two-ramp surfaces', () => {
+  it('lists both values, and they really do both ship', () => {
+    const known = new Set([
+      ...Object.values(APP_LIGHT),
+      ...Object.values(DOC_LIGHT),
+      ...Object.values(SLIDE_LIGHT),
+      ...Object.values(DOC_EXTRAS),
+      ...Object.values(SLIDE_EXTRAS),
+    ]);
+    expect(INTERNAL_SPLITS.length).toBeGreaterThan(0);
+    for (const split of INTERNAL_SPLITS) {
+      expect(split.values.length, `${split.surface} ${split.concept}`).toBeGreaterThan(1);
+      expect(new Set(split.values).size, `${split.surface} ${split.concept} duplicates`).toBe(
+        split.values.length,
+      );
+      for (const v of split.values) {
+        expect(known.has(v), `${split.surface} ${split.concept}: ${v} ships nowhere`).toBe(true);
+      }
+      expect(split.note.length, `${split.surface} ${split.concept} needs a reason`).toBeGreaterThan(
+        20,
+      );
+    }
+  });
+
+  it('covers every extra, so no split is recorded in code but not in the list', () => {
+    // The extras and the splits are two views of the same problem. If a role gets an
+    // extra without an entry here, the inconsistency stops being reviewable.
+    const recorded = INTERNAL_SPLITS.flatMap((s) => s.values);
+    for (const [k, v] of Object.entries({ ...DOC_EXTRAS, ...SLIDE_EXTRAS })) {
+      expect(recorded, `${k} = ${v} has no INTERNAL_SPLITS entry`).toContain(v);
+    }
   });
 });

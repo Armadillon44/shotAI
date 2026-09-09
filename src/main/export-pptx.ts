@@ -5,6 +5,7 @@
 import pptxgen from 'pptxgenjs';
 import { clampScale } from '../shared/doc-scale';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
+import { hexNoHash, SLIDE_LIGHT, SLIDE_EXTRAS } from '../shared/theme-palette';
 import { loadItemImage, type ExportItem } from './export';
 
 // LAYOUT_WIDE = 13.333in × 7.5in. All positions below are in inches.
@@ -17,15 +18,15 @@ const MARGIN = 0.5;
 const CARD = { x: 0.45, y: 0.45, w: SLIDE_W - 0.9, h: SLIDE_H - 0.9 };
 const PAD = 0.35;
 const INNER = { x: CARD.x + PAD, y: CARD.y + PAD, w: CARD.w - PAD * 2, h: CARD.h - PAD * 2 };
-const CARD_FILL = 'FAF9FF';
-const CARD_BORDER = 'E7E4F2';
+const CARD_FILL = hexNoHash(SLIDE_LIGHT.surface2);
+const CARD_BORDER = hexNoHash(SLIDE_LIGHT.hair);
 
 // Colored-callout palette. `section` is NOT here — it renders as a divider slide,
 // not a filled box (handled before this lookup).
 const CALLOUT: Record<Exclude<CalloutKind, 'section'>, { fill: string; bd: string; fg: string; label: string }> = {
-  note: { fill: 'ECFDF5', bd: '6EE7B7', fg: '065F46', label: 'Note' },
-  caution: { fill: 'FFFBEB', bd: 'FCD34D', fg: '92400E', label: 'Caution' },
-  warning: { fill: 'FEF2F2', bd: 'FCA5A5', fg: '991B1B', label: 'Warning' },
+  note: { fill: hexNoHash(SLIDE_LIGHT.noteBg), bd: hexNoHash(SLIDE_LIGHT.noteBd), fg: hexNoHash(SLIDE_LIGHT.noteFg), label: 'Note' },
+  caution: { fill: hexNoHash(SLIDE_LIGHT.cautBg), bd: hexNoHash(SLIDE_LIGHT.cautBd), fg: hexNoHash(SLIDE_LIGHT.cautFg), label: 'Caution' },
+  warning: { fill: hexNoHash(SLIDE_LIGHT.warnBg), bd: hexNoHash(SLIDE_LIGHT.warnBd), fg: hexNoHash(SLIDE_LIGHT.warnFg), label: 'Warning' },
 };
 
 /** Fit (w×h px) inside the box preserving aspect; return centered inches. */
@@ -69,7 +70,7 @@ export async function buildPptx(
 
   // Title slide (cover — no card, matches the HTML title/meta).
   const title = pptx.addSlide();
-  title.background = { color: 'FFFFFF' };
+  title.background = { color: hexNoHash(SLIDE_LIGHT.surface) };
   title.addText(manifest.title, {
     x: MARGIN,
     y: manifest.intro && (manifest.intro.heading || manifest.intro.body) ? 2.2 : 3.0,
@@ -77,7 +78,7 @@ export async function buildPptx(
     h: 1.2,
     fontSize: 40,
     bold: true,
-    color: '14161F',
+    color: hexNoHash(SLIDE_LIGHT.ink),
     align: 'center',
   });
   const introBits: string[] = [];
@@ -90,7 +91,7 @@ export async function buildPptx(
       w: SLIDE_W - (MARGIN + 1) * 2,
       h: 2.6,
       fontSize: 16,
-      color: '525A6E',
+      color: hexNoHash(SLIDE_LIGHT.ink2),
       align: 'center',
       valign: 'top',
     });
@@ -101,13 +102,13 @@ export async function buildPptx(
     w: SLIDE_W - MARGIN * 2,
     h: 0.4,
     fontSize: 10,
-    color: '8B91A3',
+    color: hexNoHash(SLIDE_LIGHT.ink3),
     align: 'center',
   });
 
   for (const it of items) {
     const slide = pptx.addSlide();
-    slide.background = { color: 'FFFFFF' };
+    slide.background = { color: hexNoHash(SLIDE_LIGHT.surface) };
 
     if (it.kind === 'text') {
       if (it.callout === 'section') {
@@ -118,7 +119,7 @@ export async function buildPptx(
           y: 2.9,
           w: 4,
           h: 0,
-          line: { color: 'CBD5E1', width: 1 },
+          line: { color: hexNoHash(SLIDE_LIGHT.controlBd), width: 1 },
         });
         if (it.heading) {
           slide.addText(it.heading, {
@@ -128,7 +129,7 @@ export async function buildPptx(
             h: 1.0,
             fontSize: 34,
             bold: true,
-            color: '14161F',
+            color: hexNoHash(SLIDE_LIGHT.ink),
             align: 'center',
             valign: 'top',
           });
@@ -140,7 +141,7 @@ export async function buildPptx(
             w: SLIDE_W - (MARGIN + 1.5) * 2,
             h: 2,
             fontSize: 16,
-            color: '6B7280',
+            color: hexNoHash(SLIDE_EXTRAS.captionInk),
             align: 'center',
             valign: 'top',
           });
@@ -175,7 +176,7 @@ export async function buildPptx(
         h: 1,
         fontSize: 26,
         bold: true,
-        color: '14161F',
+        color: hexNoHash(SLIDE_LIGHT.ink),
         valign: 'top',
       });
       if (it.heading && it.body) {
@@ -185,7 +186,7 @@ export async function buildPptx(
           w: INNER.w,
           h: INNER.h - 1.15,
           fontSize: 18,
-          color: '374151',
+          color: hexNoHash(SLIDE_EXTRAS.bodyInk),
           valign: 'top',
         });
       }
@@ -201,7 +202,7 @@ export async function buildPptx(
       h: 0.6,
       fontSize: 20,
       bold: true,
-      color: '14161F',
+      color: hexNoHash(SLIDE_LIGHT.ink),
       valign: 'top',
     });
     const hasBody = !!it.body;
@@ -231,7 +232,7 @@ export async function buildPptx(
         w: INNER.w,
         h: 1.1,
         fontSize: 15,
-        color: '374151',
+        color: hexNoHash(SLIDE_EXTRAS.bodyInk),
         valign: 'top',
       });
     }

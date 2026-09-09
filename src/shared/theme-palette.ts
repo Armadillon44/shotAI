@@ -155,6 +155,101 @@ export const SLIDE_LIGHT: Palette = {
   controlBd: '#cbd5e1',
 };
 
+// ---------------------------------------------------------------------------
+// Export-only roles, and the reason they have to exist.
+//
+// Extracting the call sites found something the surface-level table above cannot
+// express: each export surface mixes BOTH neutral ramps INTERNALLY. It is not that
+// the export uses grey where the app uses violet; it is that the export uses grey
+// for some elements and violet for others, in the same document.
+//
+// Proof, from the shipped code rather than inference:
+//   export-docx.ts:131  section rule   hexNoHash(DOC_LIGHT.hair)  -> E5E7EB
+//   export-docx.ts:37   card border    CARD_BORDER                -> E7E4F2
+// Two hairlines in one Word document. The HTML export does the same: body text is
+// #1f2937 while a section heading one line below it is #191826, and the screenshot
+// border is #e5e7eb inside a card border of #e7e4f2.
+//
+// So these roles are named for WHAT THEY COLOUR, not for a ramp, and valued at
+// exactly what ships. Giving them names is what makes the inconsistency reviewable;
+// folding them into `hair`/`ink` would either change shipped output or hide the
+// split behind a role whose value is right in one place and wrong in another.
+
+/** Roles the HTML and Word exports need beyond the shared vocabulary. */
+export interface DocExtras {
+  /** Overview, section and step CARD border. Renders the APP hair (#e7e4f2), while
+   *  the screenshot border and <hr> one element away render DOC hair (#e5e7eb). */
+  cardBd: string;
+  /** Section-divider heading. Renders the APP ink, unlike body text. */
+  sectionH: string;
+  /** Section-divider body. Renders the APP ink-2, unlike the overview body. */
+  sectionB: string;
+}
+
+export const DOC_EXTRAS: DocExtras = {
+  cardBd: '#e7e4f2',
+  sectionH: '#191826',
+  sectionB: '#5a5772',
+};
+
+/** Roles the PowerPoint export needs beyond the shared vocabulary. */
+export interface SlideExtras {
+  /** Step body and footer text. Renders the DOC ink-2, not the slide ink-2. */
+  bodyInk: string;
+  /** The centred caption on a text-only slide. Renders the DOC ink-3. */
+  captionInk: string;
+}
+
+export const SLIDE_EXTRAS: SlideExtras = {
+  bodyInk: '#374151',
+  captionInk: '#6b7280',
+};
+
+/**
+ * Where a single surface renders TWO values for what is conceptually one role.
+ *
+ * Distinct from KNOWN_DIVERGENCES, which is about a surface differing from the app.
+ * These are internal contradictions: a reader looking at one exported document sees
+ * both values, one element apart. Recorded, not fixed, for the same reason as the
+ * rest of phase 0: converging them changes shipped output.
+ */
+export const INTERNAL_SPLITS: readonly {
+  surface: SurfaceId;
+  concept: string;
+  values: readonly string[];
+  note: string;
+}[] = [
+  {
+    surface: 'doc',
+    concept: 'hairline',
+    values: ['#e7e4f2', '#e5e7eb'],
+    note: 'Card borders use the app hair; the screenshot border and <hr> use the doc hair. Both appear in every exported SOP that has a section divider.',
+  },
+  {
+    surface: 'doc',
+    concept: 'body ink',
+    values: ['#1f2937', '#191826'],
+    note: 'Body text is #1f2937 but a section-divider heading is #191826, so two blacks appear within a line of each other.',
+  },
+  {
+    surface: 'doc',
+    concept: 'secondary ink',
+    values: ['#374151', '#5a5772'],
+    note: 'The overview body and a section-divider body are different greys.',
+  },
+  {
+    surface: 'slide',
+    concept: 'body ink',
+    values: ['#525a6e', '#374151'],
+    note: 'Slide headings use the slide ramp while step body and footer text use the doc ramp, so the deck mixes two palettes.',
+  },
+  {
+    surface: 'slide',
+    concept: 'secondary ink',
+    values: ['#8b91a3', '#6b7280'],
+    note: 'The text-slide caption uses the doc ink-3 rather than the slide ink-3.',
+  },
+];
 /** Which surface a divergence belongs to. */
 export type SurfaceId = 'doc' | 'slide';
 

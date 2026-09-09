@@ -19,6 +19,7 @@ import {
   type ISectionOptions,
 } from 'docx';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
+import { DOC_LIGHT, hexNoHash, DOC_EXTRAS } from '../shared/theme-palette';
 import { loadItemImage, type ExportItem } from './export';
 import {
   docxImgMaxW,
@@ -32,16 +33,17 @@ import {
 // be unit-tested, and the clipping bug it fixes was invisible at 100%.
 
 // Step-card colors (#40) — mirror the HTML export / in-app report (light-only).
-const CARD_FILL = 'FAF9FF';
-const CARD_BORDER = 'E7E4F2';
-const INTRO_FILL = 'EFEAFE';
+const CARD_FILL = hexNoHash(DOC_LIGHT.surface2);
+// The app hair, while the section rule below uses the DOC hair. See INTERNAL_SPLITS.
+const CARD_BORDER = hexNoHash(DOC_EXTRAS.cardBd);
+const INTRO_FILL = hexNoHash(DOC_LIGHT.accentTint);
 
 // Colored-callout palette (fill, border, text color). `section` is NOT here — it's
 // a non-counted divider heading, not a colored box (handled before this lookup).
 const CALLOUT: Record<Exclude<CalloutKind, 'section'>, { fill: string; bd: string; fg: string; label: string }> = {
-  note: { fill: 'ECFDF5', bd: '6EE7B7', fg: '065F46', label: 'Note' },
-  caution: { fill: 'FFFBEB', bd: 'FCD34D', fg: '92400E', label: 'Caution' },
-  warning: { fill: 'FEF2F2', bd: 'FCA5A5', fg: '991B1B', label: 'Warning' },
+  note: { fill: hexNoHash(DOC_LIGHT.noteBg), bd: hexNoHash(DOC_LIGHT.noteBd), fg: hexNoHash(DOC_LIGHT.noteFg), label: 'Note' },
+  caution: { fill: hexNoHash(DOC_LIGHT.cautBg), bd: hexNoHash(DOC_LIGHT.cautBd), fg: hexNoHash(DOC_LIGHT.cautFg), label: 'Caution' },
+  warning: { fill: hexNoHash(DOC_LIGHT.warnBg), bd: hexNoHash(DOC_LIGHT.warnBd), fg: hexNoHash(DOC_LIGHT.warnFg), label: 'Warning' },
 };
 
 /** Split a multi-line string into one TextRun per line with proper line breaks. */
@@ -97,7 +99,7 @@ export async function buildDocx(
   children.push(
     new Paragraph({
       spacing: { after: 240 },
-      children: [new TextRun({ text: createdLine, color: '6B7280', size: 18 })],
+      children: [new TextRun({ text: createdLine, color: hexNoHash(DOC_LIGHT.ink3), size: 18 })],
     }),
   );
 
@@ -106,7 +108,7 @@ export async function buildDocx(
     const introContent: Paragraph[] = [
       new Paragraph({
         spacing: { before: 0, after: 40 },
-        children: [new TextRun({ text: 'OVERVIEW', bold: true, color: '6B7280', size: 15 })],
+        children: [new TextRun({ text: 'OVERVIEW', bold: true, color: hexNoHash(DOC_LIGHT.ink3), size: 15 })],
       }),
     ];
     if (manifest.intro.heading) {
@@ -127,7 +129,7 @@ export async function buildDocx(
         // Non-counted phase divider: a top rule (denoting a new section) ABOVE a
         // bold heading + muted body. No card, no colored box. The rule goes on the
         // first paragraph (heading if present, else body).
-        const rule = { top: { style: BorderStyle.SINGLE, size: 6, color: 'E5E7EB', space: 8 } } as const;
+        const rule = { top: { style: BorderStyle.SINGLE, size: 6, color: hexNoHash(DOC_LIGHT.hair), space: 8 } } as const;
         if (it.heading) {
           children.push(
             new Paragraph({
@@ -138,11 +140,11 @@ export async function buildDocx(
             }),
           );
           if (it.body) {
-            children.push(new Paragraph({ children: multiline(it.body, { color: '6B7280' }), spacing: { after: 160 } }));
+            children.push(new Paragraph({ children: multiline(it.body, { color: hexNoHash(DOC_LIGHT.ink3) }), spacing: { after: 160 } }));
           }
         } else if (it.body) {
           children.push(
-            new Paragraph({ children: multiline(it.body, { color: '6B7280' }), spacing: { before: 280, after: 160 }, border: rule }),
+            new Paragraph({ children: multiline(it.body, { color: hexNoHash(DOC_LIGHT.ink3) }), spacing: { before: 280, after: 160 }, border: rule }),
           );
         }
         continue;
