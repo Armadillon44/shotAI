@@ -18,6 +18,7 @@ import { Notice } from '../Notice';
 import { Settings } from './Settings';
 import { Tour } from './Tour';
 import { applyTheme, watchSystemTheme } from './theme';
+import { DEFAULT_BRAND, type BrandId } from '../../shared/theme-palette';
 
 type Targets = { windows: WindowInfo[]; monitors: MonitorInfo[] };
 
@@ -46,6 +47,9 @@ export function App(): React.JSX.Element {
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
   const [showSettings, setShowSettings] = React.useState(false);
   const [themePref, setThemePref] = React.useState<ThemePref>('system');
+  // The BRAND is a second, independent axis (#77): every brand has a light and a
+  // dark set, so this is not a fourth value of themePref.
+  const [brand, setBrand] = React.useState<BrandId>(DEFAULT_BRAND);
   // #54: main checks GitHub once a day on startup and pushes ONLY when something
   // newer exists — deliberately no "you're up to date" noise. Dismissing hides it for
   // this session; the next launch (a day later) offers it again.
@@ -356,11 +360,12 @@ export function App(): React.JSX.Element {
   // set to 'system'). Changing it in Settings updates themePref → re-applies here.
   React.useEffect(() => {
     window.shotai.settings.getTheme().then(setThemePref).catch(() => undefined);
+    window.shotai.settings.getBrand().then(setBrand).catch(() => undefined);
   }, []);
   React.useEffect(() => {
-    applyTheme(themePref);
-    return watchSystemTheme(themePref, () => applyTheme(themePref));
-  }, [themePref]);
+    applyTheme(themePref, brand);
+    return watchSystemTheme(themePref, () => applyTheme(themePref, brand));
+  }, [themePref, brand]);
 
   // `createdThisSession` marks a freshly-created project so a Discard from the
   // pill deletes the whole project (vs. only this session's steps).
@@ -581,6 +586,7 @@ export function App(): React.JSX.Element {
             onProjectsDirChanged={() => void refresh()}
             onReplayTour={replayTour}
             onThemeChanged={setThemePref}
+            onBrandChanged={setBrand}
           />
         )}
 

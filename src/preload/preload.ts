@@ -13,6 +13,7 @@ import {
   type SopProgress,
 } from '../shared/ipc';
 import type { CalloutKind, CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch, ThemePref } from '../shared/project';
+import type { BrandId } from '../shared/theme-palette';
 import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
@@ -141,6 +142,8 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.setArchiveAgeDays, value),
     getTheme: () => ipcRenderer.invoke(IpcChannels.getTheme),
     setTheme: (value: ThemePref) => ipcRenderer.invoke(IpcChannels.setTheme, value),
+    getBrand: () => ipcRenderer.invoke(IpcChannels.getBrand),
+    setBrand: (value: BrandId) => ipcRenderer.invoke(IpcChannels.setBrand, value),
     getUpdateCheckEnabled: () => ipcRenderer.invoke(IpcChannels.getUpdateCheckEnabled),
     setUpdateCheckEnabled: (value: boolean) =>
       ipcRenderer.invoke(IpcChannels.setUpdateCheckEnabled, value),

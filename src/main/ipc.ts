@@ -57,6 +57,8 @@ import {
   setLastUpdateCheckAt,
   getTheme,
   setTheme,
+  getBrand,
+  setBrand,
 } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
@@ -708,6 +710,14 @@ export function registerIpcHandlers(
   ipcMain.handle(IpcChannels.setTheme, (_event: IpcMainInvokeEvent, value: unknown) => {
     devLog('ipc: settings:set-theme');
     return setTheme(value); // coerced in setTheme
+  });
+  ipcMain.handle(IpcChannels.getBrand, () => {
+    devLog('ipc: settings:get-brand');
+    return getBrand();
+  });
+  ipcMain.handle(IpcChannels.setBrand, (_event: IpcMainInvokeEvent, value: unknown) => {
+    devLog('ipc: settings:set-brand');
+    return setBrand(value); // coerced in setBrand
   });
   ipcMain.handle(IpcChannels.getUpdateCheckEnabled, () => {
     devLog('ipc: settings:get-update-check');

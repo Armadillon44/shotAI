@@ -16,6 +16,7 @@ import type {
   WindowInfo,
 } from './project';
 import type { SopModelId, SopSettings } from './sop';
+import type { BrandId } from './theme-palette';
 
 export interface AppInfo {
   name: string;
@@ -222,6 +223,8 @@ export const IpcChannels = {
   setArchiveAgeDays: 'settings:set-archive-age',
   getTheme: 'settings:get-theme',
   setTheme: 'settings:set-theme',
+  getBrand: 'settings:get-brand',
+  setBrand: 'settings:set-brand',
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
@@ -460,6 +463,10 @@ export interface ShotaiApi {
     getTheme(): Promise<ThemePref>;
     /** Persist the theme preference; returns the stored value. */
     setTheme(value: ThemePref): Promise<ThemePref>;
+    /** Which brand the app wears (#77) — separate axis from the appearance. */
+    getBrand(): Promise<BrandId>;
+    /** Persist the brand preference; returns the stored value. */
+    setBrand(value: BrandId): Promise<BrandId>;
     /** Whether shotAI checks GitHub once a day for a newer release (#54). */
     getUpdateCheckEnabled(): Promise<boolean>;
     setUpdateCheckEnabled(value: boolean): Promise<boolean>;

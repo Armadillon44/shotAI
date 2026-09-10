@@ -13,12 +13,25 @@ import {
   CAPTURE_SCALE_DEFAULT,
   type ThemePref,
 } from '../../shared/project';
+import { BRANDS, BRAND_IDS, DEFAULT_BRAND, type BrandId } from '../../shared/theme-palette';
 
 const THEME_OPTIONS: { id: ThemePref; label: string; blurb: string }[] = [
   { id: 'system', label: 'System', blurb: 'Match your Windows light/dark setting.' },
   { id: 'light', label: 'Light', blurb: 'Always use the light theme.' },
   { id: 'dark', label: 'Dark', blurb: 'Always use the dark theme.' },
 ];
+
+// TWO controls in Appearance, not one six-case picker (#77). Appearance and brand
+// are independent: every brand exists in light and in dark, so "LFI" and "Dark"
+// are not alternatives to each other and a combined control would say they are.
+const BRAND_OPTIONS: { id: BrandId; label: string; blurb: string }[] = BRAND_IDS.map((id) => ({
+  id,
+  label: BRANDS[id].label,
+  blurb:
+    id === DEFAULT_BRAND
+      ? 'shotAI’s own identity — violet.'
+      : 'LaCrosse Footwear corporate — charcoal and rust.',
+}));
 
 // Settings is grouped into tabs (D2) so the panel stays manageable as controls
 // grow. Order matters: it's the tab-bar order and the arrow-key cycle order.
@@ -43,6 +56,7 @@ export function Settings({
   onProjectsDirChanged,
   onReplayTour,
   onThemeChanged,
+  onBrandChanged,
 }: {
   onBack: () => void;
   /** Called when the projects folder actually changes, so Home re-lists. */
@@ -51,6 +65,8 @@ export function Settings({
   onReplayTour?: () => void;
   /** Called when the theme preference changes, so App re-applies it (F10). */
   onThemeChanged?: (theme: ThemePref) => void;
+  /** Called when the brand changes, so App re-applies it (#77). */
+  onBrandChanged?: (brand: BrandId) => void;
 }): React.JSX.Element {
   const [sop, setSop] = React.useState<SopSettings | null>(null);
   const [keyStatus, setKeyStatus] = React.useState<ApiKeyStatus | null>(null);
@@ -106,6 +122,7 @@ export function Settings({
   };
   const [archiveAge, setArchiveAge] = React.useState(90);
   const [theme, setTheme] = React.useState<ThemePref>('system');
+  const [brand, setBrand] = React.useState<BrandId>(DEFAULT_BRAND);
   const [tab, setTab] = React.useState<SettingsTab>('ai');
   const tabRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -130,7 +147,7 @@ export function Settings({
   };
 
   const refresh = React.useCallback(async () => {
-    const [s, ks, info, dir, remoteVis, scale, name, incl, age, themePref, updChk, auth] =
+    const [s, ks, info, dir, remoteVis, scale, name, incl, age, themePref, brandPref, updChk, auth] =
       await Promise.all([
         window.shotai.settings.getSop(),
         window.shotai.claude.keyStatus(),
@@ -142,6 +159,7 @@ export function Settings({
         window.shotai.settings.getIncludeNameInReports(),
         window.shotai.settings.getArchiveAgeDays(),
         window.shotai.settings.getTheme(),
+        window.shotai.settings.getBrand(),
         window.shotai.settings.getUpdateCheckEnabled(),
         window.shotai.auth.status(),
       ]);
@@ -155,6 +173,7 @@ export function Settings({
     setIncludeName(incl);
     setArchiveAge(age);
     setTheme(themePref);
+    setBrand(brandPref);
     setUpdateCheck(updChk);
     setAuthStatus(auth);
   }, []);
@@ -235,6 +254,19 @@ export function Settings({
     setError(null);
     try {
       setArchiveAge(await window.shotai.settings.setArchiveAgeDays(value));
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const chooseBrand = async (value: BrandId) => {
+    setError(null);
+    setBrand(value); // reflect immediately; App re-applies on the same tick
+    onBrandChanged?.(value);
+    try {
+      const stored = await window.shotai.settings.setBrand(value);
+      setBrand(stored);
+      onBrandChanged?.(stored);
     } catch (e) {
       fail(e);
     }
@@ -782,6 +814,29 @@ export function Settings({
                 </div>
                 <p className="settings__hint">
                   {THEME_OPTIONS.find((t) => t.id === theme)?.blurb}
+                </p>
+
+                <h3 className="settings__h">Brand</h3>
+                <p className="settings__hint">
+                  Which identity the app wears. Independent of light/dark — each
+                  brand has both.
+                </p>
+                <div className="capmode__modes" role="radiogroup" aria-label="Brand">
+                  {BRAND_OPTIONS.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={brand === b.id}
+                      className={`capmode__chip${brand === b.id ? ' capmode__chip--on' : ''}`}
+                      onClick={() => void chooseBrand(b.id)}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="settings__hint">
+                  {BRAND_OPTIONS.find((b) => b.id === brand)?.blurb}
                 </p>
               </div>
             )}
