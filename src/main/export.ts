@@ -10,6 +10,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
+import { DEFAULT_EXPORT_THEME, type ExportTheme } from '../shared/export-theme';
 import type { ExportFormat, ExportProgress, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
@@ -427,6 +428,7 @@ async function buildHtmlDoc(
   createdLine: string,
   policy: EmbedPolicy,
   onProgress?: (p: ExportProgress) => void,
+  theme: ExportTheme = DEFAULT_EXPORT_THEME,
 ): Promise<string> {
   // Per-project document scale (#70). Clamped here rather than trusted: this is
   // the boundary where a manifest value becomes a rendered width.
@@ -514,7 +516,7 @@ async function buildHtmlDoc(
     `<meta charset="utf-8">\n` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<title>${title}</title>\n` +
-    `<style>${docCss(docScale)}</style>\n` +
+    `<style>${docCss(docScale, theme)}</style>\n` +
     // A plain <div>, not <main>: this wrapper gets unwrapped on a KB-editor paste
     // either way (which is why every block carries its own column — see DOC_CSS),
     // and semantic tags are commonly off a sanitizer's allowlist. It only pads.
@@ -536,6 +538,7 @@ async function buildHtmlDoc(
 async function buildPlainHtmlDoc(
   manifest: ProjectManifest,
   items: ExportItem[],
+  theme: ExportTheme = DEFAULT_EXPORT_THEME,
 ): Promise<string> {
   const docScale = clampScale(manifest.displayScale);
   const br = (s: string) => escapeHtml(s).replace(/\n/g, '<br>');
@@ -594,7 +597,7 @@ async function buildPlainHtmlDoc(
   return (
     `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n` +
     `<title>${escapeHtml(manifest.title)}</title>\n` +
-    `<style>${plainCss(docScale)}</style>\n</head>\n<body>\n` +
+    `<style>${plainCss(docScale, theme)}</style>\n</head>\n<body>\n` +
     parts.join('\n') +
     `\n</body>\n</html>\n`
   );
@@ -752,12 +755,18 @@ export async function exportProject(
     reveal?: boolean;
     /** Per-image encode progress; only the image-embedding formats call it. */
     onProgress?: (p: ExportProgress) => void;
+    /**
+     * Which brand the document wears (#77). Defaulted, so every existing caller
+     * and test produces exactly the document it produced before.
+     */
+    theme?: ExportTheme;
   } = {},
 ): Promise<ExportResult> {
   // Reveal the written file unless told not to — bulk exports (to a shared folder
   // or to each project's own folder) suppress the per-file reveal so N folders
   // don't pop open mid-run.
   const reveal = opts.reveal ?? true;
+  const theme = opts.theme ?? DEFAULT_EXPORT_THEME;
   const { dir, manifest } = await getProjectForRead(projectPath);
   const items = await collectSteps(dir, manifest);
   const base = safeFileBase(manifest.title);
@@ -816,15 +825,15 @@ export async function exportProject(
   }
 
   if (format === 'docx') {
-    await fs.writeFile(outputPath, await buildDocx(manifest, items, createdLine));
+    await fs.writeFile(outputPath, await buildDocx(manifest, items, createdLine, theme));
   } else if (format === 'pptx') {
-    await fs.writeFile(outputPath, await buildPptx(manifest, items, createdLine));
+    await fs.writeFile(outputPath, await buildPptx(manifest, items, createdLine, theme));
   } else if (format === 'html-plain') {
-    await fs.writeFile(outputPath, await buildPlainHtmlDoc(manifest, items), 'utf8');
+    await fs.writeFile(outputPath, await buildPlainHtmlDoc(manifest, items, theme), 'utf8');
   } else if (format === 'html') {
     await fs.writeFile(
       outputPath,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress, theme),
       'utf8',
     );
   } else {
@@ -832,7 +841,7 @@ export async function exportProject(
     // the codec explicitly, or it silently inherits them and prints soft (#56 scope).
     await htmlToPdf(
       dir,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress, theme),
       outputPath,
     );
   }

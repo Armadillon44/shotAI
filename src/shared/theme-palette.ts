@@ -167,6 +167,23 @@ export function radiusCss(v: number | null): string {
   return v === null ? '999px' : `${v}px`;
 }
 
+/** A brand's typeface, as names. The file itself is a packaging concern. */
+export interface BrandFont {
+  /**
+   * The brand's own face, or null for the platform's system face.
+   *
+   * A family NAME, not a file: the app resolves it against a bundled face and
+   * the exports name it first in their CSS stack.
+   */
+  family: string | null;
+  /**
+   * Faces to try after it. Chosen to RESEMBLE the brand face, not to match the
+   * OS — a reader without it should get something from the same family of
+   * shapes rather than Segoe or SF.
+   */
+  fallbacks: string[];
+}
+
 /** A brand, in both appearances. */
 export interface Brand {
   /** Shown in Settings. */
@@ -175,6 +192,8 @@ export interface Brand {
   dark: Palette;
   /** Geometry does not change with the appearance, only with the brand. */
   radii: BrandRadii;
+  /** Typography, likewise. */
+  font: BrandFont;
 }
 
 /**
@@ -200,6 +219,11 @@ export const BRANDS: Record<BrandId, Brand> = {
     label: 'shotAI',
     // Exactly the values the stylesheets already painted.
     radii: { panel: 12, card: 10, figure: 8, control: 8, controlSm: 6, micro: 4, chip: null },
+    // The platform UI faces, as every document and window has always used.
+    font: {
+      family: null,
+      fallbacks: ['-apple-system', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+    },
     light: {
       accent: '#6344f1',
       accentPress: '#5233d4',
@@ -309,6 +333,18 @@ export const BRANDS: Record<BrandId, Brand> = {
     // collateral while 10px reads as a consumer app. controlSm and micro are the
     // two Windows-only roles, continuing the same descent.
     radii: { panel: 8, card: 8, figure: 6, control: 5, controlSm: 4, micro: 3, chip: 8 },
+    // Archivo, not the guide's Acumin Variable Concept: Acumin is an Adobe Fonts
+    // family and cannot be embedded in a distributed app without a licence that
+    // permits it. Archivo is the same Franklin / American-gothic lineage, carries
+    // a real variable wdth axis, and is SIL OFL so it bundles freely.
+    //
+    // Fallbacks are grotesques of similar proportion rather than the OS UI faces,
+    // so a document opened without Archivo keeps the shapes rather than jumping
+    // to Segoe. Liberation Sans is Arial-metric-compatible on Linux.
+    font: {
+      family: 'Archivo',
+      fallbacks: ['"Helvetica Neue"', 'Helvetica', 'Arial', '"Liberation Sans"', 'sans-serif'],
+    },
     light: {
       accent: '#b46b3e',
       accentPress: '#9a5a33',

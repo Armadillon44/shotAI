@@ -15,6 +15,7 @@ import {
 import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
 import { exportProject, chooseExportDirectory, revealExportDir } from './export';
+import { exportTheme, type ExportTheme } from '../shared/export-theme';
 import { exportPackage, importPackage } from './export-package';
 import { checkForUpdate } from './update-check';
 import { getPendingUpdate, setPendingUpdate } from './update-state';
@@ -541,9 +542,23 @@ export function registerIpcHandlers(
     },
   );
 
+  /**
+   * The theme an export renders with (#77 phase 4).
+   *
+   * ALWAYS the brand's LIGHT values: the export axis is which brand, never which
+   * appearance. A dark-background SOP is unreadable printed and ruinous on toner,
+   * and an export is not a screenshot of the UI. exportTheme() enforces that; this
+   * only chooses the brand.
+   *
+   * Read at export time rather than cached, so switching brand in Settings takes
+   * effect on the next export without a restart. It is one small JSON read against
+   * an operation that already encodes images.
+   */
+  const themeForExport = async (): Promise<ExportTheme> => exportTheme(await getBrand());
+
   ipcMain.handle(
     IpcChannels.exportProject,
-    (event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+    async (event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
       devLog('ipc: projects:export');
       // Single export → prompt a Save dialog (issue #37). Per-image encode progress
       // streams back to the window that asked (same pattern as claudeSopProgress) so
@@ -551,6 +566,7 @@ export function registerIpcHandlers(
       const sender = event.sender;
       return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
         saveAs: true,
+        theme: await themeForExport(),
         onProgress: (p) => {
           if (!sender.isDestroyed()) sender.send(IpcChannels.exportProgress, p);
         },
@@ -560,24 +576,26 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IpcChannels.exportToDir,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown, dir: unknown) => {
+    async (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown, dir: unknown) => {
       devLog('ipc: projects:export-to-dir');
       // Bulk export → write into the pre-chosen destination folder (no dialog, no
       // per-file reveal; the folder is opened once when the run finishes).
       return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
         targetDir: asString(dir, 'dir'),
         reveal: false,
+        theme: await themeForExport(),
       });
     },
   );
 
   ipcMain.handle(
     IpcChannels.exportToOwnFolder,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+    async (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
       devLog('ipc: projects:export-to-own-folder');
       // Bulk export → each project to its own export/ folder (no dialog, no reveal).
       return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
         reveal: false,
+        theme: await themeForExport(),
       });
     },
   );

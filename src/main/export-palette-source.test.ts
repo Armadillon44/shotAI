@@ -26,10 +26,13 @@ interface Surface {
 // One palette for all three, since the ramp collapse. There used to be
 // DOC_LIGHT here for two of them and SLIDE_LIGHT for the deck, which is what a
 // three-ramp document set looks like written down.
+// One palette for all three, since the ramp collapse — and since phase 4 it
+// arrives as an argument rather than an import, so an export can follow the brand
+// it was asked for.
 const SURFACES: Surface[] = [
-  { file: 'src/main/export-css.ts', palette: 'APP_LIGHT' },
-  { file: 'src/main/export-docx.ts', palette: 'APP_LIGHT' },
-  { file: 'src/main/export-pptx.ts', palette: 'APP_LIGHT' },
+  { file: 'src/main/export-css.ts', palette: 'the export theme' },
+  { file: 'src/main/export-docx.ts', palette: 'the export theme' },
+  { file: 'src/main/export-pptx.ts', palette: 'the export theme' },
 ];
 
 /**
@@ -64,14 +67,24 @@ describe('the export surfaces hold no colour of their own', () => {
       ).toEqual([]);
     });
 
-    it(`${s.file} imports the palette it claims to use`, () => {
-      // A file with no literals AND no import is a file that stopped drawing colours,
-      // which would mean a rule was deleted rather than converted.
+    it(`${s.file} takes its colours from the threaded theme`, () => {
+      // A file with no literals AND no palette read is a file that stopped drawing
+      // colours, which would mean a rule was deleted rather than converted.
+      //
+      // It must read the THEME rather than a module-level palette: a constant
+      // captured at import time cannot follow the brand, and the failure is
+      // silent — every document renders, in the default brand, forever.
       const src = fs.readFileSync(s.file, 'utf8');
-      expect(src, `${s.file} should import from shared/theme-palette`).toMatch(
-        /from '\.\.\/shared\/theme-palette'/,
+      expect(src, `${s.file} should import from shared/export-theme`).toMatch(
+        /from '\.\.\/shared\/export-theme'/,
       );
-      expect(src, `${s.file} should use ${s.palette}`).toContain(s.palette);
+      expect(src, `${s.file} should read the theme's palette`).toMatch(
+        /=\s*theme\.palette/,
+      );
+      expect(
+        /\b(APP_LIGHT|APP_DARK|BRANDS)\b/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')),
+        `${s.file} reads a palette directly; it would ignore the brand it was given`,
+      ).toBe(false);
     });
   }
 
@@ -104,7 +117,7 @@ describe('the Office exporters convert through hexNoHash', () => {
       // Every palette read in these files must be wrapped. Catch the bare form:
       // `color: DOC_LIGHT.ink` or `fill: SLIDE_LIGHT.surface` with no conversion.
       const bare = [
-        ...src.matchAll(/(?<!hexNoHash\()\b(?:DOC_LIGHT|SLIDE_LIGHT|APP_LIGHT)\.[a-zA-Z0-9]+/g),
+        ...src.matchAll(/(?<!hexNoHash\()\bC\.[a-zA-Z0-9]+/g),
       ]
         .map((m) => m[0])
         .filter((hit) => {
@@ -122,21 +135,19 @@ describe('the Office exporters convert through hexNoHash', () => {
   }
 });
 
-describe('the export card radius comes from the shared number (#77 phase 0b)', () => {
-  it('export-css.ts holds no card-radius literal', () => {
+describe('the export geometry comes from the theme (#77 phases 0b, 2)', () => {
+  it('export-css.ts holds no radius literal at all', () => {
+    // Including 50%: the step badge is the brand's CHIP, not structural geometry.
+    // macOS shipped an LFI document with square-ish cards and perfectly circular
+    // numbers by assuming otherwise.
     const src = fs.readFileSync('src/main/export-css.ts', 'utf8');
-    // 50% is the step-number circle, which is a circle rather than a card and
-    // deliberately keeps its own value.
-    const literals = [...src.matchAll(/border-radius:(\d+)px/g)].map((m) => m[0]);
+    const literals = [...src.matchAll(/border-radius:\s*(\d+px|\d+%)/g)].map((m) => m[0]);
     expect(
       literals,
-      `export-css.ts hardcodes a radius: ${literals.join(', ')}. Use CARD_RADIUS_PX ` +
-        'from shared/theme-palette so the report and the export cannot drift apart.',
+      `export-css.ts hardcodes a radius: ${literals.join(', ')}. Take it from the ` +
+        'theme, so the report and the export cannot drift apart and a brand can ' +
+        'change its geometry in one place.',
     ).toEqual([]);
-    expect(src).toContain('CARD_RADIUS_PX');
-    // Both, because the nested image has its own value. A file that only referenced
-    // the card constant would mean the image radius had been folded back in.
-    expect(src).toContain('IMAGE_RADIUS_PX');
   });
 });
 

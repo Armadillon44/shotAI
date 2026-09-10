@@ -821,6 +821,10 @@ export function Settings({
                   Which identity the app wears. Independent of light/dark — each
                   brand has both.
                 </p>
+                <p className="settings__hint">
+                  Exports follow the brand too, always in its light colors — a
+                  dark document is unreadable printed.
+                </p>
                 <div className="capmode__modes" role="radiogroup" aria-label="Brand">
                   {BRAND_OPTIONS.map((b) => (
                     <button

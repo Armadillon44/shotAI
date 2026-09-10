@@ -5,7 +5,8 @@
 import pptxgen from 'pptxgenjs';
 import { clampScale } from '../shared/doc-scale';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
-import { hexNoHash, APP_LIGHT } from '../shared/theme-palette';
+import { hexNoHash, type Palette } from '../shared/theme-palette';
+import { DEFAULT_EXPORT_THEME, type ExportTheme } from '../shared/export-theme';
 import { loadItemImage, type ExportItem } from './export';
 
 // LAYOUT_WIDE = 13.333in × 7.5in. All positions below are in inches.
@@ -18,16 +19,17 @@ const MARGIN = 0.5;
 const CARD = { x: 0.45, y: 0.45, w: SLIDE_W - 0.9, h: SLIDE_H - 0.9 };
 const PAD = 0.35;
 const INNER = { x: CARD.x + PAD, y: CARD.y + PAD, w: CARD.w - PAD * 2, h: CARD.h - PAD * 2 };
-const CARD_FILL = hexNoHash(APP_LIGHT.surface2);
-const CARD_BORDER = hexNoHash(APP_LIGHT.hair);
-
 // Colored-callout palette. `section` is NOT here — it renders as a divider slide,
-// not a filled box (handled before this lookup).
-const CALLOUT: Record<Exclude<CalloutKind, 'section'>, { fill: string; bd: string; fg: string; label: string }> = {
-  note: { fill: hexNoHash(APP_LIGHT.noteBg), bd: hexNoHash(APP_LIGHT.noteBd), fg: hexNoHash(APP_LIGHT.noteFg), label: 'Note' },
-  caution: { fill: hexNoHash(APP_LIGHT.cautBg), bd: hexNoHash(APP_LIGHT.cautBd), fg: hexNoHash(APP_LIGHT.cautFg), label: 'Caution' },
-  warning: { fill: hexNoHash(APP_LIGHT.warnBg), bd: hexNoHash(APP_LIGHT.warnBd), fg: hexNoHash(APP_LIGHT.warnFg), label: 'Warning' },
-};
+// not a filled box (handled before this lookup). Built per export, because the
+// palette is the brand's and the brand is an argument.
+type CalloutStyle = { fill: string; bd: string; fg: string; label: string };
+function calloutStyles(C: Palette): Record<Exclude<CalloutKind, 'section'>, CalloutStyle> {
+  return {
+    note: { fill: hexNoHash(C.noteBg), bd: hexNoHash(C.noteBd), fg: hexNoHash(C.noteFg), label: 'Note' },
+    caution: { fill: hexNoHash(C.cautBg), bd: hexNoHash(C.cautBd), fg: hexNoHash(C.cautFg), label: 'Caution' },
+    warning: { fill: hexNoHash(C.warnBg), bd: hexNoHash(C.warnBd), fg: hexNoHash(C.warnFg), label: 'Warning' },
+  };
+}
 
 /** Fit (w×h px) inside the box preserving aspect; return centered inches. */
 function fitContain(
@@ -49,7 +51,19 @@ export async function buildPptx(
   manifest: ProjectManifest,
   items: ExportItem[],
   createdLine: string,
+  theme: ExportTheme = DEFAULT_EXPORT_THEME,
 ): Promise<Buffer> {
+  const C = theme.palette;
+  const CARD_FILL = hexNoHash(C.surface2);
+  const CARD_BORDER = hexNoHash(C.hair);
+  const CALLOUT = calloutStyles(C);
+  // The deck's card corner, in INCHES: pptxgenjs takes rectRadius as a fraction
+  // of the shorter side, not a pixel value. 0.12 is what shipped; a brand that
+  // draws tighter corners scales it by the ratio of its card radius to the
+  // default's, so the deck follows the same geometry as every other format
+  // without pretending a slide has pixels.
+  const CARD_RADIUS =
+    0.12 * (theme.radii.card / DEFAULT_EXPORT_THEME.radii.card);
   const pptx = new pptxgen();
   pptx.layout = 'LAYOUT_WIDE';
   pptx.author = 'shotAI';
@@ -64,13 +78,13 @@ export async function buildPptx(
       h: CARD.h,
       fill: { color: fill },
       line: { color: line, width: 1 },
-      rectRadius: 0.12,
+      rectRadius: CARD_RADIUS,
     });
   };
 
   // Title slide (cover — no card, matches the HTML title/meta).
   const title = pptx.addSlide();
-  title.background = { color: hexNoHash(APP_LIGHT.surface) };
+  title.background = { color: hexNoHash(C.surface) };
   title.addText(manifest.title, {
     x: MARGIN,
     y: manifest.intro && (manifest.intro.heading || manifest.intro.body) ? 2.2 : 3.0,
@@ -78,7 +92,7 @@ export async function buildPptx(
     h: 1.2,
     fontSize: 40,
     bold: true,
-    color: hexNoHash(APP_LIGHT.ink),
+    color: hexNoHash(C.ink),
     align: 'center',
   });
   const introBits: string[] = [];
@@ -91,7 +105,7 @@ export async function buildPptx(
       w: SLIDE_W - (MARGIN + 1) * 2,
       h: 2.6,
       fontSize: 16,
-      color: hexNoHash(APP_LIGHT.ink2),
+      color: hexNoHash(C.ink2),
       align: 'center',
       valign: 'top',
     });
@@ -102,13 +116,13 @@ export async function buildPptx(
     w: SLIDE_W - MARGIN * 2,
     h: 0.4,
     fontSize: 10,
-    color: hexNoHash(APP_LIGHT.ink3),
+    color: hexNoHash(C.ink3),
     align: 'center',
   });
 
   for (const it of items) {
     const slide = pptx.addSlide();
-    slide.background = { color: hexNoHash(APP_LIGHT.surface) };
+    slide.background = { color: hexNoHash(C.surface) };
 
     if (it.kind === 'text') {
       if (it.callout === 'section') {
@@ -119,7 +133,7 @@ export async function buildPptx(
           y: 2.9,
           w: 4,
           h: 0,
-          line: { color: hexNoHash(APP_LIGHT.controlBd), width: 1 },
+          line: { color: hexNoHash(C.controlBd), width: 1 },
         });
         if (it.heading) {
           slide.addText(it.heading, {
@@ -129,7 +143,7 @@ export async function buildPptx(
             h: 1.0,
             fontSize: 34,
             bold: true,
-            color: hexNoHash(APP_LIGHT.ink),
+            color: hexNoHash(C.ink),
             align: 'center',
             valign: 'top',
           });
@@ -141,7 +155,7 @@ export async function buildPptx(
             w: SLIDE_W - (MARGIN + 1.5) * 2,
             h: 2,
             fontSize: 16,
-            color: hexNoHash(APP_LIGHT.ink3),
+            color: hexNoHash(C.ink3),
             align: 'center',
             valign: 'top',
           });
@@ -176,7 +190,7 @@ export async function buildPptx(
         h: 1,
         fontSize: 26,
         bold: true,
-        color: hexNoHash(APP_LIGHT.ink),
+        color: hexNoHash(C.ink),
         valign: 'top',
       });
       if (it.heading && it.body) {
@@ -186,7 +200,7 @@ export async function buildPptx(
           w: INNER.w,
           h: INNER.h - 1.15,
           fontSize: 18,
-          color: hexNoHash(APP_LIGHT.ink2),
+          color: hexNoHash(C.ink2),
           valign: 'top',
         });
       }
@@ -202,7 +216,7 @@ export async function buildPptx(
       h: 0.6,
       fontSize: 20,
       bold: true,
-      color: hexNoHash(APP_LIGHT.ink),
+      color: hexNoHash(C.ink),
       valign: 'top',
     });
     const hasBody = !!it.body;
@@ -232,7 +246,7 @@ export async function buildPptx(
         w: INNER.w,
         h: 1.1,
         fontSize: 15,
-        color: hexNoHash(APP_LIGHT.ink2),
+        color: hexNoHash(C.ink2),
         valign: 'top',
       });
     }
