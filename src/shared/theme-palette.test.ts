@@ -10,6 +10,7 @@ import {
   DOC_EXTRAS,
   SLIDE_EXTRAS,
   INTERNAL_SPLITS,
+  CARD_RADIUS_PX,
   type Palette,
 } from './theme-palette';
 
@@ -269,6 +270,55 @@ describe('INTERNAL_SPLITS documents the two-ramp surfaces', () => {
     const recorded = INTERNAL_SPLITS.flatMap((s) => s.values);
     for (const [k, v] of Object.entries({ ...DOC_EXTRAS, ...SLIDE_EXTRAS })) {
       expect(recorded, `${k} = ${v} has no INTERNAL_SPLITS entry`).toContain(v);
+    }
+  });
+});
+
+describe('the document card radius agrees across surfaces (#77 phase 0b)', () => {
+  const css = () => fs.readFileSync('src/renderer/project/project.css', 'utf8');
+
+  /** The declarations inside one selector block. */
+  function ruleBlock(sel: string): string {
+    const src = css();
+    const start = src.indexOf(sel + ' {');
+    expect(start, sel + ' not found in project.css').toBeGreaterThan(-1);
+    const end = src.indexOf('}', start);
+    expect(end, sel + ' has no closing brace').toBeGreaterThan(start);
+    return src.slice(start, end);
+  }
+
+  it('matches the --radius-card token in the app stylesheet', () => {
+    // The whole point of 0b: the report is meant to be WYSIWYG with the export, and
+    // these two numbers lived in different files and disagreed without anyone noticing.
+    const m = /--radius-card:\s*(\d+)px/.exec(css());
+    expect(m, '--radius-card is missing from project.css').not.toBeNull();
+    expect(Number(m?.[1])).toBe(CARD_RADIUS_PX);
+  });
+
+  it('is applied by TOKEN to every document card, never by literal', () => {
+    // A literal here is how the two surfaces drifted apart in the first place.
+    for (const sel of ['.rep__bodywrap', '.rep__intro', '.rep__imgwrap']) {
+      expect(ruleBlock(sel), sel + ' should use var(--radius-card)').toContain(
+        'border-radius: var(--radius-card)',
+      );
+    }
+  });
+
+  it('leaves app chrome on its own radius', () => {
+    // Dialogs and the SOP panel share the old 12px but are NOT document cards. A
+    // document's shape should not be decided by a modal's.
+    for (const sel of ['.confirm', '.sop__modal']) {
+      expect(ruleBlock(sel), sel + ' must not follow the card radius').not.toContain(
+        '--radius-card',
+      );
+    }
+  });
+
+  it('is the only radius the document cards use, so none can drift back', () => {
+    for (const sel of ['.rep__bodywrap', '.rep__intro', '.rep__imgwrap']) {
+      const b = ruleBlock(sel);
+      const literals = [...b.matchAll(/border-radius:\s*(\d+)px/g)].map((x) => x[0]);
+      expect(literals, sel + ' hardcodes a radius').toEqual([]);
     }
   });
 });

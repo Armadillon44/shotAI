@@ -13,7 +13,7 @@
  * see the note on HTML_IMG_MAX_W for why 738 is kept regardless.)
  */
 import { HTML_COL_BASE, docWidths } from '../shared/doc-scale';
-import { DOC_LIGHT, DOC_EXTRAS } from '../shared/theme-palette';
+import { DOC_LIGHT, DOC_EXTRAS, CARD_RADIUS_PX } from '../shared/theme-palette';
 
 /** The column at scale 1. Per-scale widths come from docWidths(scale). */
 export const HTML_COL_W = HTML_COL_BASE;
@@ -88,7 +88,7 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .doc{padding:40px 32px 64px}
 .doc__title{max-width:${COL}px;margin:0 auto 4px;font-size:1.9rem;line-height:1.25}
 .doc__meta{max-width:${COL}px;margin:0 auto 28px;color:${DOC_LIGHT.ink3};font-size:.85rem}
-.doc__intro{max-width:${COL}px;margin:0 auto 28px;padding:14px 18px;border:1px solid ${DOC_EXTRAS.cardBd};border-left:4px solid ${DOC_LIGHT.accent};border-radius:8px;background:${DOC_LIGHT.accentTint}}
+.doc__intro{max-width:${COL}px;margin:0 auto 28px;padding:14px 18px;border:1px solid ${DOC_EXTRAS.cardBd};border-left:4px solid ${DOC_LIGHT.accent};border-radius:${CARD_RADIUS_PX}px;background:${DOC_LIGHT.accentTint}}
 .doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:${DOC_LIGHT.ink3};margin:0 0 6px}
 .doc__intro-h{margin:0 0 6px;font-size:1.15rem}
 .doc__intro-b{margin:0;color:${DOC_LIGHT.ink2};white-space:pre-wrap}
@@ -105,12 +105,12 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .step__num--note{background:${DOC_LIGHT.noteBg};color:${DOC_LIGHT.noteFg};border:1px solid ${DOC_LIGHT.noteBd}}
 .step__num--caution{background:${DOC_LIGHT.cautBg};color:${DOC_LIGHT.cautFg};border:1px solid ${DOC_LIGHT.cautBd}}
 .step__num--warning{background:${DOC_LIGHT.warnBg};color:${DOC_LIGHT.warnFg};border:1px solid ${DOC_LIGHT.warnBd}}
-.step__main{flex:1 1 auto;min-width:0;padding:14px 16px;border:1px solid ${DOC_EXTRAS.cardBd};border-radius:12px;background:${DOC_LIGHT.surface2}}
+.step__main{flex:1 1 auto;min-width:0;padding:14px 16px;border:1px solid ${DOC_EXTRAS.cardBd};border-radius:${CARD_RADIUS_PX}px;background:${DOC_LIGHT.surface2}}
 .step__main--note{background:${DOC_LIGHT.noteBg};border-color:${DOC_LIGHT.noteBd};color:${DOC_LIGHT.noteFg}}
 .step__main--caution{background:${DOC_LIGHT.cautBg};border-color:${DOC_LIGHT.cautBd};color:${DOC_LIGHT.cautFg}}
 .step__main--warning{background:${DOC_LIGHT.warnBg};border-color:${DOC_LIGHT.warnBd};color:${DOC_LIGHT.warnFg}}
 .step__title{font-size:1.15rem;margin:0 0 10px}
-.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid ${DOC_LIGHT.hair};border-radius:8px}
+.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid ${DOC_LIGHT.hair};border-radius:${CARD_RADIUS_PX}px}
 .step__instr{margin:10px 0 0;white-space:pre-wrap;font-size:1.02rem}
 .step--textonly .step__instr{margin-top:0}
 .callout__h{display:block;font-weight:700;margin-bottom:.25rem}

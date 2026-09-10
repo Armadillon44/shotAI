@@ -46,6 +46,12 @@
 
   /* ---- Shape / depth ---- */
   --radius: 8px;
+  /* #77 phase 0b: the DOCUMENT card radius, shared with the exports through
+     CARD_RADIUS_PX in shared/theme-palette.ts and asserted equal by a test.
+     Deliberately its own token rather than a change to --radius: that one is also
+     read by the home dropdown, the menu popover and the bulk bar, which are app
+     chrome and have no business following a document's shape. */
+  --radius-card: 10px;
   --radius-lg: 12px;
   --radius-pill: 999px;
   --shadow-sm: 0 2px 8px rgba(20, 22, 31, 0.06);
@@ -1303,7 +1309,7 @@ body {
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--hair);
   border-left: 4px solid var(--accent, var(--accent));
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   background: var(--surface-2);
 }
 .rep__intro-h {
@@ -1610,7 +1616,7 @@ body {
   max-width: calc(820px * var(--doc-scale, 1));
   /* #40: the step card — a subtle rounded frame around each step's content. */
   border: 1px solid var(--hair-2);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: var(--surface-2);
   padding: 0.85rem 1rem;
 }
@@ -1681,7 +1687,7 @@ body {
      inert here, and it cannot change layout for a lone block child. */
   line-height: 0;
   border: 1px solid var(--hair);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   /* hidden (not auto): drag-pan still works via programmatic scrollLeft/Top, but
      the mouse wheel doesn't pan the image — it scrolls the page as expected. */
   overflow: hidden;

@@ -250,6 +250,31 @@ export const INTERNAL_SPLITS: readonly {
     note: 'The text-slide caption uses the doc ink-3 rather than the slide ink-3.',
   },
 ];
+// ---------------------------------------------------------------------------
+// Geometry that has to agree between the report and the exports (#77 phase 0b).
+// ---------------------------------------------------------------------------
+
+/**
+ * Corner radius of a document CARD: the step card, the overview card, and the
+ * screenshot frame inside a step.
+ *
+ * One number because the report is meant to be WYSIWYG with the export, and before
+ * this the two surfaces disagreed in a way nobody had noticed: the screenshot frame
+ * was 10px on screen and 8px in every export, while the step card was 12px on both.
+ *
+ * #77 phase 0b describes this as "export card 12 -> 10 to match the on-screen report,
+ * which is 10 today". That premise was wrong, and checking it is what found the real
+ * divergence: the 10px on screen belongs to the SCREENSHOT WRAP, not the step card.
+ * The cards already agreed at 12, so making the export card 10 alone would have
+ * broken an agreement and left the actual gap in place. Settled by choosing the
+ * issue's other stated goal, 10px everywhere, so all three become one value.
+ *
+ * NOT applied to dialogs, menus or the SOP panel, which also use 12px and 8px but
+ * are app chrome rather than document cards. A document's shape should not be
+ * decided by a modal's.
+ */
+export const CARD_RADIUS_PX = 10;
+
 /** Which surface a divergence belongs to. */
 export type SurfaceId = 'doc' | 'slide';
 

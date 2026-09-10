@@ -116,3 +116,18 @@ describe('the Office exporters convert through hexNoHash', () => {
     });
   }
 });
+
+describe('the export card radius comes from the shared number (#77 phase 0b)', () => {
+  it('export-css.ts holds no card-radius literal', () => {
+    const src = fs.readFileSync('src/main/export-css.ts', 'utf8');
+    // 50% is the step-number circle, which is a circle rather than a card and
+    // deliberately keeps its own value.
+    const literals = [...src.matchAll(/border-radius:(\d+)px/g)].map((m) => m[0]);
+    expect(
+      literals,
+      `export-css.ts hardcodes a radius: ${literals.join(', ')}. Use CARD_RADIUS_PX ` +
+        'from shared/theme-palette so the report and the export cannot drift apart.',
+    ).toEqual([]);
+    expect(src).toContain('CARD_RADIUS_PX');
+  });
+});
