@@ -109,6 +109,11 @@ const config: ForgeConfig = {
       // MakerSquirrel note below + src/main/arp-icon.ts).
       './assets/shotAI_icon.ico',
       './vendor/tessdata',
+      // The brand face, for the PDF export ONLY (#77 phase 3). The app itself
+      // loads its own copy through the renderer bundle; main needs a path it can
+      // read, and the PDF is printed from HTML by a real browser engine, so the
+      // print page has to be handed the file or the PDF embeds the fallback.
+      './src/renderer/fonts/Archivo.ttf',
     ],
   },
   // Our native deps (uiohook-napi, node-screenshots, get-windows) are all N-API

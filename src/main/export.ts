@@ -8,6 +8,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
 import { DEFAULT_EXPORT_THEME, exportTheme, type ExportTheme } from '../shared/export-theme';
@@ -31,6 +32,7 @@ import { buildDocx } from './export-docx';
 import { buildPptx } from './export-pptx';
 import { getReportByline } from './settings';
 import { mainLog } from './logger';
+import { brandFontPath } from './paths';
 
 // Windows/macOS filesystem-reserved characters + device names. Used to derive a
 // safe EXPORT filename from the project title (project folders themselves are
@@ -605,7 +607,39 @@ async function buildPlainHtmlDoc(
 }
 
 /** Render the HTML to a PDF via a hidden BrowserWindow + printToPDF (offline). */
-async function htmlToPdf(dir: string, html: string, outputPath: string): Promise<void> {
+/**
+ * A `@font-face` pointing at the bundled face on disk, for the print document.
+ *
+ * Injected into the PRINT copy only, never into the .html the user keeps. The
+ * weight range is the same load-bearing declaration as in the app's stylesheet:
+ * Archivo's variable default instance is wght 600, so without it a bare request
+ * for the family renders semibold.
+ *
+ * Empty string when the brand has no face of its own, or when the file is
+ * missing — in which case the document simply resolves its fallback stack, which
+ * is what it did before this existed.
+ */
+function printFontFace(theme: ExportTheme): string {
+  const family = theme.fontFamily;
+  if (!family) return '';
+  const file = brandFontPath();
+  if (!file) {
+    mainLog.warn('brand face not found on disk; the PDF will use the fallback stack');
+    return '';
+  }
+  return (
+    `<style>@font-face{font-family:"${family}";` +
+    `src:url("${pathToFileURL(file).href}") format("truetype-variations");` +
+    `font-weight:100 900;font-stretch:62% 125%;font-style:normal}</style>\n`
+  );
+}
+
+async function htmlToPdf(
+  dir: string,
+  html: string,
+  outputPath: string,
+  theme: ExportTheme = DEFAULT_EXPORT_THEME,
+): Promise<void> {
   const renderDir = path.join(dir, 'export', '.render');
   await fs.mkdir(renderDir, { recursive: true });
   // Best-effort sweep of any temp HTML orphaned by a prior failed export.
@@ -619,7 +653,8 @@ async function htmlToPdf(dir: string, html: string, outputPath: string): Promise
     /* directory unreadable — proceed anyway */
   }
   const tmpHtml = path.join(renderDir, `_print-${randomUUID()}.html`);
-  await fs.writeFile(tmpHtml, html, 'utf8');
+  // The print copy gets the face embedded; the .html export never does.
+  await fs.writeFile(tmpHtml, html.replace('<head>\n', `<head>\n${printFontFace(theme)}`), 'utf8');
   const win = new BrowserWindow({
     show: false,
     width: 900,
@@ -853,6 +888,7 @@ export async function exportProject(
       dir,
       await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress, theme),
       outputPath,
+      theme,
     );
   }
 

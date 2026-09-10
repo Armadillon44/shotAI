@@ -42,6 +42,14 @@ export interface ExportTheme {
   fontStack: string;
   /** The same, for the Word-facing export, which keeps Arial behind the brand. */
   plainFontStack: string;
+  /**
+   * The brand's own face, or null for the platform's system face.
+   *
+   * Named separately from the stack because the PDF renderer needs to know
+   * WHETHER there is a face to embed, and sniffing the stack for a leading
+   * quote would be a guess about formatting rather than a fact about the brand.
+   */
+  fontFamily: string | null;
 }
 
 /** The `font-family` value for a brand. */
@@ -59,6 +67,7 @@ export function exportTheme(brand: BrandId): ExportTheme {
     radii: BRANDS[id].radii,
     fontStack: fontStackFor(id),
     plainFontStack: plainFontStackFor(id),
+    fontFamily: BRANDS[id].font.family,
   };
 }
 

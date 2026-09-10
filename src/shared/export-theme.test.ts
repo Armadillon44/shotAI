@@ -96,6 +96,44 @@ describe('the document reskins with the brand', () => {
   });
 });
 
+describe('the PDF embeds the face; nothing else does', () => {
+  // The one export where the brand typeface actually reaches a reader who has
+  // never installed it, because a PDF embeds the glyphs it draws with. macOS
+  // gets this from CoreText; here the PDF is printed from HTML by a browser
+  // engine, so it embeds whatever THE PAGE resolved — which means the print page
+  // has to be handed the file, and only the print page.
+  const read = (f: string): string => fs.readFileSync(f, 'utf8');
+
+  it('names the brand face as a fact about the brand, not by sniffing a string', () => {
+    expect(exportTheme('lfi').fontFamily).toBe('Archivo');
+    expect(exportTheme('shotAI').fontFamily).toBeNull();
+  });
+
+  it('injects the face into the PRINT copy only', () => {
+    const src = read('src/main/export.ts');
+    // Written into the temp print file, not returned from buildHtmlDoc — so the
+    // .html the user keeps cannot pick it up.
+    expect(src).toMatch(/writeFile\(\s*tmpHtml,\s*html\.replace\([\s\S]*?printFontFace\(theme\)/);
+    const face = src.slice(src.indexOf('function printFontFace'));
+    expect(face, 'the weight range is what stops the face rendering semibold').toContain(
+      'font-weight:100 900',
+    );
+    expect(face, 'a missing face must degrade to the fallback, not fail the export').toContain(
+      "return ''",
+    );
+  });
+
+  it('resolves the face from a path main can actually read', () => {
+    // extraResource puts it OUTSIDE the asar. Existence is not loadability, but
+    // a path inside the archive would not even be readable by fs, so this at
+    // least pins the packaging decision next to the code that depends on it.
+    expect(read('forge.config.ts')).toContain('./src/renderer/fonts/Archivo.ttf');
+    const paths = read('src/main/paths.ts');
+    expect(paths).toContain('brandFontPath');
+    expect(paths).toContain("path.join(process.resourcesPath, 'Archivo.ttf')");
+  });
+});
+
 describe('the brand actually reaches the exporters', () => {
   // The failure macOS hit in testing and reported on #77: "LFI selected,
   // documents still violet". Every builder takes `theme` with a DEFAULT, which is
