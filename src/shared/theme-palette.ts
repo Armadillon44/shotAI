@@ -419,135 +419,51 @@ export function themeStylesheet(): string {
   return blocks.join('\n');
 }
 
-/**
- * The palette the HTML exports render today, and therefore the PDF too, since the
- * PDF is printed from the same document. Also what `.docx` uses.
- *
- * Identical to the app except for the five neutrals recorded in KNOWN_DIVERGENCES.
- * Spreading APP_LIGHT and overriding only those five is deliberate: a role added to
- * the app in future automatically reaches the exports, instead of silently defaulting
- * to whatever a second hand-written copy happened to say.
- */
-export const DOC_LIGHT: Palette = {
-  ...APP_LIGHT,
-  ink: '#1f2937',
-  ink2: '#374151',
-  ink3: '#6b7280',
-  hair: '#e5e7eb',
-  controlBd: '#cbd5e1',
-};
-
-/**
- * The palette the PowerPoint export renders today: a third neutral ramp, and no
- * brand accent anywhere in the deck.
- *
- * `accent` is left at the brand value even though the current deck never draws it,
- * so that when phase 3 brands the slides there is a correct value to reach for
- * rather than an invented one.
- */
-export const SLIDE_LIGHT: Palette = {
-  ...APP_LIGHT,
-  ink: '#14161f',
-  ink2: '#525a6e',
-  ink3: '#8b91a3',
-  controlBd: '#cbd5e1',
-};
-
 // ---------------------------------------------------------------------------
-// Export-only roles, and the reason they have to exist.
+// ONE NEUTRAL RAMP, and it is the app's.
 //
-// Extracting the call sites found something the surface-level table above cannot
-// express: each export surface mixes BOTH neutral ramps INTERNALLY. It is not that
-// the export uses grey where the app uses violet; it is that the export uses grey
-// for some elements and violet for others, in the same document.
+// There used to be DOC_LIGHT and SLIDE_LIGHT here, plus DocExtras and SlideExtras,
+// and between them they described three neutral ramps: the app's violet-tinted
+// inks, Tailwind's greys in the HTML/PDF/Word path, and a third set in the deck.
+// Worse, each surface mixed two of them INSIDE one document — body text #1f2937
+// with a section heading one line below in #191826, a screenshot border #e5e7eb
+// inside a card border #e7e4f2. Invisible, because each pair sits within a few
+// percent, which is exactly why it survived.
 //
-// Proof, from the shipped code rather than inference:
-//   export-docx.ts:131  section rule   hexNoHash(DOC_LIGHT.hair)  -> E5E7EB
-//   export-docx.ts:37   card border    CARD_BORDER                -> E7E4F2
-// Two hairlines in one Word document. The HTML export does the same: body text is
-// #1f2937 while a section heading one line below it is #191826, and the screenshot
-// border is #e5e7eb inside a card border of #e7e4f2.
+// Phase 0 was defined as no-visual-change, so it recorded all of that rather than
+// fixing it. This is the fix. The mixing was never a decision: the export
+// stylesheet was written separately against Tailwind defaults, a few values were
+// later pulled from the app side, and nobody reconciled them. Preserving it means
+// preserving an accident, and it would mean authoring two neutral ramps for every
+// future brand when the LFI guide defines one.
 //
-// So these roles are named for WHAT THEY COLOUR, not for a ramp, and valued at
-// exactly what ships. Giving them names is what makes the inconsistency reviewable;
-// folding them into `hair`/`ink` would either change shipped output or hide the
-// split behind a role whose value is right in one place and wrong in another.
-
-/** Roles the HTML and Word exports need beyond the shared vocabulary. */
-export interface DocExtras {
-  /** Overview, section and step CARD border. Renders the APP hair (#e7e4f2), while
-   *  the screenshot border and <hr> one element away render DOC hair (#e5e7eb). */
-  cardBd: string;
-  /** Section-divider heading. Renders the APP ink, unlike body text. */
-  sectionH: string;
-  /** Section-divider body. Renders the APP ink-2, unlike the overview body. */
-  sectionB: string;
-}
-
-export const DOC_EXTRAS: DocExtras = {
-  cardBd: '#e7e4f2',
-  sectionH: '#191826',
-  sectionB: '#5a5772',
-};
-
-/** Roles the PowerPoint export needs beyond the shared vocabulary. */
-export interface SlideExtras {
-  /** Step body and footer text. Renders the DOC ink-2, not the slide ink-2. */
-  bodyInk: string;
-  /** The centred caption on a text-only slide. Renders the DOC ink-3. */
-  captionInk: string;
-}
-
-export const SLIDE_EXTRAS: SlideExtras = {
-  bodyInk: '#374151',
-  captionInk: '#6b7280',
-};
+// Three role names disappeared with it rather than being kept as duplicates:
+// sectionH, sectionB and cardBd became identical to ink, ink2 and hair. A section
+// heading IS primary text; a second name for one role is how the sets drifted
+// apart in the first place. The export vocabulary got smaller.
+//
+// RETIRED_GREYS below is what keeps it that way.
+// ---------------------------------------------------------------------------
 
 /**
- * Where a single surface renders TWO values for what is conceptually one role.
+ * The greys the exports used to carry, and must never carry again.
  *
- * Distinct from KNOWN_DIVERGENCES, which is about a surface differing from the app.
- * These are internal contradictions: a reader looking at one exported document sees
- * both values, one element apart. Recorded, not fixed, for the same reason as the
- * rest of phase 0: converging them changes shipped output.
+ * A source test asserts none of these appears anywhere in the export path or the
+ * app stylesheet. An empty divergence list would have said the same thing more
+ * weakly: this fails on the specific values, so a partial revert of one file is
+ * caught rather than averaging out.
  */
-export const INTERNAL_SPLITS: readonly {
-  surface: SurfaceId;
-  concept: string;
-  values: readonly string[];
-  note: string;
-}[] = [
-  {
-    surface: 'doc',
-    concept: 'hairline',
-    values: ['#e7e4f2', '#e5e7eb'],
-    note: 'Card borders use the app hair; the screenshot border and <hr> use the doc hair. Both appear in every exported SOP that has a section divider.',
-  },
-  {
-    surface: 'doc',
-    concept: 'body ink',
-    values: ['#1f2937', '#191826'],
-    note: 'Body text is #1f2937 but a section-divider heading is #191826, so two blacks appear within a line of each other.',
-  },
-  {
-    surface: 'doc',
-    concept: 'secondary ink',
-    values: ['#374151', '#5a5772'],
-    note: 'The overview body and a section-divider body are different greys.',
-  },
-  {
-    surface: 'slide',
-    concept: 'body ink',
-    values: ['#525a6e', '#374151'],
-    note: 'Slide headings use the slide ramp while step body and footer text use the doc ramp, so the deck mixes two palettes.',
-  },
-  {
-    surface: 'slide',
-    concept: 'secondary ink',
-    values: ['#8b91a3', '#6b7280'],
-    note: 'The text-slide caption uses the doc ink-3 rather than the slide ink-3.',
-  },
+export const RETIRED_GREYS: readonly string[] = [
+  '#1f2937', // was doc ink       -> #191826
+  '#374151', // was doc ink-2     -> #5a5772
+  '#6b7280', // was doc ink-3     -> #6f6c88
+  '#e5e7eb', // was doc hair      -> #e7e4f2
+  '#cbd5e1', // was doc/slide control-bd -> #cbc7db
+  '#14161f', // was slide ink     -> #191826
+  '#525a6e', // was slide ink-2   -> #5a5772
+  '#8b91a3', // was slide ink-3   -> #6f6c88
 ];
+
 // ---------------------------------------------------------------------------
 // Geometry that has to agree between the report and the exports (#77 phase 0b).
 // ---------------------------------------------------------------------------
@@ -588,99 +504,6 @@ export const CARD_RADIUS_PX = 10;
  */
 export const IMAGE_RADIUS_PX = 8;
 
-/** Which surface a divergence belongs to. */
-export type SurfaceId = 'doc' | 'slide';
-
-export interface Divergence {
-  role: keyof Palette;
-  surface: SurfaceId;
-  /** What the app renders. */
-  app: string;
-  /** What that surface renders instead, today. */
-  surfaceValue: string;
-  /** Why it is recorded rather than fixed. */
-  note: string;
-}
-
-/**
- * Every place an export surface deliberately-for-now renders a different value than
- * the app, at the exact values shipped today.
- *
- * This list IS the phase-0 deliverable. The parity test asserts that a surface value
- * either equals the app's or appears here, so a SIXTH divergence cannot be added
- * without either fixing it or admitting it in writing.
- *
- * None of these is defensible on its own; they are the residue of the export
- * stylesheets having been written from a generic grey palette while the app was
- * given a violet-tinted one. Converging them is phase 3 work because it changes
- * shipped output.
- */
-export const KNOWN_DIVERGENCES: readonly Divergence[] = [
-  {
-    role: 'ink',
-    surface: 'doc',
-    app: '#191826',
-    surfaceValue: '#1f2937',
-    note: 'Export body text. Grey-blue where the app is violet-black.',
-  },
-  {
-    role: 'ink2',
-    surface: 'doc',
-    app: '#5a5772',
-    surfaceValue: '#374151',
-    note: 'Overview body and blockquote text. Noticeably darker than the app.',
-  },
-  {
-    role: 'ink3',
-    surface: 'doc',
-    app: '#6f6c88',
-    surfaceValue: '#6b7280',
-    note: 'Meta line and the OVERVIEW eyebrow. Greyer than the app, and now within a quarter of a stop of it after the app value was darkened to meet AA.',
-  },
-  {
-    role: 'hair',
-    surface: 'doc',
-    app: '#e7e4f2',
-    surfaceValue: '#e5e7eb',
-    note: 'Screenshot border and <hr>. Two values two units apart, from two palettes.',
-  },
-  {
-    role: 'controlBd',
-    surface: 'doc',
-    app: '#cbc7db',
-    surfaceValue: '#cbd5e1',
-    note: 'Plain-export blockquote rule.',
-  },
-  {
-    role: 'ink',
-    surface: 'slide',
-    app: '#191826',
-    surfaceValue: '#14161f',
-    note: 'Slide titles and step headings. A third ink, darker than either other surface.',
-  },
-  {
-    role: 'ink2',
-    surface: 'slide',
-    app: '#5a5772',
-    surfaceValue: '#525a6e',
-    note: 'Slide body text.',
-  },
-  {
-    role: 'ink3',
-    surface: 'slide',
-    app: '#6f6c88',
-    surfaceValue: '#8b91a3',
-    note: 'Slide footer / secondary text. Now LIGHTER than the app value rather than darker, since the app value was darkened to meet AA.',
-  },
-  {
-    role: 'controlBd',
-    surface: 'slide',
-    app: '#cbc7db',
-    surfaceValue: '#cbd5e1',
-    note: 'Slide card outline.',
-  },
-];
-
 /**
  * `RRGGBB` with no leading `#`, which is what the `docx` and `pptxgenjs` APIs take.
  *
@@ -693,11 +516,4 @@ export function hexNoHash(value: string): string {
   const m = /^#([0-9a-fA-F]{6})$/.exec(value);
   if (!m) throw new Error(`hexNoHash: expected #rrggbb, got ${JSON.stringify(value)}`);
   return m[1].toUpperCase();
-}
-
-/** The palette a surface renders today. */
-export function paletteFor(surface: SurfaceId | 'app'): Palette {
-  if (surface === 'doc') return DOC_LIGHT;
-  if (surface === 'slide') return SLIDE_LIGHT;
-  return APP_LIGHT;
 }

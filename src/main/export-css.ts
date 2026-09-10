@@ -13,7 +13,7 @@
  * see the note on HTML_IMG_MAX_W for why 738 is kept regardless.)
  */
 import { HTML_COL_BASE, docWidths } from '../shared/doc-scale';
-import { DOC_LIGHT, DOC_EXTRAS, CARD_RADIUS_PX, IMAGE_RADIUS_PX } from '../shared/theme-palette';
+import { APP_LIGHT, CARD_RADIUS_PX, IMAGE_RADIUS_PX } from '../shared/theme-palette';
 
 /** The column at scale 1. Per-scale widths come from docWidths(scale). */
 export const HTML_COL_W = HTML_COL_BASE;
@@ -84,33 +84,33 @@ export function docCss(scale = 1): string {
   return `
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:${DOC_LIGHT.ink};background:${DOC_LIGHT.surface};line-height:1.6}
+body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:${APP_LIGHT.ink};background:${APP_LIGHT.surface};line-height:1.6}
 .doc{padding:40px 32px 64px}
 .doc__title{max-width:${COL}px;margin:0 auto 4px;font-size:1.9rem;line-height:1.25}
-.doc__meta{max-width:${COL}px;margin:0 auto 28px;color:${DOC_LIGHT.ink3};font-size:.85rem}
-.doc__intro{max-width:${COL}px;margin:0 auto 28px;padding:14px 18px;border:1px solid ${DOC_EXTRAS.cardBd};border-left:4px solid ${DOC_LIGHT.accent};border-radius:${CARD_RADIUS_PX}px;background:${DOC_LIGHT.accentTint}}
-.doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:${DOC_LIGHT.ink3};margin:0 0 6px}
+.doc__meta{max-width:${COL}px;margin:0 auto 28px;color:${APP_LIGHT.ink3};font-size:.85rem}
+.doc__intro{max-width:${COL}px;margin:0 auto 28px;padding:14px 18px;border:1px solid ${APP_LIGHT.hair};border-left:4px solid ${APP_LIGHT.accent};border-radius:${CARD_RADIUS_PX}px;background:${APP_LIGHT.accentTint}}
+.doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:${APP_LIGHT.ink3};margin:0 0 6px}
 .doc__intro-h{margin:0 0 6px;font-size:1.15rem}
-.doc__intro-b{margin:0;color:${DOC_LIGHT.ink2};white-space:pre-wrap}
+.doc__intro-b{margin:0;color:${APP_LIGHT.ink2};white-space:pre-wrap}
 /* The 46px left pad is the step gutter (30px badge + 16px gap), so a section's
    rule and text align with the step CONTENT column rather than the badge. The
    rule lives on .section__inner because the padding and the width can't share a
    box once .section carries the column. Values match the macOS export. */
 .section{max-width:${COL}px;margin:28px auto 4px;padding-left:46px;break-inside:avoid}
-.section__inner{padding:14px 16px 0;border-top:2px solid ${DOC_EXTRAS.cardBd}}
-.section__h{font-size:1.2rem;font-weight:700;margin:0 0 4px;color:${DOC_EXTRAS.sectionH}}
-.section__b{margin:0;color:${DOC_EXTRAS.sectionB};white-space:pre-wrap}
+.section__inner{padding:14px 16px 0;border-top:2px solid ${APP_LIGHT.hair}}
+.section__h{font-size:1.2rem;font-weight:700;margin:0 0 4px;color:${APP_LIGHT.ink}}
+.section__b{margin:0;color:${APP_LIGHT.ink2};white-space:pre-wrap}
 .step{display:flex;gap:16px;max-width:${COL}px;margin:0 auto 18px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
-.step__num{flex:0 0 auto;width:30px;height:30px;margin-top:14px;border-radius:50%;background:${DOC_LIGHT.accent};color:${DOC_LIGHT.onAccent};font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
-.step__num--note{background:${DOC_LIGHT.noteBg};color:${DOC_LIGHT.noteFg};border:1px solid ${DOC_LIGHT.noteBd}}
-.step__num--caution{background:${DOC_LIGHT.cautBg};color:${DOC_LIGHT.cautFg};border:1px solid ${DOC_LIGHT.cautBd}}
-.step__num--warning{background:${DOC_LIGHT.warnBg};color:${DOC_LIGHT.warnFg};border:1px solid ${DOC_LIGHT.warnBd}}
-.step__main{flex:1 1 auto;min-width:0;padding:14px 16px;border:1px solid ${DOC_EXTRAS.cardBd};border-radius:${CARD_RADIUS_PX}px;background:${DOC_LIGHT.surface2}}
-.step__main--note{background:${DOC_LIGHT.noteBg};border-color:${DOC_LIGHT.noteBd};color:${DOC_LIGHT.noteFg}}
-.step__main--caution{background:${DOC_LIGHT.cautBg};border-color:${DOC_LIGHT.cautBd};color:${DOC_LIGHT.cautFg}}
-.step__main--warning{background:${DOC_LIGHT.warnBg};border-color:${DOC_LIGHT.warnBd};color:${DOC_LIGHT.warnFg}}
+.step__num{flex:0 0 auto;width:30px;height:30px;margin-top:14px;border-radius:50%;background:${APP_LIGHT.accent};color:${APP_LIGHT.onAccent};font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+.step__num--note{background:${APP_LIGHT.noteBg};color:${APP_LIGHT.noteFg};border:1px solid ${APP_LIGHT.noteBd}}
+.step__num--caution{background:${APP_LIGHT.cautBg};color:${APP_LIGHT.cautFg};border:1px solid ${APP_LIGHT.cautBd}}
+.step__num--warning{background:${APP_LIGHT.warnBg};color:${APP_LIGHT.warnFg};border:1px solid ${APP_LIGHT.warnBd}}
+.step__main{flex:1 1 auto;min-width:0;padding:14px 16px;border:1px solid ${APP_LIGHT.hair};border-radius:${CARD_RADIUS_PX}px;background:${APP_LIGHT.surface2}}
+.step__main--note{background:${APP_LIGHT.noteBg};border-color:${APP_LIGHT.noteBd};color:${APP_LIGHT.noteFg}}
+.step__main--caution{background:${APP_LIGHT.cautBg};border-color:${APP_LIGHT.cautBd};color:${APP_LIGHT.cautFg}}
+.step__main--warning{background:${APP_LIGHT.warnBg};border-color:${APP_LIGHT.warnBd};color:${APP_LIGHT.warnFg}}
 .step__title{font-size:1.15rem;margin:0 0 10px}
-.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid ${DOC_LIGHT.hair};border-radius:${IMAGE_RADIUS_PX}px}
+.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid ${APP_LIGHT.hair};border-radius:${IMAGE_RADIUS_PX}px}
 .step__instr{margin:10px 0 0;white-space:pre-wrap;font-size:1.02rem}
 .step--textonly .step__instr{margin-top:0}
 .callout__h{display:block;font-weight:700;margin-bottom:.25rem}
@@ -133,14 +133,14 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 export function plainCss(scale = 1): string {
   const BODY = Math.round(PLAIN_BODY_W * (docWidths(scale).htmlCol / HTML_COL_BASE));
   return [
-    `body{font-family:Arial,Helvetica,sans-serif;color:${DOC_LIGHT.ink};line-height:1.5;max-width:${BODY}px;margin:24px auto;padding:0 20px}`,
+    `body{font-family:Arial,Helvetica,sans-serif;color:${APP_LIGHT.ink};line-height:1.5;max-width:${BODY}px;margin:24px auto;padding:0 20px}`,
     'h1{font-size:1.8rem;font-weight:700;margin:0 0 .3rem}',
     'h2{font-size:1.2rem;font-weight:700;margin:1.3rem 0 .4rem}',
     'p{margin:.5rem 0}',
     'strong{font-weight:700}',
     'img{max-width:100%;height:auto}',
-    `blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid ${DOC_LIGHT.controlBd};color:${DOC_LIGHT.ink2}}`,
-    `hr{border:0;border-top:1px solid ${DOC_LIGHT.hair};margin:1.4rem 0}`,
+    `blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid ${APP_LIGHT.controlBd};color:${APP_LIGHT.ink2}}`,
+    `hr{border:0;border-top:1px solid ${APP_LIGHT.hair};margin:1.4rem 0}`,
   ].join('');
 }
 

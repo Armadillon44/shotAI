@@ -23,10 +23,13 @@ interface Surface {
   palette: string;
 }
 
+// One palette for all three, since the ramp collapse. There used to be
+// DOC_LIGHT here for two of them and SLIDE_LIGHT for the deck, which is what a
+// three-ramp document set looks like written down.
 const SURFACES: Surface[] = [
-  { file: 'src/main/export-css.ts', palette: 'DOC_LIGHT' },
-  { file: 'src/main/export-docx.ts', palette: 'DOC_LIGHT' },
-  { file: 'src/main/export-pptx.ts', palette: 'SLIDE_LIGHT' },
+  { file: 'src/main/export-css.ts', palette: 'APP_LIGHT' },
+  { file: 'src/main/export-docx.ts', palette: 'APP_LIGHT' },
+  { file: 'src/main/export-pptx.ts', palette: 'APP_LIGHT' },
 ];
 
 /**
