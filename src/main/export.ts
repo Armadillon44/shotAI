@@ -10,7 +10,8 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
-import { DEFAULT_EXPORT_THEME, type ExportTheme } from '../shared/export-theme';
+import { DEFAULT_EXPORT_THEME, exportTheme, type ExportTheme } from '../shared/export-theme';
+import { coerceBrand, type BrandId } from '../shared/theme-palette';
 import type { ExportFormat, ExportProgress, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
@@ -756,18 +757,27 @@ export async function exportProject(
     /** Per-image encode progress; only the image-embedding formats call it. */
     onProgress?: (p: ExportProgress) => void;
     /**
-     * Which brand the document wears (#77). Defaulted, so every existing caller
-     * and test produces exactly the document it produced before.
+     * The brand to use when the PROJECT does not pin one (#77).
+     *
+     * The precedence itself lives here rather than in the caller, because only
+     * this function has the manifest: a project carrying `theme` exports in
+     * that brand on any machine, and everything else falls back to the app
+     * preference the caller passes. Omitted entirely, it is the default brand,
+     * so every existing caller and test produces exactly the document it
+     * produced before.
      */
-    theme?: ExportTheme;
+    brand?: BrandId;
   } = {},
 ): Promise<ExportResult> {
   // Reveal the written file unless told not to — bulk exports (to a shared folder
   // or to each project's own folder) suppress the per-file reveal so N folders
   // don't pop open mid-run.
   const reveal = opts.reveal ?? true;
-  const theme = opts.theme ?? DEFAULT_EXPORT_THEME;
   const { dir, manifest } = await getProjectForRead(projectPath);
+  // #77 phase 1b precedence: the project's own brand wins, so a document
+  // reproduces identically wherever it is exported from; otherwise the app
+  // preference the caller passed; otherwise the default.
+  const theme = exportTheme(coerceBrand(manifest.theme ?? opts.brand));
   const items = await collectSteps(dir, manifest);
   const base = safeFileBase(manifest.title);
   // Document footer (F7): "Created on <datetime>", plus "by <name>" when the user

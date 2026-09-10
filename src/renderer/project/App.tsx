@@ -362,10 +362,17 @@ export function App(): React.JSX.Element {
     window.shotai.settings.getTheme().then(setThemePref).catch(() => undefined);
     window.shotai.settings.getBrand().then(setBrand).catch(() => undefined);
   }, []);
+  // #77 phase 1b precedence. A project carrying a brand wears it EVERYWHERE
+  // while it is open, chrome included: a corporate report inside a violet shell
+  // is incoherent, and the report is meant to be WYSIWYG with the export. Home
+  // and Settings belong to no project, so they always use the app preference —
+  // which is what `openPath &&` here means.
+  const projectTheme = useProjectStore((s) => s.projectTheme);
+  const activeBrand = (openPath && projectTheme) || brand;
   React.useEffect(() => {
-    applyTheme(themePref, brand);
-    return watchSystemTheme(themePref, () => applyTheme(themePref, brand));
-  }, [themePref, brand]);
+    applyTheme(themePref, activeBrand);
+    return watchSystemTheme(themePref, () => applyTheme(themePref, activeBrand));
+  }, [themePref, activeBrand]);
 
   // `createdThisSession` marks a freshly-created project so a Discard from the
   // pill deletes the whole project (vs. only this session's steps).

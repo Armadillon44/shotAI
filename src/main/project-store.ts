@@ -17,8 +17,10 @@ import {
 } from '../shared/project';
 import { DEFAULT_SOP_TONE, isSopTone } from '../shared/sop';
 import { SCALE_DEFAULT, clampScale } from '../shared/doc-scale';
+import { coerceBrand, DEFAULT_BRAND, type BrandId } from '../shared/theme-palette';
 import {
   addRecent,
+  getBrand,
   getProjectsDir,
   getRecents,
   persistProjectsDir,
@@ -130,6 +132,13 @@ export function coerceManifest(
     ...(clampScale(parsed.displayScale) !== SCALE_DEFAULT
       ? { displayScale: clampScale(parsed.displayScale) }
       : {}),
+    // Same rule and the same trap (#77 phase 1b): an uncoerced field is dropped
+    // on EVERY read, so a macOS-authored brand would be discarded the first time
+    // Windows opened the project. Omitted when it is the default, so a project
+    // that never picked a brand stays byte-identical on disk.
+    ...(parsed.theme !== undefined && coerceBrand(parsed.theme) !== DEFAULT_BRAND
+      ? { theme: coerceBrand(parsed.theme) }
+      : {}),
     intro: coerceIntro(parsed.intro),
     // MUST be coerced explicitly. This function rebuilds the manifest field by
     // field, so an uncoerced field is silently dropped on EVERY read — the flag
@@ -202,6 +211,7 @@ function defaultTitle(): string {
 /** Create a new, empty project folder and write its v1 manifest. An empty title
  *  gets a timestamped default ("Project yyyy/MM/dd HH:mm:ss"). */
 export async function createProject(title?: string): Promise<ProjectSummary> {
+  const brand: BrandId = await getBrand();
   const root = await getProjectsDir();
   await fs.mkdir(root, { recursive: true });
 
@@ -228,6 +238,11 @@ export async function createProject(title?: string): Promise<ProjectSummary> {
     sopBackup: null,
     archived: false,
     archivedAt: null,
+    // Stamped from the app preference at creation (#77 phase 1b), and omitted
+    // when it is the default — so an operator working in one brand gets projects
+    // that reproduce in that brand on any machine, while everyone else's
+    // manifests are unchanged.
+    ...(brand !== DEFAULT_BRAND ? { theme: brand } : {}),
   };
   await writeManifest(dir, manifest); // atomic, same as every other manifest write
 
@@ -546,12 +561,20 @@ let writeQueue: Promise<unknown> = Promise.resolve();
  */
 export function mutate(
   projectPath: string,
-  fn: (manifest: ProjectManifest) => void | Promise<void>,
+  /**
+   * Returning 'unchanged' skips the write AND the updatedAt bump.
+   *
+   * Needed because a no-op save re-dates the project and jumps it to the top of
+   * the Home list under "Today" purely because a control was touched. Callers
+   * used to guard in the renderer; a setter that can be reached from IPC needs
+   * the guard on this side too.
+   */
+  fn: (manifest: ProjectManifest) => void | 'unchanged' | Promise<void | 'unchanged'>,
 ): Promise<ProjectManifest> {
   const run = writeQueue.then(async () => {
     const resolved = await resolveKnownProject(projectPath);
     const manifest = await readManifest(resolved);
-    await fn(manifest);
+    if ((await fn(manifest)) === 'unchanged') return manifest;
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
     return manifest;
@@ -575,6 +598,27 @@ export function setProjectDisplayScale(
   return mutate(projectPath, (manifest) => {
     if (clean === SCALE_DEFAULT) delete manifest.displayScale;
     else manifest.displayScale = clean;
+  });
+}
+
+/**
+ * Set the per-project brand (#77 phase 1b).
+ *
+ * The default is stored as ABSENT, so a project that never picked one keeps a
+ * clean manifest and stays byte-identical for the other platform. A write that
+ * changes nothing is refused outright rather than bumping updatedAt.
+ */
+export function setProjectTheme(
+  projectPath: string,
+  brand: unknown,
+): Promise<ProjectManifest> {
+  const clean = coerceBrand(brand);
+  return mutate(projectPath, (manifest) => {
+    // coerceBrand(undefined) is the default, so an absent key compares equal to
+    // it and setting the default on an unbranded project is correctly a no-op.
+    if (coerceBrand(manifest.theme) === clean) return 'unchanged';
+    if (clean === DEFAULT_BRAND) delete manifest.theme;
+    else manifest.theme = clean;
   });
 }
 

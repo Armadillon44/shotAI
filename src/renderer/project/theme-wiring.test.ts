@@ -46,20 +46,33 @@ describe('the brand reaches the document', () => {
     expect(install, 'installThemeStyle() must run before createRoot').toBeLessThan(render);
   });
 
-  it('App passes the brand to applyTheme, not just the appearance', () => {
+  it('App passes a brand to applyTheme, not just the appearance', () => {
     const src = read('src/renderer/project/App.tsx');
     const calls = [...src.matchAll(/applyTheme\(([^)]*)\)/g)].map((m) => m[1]);
     expect(calls.length, 'App should apply the theme').toBeGreaterThan(0);
     for (const args of calls) {
-      expect(args, `applyTheme(${args}) drops the brand`).toContain('brand');
+      expect(args, `applyTheme(${args}) drops the brand`).toMatch(/[Bb]rand/);
     }
   });
 
   it('App re-applies when the brand changes, not only the appearance', () => {
-    // A dependency array missing `brand` leaves the attribute at whatever the
+    // A dependency array missing the brand leaves the attribute at whatever the
     // first render set, which looks like the picker not working.
     const src = read('src/renderer/project/App.tsx');
-    expect(src).toMatch(/\[themePref,\s*brand\]/);
+    expect(src).toMatch(/\[themePref,\s*activeBrand\]/);
+  });
+
+  it('an open project s own brand outranks the app preference (#77 1b)', () => {
+    // The precedence, and the exact expression that encodes it. A project
+    // carrying a brand wears it EVERYWHERE while open, chrome included: a
+    // corporate report inside a violet shell is incoherent, and the report is
+    // meant to be WYSIWYG with the export. `openPath &&` is what keeps Home and
+    // Settings — which belong to no project — on the app preference.
+    const src = read('src/renderer/project/App.tsx');
+    expect(src).toMatch(/const activeBrand = \(openPath && projectTheme\) \|\| brand;/);
+    expect(src, 'the project brand has to come from the store').toMatch(
+      /useProjectStore\(\(s\) => s\.projectTheme\)/,
+    );
   });
 
   it('App subscribes to the Settings brand picker', () => {

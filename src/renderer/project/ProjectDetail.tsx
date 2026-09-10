@@ -10,6 +10,7 @@ import { Report, type InsertKind } from './Report';
 import { CaptureInsertModal, type CaptureInsertVariant } from './CaptureInsertModal';
 import { SopPanel } from './SopPanel';
 import { SCALE_STEPS, clampScale, isLegalScale } from '../../shared/doc-scale';
+import { BRANDS, BRAND_IDS, DEFAULT_BRAND, type BrandId } from '../../shared/theme-palette';
 import { Editor } from '../editor/Editor';
 import { Notice } from '../Notice';
 
@@ -36,6 +37,56 @@ const EXPORT_LABEL: Record<ExportFormat, string> = {
  * under the pointer, so a drag from 125% ran away to 65% no matter where you let go.
  * The layout previews live from the store; only the window waits for the commit.
  */
+/**
+ * Per-project brand (#77 phase 1b). Same place and the same semantics as the size
+ * control beside it: it belongs to the DOCUMENT, so the report, every export and
+ * the window chrome while this project is open all follow it, on any machine.
+ *
+ * "App default" is a real, distinct option, not a synonym for shotAI: it writes no
+ * key at all, so the project keeps following the app preference if that changes
+ * later. Choosing shotAI explicitly would pin it.
+ */
+function BrandPicker({ projectPath }: { projectPath: string }): React.JSX.Element {
+  const projectTheme = useProjectStore((s) => s.projectTheme);
+  const applyManifest = useProjectStore((s) => s.applyManifest);
+  const [error, setError] = React.useState(false);
+
+  const choose = (value: string) => {
+    const next: BrandId | null = value === '' ? null : (value as BrandId);
+    if (next === projectTheme) return; // main refuses a no-op, but do not ask
+    setError(false);
+    void window.shotai.projects
+      // null means "follow the app preference", which main stores as an absent
+      // key — so it is written by sending the default brand.
+      .setProjectTheme(projectPath, next ?? DEFAULT_BRAND)
+      .then(applyManifest)
+      .catch(() => setError(true));
+  };
+
+  return (
+    <span className="detail__scale">
+      <label className="detail__scale-lab" htmlFor="doc-brand">
+        Brand
+      </label>
+      <select
+        id="doc-brand"
+        className="capmode__select"
+        aria-label="Document brand"
+        aria-invalid={error || undefined}
+        value={projectTheme ?? ''}
+        onChange={(e) => choose(e.target.value)}
+      >
+        <option value="">App default</option>
+        {BRAND_IDS.map((id) => (
+          <option key={id} value={id}>
+            {BRANDS[id].label}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
 function SizeSlider({
   projectPath,
 }: {
@@ -440,6 +491,7 @@ export function ProjectDetail({
               progress modals are fixed overlays, unaffected by placement). */}
           <SopPanel sopEnabled={sopEnabled} onOpenSettings={onOpenSettings} />
           {projectPath && <SizeSlider projectPath={projectPath} />}
+          {projectPath && <BrandPicker projectPath={projectPath} />}
           {onResumeCapture && (
             <button
               type="button"

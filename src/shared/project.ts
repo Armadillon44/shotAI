@@ -8,6 +8,7 @@
  */
 
 import type { SopTone } from './sop';
+import type { BrandId } from './theme-palette';
 
 export const PROJECT_SCHEMA_VERSION = 1;
 
@@ -400,6 +401,35 @@ export interface ProjectManifest {
    * different widths depending on which app opened it last.
    */
   displayScale?: number;
+  /**
+   * The BRAND this project's report and exports wear (#77 phase 1b).
+   *
+   * ABSENT means "follow the app preference", which is what every project
+   * written before this key does, so nothing on disk changes for anyone who
+   * never picks a brand.
+   *
+   * PRECEDENCE, stated once so both platforms implement it identically:
+   *   1. A project carrying the key renders and exports in that brand,
+   *      INCLUDING the window chrome while it is open. A corporate report
+   *      inside a violet shell is incoherent, and the report is meant to be
+   *      WYSIWYG with the export.
+   *   2. A project with no key falls back to the app preference.
+   *   3. Home and Settings always use the app preference; they belong to no
+   *      project.
+   *
+   * WRITE RULE, copied from displayScale: stamped at creation from the current
+   * app preference, and OMITTED ENTIRELY when it is the default brand — so a
+   * default-branded project writes nothing and only a branded one carries the
+   * key. The store also refuses a no-op write, because mutate() bumps
+   * updatedAt unconditionally and a no-op save would re-date the project and
+   * jump it to the top of the Home list.
+   *
+   * CROSS-PLATFORM: this is the byte-compatible schema. macOS reads and writes
+   * the same field with the same values ('shotAI' | 'lfi', its BrandPref raw
+   * values). An unknown value decodes to the default rather than failing, so a
+   * project carrying a brand one side does not know about still opens.
+   */
+  theme?: BrandId;
   /** SOP overview rendered as a preamble above the steps (not a step). */
   intro: SopIntro | null;
   /**

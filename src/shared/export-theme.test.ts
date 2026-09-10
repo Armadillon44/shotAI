@@ -135,15 +135,26 @@ describe('the brand actually reaches the exporters', () => {
     }
   });
 
-  it('the IPC layer builds the theme from the app brand', () => {
+  it('the IPC layer supplies the app brand as the fallback', () => {
     // Without this the setting persists, Settings shows it selected, and every
     // exported document stays the default brand forever.
     const src = read('src/main/ipc.ts');
-    expect(src, 'ipc.ts should derive an export theme').toContain('exportTheme(await getBrand())');
+    expect(src, 'ipc.ts should read the app brand').toContain('getBrand()');
     const handlers = [...src.matchAll(/exportProject\(([\s\S]*?)\n {6}\}\);/g)];
     expect(handlers.length, 'expected three export handlers').toBe(3);
     for (const h of handlers) {
-      expect(h[1], 'an export handler does not pass a theme').toContain('theme:');
+      expect(h[1], 'an export handler does not pass a brand').toContain('brand:');
     }
+  });
+
+  it('resolves the project brand ahead of the app brand, in exportProject', () => {
+    // The precedence has to live where the MANIFEST is. A caller resolving it
+    // would have to read project.json a second time, and the two reads would
+    // eventually disagree — which is the whole failure mode #77 phase 1b exists
+    // to prevent: the same project exporting differently on two machines.
+    const src = read('src/main/export.ts');
+    expect(src, 'exportProject should prefer the project key').toMatch(
+      /exportTheme\(\s*coerceBrand\(manifest\.theme \?\? opts\.brand\)\s*\)/,
+    );
   });
 });
