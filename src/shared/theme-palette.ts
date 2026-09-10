@@ -89,6 +89,21 @@ export interface Palette {
  */
 export type BrandId = 'shotAI' | 'lfi';
 
+/**
+ * ⚠ `ink3` CARRIES DOCUMENT TEXT, so it has to meet AA on every ground.
+ *
+ * It was `#918ea6` on the default brand: 2.90 on the app ground, 3.17 on a card.
+ * It had never met AA, and only escaped notice because it was asked to colour
+ * date groups and micro-labels rather than anything a reader has to parse. The
+ * export ramp collapse then aims document meta text at it — the date line, the
+ * OVERVIEW eyebrow — in documents that get printed, which is what forced the
+ * measurement.
+ *
+ * Darkened on both appearances. macOS reported its dark value already passing and
+ * left it alone; WINDOWS' DARK VALUE WAS DIFFERENT AND DID NOT — `#726f8b`
+ * measured 3.92 / 3.59 / 3.36. Its own measurement, not a ported conclusion.
+ */
+
 /** Light or dark. Resolved from ThemePref; 'system' follows the OS. */
 export type Appearance = 'light' | 'dark';
 
@@ -129,7 +144,7 @@ export const BRANDS: Record<BrandId, Brand> = {
       onAccent: '#ffffff',
       ink: '#191826',
       ink2: '#5a5772',
-      ink3: '#918ea6',
+      ink3: '#6f6c88',
       hair: '#e7e4f2',
       hair2: '#efedf7',
       controlBd: '#cbc7db',
@@ -165,7 +180,7 @@ export const BRANDS: Record<BrandId, Brand> = {
       onAccent: '#171528',
       ink: '#ece9f7',
       ink2: '#a8a4c0',
-      ink3: '#726f8b',
+      ink3: '#8e8aa8',
       hair: '#302c42',
       hair2: '#282539',
       controlBd: '#3c3852',
@@ -618,9 +633,9 @@ export const KNOWN_DIVERGENCES: readonly Divergence[] = [
   {
     role: 'ink3',
     surface: 'doc',
-    app: '#918ea6',
+    app: '#6f6c88',
     surfaceValue: '#6b7280',
-    note: 'Meta line and the OVERVIEW eyebrow. Darker and greyer than the app.',
+    note: 'Meta line and the OVERVIEW eyebrow. Greyer than the app, and now within a quarter of a stop of it after the app value was darkened to meet AA.',
   },
   {
     role: 'hair',
@@ -653,9 +668,9 @@ export const KNOWN_DIVERGENCES: readonly Divergence[] = [
   {
     role: 'ink3',
     surface: 'slide',
-    app: '#918ea6',
+    app: '#6f6c88',
     surfaceValue: '#8b91a3',
-    note: 'Slide footer / secondary text.',
+    note: 'Slide footer / secondary text. Now LIGHTER than the app value rather than darker, since the app value was darkened to meet AA.',
   },
   {
     role: 'controlBd',

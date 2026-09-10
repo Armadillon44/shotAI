@@ -202,6 +202,57 @@ describe('every brand defines every role', () => {
   });
 });
 
+describe('text meets WCAG AA on the surfaces it is drawn on', () => {
+  // The test that would have caught ink3. It had never met AA on either
+  // appearance of the default brand, in a codebase with no contrast assertion
+  // anywhere, and the failure only surfaced when the export ramp collapse aimed
+  // printed document text at the role.
+  //
+  // Every ground, not one per appearance. macOS's LFI dark value cleared 5.09 on
+  // the page and measured 4.33 on a CARD, which is exactly where secondary labels
+  // sit; a spot check on the page background would have passed it.
+  const AA = 4.5;
+
+  /** Text roles, against the three page/card backgrounds they appear on. */
+  const ON_SURFACES: (keyof Palette)[] = ['ink', 'ink2', 'ink3'];
+  /** Roles drawn only on their own tint, so the tint is the ground. */
+  const ON_OWN_TINT: [keyof Palette, keyof Palette][] = [
+    ['accentInk', 'accentTint'],
+    ['okInk', 'okTint'],
+    ['draftInk', 'draftTint'],
+    ['dangerInk', 'dangerTint'],
+    ['noteFg', 'noteBg'],
+    ['cautFg', 'cautBg'],
+    ['warnFg', 'warnBg'],
+  ];
+
+  for (const id of BRAND_IDS) {
+    for (const appearance of ['light', 'dark'] as Appearance[]) {
+      it(`${id} ${appearance}`, () => {
+        const p = BRANDS[id][appearance];
+        for (const role of ON_SURFACES) {
+          for (const ground of ['ground', 'surface', 'surface2'] as (keyof Palette)[]) {
+            const r = contrastRatio(p[role], p[ground]);
+            expect(r, `${id} ${appearance}: ${role} ${p[role]} on ${ground} ${p[ground]}`).
+              toBeGreaterThanOrEqual(AA);
+          }
+        }
+        for (const [role, ground] of ON_OWN_TINT) {
+          const r = contrastRatio(p[role], p[ground]);
+          expect(r, `${id} ${appearance}: ${role} ${p[role]} on ${ground} ${p[ground]}`).
+            toBeGreaterThanOrEqual(AA);
+        }
+      });
+    }
+  }
+});
+
+/** WCAG 2.x contrast ratio between two opaque colours. */
+function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 /** WCAG relative luminance, for the ordering and contrast rules. */
 function luminance(hex: string): number {
   const ch = (i: number): number => {
