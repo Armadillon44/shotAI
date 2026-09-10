@@ -9,6 +9,7 @@ import {
   COLOUR_TOKENS,
   RADIUS_TO_TOKEN,
   RADIUS_TOKENS,
+  TYPE_TOKENS,
   radiusCss,
   DEFAULT_BRAND,
   ROLE_TO_TOKEN,
@@ -104,7 +105,7 @@ describe('the app stylesheet is generated, not hand-maintained', () => {
           expect(decls[token], `${sel} --${token}`).toBe(BRANDS[id][appearance][role]);
         }
         expect(Object.keys(decls).length, `${sel} declares an extra token`).toBe(
-          COLOUR_TOKENS.length + RADIUS_TOKENS.length,
+          COLOUR_TOKENS.length + RADIUS_TOKENS.length + TYPE_TOKENS.length,
         );
       }
     }
@@ -128,7 +129,7 @@ describe('the app stylesheet is generated, not hand-maintained', () => {
     // token that has never existed, and so painted its fallback #e7e9ee — a
     // near-white numeral on a white Settings sheet.
     const declared = new Set<string>(
-      [...COLOUR_TOKENS, ...RADIUS_TOKENS].map((t) => '--' + t),
+      [...COLOUR_TOKENS, ...RADIUS_TOKENS, ...TYPE_TOKENS].map((t) => '--' + t),
     );
     for (const f of APP_SHEETS) {
       for (const m of sheet(f).matchAll(/(^|[;{\s])(--[a-z0-9-]+)\s*:/g)) {
@@ -332,6 +333,84 @@ describe('hexNoHash', () => {
         expect(hexNoHash(v), role).toBe(v.slice(1).toUpperCase());
       }
     }
+  });
+});
+
+describe('typography is a brand token too (#77 phase 3)', () => {
+  it('names the brand face first, then its own fallbacks', () => {
+    const sheet = themeStylesheet();
+    const lfi = generatedBlock(sheet, ':root[data-brand="lfi"][data-theme="light"]');
+    const shot = generatedBlock(sheet, ':root[data-brand="shotAI"][data-theme="light"]');
+    expect(lfi['font-stack'].startsWith('"Archivo",')).toBe(true);
+    expect(shot['font-stack']).not.toContain('Archivo');
+    // Grotesques of similar proportion rather than the OS UI faces: a reader
+    // without the brand face should get the same family of shapes, not Segoe.
+    expect(lfi['font-stack']).not.toContain('Segoe');
+    expect(shot['font-stack']).toContain('Segoe');
+  });
+
+  it('gives a brand with no condensed face no width at all', () => {
+    // `normal`, not 100%: a brand without a variable width axis should not be
+    // asking the shaper for one.
+    const sheet = themeStylesheet();
+    expect(generatedBlock(sheet, ':root[data-brand="shotAI"][data-theme="light"]')['label-stretch'])
+      .toBe('normal');
+    expect(generatedBlock(sheet, ':root[data-brand="lfi"][data-theme="light"]')['label-stretch'])
+      .toBe('62%');
+  });
+
+  it('declares the face with its full weight range', () => {
+    // LOAD-BEARING, not decoration. Archivo's variable DEFAULT INSTANCE is
+    // wght 600 — verified by reading the fvar table of the bundled file — so a
+    // bare request for the family renders SemiBold. Declaring the range makes
+    // the shaper drive the axis from the computed font-weight instead, and
+    // `normal` is 400 as everywhere else.
+    const css = projectCss();
+    const face = css.slice(css.indexOf('@font-face'), css.indexOf('}', css.indexOf('@font-face')));
+    expect(face).toContain("font-family: 'Archivo'");
+    expect(face).toContain('font-weight: 100 900');
+    expect(face).toContain('font-stretch: 62% 125%');
+    expect(face).toContain("format('truetype-variations')");
+  });
+
+  it('bundles the face as a file, never as base64', () => {
+    // Inlining it would also inline it into the exports through the same
+    // stylesheet, and the paste budget cannot take it.
+    expect(projectCss()).not.toContain('data:font');
+    expect(fs.existsSync('src/renderer/fonts/Archivo.ttf')).toBe(true);
+    // The SIL OFL requires the licence to travel with the font.
+    expect(fs.existsSync('src/renderer/fonts/OFL.txt')).toBe(true);
+  });
+
+  it('reads the stack from the token rather than naming faces in a rule', () => {
+    const css = projectCss();
+    const body = css.slice(css.indexOf('\nbody {'), css.indexOf('}', css.indexOf('\nbody {')));
+    expect(body, 'body should read --font-stack').toContain('font-family: var(--font-stack)');
+
+    // No rule may name a face outright: it would stay on the default brand while
+    // everything around it changed.
+    //
+    // ONE EXCEPTION, in editor.css. `.ed__textedit` is the inline overlay for a
+    // text annotation, and it has to match what the CANVAS draws underneath it,
+    // not what the brand says — Konva's Text defaults to Arial and the overlay
+    // sits directly on top of it. A brand face there would put the caret in the
+    // wrong place.
+    //
+    // ⚠ Noticed while writing this and NOT fixed here: the overlay matches
+    // Konva (Arial) but flatten.ts bakes with "Segoe UI", so the live canvas and
+    // the saved PNG already disagree. Out of scope for #77 — changing it moves
+    // every annotation baked from now on — and reported separately.
+    const EXEMPT = /^Arial, sans-serif$/;
+    const offenders: string[] = [];
+    for (const f of APP_SHEETS) {
+      const rules = sheet(f).replace(/@font-face\s*\{[\s\S]*?\}/g, '');
+      for (const m of rules.matchAll(/font-family:\s*([^;]+);/g)) {
+        const v = m[1].trim();
+        if (v.startsWith('var(--font-stack)') || v === 'inherit' || EXEMPT.test(v)) continue;
+        offenders.push(`${f}: ${v}`);
+      }
+    }
+    expect(offenders, `these rules name a typeface outright: ${offenders.join(' | ')}`).toEqual([]);
   });
 });
 

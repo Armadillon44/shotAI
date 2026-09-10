@@ -182,6 +182,18 @@ export interface BrandFont {
    * shapes rather than Segoe or SF.
    */
   fallbacks: string[];
+  /**
+   * `font-stretch` for uppercase micro-labels, or null for none.
+   *
+   * The LFI guide leans on a condensed treatment: "uppercase, condensed
+   * treatments suit short section titles and statements." 62% is Archivo's
+   * narrowest and its named Condensed instance; the study drew 66, which is a
+   * few percent of advance width apart at UI sizes and needs interpolation.
+   *
+   * Null on a brand with no condensed face, so this is not a general
+   * affordance — it is part of one identity.
+   */
+  labelStretch: number | null;
 }
 
 /** A brand, in both appearances. */
@@ -223,6 +235,7 @@ export const BRANDS: Record<BrandId, Brand> = {
     font: {
       family: null,
       fallbacks: ['-apple-system', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+      labelStretch: null,
     },
     light: {
       accent: '#6344f1',
@@ -344,6 +357,7 @@ export const BRANDS: Record<BrandId, Brand> = {
     font: {
       family: 'Archivo',
       fallbacks: ['"Helvetica Neue"', 'Helvetica', 'Arial', '"Liberation Sans"', 'sans-serif'],
+      labelStretch: 62,
     },
     light: {
       accent: '#b46b3e',
@@ -500,6 +514,9 @@ export const ROLE_TO_TOKEN: Record<keyof Palette, string> = {
 /** Every custom property this module owns, for the "project.css declares none" test. */
 export const COLOUR_TOKENS: readonly string[] = Object.values(ROLE_TO_TOKEN);
 
+/** The two type custom properties the generator owns. */
+export const TYPE_TOKENS: readonly string[] = ['font-stack', 'label-stretch'];
+
 /** Radius role -> custom property. Same arrangement as ROLE_TO_TOKEN. */
 export const RADIUS_TO_TOKEN: Record<keyof BrandRadii, string> = {
   panel: 'radius-panel',
@@ -515,14 +532,20 @@ export const RADIUS_TO_TOKEN: Record<keyof BrandRadii, string> = {
 export const RADIUS_TOKENS: readonly string[] = Object.values(RADIUS_TO_TOKEN);
 
 /** One `--token:value` list: the palette, then the geometry. */
-function declarations(p: Palette, r: BrandRadii): string {
+function declarations(p: Palette, r: BrandRadii, f: BrandFont): string {
   const colours = (Object.keys(ROLE_TO_TOKEN) as (keyof Palette)[]).map(
     (role) => `--${ROLE_TO_TOKEN[role]}:${p[role]}`,
   );
   const radii = (Object.keys(RADIUS_TO_TOKEN) as (keyof BrandRadii)[]).map(
     (role) => `--${RADIUS_TO_TOKEN[role]}:${radiusCss(r[role])}`,
   );
-  return [...colours, ...radii].join(';');
+  const type = [
+    `--font-stack:${[...(f.family ? [`"${f.family}"`] : []), ...f.fallbacks].join(',')}`,
+    // 'normal' rather than 100%: a brand with no condensed face should not be
+    // asking the shaper for a width at all.
+    `--label-stretch:${f.labelStretch === null ? 'normal' : `${f.labelStretch}%`}`,
+  ];
+  return [...colours, ...radii, ...type].join(';');
 }
 
 /**
@@ -541,13 +564,14 @@ function declarations(p: Palette, r: BrandRadii): string {
  */
 export function themeStylesheet(): string {
   const base = BRANDS[DEFAULT_BRAND];
-  const blocks = [`:root{${declarations(base.light, base.radii)}}`];
+  const blocks = [`:root{${declarations(base.light, base.radii, base.font)}}`];
   for (const id of BRAND_IDS) {
     for (const appearance of ['light', 'dark'] as Appearance[]) {
       blocks.push(
         `:root[data-brand="${id}"][data-theme="${appearance}"]{${declarations(
           BRANDS[id][appearance],
           BRANDS[id].radii,
+          BRANDS[id].font,
         )}}`,
       );
     }
