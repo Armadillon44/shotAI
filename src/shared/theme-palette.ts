@@ -79,47 +79,330 @@ export interface Palette {
 }
 
 /**
- * The app's light palette, mirroring `:root` in project.css EXACTLY.
+ * Which brand the UI wears. Orthogonal to the light/dark APPEARANCE: a brand has
+ * both a light and a dark set, so the two are separate settings rather than one
+ * combined picker that would misrepresent them as mutually exclusive.
  *
- * theme-palette.test.ts parses that stylesheet and asserts every value here matches,
- * so this cannot drift from what the app actually renders.
+ * The string values are the persisted form and are shared with macOS
+ * (`ShotModel.BrandPref`), because the per-project `theme` key planned for
+ * `project.json` puts them in the cross-platform schema. Do not rename them.
  */
-export const APP_LIGHT: Palette = {
-  accent: '#6344f1',
-  accentPress: '#5233d4',
-  accentTint: '#efeafe',
-  accentInk: '#4a34c9',
-  onAccent: '#ffffff',
-  ink: '#191826',
-  ink2: '#5a5772',
-  ink3: '#918ea6',
-  hair: '#e7e4f2',
-  hair2: '#efedf7',
-  controlBd: '#cbc7db',
-  surface: '#ffffff',
-  surface2: '#faf9ff',
-  ground: '#f5f4fb',
-  fieldBg: '#ffffff',
-  ok: '#0e9f6e',
-  okTint: '#e7f7ef',
-  okInk: '#07724f',
-  draft: '#c77d16',
-  draftTint: '#fbf1e0',
-  draftInk: '#8a5610',
-  danger: '#dc2626',
-  dangerInk: '#b91c1c',
-  dangerTint: '#fef2f2',
-  dangerBd: '#f0c2c2',
-  noteBg: '#ecfdf5',
-  noteBd: '#6ee7b7',
-  noteFg: '#065f46',
-  cautBg: '#fffbeb',
-  cautBd: '#fcd34d',
-  cautFg: '#92400e',
-  warnBg: '#fef2f2',
-  warnBd: '#fca5a5',
-  warnFg: '#991b1b',
+export type BrandId = 'shotAI' | 'lfi';
+
+/** Light or dark. Resolved from ThemePref; 'system' follows the OS. */
+export type Appearance = 'light' | 'dark';
+
+/** A brand, in both appearances. */
+export interface Brand {
+  /** Shown in Settings. */
+  label: string;
+  light: Palette;
+  dark: Palette;
+}
+
+/**
+ * ONE definition of the app's colours, for every surface.
+ *
+ * Until this, the same palette existed four times by hand: project.css `:root`,
+ * export-css.ts, export-docx.ts and export-pptx.ts. Phase 0 pointed the three
+ * export files here; this points the STYLESHEET here too, by GENERATING its custom
+ * properties (see themeStylesheet) rather than authoring them. project.css now
+ * declares no colour at all, and a test asserts it, so a fifth copy cannot start
+ * growing the way the first four did.
+ *
+ * macOS reached the same place from the other end: `ShotModel.BrandPalette` is one
+ * definition the app builds SwiftUI colours from and ExportKit builds hex strings
+ * from. Same structure, different representation, which is the arrangement — the
+ * end-user experience matches, the mechanism does not have to.
+ *
+ * Both value sets below are EXACTLY what project.css declared before it was
+ * generated, so this change repaints nothing.
+ */
+export const BRANDS: Record<BrandId, Brand> = {
+  shotAI: {
+    label: 'shotAI',
+    light: {
+      accent: '#6344f1',
+      accentPress: '#5233d4',
+      accentTint: '#efeafe',
+      accentInk: '#4a34c9',
+      onAccent: '#ffffff',
+      ink: '#191826',
+      ink2: '#5a5772',
+      ink3: '#918ea6',
+      hair: '#e7e4f2',
+      hair2: '#efedf7',
+      controlBd: '#cbc7db',
+      surface: '#ffffff',
+      surface2: '#faf9ff',
+      ground: '#f5f4fb',
+      fieldBg: '#ffffff',
+      ok: '#0e9f6e',
+      okTint: '#e7f7ef',
+      okInk: '#07724f',
+      draft: '#c77d16',
+      draftTint: '#fbf1e0',
+      draftInk: '#8a5610',
+      danger: '#dc2626',
+      dangerInk: '#b91c1c',
+      dangerTint: '#fef2f2',
+      dangerBd: '#f0c2c2',
+      noteBg: '#ecfdf5',
+      noteBd: '#6ee7b7',
+      noteFg: '#065f46',
+      cautBg: '#fffbeb',
+      cautBd: '#fcd34d',
+      cautFg: '#92400e',
+      warnBg: '#fef2f2',
+      warnBd: '#fca5a5',
+      warnFg: '#991b1b',
+    },
+    dark: {
+      accent: '#9a8bf7',
+      accentPress: '#b0a4fa',
+      accentTint: '#241f3a',
+      accentInk: '#c8bdfb',
+      onAccent: '#171528',
+      ink: '#ece9f7',
+      ink2: '#a8a4c0',
+      ink3: '#726f8b',
+      hair: '#302c42',
+      hair2: '#282539',
+      controlBd: '#3c3852',
+      surface: '#1b1926',
+      surface2: '#211f2e',
+      ground: '#121019',
+      fieldBg: '#211f2e',
+      ok: '#34d399',
+      okTint: '#12271e',
+      okInk: '#6ee7b7',
+      draft: '#e0a355',
+      draftTint: '#2a2113',
+      draftInk: '#f0c98a',
+      danger: '#f87171',
+      dangerInk: '#fca5a5',
+      dangerTint: '#2a1414',
+      dangerBd: '#5a2a2a',
+      noteBg: '#10281f',
+      noteBd: '#2f6f52',
+      noteFg: '#8ee7bf',
+      cautBg: '#2a2113',
+      cautBd: '#7a5c1e',
+      cautFg: '#f0c98a',
+      warnBg: '#2a1414',
+      warnBd: '#7a3a3a',
+      warnFg: '#f6b0b0',
+    },
+  },
+  /**
+   * LaCrosse Footwear corporate: charcoal and warm neutrals carry the surface,
+   * rust is a focused pop rather than a fill.
+   *
+   * Transcribed from macOS `BrandPalette.lfi`, which is the source of truth for
+   * the design; the derivations behind three of these are worth knowing:
+   *
+   * - **Success is forest `#3e7d5a`, not the guide's chart olive.** LFI defines no
+   *   green. The olive `#7d846d` was tried first and read as ambiguous for
+   *   "success"; forest measures 6.83:1 against its own tint where the olive
+   *   managed 5.56:1. The Note callout rides the same ramp.
+   * - **`ink3` is `#756c5c`, not the guide's taupe `#938978`.** The taupe measures
+   *   3.45:1 on white, and this role carries the export's date line and OVERVIEW
+   *   eyebrow, in documents that get printed. `#756c5c` is 5.18:1 and keeps the
+   *   warm cast.
+   * - **`fieldBg` stays LIGHTER than `surface` in dark mode**, or a text input on
+   *   an elevated card stops reading as an input.
+   *
+   * WINDOWS-ONLY ROLE: `dangerBd` has no macOS counterpart (its palette has no
+   * such token). Derived here as danger lightened toward the surface, the same
+   * relationship shotAI's `#f0c2c2` has to its `#dc2626`. Flagged on #77 so macOS
+   * can adopt a matching value if that border ever reaches a shared surface; it
+   * does not today, since it is app chrome only.
+   */
+  lfi: {
+    label: 'LFI',
+    light: {
+      accent: '#b46b3e',
+      accentPress: '#9a5a33',
+      accentTint: '#f6ede5',
+      accentInk: '#8f5430',
+      onAccent: '#ffffff',
+      ink: '#47443e',
+      ink2: '#6f695f',
+      ink3: '#756c5c',
+      hair: '#d8d2c6',
+      hair2: '#e7e2d7',
+      controlBd: '#c9c1b3',
+      surface: '#ffffff',
+      surface2: '#faf8f3',
+      ground: '#f5f2eb',
+      fieldBg: '#ffffff',
+      ok: '#3e7d5a',
+      okTint: '#e9f1eb',
+      okInk: '#2b5b40',
+      draft: '#c79a72',
+      draftTint: '#f7efe6',
+      draftInk: '#8a5f35',
+      danger: '#9d3f32',
+      dangerInk: '#7f3227',
+      dangerTint: '#f7eae7',
+      dangerBd: '#ddbcb7',
+      noteBg: '#e9f1eb',
+      noteBd: '#3e7d5a',
+      noteFg: '#2b5b40',
+      cautBg: '#f7efe6',
+      cautBd: '#c79a72',
+      cautFg: '#8a5f35',
+      warnBg: '#f7eae7',
+      warnBd: '#c97f72',
+      warnFg: '#7f3227',
+    },
+    dark: {
+      accent: '#d58b5c',
+      accentPress: '#e3a579',
+      accentTint: '#3a2e25',
+      accentInk: '#e3a579',
+      onAccent: '#211f1c',
+      ink: '#f8f4ec',
+      ink2: '#cfc7b8',
+      ink3: '#b5aa99',
+      hair: '#4a463f',
+      hair2: '#3f3c36',
+      controlBd: '#686258',
+      surface: '#3a3833',
+      surface2: '#43403a',
+      ground: '#2f2d29',
+      fieldBg: '#4a4740',
+      ok: '#6fb089',
+      okTint: '#23302a',
+      okInk: '#9bceb1',
+      draft: '#d5ae89',
+      draftTint: '#332a21',
+      draftInk: '#e0c09e',
+      danger: '#c96253',
+      dangerInk: '#e0897b',
+      dangerTint: '#33211e',
+      dangerBd: '#5a332c',
+      noteBg: '#23302a',
+      noteBd: '#6fb089',
+      noteFg: '#9bceb1',
+      cautBg: '#332a21',
+      cautBd: '#d5ae89',
+      cautFg: '#e0c09e',
+      warnBg: '#33211e',
+      warnBd: '#c96253',
+      warnFg: '#e0897b',
+    },
+  },
 };
+
+/** Every brand id, in the order Settings offers them. */
+export const BRAND_IDS = Object.keys(BRANDS) as BrandId[];
+
+/** The brand a project or the app falls back to when nothing is set. */
+export const DEFAULT_BRAND: BrandId = 'shotAI';
+
+/** Narrow an untrusted value to a brand id (default DEFAULT_BRAND). */
+export function coerceBrand(v: unknown): BrandId {
+  return typeof v === 'string' && v in BRANDS ? (v as BrandId) : DEFAULT_BRAND;
+}
+
+/** The palette a brand wears in an appearance. */
+export function brandPalette(brand: BrandId, appearance: Appearance): Palette {
+  return BRANDS[coerceBrand(brand)][appearance];
+}
+
+/**
+ * The default brand's light values.
+ *
+ * Kept as a name of its own because it is what the exports render from and what
+ * the parity tests compare against. An alias, not a second copy.
+ */
+export const APP_LIGHT: Palette = BRANDS.shotAI.light;
+
+/** The default brand's dark values. */
+export const APP_DARK: Palette = BRANDS.shotAI.dark;
+
+/**
+ * Palette role -> the CSS custom property that carries it.
+ *
+ * This mapping used to live in the TEST, which was the right place while there
+ * were two hand-maintained copies to compare. Now it GENERATES the stylesheet, so
+ * there is nothing left to disagree with.
+ */
+export const ROLE_TO_TOKEN: Record<keyof Palette, string> = {
+  accent: 'accent',
+  accentPress: 'accent-press',
+  accentTint: 'accent-tint',
+  accentInk: 'accent-ink',
+  onAccent: 'on-accent',
+  ink: 'ink',
+  ink2: 'ink-2',
+  ink3: 'ink-3',
+  hair: 'hair',
+  hair2: 'hair-2',
+  controlBd: 'control-bd',
+  surface: 'surface',
+  surface2: 'surface-2',
+  ground: 'ground',
+  fieldBg: 'field-bg',
+  ok: 'ok',
+  okTint: 'ok-tint',
+  okInk: 'ok-ink',
+  draft: 'draft',
+  draftTint: 'draft-tint',
+  draftInk: 'draft-ink',
+  danger: 'danger',
+  dangerInk: 'danger-ink',
+  dangerTint: 'danger-tint',
+  dangerBd: 'danger-bd',
+  noteBg: 'note-bg',
+  noteBd: 'note-bd',
+  noteFg: 'note-fg',
+  cautBg: 'caut-bg',
+  cautBd: 'caut-bd',
+  cautFg: 'caut-fg',
+  warnBg: 'warn-bg',
+  warnBd: 'warn-bd',
+  warnFg: 'warn-fg',
+};
+
+/** Every custom property this module owns, for the "project.css declares none" test. */
+export const COLOUR_TOKENS: readonly string[] = Object.values(ROLE_TO_TOKEN);
+
+/** One `--token:#value` list. */
+function declarations(p: Palette): string {
+  return (Object.keys(ROLE_TO_TOKEN) as (keyof Palette)[])
+    .map((role) => `--${ROLE_TO_TOKEN[role]}:${p[role]}`)
+    .join(';');
+}
+
+/**
+ * The whole colour layer of the app's stylesheet, generated.
+ *
+ * Emitted as FULLY QUALIFIED blocks — brand and appearance both named — rather
+ * than a base plus overrides. Every block then carries the same specificity and
+ * they are mutually exclusive, so adding a brand cannot change which rule wins for
+ * an existing one. Base-plus-override would put `[data-brand]` and `[data-theme]`
+ * at equal specificity, where source order decides and a brand block would
+ * silently defeat dark mode.
+ *
+ * The leading bare `:root` block is the pre-JS fallback. The attributes are set
+ * from a setting that loads asynchronously, so without it the first paint has no
+ * colours at all.
+ */
+export function themeStylesheet(): string {
+  const blocks = [`:root{${declarations(BRANDS[DEFAULT_BRAND].light)}}`];
+  for (const id of BRAND_IDS) {
+    for (const appearance of ['light', 'dark'] as Appearance[]) {
+      blocks.push(
+        `:root[data-brand="${id}"][data-theme="${appearance}"]{${declarations(
+          BRANDS[id][appearance],
+        )}}`,
+      );
+    }
+  }
+  return blocks.join('\n');
+}
 
 /**
  * The palette the HTML exports render today, and therefore the PDF too, since the

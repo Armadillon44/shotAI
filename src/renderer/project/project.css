@@ -12,37 +12,20 @@
   --fw-section: 700;
   --fw-title: 600;
 
-  /* ---- Color: brand violet accent; neutrals biased toward it (F9). Dark mode
-     (F10) overrides these under [data-theme="dark"]; every surface reads from a
-     token so the theme is a single swap. ---- */
-  --accent: #6344f1;
-  --accent-press: #5233d4;
-  --accent-tint: #efeafe;
-  --accent-ink: #4a34c9; /* accent text on --accent-tint */
-  --on-accent: #ffffff; /* text/icon on a solid --accent fill */
-  --ink: #191826;
-  --ink-2: #5a5772;
-  --ink-3: #918ea6;
-  --hair: #e7e4f2;
-  --hair-2: #efedf7;
-  --control-bd: #cbc7db; /* button / input borders */
-  --surface: #ffffff;
-  --surface-2: #faf9ff; /* raised sub-surfaces (hero, tab bar) */
-  --ground: #f5f4fb;
-  --field-bg: #ffffff;
-  /* status (SOP ready / draft) — semantic, separate from the accent */
-  --ok: #0e9f6e;   --ok-tint: #e7f7ef;   --ok-ink: #07724f;
-  --draft: #c77d16; --draft-tint: #fbf1e0; --draft-ink: #8a5610;
-  /* destructive (reserved — never decoration) */
-  --danger: #dc2626;
-  --danger-ink: #b91c1c;
-  --danger-tint: #fef2f2;
-  --danger-bd: #f0c2c2;
+  /* ---- Colour is NOT declared here (#77) ----
+     Every --accent / --ink / --surface / callout token is GENERATED from
+     src/shared/theme-palette.ts and injected as a <style> by theme.ts before the
+     first render, in fully-qualified [data-brand][data-theme] blocks.
 
-  /* Callout palette (note / caution / warning) */
-  --note-bg: #ecfdf5; --note-bd: #6ee7b7; --note-fg: #065f46;
-  --caut-bg: #fffbeb; --caut-bd: #fcd34d; --caut-fg: #92400e;
-  --warn-bg: #fef2f2; --warn-bd: #fca5a5; --warn-fg: #991b1b;
+     It moved because this block was the fourth hand-maintained copy of one
+     palette (the others being export-css.ts, export-docx.ts and export-pptx.ts),
+     and the four had already drifted in ways nobody had noticed. A test asserts
+     this file declares no colour custom property, so a fifth copy cannot start
+     growing here again.
+
+     Reading them is unchanged: every var(--ink) in this sheet still resolves, and
+     flipping [data-brand] or [data-theme] re-cascades the whole document for free.
+     ---- */
 
   /* ---- Shape / depth ---- */
   --radius: 8px;
@@ -64,35 +47,17 @@
   --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
 
-/* ---- Dark mode (F10): override every token; the rest of the sheet reads from
-   these so the whole app reskins from here. Applied via data-theme on <html>
-   (set from the theme setting; 'system' resolves prefers-color-scheme). ---- */
+/* ---- Dark mode (F10). The COLOUR tokens for every brand-and-appearance pair are
+   generated (see the :root note above); what stays here is the part that is not a
+   palette entry: the UA colour-scheme hint, and the shadows.
+
+   Shadows are deliberately shared by both brands. macOS tints its shadow with the
+   brand (0x241B4D against 0x47443E); at 6-10% alpha over a near-white ground the
+   difference is not perceptible, and keeping them here avoids inventing an
+   alpha-carrying role for the one token type that is not a flat colour. Recorded
+   as a knowing divergence rather than an oversight. ---- */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --accent: #9a8bf7;
-  --accent-press: #b0a4fa;
-  --accent-tint: #241f3a;
-  --accent-ink: #c8bdfb;
-  --on-accent: #171528; /* dark text on the lighter dark-mode accent */
-  --ink: #ece9f7;
-  --ink-2: #a8a4c0;
-  --ink-3: #726f8b;
-  --hair: #302c42;
-  --hair-2: #282539;
-  --control-bd: #3c3852;
-  --surface: #1b1926;
-  --surface-2: #211f2e;
-  --ground: #121019;
-  --field-bg: #211f2e;
-  --ok: #34d399;   --ok-tint: #12271e;   --ok-ink: #6ee7b7;
-  --draft: #e0a355; --draft-tint: #2a2113; --draft-ink: #f0c98a;
-  --danger: #f87171;
-  --danger-ink: #fca5a5;
-  --danger-tint: #2a1414;
-  --danger-bd: #5a2a2a;
-  --note-bg: #10281f; --note-bd: #2f6f52; --note-fg: #8ee7bf;
-  --caut-bg: #2a2113; --caut-bd: #7a5c1e; --caut-fg: #f0c98a;
-  --warn-bg: #2a1414; --warn-bd: #7a3a3a; --warn-fg: #f6b0b0;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
   --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
@@ -2299,7 +2264,11 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: var(--text, #e7e9ee);
+  /* Was `var(--text, #e7e9ee)`. --text has never existed, so this always painted
+     the fallback: a near-white numeral on a white Settings sheet, invisible in
+     light mode and only legible in dark. Found by the "every var() resolves"
+     test added with #77. */
+  color: var(--ink);
 }
 
 /* Projects-folder row (path + Change…) inside Settings. */

@@ -2,102 +2,214 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import {
   APP_LIGHT,
+  APP_DARK,
+  BRANDS,
+  BRAND_IDS,
+  COLOUR_TOKENS,
+  DEFAULT_BRAND,
   DOC_LIGHT,
   SLIDE_LIGHT,
   KNOWN_DIVERGENCES,
+  ROLE_TO_TOKEN,
+  coerceBrand,
+  brandPalette,
   hexNoHash,
   paletteFor,
+  themeStylesheet,
   DOC_EXTRAS,
   SLIDE_EXTRAS,
   INTERNAL_SPLITS,
   CARD_RADIUS_PX,
   IMAGE_RADIUS_PX,
+  type Appearance,
   type Palette,
 } from './theme-palette';
 
-// Phase 0 of #77. These tests exist so that adding a second brand later cannot hide a
-// regression, and so the drift that ALREADY exists between the four copies of this
-// palette is written down rather than discovered again by someone comparing a report
-// against its own PDF.
+// #77. These tests exist so that adding a second brand cannot hide a regression,
+// and so the drift that ALREADY existed between four copies of this palette is
+// written down rather than rediscovered by someone comparing a report against its
+// own PDF.
 //
-// Nothing here asserts what the colours SHOULD be. It asserts they are what shipped.
+// Nothing here asserts what the colours SHOULD be. It asserts they are what ships.
 
-/** Map the app's `:root` custom properties to their hex values. */
-function rootTokens(): Record<string, string> {
-  const css = fs.readFileSync('src/renderer/project/project.css', 'utf8');
-  const root = /^:root \{[\s\S]*?^\}/m.exec(css)?.[0] ?? '';
-  expect(root, 'could not find the :root block in project.css').not.toBe('');
+/** A stylesheet with its comments stripped. The prose in these files cites token
+ *  names and hex values deliberately — the note in project.css explains why the
+ *  colours moved and quotes the dead read it replaced — and a citation is
+ *  documentation, not a declaration. */
+const sheet = (f: string): string =>
+  fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+/** The app's authored stylesheet — the one that no longer declares colour. */
+const projectCss = (): string => sheet('src/renderer/project/project.css');
+
+/** Every stylesheet that lives in the PROJECT WINDOW's document, and so reads its
+ *  tokens. toolbar.css and overlay.css are separate documents and out of scope. */
+const APP_SHEETS = [
+  'src/renderer/project/project.css',
+  'src/renderer/editor/editor.css',
+];
+
+/** The declarations inside one `selector{...}` of the generated sheet. */
+function generatedBlock(sheet: string, selector: string): Record<string, string> {
+  const at = sheet.indexOf(selector + '{');
+  expect(at, `no generated block for ${selector}`).toBeGreaterThan(-1);
+  const body = sheet.slice(at + selector.length + 1, sheet.indexOf('}', at));
   const out: Record<string, string> = {};
-  for (const m of root.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-fA-F]{3,8})/g)) {
-    out[m[1]] = m[2].toLowerCase();
+  for (const decl of body.split(';')) {
+    const [k, v] = decl.split(':');
+    out[k.replace(/^--/, '')] = v;
   }
   return out;
 }
 
-/** Palette role -> the app custom property it mirrors. */
-const ROLE_TO_TOKEN: Record<keyof Palette, string> = {
-  accent: 'accent',
-  accentPress: 'accent-press',
-  accentTint: 'accent-tint',
-  accentInk: 'accent-ink',
-  onAccent: 'on-accent',
-  ink: 'ink',
-  ink2: 'ink-2',
-  ink3: 'ink-3',
-  hair: 'hair',
-  hair2: 'hair-2',
-  controlBd: 'control-bd',
-  surface: 'surface',
-  surface2: 'surface-2',
-  ground: 'ground',
-  fieldBg: 'field-bg',
-  ok: 'ok',
-  okTint: 'ok-tint',
-  okInk: 'ok-ink',
-  draft: 'draft',
-  draftTint: 'draft-tint',
-  draftInk: 'draft-ink',
-  danger: 'danger',
-  dangerInk: 'danger-ink',
-  dangerTint: 'danger-tint',
-  dangerBd: 'danger-bd',
-  noteBg: 'note-bg',
-  noteBd: 'note-bd',
-  noteFg: 'note-fg',
-  cautBg: 'caut-bg',
-  cautBd: 'caut-bd',
-  cautFg: 'caut-fg',
-  warnBg: 'warn-bg',
-  warnBd: 'warn-bd',
-  warnFg: 'warn-fg',
-};
+describe('the app stylesheet is generated, not hand-maintained', () => {
+  // THE POINT. project.css used to be the fourth hand-written copy of this palette.
+  // It is now a consumer of it, and these tests are what stop a fifth from growing.
 
-describe('APP_LIGHT mirrors the shipped stylesheet', () => {
-  it('matches every :root custom property it claims to mirror', () => {
-    // The module is only worth having if it cannot drift from what the app renders.
-    // Parsing the real stylesheet is what makes that true rather than aspirational.
-    const tokens = rootTokens();
+  it('declares no colour custom property of its own', () => {
+    const offenders = [...projectCss().matchAll(/(--[a-z0-9-]+):\s*(#[0-9a-fA-F]{3,8})/g)].map(
+      (m) => `${m[1]}: ${m[2]}`,
+    );
+    expect(
+      offenders,
+      'project.css declares colour tokens again. They belong in shared/theme-palette.ts;\n' +
+        'declaring them here recreates the hand-copied palette #77 removed:\n  ' +
+        offenders.join('\n  '),
+    ).toEqual([]);
+  });
+
+  it('does not redeclare a token the generator owns, under any value', () => {
+    // Stricter than the hex check: a token redeclared as `var(--other)` or a named
+    // colour would slip past that and silently win or lose on cascade order.
+    const css = projectCss();
+    // Anchored at a declaration position. An unanchored `--danger\s*:` matches the
+    // SELECTOR `.btn--danger:hover`, which is how this test first failed.
+    const clashes = COLOUR_TOKENS.filter((t) =>
+      new RegExp(`(^|[;{\\s])--${t}\\s*:`).test(css),
+    );
+    expect(clashes, `project.css redeclares generated token(s): ${clashes.join(', ')}`).toEqual(
+      [],
+    );
+  });
+
+  it('emits a fully-qualified block for every brand and appearance', () => {
+    // Fully qualified so the blocks are mutually exclusive and equal-specificity.
+    // A base-plus-override arrangement would put [data-brand] and [data-theme] at
+    // the same specificity, where source order decides and a brand block would
+    // silently defeat dark mode.
+    const sheet = themeStylesheet();
+    for (const id of BRAND_IDS) {
+      for (const appearance of ['light', 'dark'] as Appearance[]) {
+        const sel = `:root[data-brand="${id}"][data-theme="${appearance}"]`;
+        const decls = generatedBlock(sheet, sel);
+        for (const [role, token] of Object.entries(ROLE_TO_TOKEN) as [keyof Palette, string][]) {
+          expect(decls[token], `${sel} --${token}`).toBe(BRANDS[id][appearance][role]);
+        }
+        expect(Object.keys(decls).length, `${sel} declares an extra token`).toBe(
+          COLOUR_TOKENS.length,
+        );
+      }
+    }
+  });
+
+  it('emits a bare :root fallback, so a pre-attribute paint has colours', () => {
+    // The attributes are written from a setting that loads asynchronously. Without
+    // this block the first frame renders with no tokens at all.
+    const decls = generatedBlock(themeStylesheet(), ':root');
     for (const [role, token] of Object.entries(ROLE_TO_TOKEN) as [keyof Palette, string][]) {
-      expect(tokens[token], `--${token} is missing from project.css :root`).toBeDefined();
-      expect(APP_LIGHT[role], `APP_LIGHT.${role} vs --${token}`).toBe(tokens[token]);
+      expect(decls[token], `:root --${token}`).toBe(BRANDS[DEFAULT_BRAND].light[role]);
     }
   });
 
-  it('covers every colour-valued :root token, so none is left un-tokenized', () => {
-    // If someone adds a colour to :root without adding a role here, the second brand
-    // will have no value for it and that surface silently keeps the default.
-    const tokens = rootTokens();
-    const mapped = new Set(Object.values(ROLE_TO_TOKEN));
-    const unmapped = Object.keys(tokens).filter((t) => !mapped.has(t));
-    expect(unmapped, `these :root colours have no Palette role: ${unmapped.join(', ')}`).toEqual([]);
-  });
-
-  it('is all lowercase 6-digit hex, so comparisons never fail on case', () => {
-    for (const [role, v] of Object.entries(APP_LIGHT)) {
-      expect(v, `APP_LIGHT.${role}`).toMatch(/^#[0-9a-f]{6}$/);
+  it('resolves every var(--…) the project window reads', () => {
+    // The guard that makes moving the declarations safe. A token renamed in the
+    // generator, or mistyped in a rule, resolves to nothing and the element simply
+    // inherits — which looks like a styling choice, not a bug.
+    //
+    // It found one on its first run: `.settings__slidval` read `var(--text)`, a
+    // token that has never existed, and so painted its fallback #e7e9ee — a
+    // near-white numeral on a white Settings sheet.
+    const declared = new Set<string>(COLOUR_TOKENS.map((t) => '--' + t));
+    for (const f of APP_SHEETS) {
+      for (const m of sheet(f).matchAll(/(^|[;{\s])(--[a-z0-9-]+)\s*:/g)) {
+        declared.add(m[2]);
+      }
     }
+    // Set from JS as an inline style rather than declared in a sheet.
+    declared.add('--doc-scale');
+
+    const missing = new Set<string>();
+    for (const f of APP_SHEETS) {
+      for (const m of sheet(f).matchAll(/var\(\s*(--[a-z0-9-]+)/g)) {
+        if (!declared.has(m[1])) missing.add(`${f}: ${m[1]}`);
+      }
+    }
+    expect(
+      [...missing],
+      'these var() reads resolve to nothing (the element silently inherits):\n  ' +
+        [...missing].join('\n  '),
+    ).toEqual([]);
   });
 });
+
+describe('every brand defines every role', () => {
+  it('is all lowercase 6-digit hex, so comparisons never fail on case', () => {
+    for (const id of BRAND_IDS) {
+      for (const appearance of ['light', 'dark'] as Appearance[]) {
+        for (const [role, v] of Object.entries(BRANDS[id][appearance])) {
+          expect(v, `${id}.${appearance}.${role}`).toMatch(/^#[0-9a-f]{6}$/);
+        }
+      }
+    }
+  });
+
+  it('gives every brand the same set of roles', () => {
+    // A missing role would fall back to whatever the previous cascade left, which
+    // reads as one stubborn element that refuses to follow the brand.
+    const roles = Object.keys(ROLE_TO_TOKEN).sort();
+    for (const id of BRAND_IDS) {
+      for (const appearance of ['light', 'dark'] as Appearance[]) {
+        expect(Object.keys(BRANDS[id][appearance]).sort(), `${id}.${appearance}`).toEqual(roles);
+      }
+    }
+  });
+
+  it('keeps a field lighter than the surface it sits on, in dark mode', () => {
+    // macOS's rule, and it is not cosmetic: a text input that matches the elevated
+    // card behind it stops reading as an input at all.
+    for (const id of BRAND_IDS) {
+      const p = BRANDS[id].dark;
+      expect(luminance(p.fieldBg), `${id} dark field vs surface`).toBeGreaterThan(
+        luminance(p.surface),
+      );
+    }
+  });
+
+  it('resolves an unknown or missing brand to the default', () => {
+    // The value arrives from settings.json and, later, from project.json written by
+    // another platform, so it is untrusted at the boundary.
+    for (const bad of [undefined, null, '', 'LFI', 'shotai', 42, {}]) {
+      expect(coerceBrand(bad), JSON.stringify(bad)).toBe(DEFAULT_BRAND);
+    }
+    expect(coerceBrand('lfi')).toBe('lfi');
+    expect(coerceBrand('shotAI')).toBe('shotAI');
+    expect(brandPalette('nonsense' as never, 'light')).toBe(BRANDS[DEFAULT_BRAND].light);
+  });
+
+  it('keeps APP_LIGHT and APP_DARK as aliases, not copies', () => {
+    expect(APP_LIGHT).toBe(BRANDS.shotAI.light);
+    expect(APP_DARK).toBe(BRANDS.shotAI.dark);
+  });
+});
+
+/** WCAG relative luminance, for the ordering and contrast rules. */
+function luminance(hex: string): number {
+  const ch = (i: number): number => {
+    const c = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * ch(0) + 0.7152 * ch(1) + 0.0722 * ch(2);
+}
 
 describe('the export palettes diverge only where it is admitted', () => {
   // THE POINT OF PHASE 0. Four surfaces, one palette, already drifted. This pins the
