@@ -51,6 +51,14 @@ export interface Palette {
   hair: string;
   hair2: string;
   controlBd: string;
+  /** The soft ring an input draws on :focus. Distinct from `accent`, which is the
+   *  app-wide :focus-visible ring; this is the quieter one a text field wears
+   *  while it is being typed into. */
+  focusRing: string;
+  /** A muted accent for a rule that MARKS something without shouting. The report
+   *  uses it for a step's body rule, against the full `accent` on a merge
+   *  suggestion — two weights of the same idea, one element apart. */
+  accentSoft: string;
   surface: string;
   surface2: string;
   ground: string;
@@ -148,6 +156,8 @@ export const BRANDS: Record<BrandId, Brand> = {
       hair: '#e7e4f2',
       hair2: '#efedf7',
       controlBd: '#cbc7db',
+      focusRing: '#c7d2fe',
+      accentSoft: '#a5b4fc',
       surface: '#ffffff',
       surface2: '#faf9ff',
       ground: '#f5f4fb',
@@ -184,6 +194,8 @@ export const BRANDS: Record<BrandId, Brand> = {
       hair: '#302c42',
       hair2: '#282539',
       controlBd: '#3c3852',
+      focusRing: '#c7d2fe',
+      accentSoft: '#a5b4fc',
       surface: '#1b1926',
       surface2: '#211f2e',
       ground: '#121019',
@@ -247,6 +259,8 @@ export const BRANDS: Record<BrandId, Brand> = {
       hair: '#d8d2c6',
       hair2: '#e7e2d7',
       controlBd: '#c9c1b3',
+      focusRing: '#e8cdb4',
+      accentSoft: '#dcb896',
       surface: '#ffffff',
       surface2: '#faf8f3',
       ground: '#f5f2eb',
@@ -283,6 +297,8 @@ export const BRANDS: Record<BrandId, Brand> = {
       hair: '#4a463f',
       hair2: '#3f3c36',
       controlBd: '#686258',
+      focusRing: '#e8cdb4',
+      accentSoft: '#dcb896',
       surface: '#3a3833',
       surface2: '#43403a',
       ground: '#2f2d29',
@@ -356,6 +372,8 @@ export const ROLE_TO_TOKEN: Record<keyof Palette, string> = {
   hair: 'hair',
   hair2: 'hair-2',
   controlBd: 'control-bd',
+  focusRing: 'focus-ring',
+  accentSoft: 'accent-soft',
   surface: 'surface',
   surface2: 'surface-2',
   ground: 'ground',

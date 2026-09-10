@@ -206,7 +206,7 @@ body {
 }
 
 .project__input:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -741,7 +741,7 @@ body {
 }
 
 .capmode__select:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -753,7 +753,7 @@ body {
 
 .capmode__warn {
   margin: 0.5rem 0 0;
-  color: #b45309;
+  color: var(--caut-fg);
   font-size: 0.82rem;
 }
 
@@ -777,7 +777,7 @@ body {
 
 .capmodal__err {
   margin: 0.75rem 0 0;
-  color: var(--danger, #ef4444);
+  color: var(--danger);
   font-size: 0.85rem;
 }
 
@@ -785,13 +785,13 @@ body {
 .rec {
   margin-bottom: 1.5rem;
   padding: 1rem 1.25rem;
-  border: 1px solid #fecaca;
+  border: 1px solid var(--danger-bd);
   border-radius: 10px;
   background: var(--danger-tint);
 }
 
 .rec--paused {
-  border-color: #fcd34d;
+  border-color: var(--caut-bd);
   background: var(--caut-bg);
 }
 
@@ -805,12 +805,12 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--danger);
   animation: rec-pulse 1.4s ease-in-out infinite;
 }
 
 .rec--paused .rec__dot {
-  background: #d97706;
+  background: var(--draft);
   animation: none;
 }
 
@@ -1161,7 +1161,7 @@ body {
   /* Fixed, not flex: the bar wraps, and a growing slider would shove the SOP
      buttons onto another row at some window widths. */
   width: 88px;
-  accent-color: var(--accent, #4f8cff);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -1389,7 +1389,7 @@ body {
   border: none;
   background: none;
   padding: 0;
-  color: #c2c7d0;
+  color: var(--control-bd);
   cursor: grab;
   font-size: 0.85rem;
   line-height: 1;
@@ -1471,7 +1471,7 @@ body {
 }
 
 .rep__caption-empty {
-  color: #9ca3af;
+  color: var(--ink-3);
   font-style: italic;
   font-weight: 500;
 }
@@ -1497,7 +1497,7 @@ body {
 }
 
 .rep__insert:hover::before {
-  border-color: #d8dbe2;
+  border-color: var(--control-bd);
 }
 
 .rep__insert-btn {
@@ -1507,7 +1507,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed #b8bdc7;
+  border: 1px dashed var(--control-bd);
   border-radius: 50%;
   background: var(--ground);
   color: var(--ink-2);
@@ -1746,6 +1746,11 @@ body {
 }
 
 /* Click-register marker, positioned as a fraction of the image's natural size */
+/* NOT tokenized, deliberately (#77). The click markers mirror the annotation
+   colours that are FLATTENED INTO THE PNG at save time — rose for a left click,
+   blue for a right click. Retinting them here would make the live overlay
+   disagree with every screenshot already on disk, and fixing that properly means
+   re-flattening every step of every project. Same decision on macOS. */
 .rep__marker {
   position: absolute;
   width: 22px;
@@ -1961,13 +1966,13 @@ body {
 }
 /* Insert-menu callout buttons: a tinted left accent to telegraph the color */
 .rep__insert-callout--note {
-  border-left: 3px solid #34d399;
+  border-left: 3px solid var(--note-bd);
 }
 .rep__insert-callout--caution {
-  border-left: 3px solid #fbbf24;
+  border-left: 3px solid var(--caut-bd);
 }
 .rep__insert-callout--warning {
-  border-left: 3px solid #f87171;
+  border-left: 3px solid var(--warn-bd);
 }
 
 /* Per-step controls (move / edit / delete), shared by shot + text steps */
@@ -2254,7 +2259,7 @@ body {
 .settings__slider {
   flex: 1;
   min-width: 0;
-  accent-color: var(--accent, #4f8cff);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -2301,7 +2306,7 @@ body {
 }
 
 .settings__textarea:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -2418,7 +2423,7 @@ body {
 }
 
 .sop__textarea:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -2474,7 +2479,7 @@ body {
 }
 
 .sop__step-heading:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -2544,7 +2549,7 @@ body {
   border-radius: 8px;
   background: var(--caut-bg);
   border: 1px solid var(--caut-bd);
-  color: #92400e;
+  color: var(--caut-fg);
   font-size: 0.85rem;
   line-height: 1.45;
 }
@@ -2712,7 +2717,7 @@ body {
 .rep__shotbody {
   margin: 0.65rem 0 0;
   padding: 0.15rem 0 0.15rem 0.75rem;
-  border-left: 3px solid #a5b4fc;
+  border-left: 3px solid var(--accent-soft);
   color: var(--ink);
   font-size: 1.05rem;
   line-height: 1.6;
@@ -2742,8 +2747,8 @@ body {
   gap: 0.75rem;
   margin: 0.55rem 0 0;
   padding: 0.5rem 0.7rem;
-  border: 1px solid #c7d2fe;
-  border-left: 3px solid #6366f1;
+  border: 1px solid var(--focus-ring);
+  border-left: 3px solid var(--accent);
   border-radius: 6px;
   background: var(--accent-tint);
   color: var(--accent-ink);
@@ -2773,7 +2778,7 @@ body {
 }
 
 .rep__body-input:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
 }
 
 /* Inline "preparing" indicator in the SOP banner (unobtrusive) */
@@ -2848,7 +2853,7 @@ body {
   width: 330px;
   max-width: calc(100vw - 24px);
   background: var(--surface);
-  border: 1px solid #d4d8f5;
+  border: 1px solid var(--hair);
   border-radius: 14px;
   box-shadow: 0 18px 44px rgba(20, 22, 31, 0.3);
   padding: 16px 18px 14px;
@@ -2859,7 +2864,7 @@ body {
   width: 14px;
   height: 14px;
   background: var(--surface);
-  border: 1px solid #d4d8f5;
+  border: 1px solid var(--hair);
   transform: rotate(45deg);
 }
 
@@ -2898,6 +2903,10 @@ body {
 }
 
 /* Mini recording-pill illustration inside the recording step. */
+/* NOT tokenized, deliberately (#77). This is a MOCK-UP of the recording pill,
+   shown in the tour to teach what to look for. The real pill is a separate
+   document that never receives [data-theme] and is out of scope by decision, so
+   a themed mock would stop resembling the thing it is teaching. */
 .tour__pill {
   display: flex;
   align-items: center;
