@@ -223,11 +223,21 @@ export type CalloutKind = 'note' | 'caution' | 'warning' | 'section';
 
 /** Type glyph for each callout kind — the rail badge in the app and the leading
  *  mark in every export (so the type reads even in grayscale where color is lost).
- *  `section` has no glyph (renderers special-case it as a divider heading). */
+ *  `section` has no glyph (renderers special-case it as a divider heading).
+ *
+ *  Every mark here must be a TYPOGRAPHIC symbol, not an emoji. The warning glyph
+ *  was U+26D4 NO ENTRY, which carries Emoji_Presentation: most fonts draw it as a
+ *  red-and-white orb, so it sat as a colour illustration beside two plain marks —
+ *  and it keeps that colour in a grayscale print, where the box tint is gone and
+ *  the glyph is the only thing left carrying the kind. Replaced with U+2501,
+ *  matching macOS so the same project shows the same mark on both platforms,
+ *  including in exported HTML, PDF, Word and PowerPoint. project.test.ts asserts
+ *  the PROPERTY (no emoji presentation) rather than the character, because that
+ *  is what would go wrong again if someone picked a different mark. */
 export const CALLOUT_GLYPH: Record<CalloutKind, string> = {
   note: 'ℹ',
   caution: '⚠',
-  warning: '⛔',
+  warning: '━',
   section: '',
 };
 
