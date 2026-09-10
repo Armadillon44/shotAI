@@ -27,21 +27,17 @@
      flipping [data-brand] or [data-theme] re-cascades the whole document for free.
      ---- */
 
-  /* ---- Shape / depth ---- */
-  --radius: 8px;
-  /* #77 phase 0b: the DOCUMENT card radius, shared with the exports through
-     CARD_RADIUS_PX in shared/theme-palette.ts and asserted equal by a test.
-     Deliberately its own token rather than a change to --radius: that one is also
-     read by the home dropdown, the menu popover and the bulk bar, which are app
-     chrome and have no business following a document's shape. */
-  --radius-card: 10px;
-  /* The screenshot frame nested INSIDE a step card. Smaller than the card by
-     design, matching macOS: an inner frame sharing its parent radius pinches the
-     gap between the two curves to nothing at the corner. Paired with
-     IMAGE_RADIUS_PX in shared/theme-palette.ts. */
-  --radius-image: 8px;
-  --radius-lg: 12px;
-  --radius-pill: 999px;
+  /* ---- Shape ----
+     --radius-panel / -card / -figure / -control / -control-sm / -micro / -chip
+     are GENERATED alongside the colours, because a brand's geometry is part of
+     the brand: LFI draws every corner tighter than shotAI and its chips as
+     rounded rectangles rather than capsules. See BrandRadii in
+     shared/theme-palette.ts, where --radius-chip is nullable and null means
+     "fully round"; CSS can express that as 999px because border-radius clamps,
+     but a token holding either 999 or 8 reads as a typo unless the intent is
+     written down somewhere. ---- */
+
+  /* ---- Depth ---- */
   --shadow-sm: 0 2px 8px rgba(20, 22, 31, 0.06);
   --shadow: 0 10px 30px rgba(20, 22, 31, 0.1);
   --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
@@ -71,7 +67,7 @@
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
 }
 
 html,
@@ -120,7 +116,7 @@ body {
 .project__logo-img {
   width: 30px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   object-fit: contain;
   display: block;
 }
@@ -149,7 +145,7 @@ body {
 .project__error {
   margin: 0 0 1rem;
   padding: 0.6rem 0.8rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--danger-tint);
   color: var(--danger-ink);
   font-size: 0.9rem;
@@ -162,7 +158,7 @@ body {
   gap: 1rem;
   padding: 0.9rem 1rem;
   border: 1px solid var(--hair);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 
@@ -201,7 +197,7 @@ body {
   flex: 1;
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.95rem;
 }
 
@@ -243,7 +239,7 @@ body {
   font-size: 0.85rem;
   line-height: 1;
   padding: 0.25rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   cursor: pointer;
 }
 
@@ -255,7 +251,7 @@ body {
 .btn {
   padding: 0.55rem 0.95rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
   font-size: 0.9rem;
@@ -311,7 +307,7 @@ body {
   gap: 0.9rem;
   padding: 0.75rem 0.9rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   transition:
@@ -368,7 +364,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.01em;
   padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -378,7 +374,7 @@ body {
   content: '';
   width: 0.34rem;
   height: 0.34rem;
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: currentColor;
 }
 
@@ -552,7 +548,7 @@ body {
   width: 100%;
   padding: 0.45rem 0.7rem;
   border: 1px solid var(--control-bd);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
   font-size: var(--fs-body);
@@ -584,7 +580,7 @@ body {
   left: 0;
   right: 0;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: var(--menu-shadow);
   overflow: hidden;
@@ -665,7 +661,7 @@ body {
   margin-bottom: 1.25rem;
   padding: 0.9rem 1rem;
   border: 1px solid var(--hair);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 
@@ -682,7 +678,7 @@ body {
   gap: 0.35rem;
   padding: 0.4rem 0.85rem;
   border: 1px solid var(--control-bd);
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: var(--surface);
   color: var(--ink);
   font-size: 0.88rem;
@@ -707,7 +703,7 @@ body {
 
 .capmode__soon {
   padding: 0.05rem 0.35rem;
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: var(--hair);
   color: var(--ink-2);
   font-size: 0.65rem;
@@ -735,7 +731,7 @@ body {
   min-width: 0;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   font-size: 0.88rem;
 }
@@ -786,7 +782,7 @@ body {
   margin-bottom: 1.5rem;
   padding: 1rem 1.25rem;
   border: 1px solid var(--danger-bd);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: var(--danger-tint);
 }
 
@@ -855,7 +851,7 @@ body {
   gap: 0.5rem;
   padding: 0.35rem 0.5rem;
   background: var(--surface);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   font-size: 0.85rem;
 }
 
@@ -898,7 +894,7 @@ body {
 .project__sort-chip {
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--control-bd);
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: var(--surface);
   color: var(--ink-2);
   font-size: 0.82rem;
@@ -915,7 +911,7 @@ body {
   font-weight: 600;
   padding: 0.25rem 0.4rem;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   min-width: 0;
   width: 100%;
 }
@@ -935,7 +931,7 @@ body {
   gap: 0.25rem;
   padding: 0.35rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
 }
@@ -1000,7 +996,7 @@ body {
 .menu__pop--up {
   padding: 0.3rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: var(--surface);
   box-shadow: var(--menu-shadow);
   display: flex;
@@ -1017,7 +1013,7 @@ body {
   padding: 0.42rem 0.6rem;
   border: none;
   background: none;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   color: var(--ink);
   font-size: var(--fs-body);
   cursor: pointer;
@@ -1078,7 +1074,7 @@ body {
   min-width: 180px;
   padding: 0.3rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
@@ -1090,7 +1086,7 @@ body {
   padding: 0.4rem 0.6rem;
   border: none;
   background: none;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   color: var(--ink);
   font-size: 0.88rem;
   cursor: pointer;
@@ -1172,7 +1168,7 @@ body {
   width: 3.6em;
   padding: 0.1rem 0.2rem;
   border: 1px solid var(--control-bd);
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
   background: var(--surface);
   color: inherit;
   font: inherit;
@@ -1200,7 +1196,7 @@ body {
   padding: 4px;
   background: var(--surface);
   border: 1px solid var(--hair);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
 }
 .export__item {
@@ -1210,7 +1206,7 @@ body {
   width: 100%;
   padding: 0.5rem 0.6rem;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: transparent;
   text-align: left;
   font: inherit;
@@ -1308,7 +1304,7 @@ body {
   width: 100%;
   padding: 0.6rem 0.9rem;
   border: 1px dashed var(--hair);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink-3, var(--ink-2));
   font: inherit;
@@ -1414,7 +1410,7 @@ body {
   margin-top: 0.85rem;
   padding: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-chip);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 650;
@@ -1433,7 +1429,7 @@ body {
   margin-top: 0.85rem;
   text-align: center;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   font-weight: 650;
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
@@ -1462,7 +1458,7 @@ body {
   font-weight: 600;
   font-family: inherit;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
 }
 
 .rep__cap-input:focus {
@@ -1508,7 +1504,7 @@ body {
   align-items: center;
   justify-content: center;
   border: 1px dashed var(--control-bd);
-  border-radius: 50%;
+  border-radius: var(--radius-chip);
   background: var(--ground);
   color: var(--ink-2);
   font-size: 1rem;
@@ -1546,7 +1542,7 @@ body {
   padding: 0.4rem;
   background: var(--surface);
   border: 1px solid var(--hair);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   box-shadow: var(--menu-shadow);
 }
 
@@ -1626,7 +1622,7 @@ body {
   margin-left: -0.3rem;
   font-size: 1rem;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
   cursor: text;
 }
 
@@ -1657,7 +1653,7 @@ body {
      inert here, and it cannot change layout for a lone block child. */
   line-height: 0;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-image);
+  border-radius: var(--radius-figure);
   /* hidden (not auto): drag-pan still works via programmatic scrollLeft/Top, but
      the mouse wheel doesn't pan the image — it scrolls the page as expected. */
   overflow: hidden;
@@ -1724,7 +1720,7 @@ body {
   justify-content: center;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: rgba(17, 24, 39, 0.62);
   color: var(--on-accent);
   font-size: 1.05rem;
@@ -1898,7 +1894,7 @@ body {
   padding: 0.7rem 0.9rem;
   border: 1px solid;
   border-left-width: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 .rep__callout--note {
   background: var(--note-bg);
@@ -1997,7 +1993,7 @@ body {
   box-sizing: border-box;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--control-bd);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   font-family: inherit;
 }
 
@@ -2095,7 +2091,7 @@ body {
   gap: 1rem;
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface-2);
   cursor: pointer;
 }
@@ -2120,7 +2116,7 @@ body {
   width: 38px;
   height: 22px;
   flex: none;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   background: var(--control-bd);
   cursor: pointer;
   transition: background 0.15s ease;
@@ -2152,7 +2148,7 @@ body {
   margin: 1rem 0 0;
   padding: 0.9rem 1.1rem;
   border: 1px dashed var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   color: var(--ink-3);
   font-size: var(--fs-body);
 }
@@ -2162,7 +2158,7 @@ body {
   margin-top: 1rem;
   padding: 1rem 1.1rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -2230,7 +2226,7 @@ body {
   gap: 0.35rem;
   margin-right: auto; /* sit at the left edge of the action row */
   padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   border: 1px solid transparent;
   font-size: var(--fs-meta);
   font-weight: 600;
@@ -2299,7 +2295,7 @@ body {
   margin-top: 0.5rem;
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.92rem;
   font-family: inherit;
   resize: vertical;
@@ -2313,7 +2309,7 @@ body {
 .settings__ok {
   margin: 0.5rem 0 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--note-bg);
   color: var(--note-fg);
   font-size: 0.9rem;
@@ -2325,13 +2321,13 @@ body {
   gap: 0.25rem;
   padding: 0.15rem;
   background: var(--surface-2);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 
 .detail__tab {
   padding: 0.3rem 0.8rem;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: transparent;
   color: var(--ink-2);
   font-size: 0.82rem;
@@ -2374,7 +2370,7 @@ body {
 
 .sop__doc {
   border: 1px solid var(--hair);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
   padding: 1.5rem;
 }
@@ -2415,7 +2411,7 @@ body {
   width: 100%;
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.92rem;
   font-family: inherit;
   line-height: 1.5;
@@ -2450,7 +2446,7 @@ body {
   align-items: start;
   padding: 1rem;
   border: 1px solid var(--hair);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: var(--surface-2);
 }
 
@@ -2473,7 +2469,7 @@ body {
   width: 100%;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 1rem;
   font-weight: 650;
 }
@@ -2488,7 +2484,7 @@ body {
   max-height: 240px;
   object-fit: contain;
   border: 1px solid var(--hair);
-  border-radius: 8px;
+  border-radius: var(--radius-figure);
   background: var(--surface-2);
 }
 
@@ -2511,7 +2507,7 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   padding: 1.25rem 1.5rem;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
@@ -2522,7 +2518,7 @@ body {
   width: 100%;
   max-width: 420px;
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   padding: 1.25rem 1.5rem;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
@@ -2546,7 +2542,7 @@ body {
 .sop__warn {
   margin: 0 0 0.6rem;
   padding: 0.6rem 0.8rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--caut-bg);
   border: 1px solid var(--caut-bd);
   color: var(--caut-fg);
@@ -2601,7 +2597,7 @@ body {
   height: 60px;
   object-fit: cover;
   border: 1px solid var(--hair);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: var(--surface-2);
 }
 
@@ -2749,7 +2745,7 @@ body {
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--focus-ring);
   border-left: 3px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: var(--accent-tint);
   color: var(--accent-ink);
   font-size: 0.86rem;
@@ -2770,7 +2766,7 @@ body {
   margin: 0.65rem 0 0;
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 1.02rem;
   font-family: inherit;
   line-height: 1.6;
@@ -2794,7 +2790,7 @@ body {
   align-items: center;
   gap: 0.7rem;
   background: var(--surface);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   padding: 0.7rem 0.75rem 0.7rem 1rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   font-size: 0.95rem;
@@ -2828,7 +2824,7 @@ body {
    a huge spread shadow. Pointer-events off so the scrim underneath gets clicks. */
 .tour__spot {
   position: fixed;
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   pointer-events: none;
   box-shadow:
     0 0 0 3px var(--accent),
@@ -2854,7 +2850,7 @@ body {
   max-width: calc(100vw - 24px);
   background: var(--surface);
   border: 1px solid var(--hair);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
   box-shadow: 0 18px 44px rgba(20, 22, 31, 0.3);
   padding: 16px 18px 14px;
 }
@@ -2990,7 +2986,7 @@ body {
 .tour__btn {
   font-size: 0.82rem;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   padding: 6px 12px;
   border: 1px solid var(--hair);
   background: var(--surface);
@@ -3069,7 +3065,7 @@ body {
   font-weight: 700;
   color: var(--ink-3);
   background: var(--hair-2);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   padding: 0.05rem 0.45rem;
   margin-left: 0.4rem;
 }
@@ -3087,7 +3083,7 @@ body {
   flex-wrap: wrap;
   background: var(--accent-tint);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   padding: 0.55rem 0.7rem;
   margin: 0.35rem 0 0.75rem;
 }
@@ -3108,7 +3104,7 @@ body {
 .project__check-box {
   width: 1rem;
   height: 1rem;
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
   border: 1.5px solid var(--accent);
   display: inline-block;
 }

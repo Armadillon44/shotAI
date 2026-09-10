@@ -24,7 +24,7 @@
   max-width: 100%;
   max-height: 100%;
   padding: 0.9rem;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
 }
@@ -87,7 +87,7 @@
   min-height: 2.5rem;
   padding: 0.35rem 0.55rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: var(--surface-2);
   overflow-x: auto;
   overflow-y: hidden;
@@ -106,7 +106,7 @@
   width: 100%;
   padding: 0.4rem 0.55rem;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink);
   font-size: 0.82rem;
@@ -140,7 +140,7 @@
 .ed__seg {
   display: inline-flex;
   border: 1px solid var(--control-bd);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   overflow: hidden;
 }
 
@@ -184,7 +184,7 @@
      ResizeObserver->viewport->stage-size loop and makes the image pulse (B3). */
   scrollbar-gutter: stable both-edges;
   border: 1px solid var(--hair);
-  border-radius: 8px;
+  border-radius: var(--radius-figure);
   /* checkerboard so transparent/edges are legible */
   background-color: var(--surface-2);
   background-image:
@@ -219,7 +219,7 @@
   height: 26px;
   padding: 0;
   border: 1px solid var(--control-bd);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: none;
   cursor: pointer;
 }
@@ -232,7 +232,7 @@
   gap: 0.15rem;
   padding: 0.15rem;
   background: var(--surface-2);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
 }
 
 /* Zoom uses .ed__tool buttons but they must stay compact, not rail-width. */

@@ -115,12 +115,66 @@ export type BrandId = 'shotAI' | 'lfi';
 /** Light or dark. Resolved from ThemePref; 'system' follows the OS. */
 export type Appearance = 'light' | 'dark';
 
+/**
+ * A brand's corner radii, BY ROLE rather than by number.
+ *
+ * Roles, because a single number is wrong: 8px on a 26px status chip or a 4px
+ * checkbox looks broken, and "the default brand is 10px everywhere" is the exact
+ * wording that produced a wrong implementation of phase 0b.
+ *
+ * Only `card` was decided by the design study. The rest follow one principle,
+ * asserted as a RELATIONSHIP in the tests rather than as values: **siblings
+ * match, and a nested element takes a smaller radius than its container.** A
+ * relationship cannot be flattened by accident the way a number can.
+ *
+ * Windows carries two roles macOS does not. Its stylesheets already drew six
+ * distinct sizes where macOS drew four, and collapsing 8px controls onto a 6px
+ * role would have restyled several dozen elements. Tokenizing is not licence to
+ * restyle, so the scale is sized to the surfaces that exist here.
+ */
+export interface BrandRadii {
+  /** Dialogs, popovers, panels, the Home project card. */
+  panel: number;
+  /** Document cards: the report's step card and overview. Siblings, one value. */
+  card: number;
+  /** Media nested inside a card: the screenshot, the annotation canvas. */
+  figure: number;
+  /** Inputs, buttons, menus, bordered boxes. */
+  control: number;
+  /** A small control sitting inside a control: a menu item, an inline input. */
+  controlSm: number;
+  /** Checkboxes, tiny readouts, the keyboard-focus ring. */
+  micro: number;
+  /**
+   * Chips and badges: the status pill, the sort chip, the step number, the
+   * toggle track.
+   *
+   * `null` means FULLY ROUND — a capsule, and a circle where the element is
+   * square. That is the default brand's look, and it is not a radius: a
+   * capsule's corner depends on the element's height.
+   *
+   * CSS can express it as a number, because `border-radius: 999px` clamps to
+   * half the shorter side. That is the trap: "capsule" and "8px" would then
+   * differ by three orders of magnitude inside one token and read as a typo. So
+   * the INTENT is nullable here, and the generator resolves null to the clamping
+   * value on its way out.
+   */
+  chip: number | null;
+}
+
+/** The px value a role renders as; `chip: null` becomes the clamping capsule. */
+export function radiusCss(v: number | null): string {
+  return v === null ? '999px' : `${v}px`;
+}
+
 /** A brand, in both appearances. */
 export interface Brand {
   /** Shown in Settings. */
   label: string;
   light: Palette;
   dark: Palette;
+  /** Geometry does not change with the appearance, only with the brand. */
+  radii: BrandRadii;
 }
 
 /**
@@ -144,6 +198,8 @@ export interface Brand {
 export const BRANDS: Record<BrandId, Brand> = {
   shotAI: {
     label: 'shotAI',
+    // Exactly the values the stylesheets already painted.
+    radii: { panel: 12, card: 10, figure: 8, control: 8, controlSm: 6, micro: 4, chip: null },
     light: {
       accent: '#6344f1',
       accentPress: '#5233d4',
@@ -247,6 +303,12 @@ export const BRANDS: Record<BrandId, Brand> = {
    */
   lfi: {
     label: 'LFI',
+    // From macOS BrandRadii.lfi (panel 8 / card 8 / figure 6 / control 5 / chip 8).
+    // The guide asks for "restrained corner rounding" and specifies 2px; the study
+    // settled on 8 for cards, because at a 22px badge 2px reads as printed
+    // collateral while 10px reads as a consumer app. controlSm and micro are the
+    // two Windows-only roles, continuing the same descent.
+    radii: { panel: 8, card: 8, figure: 6, control: 5, controlSm: 4, micro: 3, chip: 8 },
     light: {
       accent: '#b46b3e',
       accentPress: '#9a5a33',
@@ -402,11 +464,29 @@ export const ROLE_TO_TOKEN: Record<keyof Palette, string> = {
 /** Every custom property this module owns, for the "project.css declares none" test. */
 export const COLOUR_TOKENS: readonly string[] = Object.values(ROLE_TO_TOKEN);
 
-/** One `--token:#value` list. */
-function declarations(p: Palette): string {
-  return (Object.keys(ROLE_TO_TOKEN) as (keyof Palette)[])
-    .map((role) => `--${ROLE_TO_TOKEN[role]}:${p[role]}`)
-    .join(';');
+/** Radius role -> custom property. Same arrangement as ROLE_TO_TOKEN. */
+export const RADIUS_TO_TOKEN: Record<keyof BrandRadii, string> = {
+  panel: 'radius-panel',
+  card: 'radius-card',
+  figure: 'radius-figure',
+  control: 'radius-control',
+  controlSm: 'radius-control-sm',
+  micro: 'radius-micro',
+  chip: 'radius-chip',
+};
+
+/** Every radius custom property the generator owns. */
+export const RADIUS_TOKENS: readonly string[] = Object.values(RADIUS_TO_TOKEN);
+
+/** One `--token:value` list: the palette, then the geometry. */
+function declarations(p: Palette, r: BrandRadii): string {
+  const colours = (Object.keys(ROLE_TO_TOKEN) as (keyof Palette)[]).map(
+    (role) => `--${ROLE_TO_TOKEN[role]}:${p[role]}`,
+  );
+  const radii = (Object.keys(RADIUS_TO_TOKEN) as (keyof BrandRadii)[]).map(
+    (role) => `--${RADIUS_TO_TOKEN[role]}:${radiusCss(r[role])}`,
+  );
+  return [...colours, ...radii].join(';');
 }
 
 /**
@@ -424,12 +504,14 @@ function declarations(p: Palette): string {
  * colours at all.
  */
 export function themeStylesheet(): string {
-  const blocks = [`:root{${declarations(BRANDS[DEFAULT_BRAND].light)}}`];
+  const base = BRANDS[DEFAULT_BRAND];
+  const blocks = [`:root{${declarations(base.light, base.radii)}}`];
   for (const id of BRAND_IDS) {
     for (const appearance of ['light', 'dark'] as Appearance[]) {
       blocks.push(
         `:root[data-brand="${id}"][data-theme="${appearance}"]{${declarations(
           BRANDS[id][appearance],
+          BRANDS[id].radii,
         )}}`,
       );
     }
@@ -487,40 +569,30 @@ export const RETIRED_GREYS: readonly string[] = [
 // ---------------------------------------------------------------------------
 
 /**
- * Corner radius of a document CARD: the step card and the overview card.
+ * The document CARD radius the exports render: the step card and the overview.
  *
- * Shared between the report and the export because the report is meant to be WYSIWYG
- * with what it exports, and before this the two surfaces disagreed in a way nobody
- * had noticed: the step card was 12px on both, the overview card 8px on both, and the
- *
- * #77 phase 0b describes this as "export card 12 -> 10 to match the on-screen report,
- * which is 10 today". That premise was wrong, and checking it is what found the real
- * divergence: the 10px on screen belongs to the SCREENSHOT WRAP, not the step card.
- * The cards already agreed at 12, so making the export card 10 alone would have
- * broken an agreement and left the actual gap in place. Settled by choosing the
- * issue's other stated goal for the CARDS. The nested image keeps its own, smaller
- * value: see IMAGE_RADIUS_PX.
- *
- * NOT applied to dialogs, menus or the SOP panel, which also use 12px and 8px but
- * are app chrome rather than document cards. A document's shape should not be
- * decided by a modal's.
+ * No longer a number of its own — it reads the default brand's `card` role, so
+ * the report and the export cannot drift apart, and a brand that changes its
+ * geometry changes both. Phase 4 replaces these two with a theme threaded into
+ * the exporters, at which point an export follows whatever brand it was asked
+ * for rather than always the default.
  */
-export const CARD_RADIUS_PX = 10;
+export const CARD_RADIUS_PX = BRANDS[DEFAULT_BRAND].radii.card;
 
 /**
- * Corner radius of the SCREENSHOT frame nested inside a step card.
+ * The radius of the SCREENSHOT nested inside a step card.
  *
- * Smaller than the card on purpose. An inner frame sharing its parent radius reads
- * as a mistake at the corner, because the visible gap between the two curves
- narrows to nothing; the inner radius wants to be roughly the outer minus the
- * padding between them. So this is not a second copy of the card radius, it is a
- * different quantity that happens to be nearby.
+ * Smaller than the card on purpose, on every brand. An inner frame sharing its
+ * parent radius reads as a mistake at the corner, because the visible gap
+ * between the two curves narrows to nothing; the inner radius wants to be
+ * roughly the outer minus the padding between them.
  *
- * My first pass at phase 0b collapsed both into one number and asserted them equal,
- * which encoded a "one radius everywhere" premise that is wrong and would have been
- * the foundation phase 2 built its radius scale on. Caught in review before that.
+ * An earlier pass collapsed both into one number and asserted them EQUAL, which
+ * encoded a "one radius everywhere" premise that is false and would have been
+ * the foundation this scale was built on. The tests now assert the relationship
+ * instead, on every brand.
  */
-export const IMAGE_RADIUS_PX = 8;
+export const IMAGE_RADIUS_PX = BRANDS[DEFAULT_BRAND].radii.figure;
 
 /**
  * `RRGGBB` with no leading `#`, which is what the `docx` and `pptxgenjs` APIs take.

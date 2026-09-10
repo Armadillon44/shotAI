@@ -51,6 +51,12 @@ function enclosingSelector(css: string, index: number): string {
   return css.slice(start, open).trim().replace(/\s+/g, ' ');
 }
 
+/**
+ * Radius values a rule may state outright, because they are geometry rather than
+ * a surface style and a brand has no opinion on them.
+ */
+const RADIUS_LITERAL_OK = /^(50%|0|[23]px)$/;
+
 describe('the app stylesheets name no colour of their own', () => {
   for (const f of SHEETS) {
     it(`${f} reads every colour from a token`, () => {
@@ -79,6 +85,35 @@ describe('the app stylesheets name no colour of their own', () => {
       // that no longer exists, under a name nobody checks.
       expect(all, `${a.prefix} no longer exists; remove the exception`).toContain(a.prefix);
     }
+  });
+
+  it('lets no rule hardcode a corner radius', () => {
+    // A literal here is a corner that stays shotAI-shaped under another brand:
+    // LFI draws every corner tighter and its chips as rounded rectangles rather
+    // than capsules, so geometry is part of the brand, not a constant.
+    //
+    // Allowed outright: 50% (a circle), 0 (an explicit reset) and 2-3px (a
+    // hairline indicator whose radius is half its own height). Allowed by
+    // selector: the same two rules that keep their colours.
+    const offenders: string[] = [];
+    for (const f of SHEETS) {
+      const css = body(f);
+      for (const m of css.matchAll(/border-radius:\s*([^;]+);/g)) {
+        const v = m[1].trim();
+        if (v.startsWith('var(--radius-')) continue;
+        if (RADIUS_LITERAL_OK.test(v)) continue;
+        const sel = enclosingSelector(css, m.index ?? 0);
+        if (LITERAL_OK.some((x) => sel.startsWith(x.prefix))) continue;
+        const line = css.slice(0, m.index).split('\n').length;
+        offenders.push(`${f}:${line} ${sel || '(top level)'} -> ${v}`);
+      }
+    }
+    expect(
+      offenders,
+      'these corners will not follow the brand:\n  ' +
+        offenders.join('\n  ') +
+        '\nUse a var(--radius-…) role; the scale is BrandRadii in shared/theme-palette.ts.',
+    ).toEqual([]);
   });
 
   it('leaves no dead var() fallback that silently outranks the token', () => {

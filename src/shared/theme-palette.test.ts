@@ -7,6 +7,9 @@ import {
   BRANDS,
   BRAND_IDS,
   COLOUR_TOKENS,
+  RADIUS_TO_TOKEN,
+  RADIUS_TOKENS,
+  radiusCss,
   DEFAULT_BRAND,
   ROLE_TO_TOKEN,
   coerceBrand,
@@ -16,6 +19,7 @@ import {
   CARD_RADIUS_PX,
   IMAGE_RADIUS_PX,
   type Appearance,
+  type BrandRadii,
   type Palette,
 } from './theme-palette';
 
@@ -100,7 +104,7 @@ describe('the app stylesheet is generated, not hand-maintained', () => {
           expect(decls[token], `${sel} --${token}`).toBe(BRANDS[id][appearance][role]);
         }
         expect(Object.keys(decls).length, `${sel} declares an extra token`).toBe(
-          COLOUR_TOKENS.length,
+          COLOUR_TOKENS.length + RADIUS_TOKENS.length,
         );
       }
     }
@@ -123,7 +127,9 @@ describe('the app stylesheet is generated, not hand-maintained', () => {
     // It found one on its first run: `.settings__slidval` read `var(--text)`, a
     // token that has never existed, and so painted its fallback #e7e9ee — a
     // near-white numeral on a white Settings sheet.
-    const declared = new Set<string>(COLOUR_TOKENS.map((t) => '--' + t));
+    const declared = new Set<string>(
+      [...COLOUR_TOKENS, ...RADIUS_TOKENS].map((t) => '--' + t),
+    );
     for (const f of APP_SHEETS) {
       for (const m of sheet(f).matchAll(/(^|[;{\s])(--[a-z0-9-]+)\s*:/g)) {
         declared.add(m[2]);
@@ -329,76 +335,103 @@ describe('hexNoHash', () => {
   });
 });
 
-describe('the document radii agree across surfaces (#77 phase 0b)', () => {
-  const css = () => fs.readFileSync('src/renderer/project/project.css', 'utf8');
+describe('radius is a brand token, and the scale nests (#77 phase 2)', () => {
+  // The rule that matters is a RELATIONSHIP, not a value. "The default brand is
+  // 10px everywhere" was a real instruction on this issue and it produced a real
+  // wrong implementation: it flattened a document card, its sibling overview and
+  // the screenshot NESTED INSIDE the card onto one number, and the concentric
+  // corners stopped reading. `figure < card` cannot be misread that way, and it
+  // survives a brand scaling every value.
 
-  /** The declarations inside one selector block. */
-  function ruleBlock(sel: string): string {
-    const src = css();
-    const start = src.indexOf(sel + ' {');
-    expect(start, sel + ' not found in project.css').toBeGreaterThan(-1);
-    const end = src.indexOf('}', start);
-    expect(end, sel + ' has no closing brace').toBeGreaterThan(start);
-    return src.slice(start, end);
-  }
-
-  function token(name: string): number {
-    const m = new RegExp('--' + name + ':\\s*(\\d+)px').exec(css());
-    expect(m, '--' + name + ' is missing from project.css').not.toBeNull();
-    return Number(m?.[1]);
-  }
-
-  // TWO pairings, not one. An earlier version asserted a single shared number and
-  // folded the nested image in with the cards, which encoded a "one radius
-  // everywhere" premise that is wrong: an inner frame sharing its parent radius
-  // pinches the gap between the two curves to nothing at the corner. Phase 2 builds a
-  // radius scale, so a false premise here would have become its foundation.
-  it('pairs the CARD radius with --radius-card', () => {
-    expect(token('radius-card')).toBe(CARD_RADIUS_PX);
+  it('gives every brand a value for every role', () => {
+    const roles = Object.keys(RADIUS_TO_TOKEN).sort();
+    for (const id of BRAND_IDS) {
+      expect(Object.keys(BRANDS[id].radii).sort(), id).toEqual(roles);
+    }
   });
 
-  it('pairs the nested IMAGE radius with --radius-image', () => {
-    expect(token('radius-image')).toBe(IMAGE_RADIUS_PX);
+  it('nests: a contained element is rounder than nothing and tighter than its container', () => {
+    for (const id of BRAND_IDS) {
+      const r = BRANDS[id].radii;
+      expect(r.figure, `${id}: the screenshot sits INSIDE a step card`).toBeLessThan(r.card);
+      expect(r.controlSm, `${id}: a menu item sits INSIDE a menu`).toBeLessThan(r.control);
+      expect(r.micro, `${id}: micro is the tightest surface radius`).toBeLessThanOrEqual(
+        r.controlSm,
+      );
+      expect(r.card, `${id}: a card is no rounder than the panel holding it`).toBeLessThanOrEqual(
+        r.panel,
+      );
+      for (const [role, v] of Object.entries(r)) {
+        if (v === null) continue;
+        expect(v, `${id}.${role}`).toBeGreaterThan(0);
+      }
+    }
   });
 
-  it('keeps the nested image radius SMALLER than the card that contains it', () => {
-    // The relationship is the durable rule, not either number. If a future brand
-    // scales these, this is the invariant that must survive the scaling.
+  it('treats a fully-round chip as null, not as a large number', () => {
+    // A sentinel like 999 would work visually and lie about intent. The default
+    // brand's chips are capsules and its step badge a circle, neither of which is
+    // a radius: a capsule's corner depends on the element's height.
+    expect(BRANDS[DEFAULT_BRAND].radii.chip).toBeNull();
+    expect(radiusCss(null)).toBe('999px');
+    expect(radiusCss(8)).toBe('8px');
+  });
+
+  it('emits the radius tokens alongside the colours, per brand', () => {
+    const sheet = themeStylesheet();
+    for (const id of BRAND_IDS) {
+      for (const appearance of ['light', 'dark'] as Appearance[]) {
+        const decls = generatedBlock(
+          sheet,
+          `:root[data-brand="${id}"][data-theme="${appearance}"]`,
+        );
+        for (const [role, token] of Object.entries(RADIUS_TO_TOKEN) as [
+          keyof BrandRadii,
+          string,
+        ][]) {
+          expect(decls[token], `${id} --${token}`).toBe(radiusCss(BRANDS[id].radii[role]));
+        }
+      }
+    }
+  });
+
+  it('keeps geometry on the brand axis only, never the appearance', () => {
+    // A corner does not change when the lights go out. Both appearances of a
+    // brand read the same radii by construction; this pins that they are emitted
+    // that way too, so a future per-appearance override has to be deliberate.
+    const sheet = themeStylesheet();
+    for (const id of BRAND_IDS) {
+      const light = generatedBlock(sheet, `:root[data-brand="${id}"][data-theme="light"]`);
+      const dark = generatedBlock(sheet, `:root[data-brand="${id}"][data-theme="dark"]`);
+      for (const token of RADIUS_TOKENS) expect(dark[token], `${id} --${token}`).toBe(light[token]);
+    }
+  });
+
+  it('keeps the export constants tied to the same brand roles', () => {
+    // These two are what export-css renders. They were their own numbers, which
+    // is how the report and the export came to disagree in the first place.
+    expect(CARD_RADIUS_PX).toBe(BRANDS[DEFAULT_BRAND].radii.card);
+    expect(IMAGE_RADIUS_PX).toBe(BRANDS[DEFAULT_BRAND].radii.figure);
     expect(IMAGE_RADIUS_PX).toBeLessThan(CARD_RADIUS_PX);
-    expect(token('radius-image')).toBeLessThan(token('radius-card'));
   });
 
-  it('applies each token to the right elements, by token and never by literal', () => {
+  it('applies the right role to the document surfaces', () => {
+    // The two the report and the export must agree on, named explicitly so a
+    // reshuffle of the scale cannot quietly move them.
+    const css = sheet('src/renderer/project/project.css');
+    function ruleBlock(sel: string): string {
+      const at = css.indexOf(sel + ' {');
+      expect(at, sel + ' not found').toBeGreaterThan(-1);
+      return css.slice(at, css.indexOf('}', at));
+    }
     for (const sel of ['.rep__bodywrap', '.rep__intro']) {
-      expect(ruleBlock(sel), sel + ' should use var(--radius-card)').toContain(
-        'border-radius: var(--radius-card)',
-      );
+      expect(ruleBlock(sel), sel).toContain('border-radius: var(--radius-card)');
     }
-    // The screenshot wrap is the nested frame, so it takes the image token.
-    expect(ruleBlock('.rep__imgwrap')).toContain('border-radius: var(--radius-image)');
-    expect(ruleBlock('.rep__imgwrap')).not.toContain('--radius-card');
-  });
-
-  it('leaves app chrome on its own radius', () => {
-    // Dialogs and the SOP panel share the old 12px but are NOT document surfaces. A
-    // document's shape should not be decided by a modal's.
+    expect(ruleBlock('.rep__imgwrap')).toContain('border-radius: var(--radius-figure)');
+    // Dialogs are not document cards: a modal's shape must not decide a
+    // document's, which is why 'panel' exists as a separate role.
     for (const sel of ['.confirm', '.sop__modal']) {
-      const b = ruleBlock(sel);
-      expect(b, sel + ' must not follow the card radius').not.toContain(
-        '--radius-card',
-      );
-      expect(b, sel + ' must not follow the image radius').not.toContain(
-        '--radius-image',
-      );
-    }
-  });
-
-  it('lets no document surface hardcode a radius', () => {
-    for (const sel of ['.rep__bodywrap', '.rep__intro', '.rep__imgwrap']) {
-      const literals = [...ruleBlock(sel).matchAll(/border-radius:\s*(\d+)px/g)].map(
-        (x) => x[0],
-      );
-      expect(literals, sel + ' hardcodes a radius').toEqual([]);
+      expect(ruleBlock(sel), sel).toContain('border-radius: var(--radius-panel)');
     }
   });
 });
