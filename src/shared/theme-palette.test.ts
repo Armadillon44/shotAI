@@ -11,6 +11,7 @@ import {
   SLIDE_EXTRAS,
   INTERNAL_SPLITS,
   CARD_RADIUS_PX,
+  IMAGE_RADIUS_PX,
   type Palette,
 } from './theme-palette';
 
@@ -274,7 +275,7 @@ describe('INTERNAL_SPLITS documents the two-ramp surfaces', () => {
   });
 });
 
-describe('the document card radius agrees across surfaces (#77 phase 0b)', () => {
+describe('the document radii agree across surfaces (#77 phase 0b)', () => {
   const css = () => fs.readFileSync('src/renderer/project/project.css', 'utf8');
 
   /** The declarations inside one selector block. */
@@ -287,37 +288,62 @@ describe('the document card radius agrees across surfaces (#77 phase 0b)', () =>
     return src.slice(start, end);
   }
 
-  it('matches the --radius-card token in the app stylesheet', () => {
-    // The whole point of 0b: the report is meant to be WYSIWYG with the export, and
-    // these two numbers lived in different files and disagreed without anyone noticing.
-    const m = /--radius-card:\s*(\d+)px/.exec(css());
-    expect(m, '--radius-card is missing from project.css').not.toBeNull();
-    expect(Number(m?.[1])).toBe(CARD_RADIUS_PX);
+  function token(name: string): number {
+    const m = new RegExp('--' + name + ':\\s*(\\d+)px').exec(css());
+    expect(m, '--' + name + ' is missing from project.css').not.toBeNull();
+    return Number(m?.[1]);
+  }
+
+  // TWO pairings, not one. An earlier version asserted a single shared number and
+  // folded the nested image in with the cards, which encoded a "one radius
+  // everywhere" premise that is wrong: an inner frame sharing its parent radius
+  // pinches the gap between the two curves to nothing at the corner. Phase 2 builds a
+  // radius scale, so a false premise here would have become its foundation.
+  it('pairs the CARD radius with --radius-card', () => {
+    expect(token('radius-card')).toBe(CARD_RADIUS_PX);
   });
 
-  it('is applied by TOKEN to every document card, never by literal', () => {
-    // A literal here is how the two surfaces drifted apart in the first place.
-    for (const sel of ['.rep__bodywrap', '.rep__intro', '.rep__imgwrap']) {
+  it('pairs the nested IMAGE radius with --radius-image', () => {
+    expect(token('radius-image')).toBe(IMAGE_RADIUS_PX);
+  });
+
+  it('keeps the nested image radius SMALLER than the card that contains it', () => {
+    // The relationship is the durable rule, not either number. If a future brand
+    // scales these, this is the invariant that must survive the scaling.
+    expect(IMAGE_RADIUS_PX).toBeLessThan(CARD_RADIUS_PX);
+    expect(token('radius-image')).toBeLessThan(token('radius-card'));
+  });
+
+  it('applies each token to the right elements, by token and never by literal', () => {
+    for (const sel of ['.rep__bodywrap', '.rep__intro']) {
       expect(ruleBlock(sel), sel + ' should use var(--radius-card)').toContain(
         'border-radius: var(--radius-card)',
       );
     }
+    // The screenshot wrap is the nested frame, so it takes the image token.
+    expect(ruleBlock('.rep__imgwrap')).toContain('border-radius: var(--radius-image)');
+    expect(ruleBlock('.rep__imgwrap')).not.toContain('--radius-card');
   });
 
   it('leaves app chrome on its own radius', () => {
-    // Dialogs and the SOP panel share the old 12px but are NOT document cards. A
+    // Dialogs and the SOP panel share the old 12px but are NOT document surfaces. A
     // document's shape should not be decided by a modal's.
     for (const sel of ['.confirm', '.sop__modal']) {
-      expect(ruleBlock(sel), sel + ' must not follow the card radius').not.toContain(
+      const b = ruleBlock(sel);
+      expect(b, sel + ' must not follow the card radius').not.toContain(
         '--radius-card',
+      );
+      expect(b, sel + ' must not follow the image radius').not.toContain(
+        '--radius-image',
       );
     }
   });
 
-  it('is the only radius the document cards use, so none can drift back', () => {
+  it('lets no document surface hardcode a radius', () => {
     for (const sel of ['.rep__bodywrap', '.rep__intro', '.rep__imgwrap']) {
-      const b = ruleBlock(sel);
-      const literals = [...b.matchAll(/border-radius:\s*(\d+)px/g)].map((x) => x[0]);
+      const literals = [...ruleBlock(sel).matchAll(/border-radius:\s*(\d+)px/g)].map(
+        (x) => x[0],
+      );
       expect(literals, sel + ' hardcodes a radius').toEqual([]);
     }
   });

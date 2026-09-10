@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
+import { docCss } from './export-css';
+import { CARD_RADIUS_PX, IMAGE_RADIUS_PX } from '../shared/theme-palette';
 
 // #77 phase 0, the part that keeps it done.
 //
@@ -129,5 +131,43 @@ describe('the export card radius comes from the shared number (#77 phase 0b)', (
         'from shared/theme-palette so the report and the export cannot drift apart.',
     ).toEqual([]);
     expect(src).toContain('CARD_RADIUS_PX');
+    // Both, because the nested image has its own value. A file that only referenced
+    // the card constant would mean the image radius had been folded back in.
+    expect(src).toContain('IMAGE_RADIUS_PX');
+  });
+});
+
+describe('the RENDERED export gives each element the right radius', () => {
+  // Source-text checks cannot see this. Folding the image radius back into the card
+  // leaves IMAGE_RADIUS_PX in the import line, so a "does the file mention it" test
+  // still passes while the document renders wrongly. A mutation run proved exactly
+  // that, so the assertion moved to the output.
+  const css = docCss(1);
+
+  /** The border-radius a selector renders, in px. */
+  function radiusOf(sel: string): number {
+    const i = css.indexOf(sel + '{');
+    expect(i, sel + ' has no rule in docCss').toBeGreaterThan(-1);
+    const body = css.slice(i, css.indexOf('}', i));
+    const m = /border-radius:(\d+)px/.exec(body);
+    expect(m, sel + ' has no border-radius').not.toBeNull();
+    return Number(m?.[1]);
+  }
+
+  it('renders the CARD radius on the step card and the overview card', () => {
+    expect(radiusOf('.step__main')).toBe(CARD_RADIUS_PX);
+    expect(radiusOf('.doc__intro')).toBe(CARD_RADIUS_PX);
+  });
+
+  it('renders the smaller IMAGE radius on the nested screenshot', () => {
+    expect(radiusOf('.step__img')).toBe(IMAGE_RADIUS_PX);
+    expect(radiusOf('.step__img')).toBeLessThan(radiusOf('.step__main'));
+  });
+
+  it('keeps the step-number circle a circle', () => {
+    // 50% is not a card radius and must not be swept into the token scheme.
+    const i = css.indexOf('.step__num{');
+    const body = css.slice(i, css.indexOf('}', i));
+    expect(body).toContain('border-radius:50%');
   });
 });

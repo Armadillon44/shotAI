@@ -52,6 +52,11 @@
      read by the home dropdown, the menu popover and the bulk bar, which are app
      chrome and have no business following a document's shape. */
   --radius-card: 10px;
+  /* The screenshot frame nested INSIDE a step card. Smaller than the card by
+     design, matching macOS: an inner frame sharing its parent radius pinches the
+     gap between the two curves to nothing at the corner. Paired with
+     IMAGE_RADIUS_PX in shared/theme-palette.ts. */
+  --radius-image: 8px;
   --radius-lg: 12px;
   --radius-pill: 999px;
   --shadow-sm: 0 2px 8px rgba(20, 22, 31, 0.06);
@@ -1687,7 +1692,7 @@ body {
      inert here, and it cannot change layout for a lone block child. */
   line-height: 0;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-image);
   /* hidden (not auto): drag-pan still works via programmatic scrollLeft/Top, but
      the mouse wheel doesn't pan the image — it scrolls the page as expected. */
   overflow: hidden;

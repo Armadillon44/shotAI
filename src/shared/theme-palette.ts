@@ -255,25 +255,40 @@ export const INTERNAL_SPLITS: readonly {
 // ---------------------------------------------------------------------------
 
 /**
- * Corner radius of a document CARD: the step card, the overview card, and the
- * screenshot frame inside a step.
+ * Corner radius of a document CARD: the step card and the overview card.
  *
- * One number because the report is meant to be WYSIWYG with the export, and before
- * this the two surfaces disagreed in a way nobody had noticed: the screenshot frame
- * was 10px on screen and 8px in every export, while the step card was 12px on both.
+ * Shared between the report and the export because the report is meant to be WYSIWYG
+ * with what it exports, and before this the two surfaces disagreed in a way nobody
+ * had noticed: the step card was 12px on both, the overview card 8px on both, and the
  *
  * #77 phase 0b describes this as "export card 12 -> 10 to match the on-screen report,
  * which is 10 today". That premise was wrong, and checking it is what found the real
  * divergence: the 10px on screen belongs to the SCREENSHOT WRAP, not the step card.
  * The cards already agreed at 12, so making the export card 10 alone would have
  * broken an agreement and left the actual gap in place. Settled by choosing the
- * issue's other stated goal, 10px everywhere, so all three become one value.
+ * issue's other stated goal for the CARDS. The nested image keeps its own, smaller
+ * value: see IMAGE_RADIUS_PX.
  *
  * NOT applied to dialogs, menus or the SOP panel, which also use 12px and 8px but
  * are app chrome rather than document cards. A document's shape should not be
  * decided by a modal's.
  */
 export const CARD_RADIUS_PX = 10;
+
+/**
+ * Corner radius of the SCREENSHOT frame nested inside a step card.
+ *
+ * Smaller than the card on purpose. An inner frame sharing its parent radius reads
+ * as a mistake at the corner, because the visible gap between the two curves
+ narrows to nothing; the inner radius wants to be roughly the outer minus the
+ * padding between them. So this is not a second copy of the card radius, it is a
+ * different quantity that happens to be nearby.
+ *
+ * My first pass at phase 0b collapsed both into one number and asserted them equal,
+ * which encoded a "one radius everywhere" premise that is wrong and would have been
+ * the foundation phase 2 built its radius scale on. Caught in review before that.
+ */
+export const IMAGE_RADIUS_PX = 8;
 
 /** Which surface a divergence belongs to. */
 export type SurfaceId = 'doc' | 'slide';

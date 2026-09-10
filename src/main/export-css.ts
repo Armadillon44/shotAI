@@ -13,7 +13,7 @@
  * see the note on HTML_IMG_MAX_W for why 738 is kept regardless.)
  */
 import { HTML_COL_BASE, docWidths } from '../shared/doc-scale';
-import { DOC_LIGHT, DOC_EXTRAS, CARD_RADIUS_PX } from '../shared/theme-palette';
+import { DOC_LIGHT, DOC_EXTRAS, CARD_RADIUS_PX, IMAGE_RADIUS_PX } from '../shared/theme-palette';
 
 /** The column at scale 1. Per-scale widths come from docWidths(scale). */
 export const HTML_COL_W = HTML_COL_BASE;
@@ -110,7 +110,7 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
 .step__main--caution{background:${DOC_LIGHT.cautBg};border-color:${DOC_LIGHT.cautBd};color:${DOC_LIGHT.cautFg}}
 .step__main--warning{background:${DOC_LIGHT.warnBg};border-color:${DOC_LIGHT.warnBd};color:${DOC_LIGHT.warnFg}}
 .step__title{font-size:1.15rem;margin:0 0 10px}
-.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid ${DOC_LIGHT.hair};border-radius:${CARD_RADIUS_PX}px}
+.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid ${DOC_LIGHT.hair};border-radius:${IMAGE_RADIUS_PX}px}
 .step__instr{margin:10px 0 0;white-space:pre-wrap;font-size:1.02rem}
 .step--textonly .step__instr{margin-top:0}
 .callout__h{display:block;font-weight:700;margin-bottom:.25rem}
