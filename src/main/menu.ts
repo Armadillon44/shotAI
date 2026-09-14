@@ -17,6 +17,7 @@ import {
   type BrandId,
 } from '../shared/theme-palette';
 import { appIconPath } from './paths';
+import { mainLog as menuLog } from './logger';
 
 /**
  * What View -> Brand should currently show.
@@ -42,8 +43,43 @@ let brandState: BrandMenuState = {
   appBrand: DEFAULT_BRAND,
 };
 
-/** Rebuilds the menu from the current state; set by installAppMenu. */
+/** Rebuilds the menu from the current state; set by armBrandMenu. */
 let rebuildMenu: (() => void) | null = null;
+
+/** Pending deferred rebuild, so a burst of pushes collapses into one. */
+let rebuildTimer: NodeJS.Timeout | null = null;
+
+/**
+ * Rebuild, but never on the stack that asked for it.
+ *
+ * Replacing the application menu while the native menu is still tearing down
+ * after a click is a known way to lose the window on Windows, and a rebuild
+ * triggered by a menu ITEM lands inside exactly that window: click -> IPC ->
+ * store write -> state push -> rebuild, the whole round trip taking tens of
+ * milliseconds. Deferring moves it clear of the teardown and coalesces a burst
+ * of pushes into one rebuild.
+ *
+ * Wrapped, because a throw here would reject the IPC call that pushed the state
+ * and tell the renderer its menu update failed, when the menu is cosmetic and
+ * the setting it describes is already saved.
+ */
+function scheduleRebuild(): void {
+  if (rebuildTimer) clearTimeout(rebuildTimer);
+  rebuildTimer = setTimeout(() => {
+    rebuildTimer = null;
+    try {
+      rebuildMenu?.();
+    } catch (err) {
+      menuLog.warn('brand menu rebuild failed (non-fatal):', err);
+    }
+  }, REBUILD_DEFER_MS);
+}
+
+/**
+ * How long to wait. Long enough to be clear of the native menu's teardown,
+ * short enough that nobody sees the menu lag behind the project they opened.
+ */
+const REBUILD_DEFER_MS = 120;
 
 /**
  * Update View -> Brand.
@@ -66,7 +102,7 @@ export function setBrandMenuState(next: BrandMenuState): void {
     return;
   }
   brandState = next;
-  rebuildMenu?.();
+  scheduleRebuild();
 }
 
 /** Build + install the application menu. `getProjectWindow` returns the main
@@ -97,18 +133,31 @@ export function installAppMenu(getProjectWindow: () => BrowserWindow | null): vo
    *
    * TWO kinds of entry, and the difference is real: "App default" writes NO key
    * to project.json and keeps following the app setting, while a named brand
-   * pins that brand into the file so the project reproduces identically on any
+   * PINS that brand into the file so the project reproduces identically on any
    * machine. The resolved brand is shown in the default's label so the menu
    * still says what the project will actually look like.
    *
-   * The DEFAULT brand is deliberately not offered as a named entry. The
-   * cross-platform write rule stores it as an absent key, so picking it would be
-   * indistinguishable from "App default" — a control that silently snaps back to
-   * the option above it. See the note on ProjectManifest.theme.
+   * EVERY brand is offered, the default included. An earlier version left the
+   * default out, reasoning that the write rule stored it as an absent key and
+   * so picking it would be indistinguishable from "App default". That was a
+   * real bug rather than a tidy simplification: with the APP brand set to LFI,
+   * "App default" and "LFI" both render LFI and shotAI was not on the menu at
+   * all, so every option produced the same document and the control looked
+   * broken. The write rule was corrected instead — see ProjectManifest.theme.
    */
   const brandItems = (): MenuItemConstructorOptions[] => {
-    const choose = (brand: BrandId | null): void =>
+    const choose = (brand: BrandId | null): void => {
+      // Record it HERE as well as sending it. Electron has already moved the
+      // radio dot natively, and the renderer will echo this same value back
+      // once the write lands — which then hits the changed-check and rebuilds
+      // NOTHING. That is the point: it keeps the rebuild out of the click path
+      // entirely, rather than relying on the defer to outrun it.
+      //
+      // If the write fails or is refused, the echo carries the real value, the
+      // changed-check fires, and the menu corrects itself.
+      brandState = { ...brandState, projectTheme: brand };
       getProjectWindow()?.webContents.send(IpcChannels.menuSetProjectTheme, brand);
+    };
     return [
       {
         label: `App default (${BRANDS[brandState.appBrand].label})`,
@@ -116,7 +165,7 @@ export function installAppMenu(getProjectWindow: () => BrowserWindow | null): vo
         checked: brandState.projectTheme === null,
         click: () => choose(null),
       },
-      ...BRAND_IDS.filter((id) => id !== DEFAULT_BRAND).map(
+      ...BRAND_IDS.map(
         (id): MenuItemConstructorOptions => ({
           label: BRANDS[id].label,
           type: 'radio',

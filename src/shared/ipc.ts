@@ -396,11 +396,13 @@ export interface ShotaiApi {
     /** Per-project document scale (#70). Clamped main-side to a legal detent. */
     setDisplayScale(projectPath: string, scale: number): Promise<ProjectManifest>;
     /**
-     * Per-project brand (#77 phase 1b). Coerced main-side; the default brand is
-     * stored as an absent key, and a write that changes nothing is refused so it
-     * cannot re-date the project.
+     * Per-project brand (#77 phase 1b).
+     *
+     * `null` clears the key so the project follows the app preference; a brand
+     * PINS it, the default brand included. Coerced main-side, and a write that
+     * changes nothing is refused so it cannot re-date the project.
      */
-    setProjectTheme(projectPath: string, brand: BrandId): Promise<ProjectManifest>;
+    setProjectTheme(projectPath: string, brand: BrandId | null): Promise<ProjectManifest>;
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
     revertSop(projectPath: string): Promise<ProjectManifest>;
     /**

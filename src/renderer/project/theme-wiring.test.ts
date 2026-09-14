@@ -127,12 +127,16 @@ describe('View -> Brand is driven by what is actually open', () => {
     );
   });
 
-  it('"App default" clears the key rather than writing the default brand', () => {
-    // null and the default brand are different intents. The store maps the
-    // default to an absent key, so passing it through is right — but only
-    // because null has already been turned into it deliberately.
-    expect(read('src/renderer/project/App.tsx')).toMatch(
-      /setProjectTheme\(projectPath, choice \?\? DEFAULT_BRAND\)/,
+  it('passes the choice through untouched, null included', () => {
+    // null ("App default", clear the key) and the DEFAULT BRAND ("pin shotAI")
+    // are different requests, and the renderer used to fold the first into the
+    // second with `choice ?? DEFAULT_BRAND`. That made them the same request and
+    // left no way to pin the default — which is exactly the bug that shipped:
+    // with the app brand on LFI, every menu entry produced the same document.
+    const src = read('src/renderer/project/App.tsx');
+    expect(src).toMatch(/setProjectTheme\(projectPath, choice\)/);
+    expect(src, 'the renderer must not flatten null into a brand').not.toMatch(
+      /choice \?\? DEFAULT_BRAND/,
     );
   });
 
@@ -175,13 +179,43 @@ describe('View -> Brand is driven by what is actually open', () => {
     expect(read('src/main/menu.ts')).toMatch(/enabled:\s*brandState\.projectOpen/);
   });
 
-  it('does not offer the default brand as a named, pinnable entry', () => {
-    // The cross-platform write rule stores the default brand as an ABSENT key,
-    // so picking it is indistinguishable from "App default" — the radio would
-    // snap back to the entry above it every time. Offering it would be a control
-    // that visibly ignores the user.
+  it('offers every brand, the default one included', () => {
+    // It was once filtered out, on the reasoning that the write rule stored the
+    // default as an absent key so picking it could not differ from "App
+    // default". With the APP brand set to LFI that left "App default" and "LFI"
+    // both rendering LFI and shotAI absent from the menu — every option
+    // produced the same document. The write rule was corrected instead.
     const src = read('src/main/menu.ts');
-    expect(src).toMatch(/BRAND_IDS\.filter\(\(id\) => id !== DEFAULT_BRAND\)/);
+    expect(src, 'no brand may be filtered out of the group').not.toMatch(
+      /BRAND_IDS\.filter\(/,
+    );
+    expect(src).toMatch(/BRAND_IDS\.map\(/);
+  });
+
+  it('keeps the rebuild off the click path', () => {
+    // Replacing the application menu while the native menu is still tearing
+    // down after a click is a known way to lose the window on Windows, and the
+    // click -> IPC -> write -> push -> rebuild round trip lands inside exactly
+    // that window. Two defences, because the deferral alone is a race:
+    const src = read('src/main/menu.ts');
+    // 1. the click records its own choice, so the renderer's echo matches and
+    //    the changed-check rebuilds nothing at all
+    expect(src).toMatch(/brandState = \{ \.\.\.brandState, projectTheme: brand \}/);
+    // 2. and any rebuild that does happen is deferred off the current stack
+    expect(src).toContain('scheduleRebuild()');
+    expect(src, 'a rebuild must not run synchronously from the state push').not.toMatch(
+      /brandState = next;\s*\n\s*rebuildMenu\?\.\(\)/,
+    );
+  });
+
+  it('never lets a menu rebuild fail the call that triggered it', () => {
+    // The menu is cosmetic and the setting it describes is already saved; a
+    // throw here would reject the renderer's IPC call and report a failure that
+    // did not happen.
+    const src = read('src/main/menu.ts');
+    const at = src.indexOf('function scheduleRebuild');
+    expect(at, 'scheduleRebuild should exist').toBeGreaterThan(-1);
+    expect(src.slice(at, at + 500)).toMatch(/try \{[\s\S]*?\} catch/);
   });
 
   it('spells the View menu out so the standard entries survive', () => {

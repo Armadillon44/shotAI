@@ -379,18 +379,26 @@ export function App(): React.JSX.Element {
   // disabled — while NO project is open, which is exactly when ProjectDetail is
   // unmounted and could push nothing.
   React.useEffect(() => {
-    void window.shotai.setBrandMenu({
-      projectOpen: !!openPath,
-      // Guarded on openPath as well: the store clears projectTheme on close, but
-      // ordering between that and this effect is not something to rely on for
-      // what the menu claims about a project that is no longer open.
-      projectTheme: openPath ? projectTheme : null,
-      appBrand: brand,
-    });
+    // Caught, not floated: this crosses into main and a rejection here is an
+    // unhandled rejection in the renderer, which is noise at best and a
+    // swallowed diagnostic at worst. The menu is cosmetic — a failure to update
+    // it must not surface as an error.
+    void window.shotai
+      .setBrandMenu({
+        projectOpen: !!openPath,
+        // Guarded on openPath as well: the store clears projectTheme on close,
+        // but ordering between that and this effect is not something to rely on
+        // for what the menu claims about a project that is no longer open.
+        projectTheme: openPath ? projectTheme : null,
+        appBrand: brand,
+      })
+      .catch(() => undefined);
   }, [openPath, projectTheme, brand]);
 
-  // …and take the choice back. null is "App default", which CLEARS the project's
-  // key rather than writing the default brand into it.
+  // …and take the choice back. null is "App default", which CLEARS the key; a
+  // brand PINS it, the default brand included. Passed through untouched: the
+  // renderer used to fold null into DEFAULT_BRAND here, which made "App default"
+  // and "shotAI" the same request and left no way to pin the default.
   //
   // Reads the store imperatively instead of closing over projectPath so the
   // listener can be registered once. A listener re-registered on every project
@@ -402,7 +410,7 @@ export function App(): React.JSX.Element {
         const { projectPath, applyManifest } = useProjectStore.getState();
         if (!projectPath) return;
         void window.shotai.projects
-          .setProjectTheme(projectPath, choice ?? DEFAULT_BRAND)
+          .setProjectTheme(projectPath, choice)
           .then(applyManifest)
           .catch(fail);
       }),

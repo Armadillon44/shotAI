@@ -110,7 +110,7 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.setProjectIntro, projectPath, intro),
     setDisplayScale: (projectPath: string, scale: number) =>
       ipcRenderer.invoke(IpcChannels.setDisplayScale, projectPath, scale),
-    setProjectTheme: (projectPath: string, brand: BrandId) =>
+    setProjectTheme: (projectPath: string, brand: BrandId | null) =>
       ipcRenderer.invoke(IpcChannels.setProjectTheme, projectPath, brand),
     revertSop: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),

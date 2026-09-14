@@ -417,12 +417,24 @@ export interface ProjectManifest {
    *   3. Home and Settings always use the app preference; they belong to no
    *      project.
    *
-   * WRITE RULE, copied from displayScale: stamped at creation from the current
-   * app preference, and OMITTED ENTIRELY when it is the default brand — so a
-   * default-branded project writes nothing and only a branded one carries the
-   * key. The store also refuses a no-op write, because mutate() bumps
-   * updatedAt unconditionally and a no-op save would re-date the project and
-   * jump it to the top of the Home list.
+   * WRITE RULE, adapted from displayScale: stamped at CREATION from the current
+   * app preference and omitted there when it is the default brand, so a
+   * default-branded new project writes nothing and existing projects stay
+   * byte-identical. An EXPLICIT choice, however, always writes — including the
+   * default brand.
+   *
+   * ⚠ That last part is a deliberate divergence from the rule as first written,
+   * which omitted the default on every path. "Absent" and "explicitly the
+   * default" are not the same state: absent means FOLLOW THE APP, and the two
+   * come apart as soon as the app preference is something else. With the app on
+   * LFI there was no way to hold a project on shotAI, because the only value
+   * that would have said so was refused on write and dropped on read. Reported
+   * to macOS on #77 — it renders a pinned default correctly either way, but its
+   * own control cannot currently produce one.
+   *
+   * The store also refuses a no-op write, because mutate() bumps updatedAt
+   * unconditionally and a no-op save would re-date the project and jump it to
+   * the top of the Home list.
    *
    * CROSS-PLATFORM: this is the byte-compatible schema. macOS reads and writes
    * the same field with the same values ('shotAI' | 'lfi', its BrandPref raw

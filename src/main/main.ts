@@ -462,6 +462,11 @@ app.whenReady().then(async () => {
   // that can never be checked.
   ipcMain.handle(IpcChannels.setBrandMenu, (_e, state: unknown) => {
     const s = (state ?? {}) as Record<string, unknown>;
+    mainLog.debug(
+      `ipc: view:set-brand-menu open=${s.projectOpen === true} project=${String(
+        s.projectTheme,
+      )} app=${String(s.appBrand)}`,
+    );
     setBrandMenuState({
       projectOpen: s.projectOpen === true,
       projectTheme: s.projectTheme == null ? null : coerceBrand(s.projectTheme),
@@ -544,6 +549,24 @@ app.whenReady().then(async () => {
 });
 
 // Quit when all windows are closed, except on macOS.
+// A window vanishing with no trace in the log is nearly impossible to diagnose
+// after the fact — a renderer that dies looks identical to a clean quit, because
+// the app then exits 0 through window-all-closed below. Logged rather than
+// handled: these are reports, and recovery is out of scope here.
+app.on('render-process-gone', (_e, _wc, details) => {
+  mainLog.error(
+    `renderer gone: reason=${details.reason} exitCode=${details.exitCode}`,
+  );
+});
+app.on('child-process-gone', (_e, details) => {
+  mainLog.error(
+    `child process gone: type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`,
+  );
+});
+process.on('uncaughtException', (err) => {
+  mainLog.error('uncaught exception in main:', err);
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();

@@ -73,11 +73,38 @@ describe('the write rule: the default brand writes nothing', () => {
     expect((await onDisk(summary.path)).theme).toBe('lfi');
   });
 
-  it('removes the key rather than writing the default into it', async () => {
+  it('clears the key on null, which is what "App default" means', async () => {
     await setProjectTheme(projectDir, 'lfi');
     expect((await onDisk(projectDir)).theme).toBe('lfi');
-    await setProjectTheme(projectDir, 'shotAI');
+    await setProjectTheme(projectDir, null);
     expect(Object.keys(await onDisk(projectDir))).not.toContain('theme');
+  });
+
+  it('PINS the default brand when it is chosen explicitly', async () => {
+    // The correction. Setting the default used to clear the key, on the theory
+    // that an absent key already says "the default". It does not — it says
+    // "follow the app" — and the two come apart the moment the app preference
+    // is something else. With the app on LFI there was then no way to hold a
+    // project on shotAI: the value that would have said so was refused here and
+    // dropped on read.
+    await setProjectTheme(projectDir, 'shotAI');
+    expect((await onDisk(projectDir)).theme).toBe('shotAI');
+  });
+
+  it('keeps a pinned default through a read, rather than dropping it', async () => {
+    // The other half. coerceManifest rebuilds field by field, and it used to
+    // drop theme whenever it coerced to the default — so even a correctly
+    // written 'shotAI' would not survive being opened.
+    await setProjectTheme(projectDir, 'shotAI');
+    expect((await openProject(projectDir)).theme).toBe('shotAI');
+  });
+
+  it('distinguishes a pinned default from an absent key, end to end', async () => {
+    // The distinction this whole correction exists for, stated once.
+    await setProjectTheme(projectDir, 'shotAI');
+    expect((await openProject(projectDir)).theme).toBe('shotAI');
+    await setProjectTheme(projectDir, null);
+    expect((await openProject(projectDir)).theme).toBeUndefined();
   });
 });
 
@@ -97,12 +124,22 @@ describe('a write that changes nothing is refused', () => {
     expect(await fs.readFile(path.join(projectDir, 'project.json'), 'utf8')).toBe(bytes);
   });
 
-  it('does not re-date an UNBRANDED project when asked for the default', async () => {
-    // The subtle half: an absent key and "explicitly the default brand" resolve
-    // to the same brand, so this has to compare resolved values, not raw ones.
+  it('does not re-date an UNBRANDED project when asked to clear it', async () => {
+    // Compared RAW, not coerced: an absent key and an explicit default are
+    // different states now, so null-vs-absent is the no-op and
+    // default-vs-absent is a real write.
     const before = await fs.readFile(path.join(projectDir, 'project.json'), 'utf8');
-    await setProjectTheme(projectDir, 'shotAI');
+    await setProjectTheme(projectDir, null);
     expect(await fs.readFile(path.join(projectDir, 'project.json'), 'utf8')).toBe(before);
+  });
+
+  it('DOES write when an unbranded project is pinned to the default', async () => {
+    // The control for the test above. If the guard still folded the default
+    // into "absent", this would be a no-op and the feature would be missing.
+    const before = (await onDisk(projectDir)).updatedAt;
+    await setProjectTheme(projectDir, 'shotAI');
+    expect((await onDisk(projectDir)).theme).toBe('shotAI');
+    expect((await onDisk(projectDir)).updatedAt).not.toBe(before);
   });
 
   it('DOES re-date when the brand actually changes', async () => {

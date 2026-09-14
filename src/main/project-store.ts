@@ -17,7 +17,7 @@ import {
 } from '../shared/project';
 import { DEFAULT_SOP_TONE, isSopTone } from '../shared/sop';
 import { SCALE_DEFAULT, clampScale } from '../shared/doc-scale';
-import { coerceBrand, DEFAULT_BRAND, type BrandId } from '../shared/theme-palette';
+import { coerceBrand, isBrandId, DEFAULT_BRAND, type BrandId } from '../shared/theme-palette';
 import {
   addRecent,
   getBrand,
@@ -132,13 +132,18 @@ export function coerceManifest(
     ...(clampScale(parsed.displayScale) !== SCALE_DEFAULT
       ? { displayScale: clampScale(parsed.displayScale) }
       : {}),
-    // Same rule and the same trap (#77 phase 1b): an uncoerced field is dropped
-    // on EVERY read, so a macOS-authored brand would be discarded the first time
-    // Windows opened the project. Omitted when it is the default, so a project
-    // that never picked a brand stays byte-identical on disk.
-    ...(parsed.theme !== undefined && coerceBrand(parsed.theme) !== DEFAULT_BRAND
-      ? { theme: coerceBrand(parsed.theme) }
-      : {}),
+    // Same trap as displayScale (#77 phase 1b): an uncoerced field is dropped on
+    // EVERY read, so a macOS-authored brand would be discarded the first time
+    // Windows opened the project.
+    //
+    // Kept for ANY brand this build knows, including the default one. It used to
+    // drop the default on the theory that an absent key says the same thing —
+    // which is false, and the falsehood was user-visible: with the APP brand set
+    // to LFI, a project could not be pinned to shotAI at all, because the only
+    // value that would have said so was being thrown away on read and refused on
+    // write. An unknown brand is still dropped, so a value from a newer build
+    // falls back to the app preference rather than to nothing.
+    ...(isBrandId(parsed.theme) ? { theme: parsed.theme } : {}),
     intro: coerceIntro(parsed.intro),
     // MUST be coerced explicitly. This function rebuilds the manifest field by
     // field, so an uncoerced field is silently dropped on EVERY read — the flag
@@ -602,22 +607,35 @@ export function setProjectDisplayScale(
 }
 
 /**
- * Set the per-project brand (#77 phase 1b).
+ * Set — or with `null`, clear — the per-project brand (#77 phase 1b).
  *
- * The default is stored as ABSENT, so a project that never picked one keeps a
- * clean manifest and stays byte-identical for the other platform. A write that
- * changes nothing is refused outright rather than bumping updatedAt.
+ * `null` means "follow the app preference" and removes the key. Any BRAND pins
+ * that brand into the file, so the project reproduces identically on any
+ * machine.
+ *
+ * THE DEFAULT BRAND IS PINNABLE, and that is a correction. This used to treat
+ * "set the default" as "clear", on the theory that an absent key already says
+ * the default. It does not: an absent key says *follow the app*, and the two
+ * diverge the moment the app is set to anything else. With the app on LFI there
+ * was then no way to keep one project on shotAI — every option in the menu
+ * rendered the same document, which is how the bug was found.
+ *
+ * Creation still omits the key for a default-branded project (see
+ * createProject), so existing projects and the common case stay byte-identical;
+ * only an explicit choice writes it.
+ *
+ * A write that changes nothing is refused rather than bumping updatedAt.
  */
 export function setProjectTheme(
   projectPath: string,
   brand: unknown,
 ): Promise<ProjectManifest> {
-  const clean = coerceBrand(brand);
+  const clean = brand == null ? null : coerceBrand(brand);
   return mutate(projectPath, (manifest) => {
-    // coerceBrand(undefined) is the default, so an absent key compares equal to
-    // it and setting the default on an unbranded project is correctly a no-op.
-    if (coerceBrand(manifest.theme) === clean) return 'unchanged';
-    if (clean === DEFAULT_BRAND) delete manifest.theme;
+    // Compared RAW, not coerced. Coercing both sides would fold an absent key
+    // and an explicit default back together and reintroduce the bug above.
+    if ((manifest.theme ?? null) === clean) return 'unchanged';
+    if (clean === null) delete manifest.theme;
     else manifest.theme = clean;
   });
 }

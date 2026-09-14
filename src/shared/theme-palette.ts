@@ -444,6 +444,18 @@ export const BRAND_IDS = Object.keys(BRANDS) as BrandId[];
 /** The brand a project or the app falls back to when nothing is set. */
 export const DEFAULT_BRAND: BrandId = 'shotAI';
 
+/**
+ * Whether `v` names a brand this build knows.
+ *
+ * Distinct from coerceBrand, and the distinction matters since a project may
+ * PIN the default brand: coerceBrand('nonsense') and coerceBrand('shotAI') are
+ * both 'shotAI', so coercion alone cannot tell an unknown value from a
+ * deliberate default and would silently promote the first into the second.
+ */
+export function isBrandId(v: unknown): v is BrandId {
+  return typeof v === 'string' && v in BRANDS;
+}
+
 /** Narrow an untrusted value to a brand id (default DEFAULT_BRAND). */
 export function coerceBrand(v: unknown): BrandId {
   return typeof v === 'string' && v in BRANDS ? (v as BrandId) : DEFAULT_BRAND;
