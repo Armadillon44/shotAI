@@ -91,3 +91,111 @@ describe('the brand reaches the document', () => {
     expect(src).toContain(`aria-label="Brand"`);
   });
 });
+
+describe('View -> Brand is driven by what is actually open', () => {
+  // The per-project brand control moved out of the command bar into the native
+  // application menu, which makes it a GLOBAL object describing a PER-PROJECT
+  // setting. Every failure mode of that arrangement is silent: the menu keeps
+  // rendering, it just describes the wrong thing.
+  //
+  // None of it is reachable from a unit test — menu.ts imports electron, and
+  // vitest runs with environment 'node' — so the wiring is asserted from source,
+  // the same technique as admx-contract and federation-cache-wiring.
+
+  it('App pushes the state, and pushes it on every input that changes it', () => {
+    const src = read('src/renderer/project/App.tsx');
+    expect(src, 'App should push the menu state').toContain('setBrandMenu(');
+    // A dependency array missing any one of these leaves the menu describing a
+    // previous project, or checking the wrong item after the app brand changes.
+    expect(src).toMatch(/\[openPath,\s*projectTheme,\s*brand\]/);
+  });
+
+  it('App pushes from the top level, not from the project view', () => {
+    // ProjectDetail is UNMOUNTED when no project is open — which is exactly the
+    // state the menu has to be told about, so it can disable itself.
+    expect(read('src/renderer/project/ProjectDetail.tsx')).not.toContain('setBrandMenu');
+  });
+
+  it('App subscribes to the menu, or the items do nothing at all', () => {
+    const src = read('src/renderer/project/App.tsx');
+    expect(src).toContain('onMenuSetProjectTheme(');
+    // Registered ONCE and reading the store imperatively. A subscription
+    // re-registered per project change is absent for a frame, and a click that
+    // lands in that frame is simply lost.
+    expect(src, 'the listener should read the store, not close over the path').toContain(
+      'useProjectStore.getState()',
+    );
+  });
+
+  it('"App default" clears the key rather than writing the default brand', () => {
+    // null and the default brand are different intents. The store maps the
+    // default to an absent key, so passing it through is right — but only
+    // because null has already been turned into it deliberately.
+    expect(read('src/renderer/project/App.tsx')).toMatch(
+      /setProjectTheme\(projectPath, choice \?\? DEFAULT_BRAND\)/,
+    );
+  });
+
+  it('main arms the rebuilder BEFORE the first menu build', () => {
+    // Order is the whole of it. setBrandMenuState can arrive as soon as the
+    // renderer mounts; with no rebuilder registered the state is stored and
+    // never drawn, and the menu sits at its startup values indefinitely.
+    const src = read('src/main/main.ts');
+    const arm = src.indexOf('armBrandMenu(');
+    const install = src.indexOf('installAppMenu(');
+    expect(arm, 'main should arm the brand menu').toBeGreaterThan(-1);
+    expect(install, 'main should install the menu').toBeGreaterThan(-1);
+    expect(arm, 'armBrandMenu must run before installAppMenu').toBeLessThan(install);
+  });
+
+  it('main coerces the pushed state instead of trusting it', () => {
+    const src = read('src/main/main.ts');
+    const at = src.indexOf('IpcChannels.setBrandMenu');
+    expect(at, 'main should handle setBrandMenu').toBeGreaterThan(-1);
+    const handler = src.slice(at, at + 600);
+    expect(handler, 'an unknown brand must land on the default').toContain('coerceBrand(');
+  });
+
+  it('the menu refuses to rebuild when nothing changed', () => {
+    // The push comes from an effect that also runs for unrelated re-renders, and
+    // rebuilding the application menu under the cursor closes an open menu.
+    const src = read('src/main/menu.ts');
+    const at = src.indexOf('export function setBrandMenuState');
+    expect(at).toBeGreaterThan(-1);
+    const fn = src.slice(at, src.indexOf('\n}', at));
+    expect(fn).toContain('brandState.projectOpen');
+    expect(fn).toContain('brandState.projectTheme');
+    expect(fn).toContain('brandState.appBrand');
+    expect(fn, 'an unchanged push should return early').toMatch(/return;/);
+  });
+
+  it('the Brand submenu is disabled when no project is open', () => {
+    // It is per project. Left enabled it opens onto radio buttons that set
+    // nothing, which reads as the feature being broken.
+    expect(read('src/main/menu.ts')).toMatch(/enabled:\s*brandState\.projectOpen/);
+  });
+
+  it('does not offer the default brand as a named, pinnable entry', () => {
+    // The cross-platform write rule stores the default brand as an ABSENT key,
+    // so picking it is indistinguishable from "App default" — the radio would
+    // snap back to the entry above it every time. Offering it would be a control
+    // that visibly ignores the user.
+    const src = read('src/main/menu.ts');
+    expect(src).toMatch(/BRAND_IDS\.filter\(\(id\) => id !== DEFAULT_BRAND\)/);
+  });
+
+  it('spells the View menu out so the standard entries survive', () => {
+    // Replacing `role: 'viewMenu'` with a hand-built submenu is what lets Brand
+    // join it; keeping every standard entry on its ROLE is what keeps
+    // reload/zoom/fullscreen and their accelerators working.
+    const src = read('src/main/menu.ts');
+    const at = src.indexOf("label: 'View'");
+    expect(at, 'View should be spelled out').toBeGreaterThan(-1);
+    const view = src.slice(at, src.indexOf("{ role: 'windowMenu' }", at));
+    for (const r of ['reload', 'forceReload', 'toggleDevTools', 'resetZoom', 'zoomIn', 'zoomOut', 'togglefullscreen']) {
+      expect(view, `View lost the ${r} role`).toContain(`role: '${r}'`);
+    }
+    expect(src, "the role menu must not also be present").not.toContain("{ role: 'viewMenu' }");
+  });
+});
+

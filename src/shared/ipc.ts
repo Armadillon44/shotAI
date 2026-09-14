@@ -271,6 +271,10 @@ export const IpcChannels = {
   // Application menu → renderer
   openSettings: 'menu:open-settings',
   menuImportProject: 'menu:import-project',
+  /** main -> renderer: the user picked a brand in View -> Brand. */
+  menuSetProjectTheme: 'menu:set-project-theme',
+  /** renderer -> main: what View -> Brand should show. */
+  setBrandMenu: 'view:set-brand-menu',
 } as const;
 
 /** The typed API exposed to the renderer on `window.shotai` via contextBridge. */
@@ -288,6 +292,21 @@ export interface ShotaiApi {
   /** Fires when the application menu's File → Import Project… is chosen. Returns
    *  an unsubscribe fn. */
   onImportProject(cb: () => void): () => void;
+  /**
+   * The user picked a brand in View -> Brand (#77). `null` is "App default",
+   * which clears the project's key rather than writing the default brand into
+   * it.
+   */
+  onMenuSetProjectTheme(cb: (brand: BrandId | null) => void): () => void;
+  /**
+   * Tell main what View -> Brand should show. The control is per project and the
+   * application menu is global, so the renderer owns this state and pushes it.
+   */
+  setBrandMenu(state: {
+    projectOpen: boolean;
+    projectTheme: BrandId | null;
+    appBrand: BrandId;
+  }): Promise<void>;
   /** Tell main the user entered (true) / left (false) a project, so the window
    *  grows to the report width and shrinks back on the list (F5). */
   /**

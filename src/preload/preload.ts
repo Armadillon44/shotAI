@@ -29,6 +29,16 @@ const api: ShotaiApi = {
     ipcRenderer.on(IpcChannels.menuImportProject, listener);
     return () => ipcRenderer.removeListener(IpcChannels.menuImportProject, listener);
   },
+  onMenuSetProjectTheme: (cb: (brand: BrandId | null) => void) => {
+    const listener = (_e: unknown, brand: BrandId | null) => cb(brand);
+    ipcRenderer.on(IpcChannels.menuSetProjectTheme, listener);
+    return () => ipcRenderer.removeListener(IpcChannels.menuSetProjectTheme, listener);
+  },
+  setBrandMenu: (state: {
+    projectOpen: boolean;
+    projectTheme: BrandId | null;
+    appBrand: BrandId;
+  }) => ipcRenderer.invoke(IpcChannels.setBrandMenu, state),
   setDetailView: (open: boolean, scale?: number) =>
     ipcRenderer.invoke(IpcChannels.setDetailView, open, scale),
   projects: {

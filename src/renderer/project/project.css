@@ -1215,6 +1215,10 @@ body {
 .export__menu {
   position: absolute;
   top: calc(100% + 4px);
+  /* Anchored to the trigger's RIGHT edge, so it opens leftward — correct while
+     Export sits at the right end of the command bar. When it does not (a wrapped
+     row puts it at the left margin), ProjectDetail measures and adds --left.
+     Without that the menu opens to a negative x and is unreachable. */
   right: 0;
   z-index: 20;
   min-width: 230px;
@@ -1225,6 +1229,12 @@ body {
   border: 1px solid var(--hair);
   border-radius: var(--radius-control);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+/* Opens rightward instead: the trigger is too close to the window's left edge
+   for the menu to fit to its left. */
+.export__menu--left {
+  left: 0;
+  right: auto;
 }
 .export__item {
   display: flex;

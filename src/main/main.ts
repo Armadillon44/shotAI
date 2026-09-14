@@ -19,7 +19,8 @@ import { detailWindowWidth } from '../shared/doc-scale';
 import { checkForUpdate, startupCheckDecision } from './update-check';
 import { setPendingUpdate } from './update-state';
 import { IpcChannels } from '../shared/ipc';
-import { installAppMenu } from './menu';
+import { armBrandMenu, installAppMenu, setBrandMenuState } from './menu';
+import { coerceBrand } from '../shared/theme-palette';
 import { appIconPath } from './paths';
 import { decideGpu, type GpuDecision } from './gpu-policy';
 import { fixArpIconOnSquirrelEvent } from './arp-icon';
@@ -455,9 +456,26 @@ app.whenReady().then(async () => {
   ipcMain.handle(IpcChannels.setDetailView, (_e, open: unknown, scale: unknown) => {
     setDetailView(open === true, typeof scale === 'number' ? scale : 1);
   });
-  installAppMenu(() =>
-    projectWindow && !projectWindow.isDestroyed() ? projectWindow : null,
-  );
+  // #77: View -> Brand is per project, and only the renderer knows which project
+  // is open. Coerced here rather than trusted — this crosses the IPC boundary,
+  // and an unknown brand must land on the default rather than on a menu item
+  // that can never be checked.
+  ipcMain.handle(IpcChannels.setBrandMenu, (_e, state: unknown) => {
+    const s = (state ?? {}) as Record<string, unknown>;
+    setBrandMenuState({
+      projectOpen: s.projectOpen === true,
+      projectTheme: s.projectTheme == null ? null : coerceBrand(s.projectTheme),
+      appBrand: coerceBrand(s.appBrand),
+    });
+  });
+  const projectWindowRef = () =>
+    projectWindow && !projectWindow.isDestroyed() ? projectWindow : null;
+  // armBrandMenu BEFORE the first build: setBrandMenuState can arrive as soon as
+  // the renderer mounts, and a state push with no rebuilder registered would be
+  // stored and never drawn — the menu would sit at its startup values until
+  // something else happened to change them.
+  armBrandMenu(projectWindowRef);
+  installAppMenu(projectWindowRef);
   createWindows();
   // Windows are constructed with contentProtection ON and only opened up
   // afterwards if the setting says so. That ordering is deliberate and

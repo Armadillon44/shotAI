@@ -10,9 +10,13 @@ import { Report, type InsertKind } from './Report';
 import { CaptureInsertModal, type CaptureInsertVariant } from './CaptureInsertModal';
 import { SopPanel } from './SopPanel';
 import { SCALE_STEPS, clampScale, isLegalScale } from '../../shared/doc-scale';
-import { BRANDS, BRAND_IDS, DEFAULT_BRAND, type BrandId } from '../../shared/theme-palette';
 import { Editor } from '../editor/Editor';
 import { Notice } from '../Notice';
+
+/** `.export__menu`'s min-width. Kept in sync with project.css by a test. */
+const EXPORT_MENU_MIN_W = 230;
+/** Keep this much clear of the window edge when deciding which way to open. */
+const EXPORT_MENU_GUTTER = 8;
 
 const EXPORT_LABEL: Record<ExportFormat, string> = {
   html: 'HTML',
@@ -37,56 +41,6 @@ const EXPORT_LABEL: Record<ExportFormat, string> = {
  * under the pointer, so a drag from 125% ran away to 65% no matter where you let go.
  * The layout previews live from the store; only the window waits for the commit.
  */
-/**
- * Per-project brand (#77 phase 1b). Same place and the same semantics as the size
- * control beside it: it belongs to the DOCUMENT, so the report, every export and
- * the window chrome while this project is open all follow it, on any machine.
- *
- * "App default" is a real, distinct option, not a synonym for shotAI: it writes no
- * key at all, so the project keeps following the app preference if that changes
- * later. Choosing shotAI explicitly would pin it.
- */
-function BrandPicker({ projectPath }: { projectPath: string }): React.JSX.Element {
-  const projectTheme = useProjectStore((s) => s.projectTheme);
-  const applyManifest = useProjectStore((s) => s.applyManifest);
-  const [error, setError] = React.useState(false);
-
-  const choose = (value: string) => {
-    const next: BrandId | null = value === '' ? null : (value as BrandId);
-    if (next === projectTheme) return; // main refuses a no-op, but do not ask
-    setError(false);
-    void window.shotai.projects
-      // null means "follow the app preference", which main stores as an absent
-      // key — so it is written by sending the default brand.
-      .setProjectTheme(projectPath, next ?? DEFAULT_BRAND)
-      .then(applyManifest)
-      .catch(() => setError(true));
-  };
-
-  return (
-    <span className="detail__scale">
-      <label className="detail__scale-lab" htmlFor="doc-brand">
-        Brand
-      </label>
-      <select
-        id="doc-brand"
-        className="capmode__select"
-        aria-label="Document brand"
-        aria-invalid={error || undefined}
-        value={projectTheme ?? ''}
-        onChange={(e) => choose(e.target.value)}
-      >
-        <option value="">App default</option>
-        {BRAND_IDS.map((id) => (
-          <option key={id} value={id}>
-            {BRANDS[id].label}
-          </option>
-        ))}
-      </select>
-    </span>
-  );
-}
-
 function SizeSlider({
   projectPath,
 }: {
@@ -314,6 +268,13 @@ export function ProjectDetail({
   }, []);
   const [exportErr, setExportErr] = React.useState<string | null>(null);
   const exportRef = React.useRef<HTMLDivElement | null>(null);
+  // The menu hangs off the trigger's RIGHT edge and extends leftward, which is
+  // right while Export sits near the window's right edge and wrong the moment it
+  // does not: on a wrapped toolbar row the button starts at the left margin, so a
+  // 230px menu anchored to its right edge lands at roughly -100px and the whole
+  // thing is off-screen. Measured on open and flipped, the same way OverflowMenu
+  // already flips upward when there is no room below.
+  const [exportMenuLeft, setExportMenuLeft] = React.useState(false);
   // Shareable-package export: a small dialog picks redacted-only (default) vs.
   // include-originals (full editing, recoverable redactions).
   const [packageDialog, setPackageDialog] = React.useState(false);
@@ -491,7 +452,6 @@ export function ProjectDetail({
               progress modals are fixed overlays, unaffected by placement). */}
           <SopPanel sopEnabled={sopEnabled} onOpenSettings={onOpenSettings} />
           {projectPath && <SizeSlider projectPath={projectPath} />}
-          {projectPath && <BrandPicker projectPath={projectPath} />}
           {onResumeCapture && (
             <button
               type="button"
@@ -512,7 +472,13 @@ export function ProjectDetail({
               type="button"
               className="btn btn--small"
               disabled={!hasShots || exporting !== null || packageBusy || textEditing || importing}
-              onClick={() => setExportMenuOpen((o) => !o)}
+              onClick={() => {
+                if (!exportMenuOpen && exportRef.current) {
+                  const rect = exportRef.current.getBoundingClientRect();
+                  setExportMenuLeft(rect.right - EXPORT_MENU_MIN_W < EXPORT_MENU_GUTTER);
+                }
+                setExportMenuOpen((o) => !o);
+              }}
               title={
                 !hasShots
                   ? 'Add a screenshot before exporting'
@@ -533,7 +499,10 @@ export function ProjectDetail({
                   : '⬇ Export'}
             </button>
             {exportMenuOpen && (
-              <div className="export__menu" role="menu">
+              <div
+                className={`export__menu${exportMenuLeft ? ' export__menu--left' : ''}`}
+                role="menu"
+              >
                 <button
                   type="button"
                   role="menuitem"

@@ -374,6 +374,41 @@ export function App(): React.JSX.Element {
     return watchSystemTheme(themePref, () => applyTheme(themePref, activeBrand));
   }, [themePref, activeBrand]);
 
+  // Keep View -> Brand in step with what is open (#77). Pushed from App rather
+  // than from ProjectDetail because the menu also has to be correct — and
+  // disabled — while NO project is open, which is exactly when ProjectDetail is
+  // unmounted and could push nothing.
+  React.useEffect(() => {
+    void window.shotai.setBrandMenu({
+      projectOpen: !!openPath,
+      // Guarded on openPath as well: the store clears projectTheme on close, but
+      // ordering between that and this effect is not something to rely on for
+      // what the menu claims about a project that is no longer open.
+      projectTheme: openPath ? projectTheme : null,
+      appBrand: brand,
+    });
+  }, [openPath, projectTheme, brand]);
+
+  // …and take the choice back. null is "App default", which CLEARS the project's
+  // key rather than writing the default brand into it.
+  //
+  // Reads the store imperatively instead of closing over projectPath so the
+  // listener can be registered once. A listener re-registered on every project
+  // change is a listener that can be missing for a frame, and the menu click
+  // that lands in that frame simply does nothing.
+  React.useEffect(
+    () =>
+      window.shotai.onMenuSetProjectTheme((choice) => {
+        const { projectPath, applyManifest } = useProjectStore.getState();
+        if (!projectPath) return;
+        void window.shotai.projects
+          .setProjectTheme(projectPath, choice ?? DEFAULT_BRAND)
+          .then(applyManifest)
+          .catch(fail);
+      }),
+    [],
+  );
+
   // `createdThisSession` marks a freshly-created project so a Discard from the
   // pill deletes the whole project (vs. only this session's steps).
   const onRecord = async (
