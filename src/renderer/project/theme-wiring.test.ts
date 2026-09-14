@@ -69,9 +69,23 @@ describe('the brand reaches the document', () => {
     // meant to be WYSIWYG with the export. `openPath &&` is what keeps Home and
     // Settings — which belong to no project — on the app preference.
     const src = read('src/renderer/project/App.tsx');
-    expect(src).toMatch(/const activeBrand = \(openPath && projectTheme\) \|\| brand;/);
+    expect(src).toMatch(
+      /const activeBrand = \(openPath && !showSettings && projectTheme\) \|\| brand;/,
+    );
     expect(src, 'the project brand has to come from the store').toMatch(
       /useProjectStore\(\(s\) => s\.projectTheme\)/,
+    );
+  });
+
+  it('keeps Settings on the app preference, even from inside a pinned project', () => {
+    // Rule 3 of the settled precedence: Home and Settings belong to no project.
+    // Easy to miss here because Settings REPLACES the project view in the same
+    // window (App renders ProjectDetail under `showDetail && !showSettings`),
+    // so openPath is still set while the project is not on screen — and without
+    // the term the Settings sheet wore the project's brand.
+    const src = read('src/renderer/project/App.tsx');
+    expect(src, 'the brand must drop back to the app preference in Settings').toMatch(
+      /activeBrand = \([^)]*!showSettings[^)]*\)/,
     );
   });
 

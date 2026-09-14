@@ -116,6 +116,38 @@ describe('the app stylesheets name no colour of their own', () => {
     ).toEqual([]);
   });
 
+  it('names no COLOURED rgb()/rgba() either', () => {
+    // The hex guard's blind spot, and it had a live case: three focus rings
+    // painted `rgba(79, 70, 229, .18)` — an indigo no brand declares — next to a
+    // `var(--accent)` border, so under LFI the border went rust and the glow
+    // stayed violet-blue.
+    //
+    // Only CHROMATIC values are banned. Neutral rgba is legitimate here: the
+    // shadows and scrims are deliberately shared by both brands, recorded as a
+    // knowing divergence from macOS's brand-tinted shadow. The widest neutral in
+    // these sheets is rgba(15, 23, 42) at a spread of 27, so 40 separates the
+    // two classes cleanly without needing a value allowlist.
+    const NEUTRAL_SPREAD = 40;
+    const offenders: string[] = [];
+    for (const f of SHEETS) {
+      const css = body(f);
+      for (const m of css.matchAll(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/g)) {
+        const ch = [Number(m[1]), Number(m[2]), Number(m[3])];
+        if (Math.max(...ch) - Math.min(...ch) <= NEUTRAL_SPREAD) continue;
+        const sel = enclosingSelector(css, m.index ?? 0);
+        if (LITERAL_OK.some((a) => sel.startsWith(a.prefix))) continue;
+        const line = css.slice(0, m.index).split('\n').length;
+        offenders.push(`${f}:${line} ${sel || '(top level)'} -> ${m[0]})`);
+      }
+    }
+    expect(
+      offenders,
+      'these coloured rgba() values will not follow the brand:\n  ' +
+        offenders.join('\n  ') +
+        '\nMix the token instead: color-mix(in srgb, var(--accent) N%, transparent).',
+    ).toEqual([]);
+  });
+
   it('leaves no dead var() fallback that silently outranks the token', () => {
     // `var(--accent, #4f8cff)` reads as a safety net and is nothing of the kind:
     // --accent always resolves, so the literal is dead. Worse is the inverse —

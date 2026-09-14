@@ -1475,7 +1475,11 @@ body {
 
 .rep__num-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  /* The accent at 18%, mixed rather than written out: these paired a raw
+     indigo glow with a var(--accent) BORDER, so under LFI the border went
+     rust and the glow stayed violet-blue. The hex guard could not see it —
+     rgba() has no #. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 /* Hide the number spinners so the 2-digit value isn't cramped in the rail. */
@@ -1500,7 +1504,11 @@ body {
 
 .rep__cap-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  /* The accent at 18%, mixed rather than written out: these paired a raw
+     indigo glow with a var(--accent) BORDER, so under LFI the border went
+     rust and the glow stayed violet-blue. The hex guard could not see it —
+     rgba() has no #. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .rep__caption-empty {
@@ -1776,7 +1784,9 @@ body {
   margin-top: 6px;
 }
 .rep__imgctl-btn--del:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.9);
+  /* rgba(220, 38, 38, .9) was --danger written longhand for its alpha, which
+     froze it at the default brand's red. */
+  background: color-mix(in srgb, var(--danger) 90%, transparent);
 }
 
 /* Click-register marker, positioned as a fraction of the image's natural size */
@@ -2051,7 +2061,11 @@ body {
 .rep__textedit-b:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  /* The accent at 18%, mixed rather than written out: these paired a raw
+     indigo glow with a var(--accent) BORDER, so under LFI the border went
+     rust and the glow stayed violet-blue. The hex guard could not see it —
+     rgba() has no #. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .rep__textedit-actions {

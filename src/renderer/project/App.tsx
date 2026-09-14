@@ -368,7 +368,12 @@ export function App(): React.JSX.Element {
   // and Settings belong to no project, so they always use the app preference —
   // which is what `openPath &&` here means.
   const projectTheme = useProjectStore((s) => s.projectTheme);
-  const activeBrand = (openPath && projectTheme) || brand;
+  // `!showSettings` because Settings REPLACES the project view in this same
+  // window rather than opening its own, so openPath is still set while the
+  // project is not on screen. Without the term, Settings reached from inside a
+  // pinned project wore that project's brand — and Settings belongs to no
+  // project, which is the settled rule on both platforms.
+  const activeBrand = (openPath && !showSettings && projectTheme) || brand;
   React.useEffect(() => {
     applyTheme(themePref, activeBrand);
     return watchSystemTheme(themePref, () => applyTheme(themePref, activeBrand));
