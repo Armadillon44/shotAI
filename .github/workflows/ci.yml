@@ -1,0 +1,61 @@
+# Continuous integration for the Windows app.
+#
+# This repo had no CI until now: `npm test`, `tsc` and `eslint` all existed as
+# scripts and ran only when someone remembered. Since the macOS port has to stay
+# behaviourally in parity with this tree, "someone remembered" was also the only
+# thing standing between the two and silent divergence.
+#
+# Runs on UBUNTU, not windows-latest, and that is deliberate. The four win32-only
+# native modules (get-windows, koffi, node-screenshots, uiohook-napi) are imported
+# by exactly five source files, all capture code, and by ZERO test files — so the
+# entire test/typecheck/lint loop is platform-independent. Verified by running all
+# three on macOS: 485 passed, 4 skipped, 37/38 files, in ~11s. A Linux runner is
+# several times cheaper and faster than a Windows one for the same signal.
+#
+# Packaging and anything that touches real capture still belong on Windows, and
+# are deliberately NOT here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: test · typecheck · lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Pinned rather than "lts/*": this is the version the suite is known to
+          # pass on. There is no .nvmrc or engines field to inherit from.
+          node-version: '24'
+          cache: npm
+
+      # --ignore-scripts skips scripts/postinstall.mjs, which force-installs
+      # win32-x64 native binaries. On a Linux runner that is both wrong and
+      # pointless — nothing under test loads them. Skipping it also means this job
+      # never executes dependency install scripts, which is a security property
+      # worth having in CI regardless of platform.
+      - name: Install (scripts skipped)
+        run: npm ci --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      # Typecheck first: a type error explains a test failure, so seeing it first
+      # is strictly more useful than seeing the symptom.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx eslint --ext .ts,.tsx .
+
+      - name: Test
+        run: npx vitest run
