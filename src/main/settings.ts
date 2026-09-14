@@ -20,6 +20,7 @@ import {
   CAPTURE_SCALE_DEFAULT,
   type ThemePref,
 } from '../shared/project';
+import { coerceBrand, DEFAULT_BRAND, type BrandId } from '../shared/theme-palette';
 
 /** Coerce an untrusted theme preference to a valid value (default 'system'). */
 function coerceTheme(v: unknown): ThemePref {
@@ -97,6 +98,16 @@ export interface Settings {
   /** UI color theme (F10): 'light' | 'dark' | 'system' (default 'system'). */
   theme: ThemePref;
   /**
+   * Which BRAND the app wears (#77). Orthogonal to `theme`, which is the
+   * appearance: every brand exists in both light and dark, so one combined
+   * picker would misrepresent them as mutually exclusive.
+   *
+   * App-level, so it governs Home, Settings and the sheets, which belong to no
+   * project. A project may pin its own brand for its report and exports; that
+   * is the `theme` key in project.json, and it wins while that project is open.
+   */
+  brand: BrandId;
+  /**
    * Check GitHub once a day, on startup, for a newer release (#54). Default true.
    *
    * This is the app's ONLY unsolicited network call — everything else is local or an
@@ -140,6 +151,7 @@ async function load(): Promise<Settings> {
         typeof parsed.includeNameInReports === 'boolean' ? parsed.includeNameInReports : false,
       archiveAgeDays: clampArchiveAge(parsed.archiveAgeDays),
       theme: coerceTheme(parsed.theme),
+      brand: coerceBrand(parsed.brand),
       updateCheckEnabled:
         typeof parsed.updateCheckEnabled === 'boolean' ? parsed.updateCheckEnabled : true,
       lastUpdateCheckAt:
@@ -159,6 +171,7 @@ async function load(): Promise<Settings> {
       includeNameInReports: false,
       archiveAgeDays: ARCHIVE_AGE_DEFAULT,
       theme: 'system',
+      brand: DEFAULT_BRAND,
       updateCheckEnabled: true,
       lastUpdateCheckAt: 0,
     };
@@ -372,6 +385,19 @@ export function setTheme(value: unknown): Promise<ThemePref> {
   const v = coerceTheme(value);
   return mutate((s) => {
     s.theme = v;
+    return v;
+  });
+}
+
+export async function getBrand(): Promise<BrandId> {
+  return (await load()).brand;
+}
+
+/** Persist the brand preference (coerced). Returns the stored value. */
+export function setBrand(value: unknown): Promise<BrandId> {
+  const v = coerceBrand(value);
+  return mutate((s) => {
+    s.brand = v;
     return v;
   });
 }

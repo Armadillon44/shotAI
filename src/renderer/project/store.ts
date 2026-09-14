@@ -2,6 +2,7 @@
 // capture-mode picker) stays in App.tsx; this owns the currently-open project.
 import { create } from 'zustand';
 import { SCALE_DEFAULT, clampScale } from '../../shared/doc-scale';
+import type { BrandId } from '../../shared/theme-palette';
 import type {
   ProjectManifest,
   ProjectStep,
@@ -24,6 +25,14 @@ interface ProjectState {
    * repeat that defaulting at every use site.
    */
   displayScale: number;
+  /**
+   * The brand this project pins, or null to follow the app preference (#77 1b).
+   *
+   * Null rather than the default brand id, because "unset" and "explicitly
+   * shotAI" are different states: only the second writes a key to project.json,
+   * and only the first keeps following the app preference when it changes.
+   */
+  projectTheme: BrandId | null;
   /**
    * The last scale that came from a MANIFEST, i.e. the committed value. Separate
    * from displayScale on purpose.
@@ -83,6 +92,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   steps: [],
   intro: null,
   displayScale: SCALE_DEFAULT,
+  projectTheme: null,
   committedScale: SCALE_DEFAULT,
   sopBackup: null,
   updatedAt: '',
@@ -104,6 +114,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         intro: manifest.intro,
         displayScale: clampScale(manifest.displayScale),
         committedScale: clampScale(manifest.displayScale),
+        projectTheme: manifest.theme ?? null,
         sopBackup: manifest.sopBackup,
         updatedAt: manifest.updatedAt,
         manifestRev: s.manifestRev + 1,
@@ -125,6 +136,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         intro: null,
         displayScale: SCALE_DEFAULT,
         committedScale: SCALE_DEFAULT,
+        projectTheme: null,
         sopBackup: null,
         updatedAt: '',
         selectedStepId: null,
@@ -143,6 +155,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       intro: manifest.intro,
       displayScale: clampScale(manifest.displayScale),
       committedScale: clampScale(manifest.displayScale),
+      projectTheme: manifest.theme ?? null,
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,
@@ -160,6 +173,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       intro: null,
       displayScale: SCALE_DEFAULT,
       committedScale: SCALE_DEFAULT,
+      projectTheme: null,
       sopBackup: null,
       updatedAt: '',
       selectedStepId: null,
@@ -177,6 +191,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       intro: manifest.intro,
       displayScale: clampScale(manifest.displayScale),
       committedScale: clampScale(manifest.displayScale),
+      projectTheme: manifest.theme ?? null,
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,

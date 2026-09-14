@@ -19,6 +19,8 @@ import {
   type ISectionOptions,
 } from 'docx';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
+import { hexNoHash, type Palette } from '../shared/theme-palette';
+import { DEFAULT_EXPORT_THEME, type ExportTheme } from '../shared/export-theme';
 import { loadItemImage, type ExportItem } from './export';
 import {
   docxImgMaxW,
@@ -31,18 +33,21 @@ import {
 // It lives there because this module reaches electron through ./export and so cannot
 // be unit-tested, and the clipping bug it fixes was invisible at 100%.
 
-// Step-card colors (#40) — mirror the HTML export / in-app report (light-only).
-const CARD_FILL = 'FAF9FF';
-const CARD_BORDER = 'E7E4F2';
-const INTRO_FILL = 'EFEAFE';
-
 // Colored-callout palette (fill, border, text color). `section` is NOT here — it's
 // a non-counted divider heading, not a colored box (handled before this lookup).
-const CALLOUT: Record<Exclude<CalloutKind, 'section'>, { fill: string; bd: string; fg: string; label: string }> = {
-  note: { fill: 'ECFDF5', bd: '6EE7B7', fg: '065F46', label: 'Note' },
-  caution: { fill: 'FFFBEB', bd: 'FCD34D', fg: '92400E', label: 'Caution' },
-  warning: { fill: 'FEF2F2', bd: 'FCA5A5', fg: '991B1B', label: 'Warning' },
-};
+//
+// Built per export rather than at module load, because the palette is now the
+// brand's and the brand is an argument. Everything reaches the library through
+// hexNoHash: docx renders an unparseable colour as BLACK, which looks like a
+// design decision rather than a bug.
+type CalloutStyle = { fill: string; bd: string; fg: string; label: string };
+function calloutStyles(C: Palette): Record<Exclude<CalloutKind, 'section'>, CalloutStyle> {
+  return {
+    note: { fill: hexNoHash(C.noteBg), bd: hexNoHash(C.noteBd), fg: hexNoHash(C.noteFg), label: 'Note' },
+    caution: { fill: hexNoHash(C.cautBg), bd: hexNoHash(C.cautBd), fg: hexNoHash(C.cautFg), label: 'Caution' },
+    warning: { fill: hexNoHash(C.warnBg), bd: hexNoHash(C.warnBd), fg: hexNoHash(C.warnFg), label: 'Warning' },
+  };
+}
 
 /** Split a multi-line string into one TextRun per line with proper line breaks. */
 function multiline(text: string, opts?: { italics?: boolean; color?: string }): TextRun[] {
@@ -90,14 +95,21 @@ export async function buildDocx(
   manifest: ProjectManifest,
   items: ExportItem[],
   createdLine: string,
+  theme: ExportTheme = DEFAULT_EXPORT_THEME,
 ): Promise<Buffer> {
+  const C = theme.palette;
+  // Step-card colours (#40) — the same card the HTML export and the report draw.
+  const CARD_FILL = hexNoHash(C.surface2);
+  const CARD_BORDER = hexNoHash(C.hair);
+  const INTRO_FILL = hexNoHash(C.accentTint);
+  const CALLOUT = calloutStyles(C);
   const children: (Paragraph | Table)[] = [];
 
   children.push(new Paragraph({ text: manifest.title, heading: HeadingLevel.TITLE }));
   children.push(
     new Paragraph({
       spacing: { after: 240 },
-      children: [new TextRun({ text: createdLine, color: '6B7280', size: 18 })],
+      children: [new TextRun({ text: createdLine, color: hexNoHash(C.ink3), size: 18 })],
     }),
   );
 
@@ -106,7 +118,7 @@ export async function buildDocx(
     const introContent: Paragraph[] = [
       new Paragraph({
         spacing: { before: 0, after: 40 },
-        children: [new TextRun({ text: 'OVERVIEW', bold: true, color: '6B7280', size: 15 })],
+        children: [new TextRun({ text: 'OVERVIEW', bold: true, color: hexNoHash(C.ink3), size: 15 })],
       }),
     ];
     if (manifest.intro.heading) {
@@ -127,7 +139,7 @@ export async function buildDocx(
         // Non-counted phase divider: a top rule (denoting a new section) ABOVE a
         // bold heading + muted body. No card, no colored box. The rule goes on the
         // first paragraph (heading if present, else body).
-        const rule = { top: { style: BorderStyle.SINGLE, size: 6, color: 'E5E7EB', space: 8 } } as const;
+        const rule = { top: { style: BorderStyle.SINGLE, size: 6, color: hexNoHash(C.hair), space: 8 } } as const;
         if (it.heading) {
           children.push(
             new Paragraph({
@@ -138,11 +150,11 @@ export async function buildDocx(
             }),
           );
           if (it.body) {
-            children.push(new Paragraph({ children: multiline(it.body, { color: '6B7280' }), spacing: { after: 160 } }));
+            children.push(new Paragraph({ children: multiline(it.body, { color: hexNoHash(C.ink3) }), spacing: { after: 160 } }));
           }
         } else if (it.body) {
           children.push(
-            new Paragraph({ children: multiline(it.body, { color: '6B7280' }), spacing: { before: 280, after: 160 }, border: rule }),
+            new Paragraph({ children: multiline(it.body, { color: hexNoHash(C.ink3) }), spacing: { before: 280, after: 160 }, border: rule }),
           );
         }
         continue;

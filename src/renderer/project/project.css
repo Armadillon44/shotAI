@@ -1,3 +1,25 @@
+/* The bundled brand face (#77 phase 3). SIL OFL — see fonts/OFL.txt, which
+   ships beside it as the licence requires.
+
+   ONE VARIABLE FILE covering both axes the brand uses: wght 100-900 and
+   wdth 62-125. Declaring the full ranges here is load-bearing, not decoration:
+   the face's DEFAULT INSTANCE is wght 600, so asking for family "Archivo"
+   without a weight renders SemiBold. With the range declared, the shaper drives
+   the axis from the computed font-weight instead, and `normal` is 400 as
+   everywhere else.
+
+   Local only. The HTML exports NAME this face and fall back; as base64 it is
+   ~0.84MB against a measured 0.8-1.5MB Freshservice paste budget, so embedding
+   would consume most of the budget and the images would silently drop. */
+@font-face {
+  font-family: 'Archivo';
+  src: url('../fonts/Archivo.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light dark;
 
@@ -12,76 +34,48 @@
   --fw-section: 700;
   --fw-title: 600;
 
-  /* ---- Color: brand violet accent; neutrals biased toward it (F9). Dark mode
-     (F10) overrides these under [data-theme="dark"]; every surface reads from a
-     token so the theme is a single swap. ---- */
-  --accent: #6344f1;
-  --accent-press: #5233d4;
-  --accent-tint: #efeafe;
-  --accent-ink: #4a34c9; /* accent text on --accent-tint */
-  --on-accent: #ffffff; /* text/icon on a solid --accent fill */
-  --ink: #191826;
-  --ink-2: #5a5772;
-  --ink-3: #918ea6;
-  --hair: #e7e4f2;
-  --hair-2: #efedf7;
-  --control-bd: #cbc7db; /* button / input borders */
-  --surface: #ffffff;
-  --surface-2: #faf9ff; /* raised sub-surfaces (hero, tab bar) */
-  --ground: #f5f4fb;
-  --field-bg: #ffffff;
-  /* status (SOP ready / draft) — semantic, separate from the accent */
-  --ok: #0e9f6e;   --ok-tint: #e7f7ef;   --ok-ink: #07724f;
-  --draft: #c77d16; --draft-tint: #fbf1e0; --draft-ink: #8a5610;
-  /* destructive (reserved — never decoration) */
-  --danger: #dc2626;
-  --danger-ink: #b91c1c;
-  --danger-tint: #fef2f2;
-  --danger-bd: #f0c2c2;
+  /* ---- Colour is NOT declared here (#77) ----
+     Every --accent / --ink / --surface / callout token is GENERATED from
+     src/shared/theme-palette.ts and injected as a <style> by theme.ts before the
+     first render, in fully-qualified [data-brand][data-theme] blocks.
 
-  /* Callout palette (note / caution / warning) */
-  --note-bg: #ecfdf5; --note-bd: #6ee7b7; --note-fg: #065f46;
-  --caut-bg: #fffbeb; --caut-bd: #fcd34d; --caut-fg: #92400e;
-  --warn-bg: #fef2f2; --warn-bd: #fca5a5; --warn-fg: #991b1b;
+     It moved because this block was the fourth hand-maintained copy of one
+     palette (the others being export-css.ts, export-docx.ts and export-pptx.ts),
+     and the four had already drifted in ways nobody had noticed. A test asserts
+     this file declares no colour custom property, so a fifth copy cannot start
+     growing here again.
 
-  /* ---- Shape / depth ---- */
-  --radius: 8px;
-  --radius-lg: 12px;
-  --radius-pill: 999px;
+     Reading them is unchanged: every var(--ink) in this sheet still resolves, and
+     flipping [data-brand] or [data-theme] re-cascades the whole document for free.
+     ---- */
+
+  /* ---- Shape ----
+     --radius-panel / -card / -figure / -control / -control-sm / -micro / -chip
+     are GENERATED alongside the colours, because a brand's geometry is part of
+     the brand: LFI draws every corner tighter than shotAI and its chips as
+     rounded rectangles rather than capsules. See BrandRadii in
+     shared/theme-palette.ts, where --radius-chip is nullable and null means
+     "fully round"; CSS can express that as 999px because border-radius clamps,
+     but a token holding either 999 or 8 reads as a typo unless the intent is
+     written down somewhere. ---- */
+
+  /* ---- Depth ---- */
   --shadow-sm: 0 2px 8px rgba(20, 22, 31, 0.06);
   --shadow: 0 10px 30px rgba(20, 22, 31, 0.1);
   --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
 
-/* ---- Dark mode (F10): override every token; the rest of the sheet reads from
-   these so the whole app reskins from here. Applied via data-theme on <html>
-   (set from the theme setting; 'system' resolves prefers-color-scheme). ---- */
+/* ---- Dark mode (F10). The COLOUR tokens for every brand-and-appearance pair are
+   generated (see the :root note above); what stays here is the part that is not a
+   palette entry: the UA colour-scheme hint, and the shadows.
+
+   Shadows are deliberately shared by both brands. macOS tints its shadow with the
+   brand (0x241B4D against 0x47443E); at 6-10% alpha over a near-white ground the
+   difference is not perceptible, and keeping them here avoids inventing an
+   alpha-carrying role for the one token type that is not a flat colour. Recorded
+   as a knowing divergence rather than an oversight. ---- */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --accent: #9a8bf7;
-  --accent-press: #b0a4fa;
-  --accent-tint: #241f3a;
-  --accent-ink: #c8bdfb;
-  --on-accent: #171528; /* dark text on the lighter dark-mode accent */
-  --ink: #ece9f7;
-  --ink-2: #a8a4c0;
-  --ink-3: #726f8b;
-  --hair: #302c42;
-  --hair-2: #282539;
-  --control-bd: #3c3852;
-  --surface: #1b1926;
-  --surface-2: #211f2e;
-  --ground: #121019;
-  --field-bg: #211f2e;
-  --ok: #34d399;   --ok-tint: #12271e;   --ok-ink: #6ee7b7;
-  --draft: #e0a355; --draft-tint: #2a2113; --draft-ink: #f0c98a;
-  --danger: #f87171;
-  --danger-ink: #fca5a5;
-  --danger-tint: #2a1414;
-  --danger-bd: #5a2a2a;
-  --note-bg: #10281f; --note-bd: #2f6f52; --note-fg: #8ee7bf;
-  --caut-bg: #2a2113; --caut-bd: #7a5c1e; --caut-fg: #f0c98a;
-  --warn-bg: #2a1414; --warn-bd: #7a3a3a; --warn-fg: #f6b0b0;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
   --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
@@ -95,7 +89,7 @@
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
 }
 
 html,
@@ -106,9 +100,10 @@ body,
 
 body {
   margin: 0;
-  font-family:
-    'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial,
-    sans-serif;
+  /* Generated per brand (#77 phase 3): the brand face first, then grotesques of
+     similar proportion. --font-stack is the same value the exports name, so a
+     document looks like the window it came from. */
+  font-family: var(--font-stack);
   color: var(--ink);
   background: var(--ground);
 }
@@ -144,7 +139,7 @@ body {
 .project__logo-img {
   width: 30px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   object-fit: contain;
   display: block;
 }
@@ -173,7 +168,7 @@ body {
 .project__error {
   margin: 0 0 1rem;
   padding: 0.6rem 0.8rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--danger-tint);
   color: var(--danger-ink);
   font-size: 0.9rem;
@@ -186,7 +181,7 @@ body {
   gap: 1rem;
   padding: 0.9rem 1rem;
   border: 1px solid var(--hair);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 
@@ -200,6 +195,7 @@ body {
   font-size: 0.7rem;
   font-weight: 650;
   text-transform: uppercase;
+  font-stretch: var(--label-stretch);
   letter-spacing: 0.06em;
   color: var(--ink-2);
 }
@@ -225,12 +221,12 @@ body {
   flex: 1;
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.95rem;
 }
 
 .project__input:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -267,7 +263,7 @@ body {
   font-size: 0.85rem;
   line-height: 1;
   padding: 0.25rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   cursor: pointer;
 }
 
@@ -279,7 +275,7 @@ body {
 .btn {
   padding: 0.55rem 0.95rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
   font-size: 0.9rem;
@@ -335,7 +331,7 @@ body {
   gap: 0.9rem;
   padding: 0.75rem 0.9rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   transition:
@@ -392,7 +388,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.01em;
   padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -402,7 +398,7 @@ body {
   content: '';
   width: 0.34rem;
   height: 0.34rem;
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: currentColor;
 }
 
@@ -485,6 +481,7 @@ body {
 .home__mode-label {
   font-size: var(--fs-label);
   text-transform: uppercase;
+  font-stretch: var(--label-stretch);
   letter-spacing: 0.08em;
   color: var(--ink-3);
   margin-right: 0.15rem;
@@ -576,7 +573,7 @@ body {
   width: 100%;
   padding: 0.45rem 0.7rem;
   border: 1px solid var(--control-bd);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
   font-size: var(--fs-body);
@@ -608,7 +605,7 @@ body {
   left: 0;
   right: 0;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: var(--menu-shadow);
   overflow: hidden;
@@ -689,7 +686,7 @@ body {
   margin-bottom: 1.25rem;
   padding: 0.9rem 1rem;
   border: 1px solid var(--hair);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 
@@ -706,7 +703,7 @@ body {
   gap: 0.35rem;
   padding: 0.4rem 0.85rem;
   border: 1px solid var(--control-bd);
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: var(--surface);
   color: var(--ink);
   font-size: 0.88rem;
@@ -731,12 +728,13 @@ body {
 
 .capmode__soon {
   padding: 0.05rem 0.35rem;
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: var(--hair);
   color: var(--ink-2);
   font-size: 0.65rem;
   font-weight: 600;
   text-transform: uppercase;
+  font-stretch: var(--label-stretch);
   letter-spacing: 0.04em;
 }
 
@@ -759,13 +757,13 @@ body {
   min-width: 0;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   font-size: 0.88rem;
 }
 
 .capmode__select:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -777,7 +775,7 @@ body {
 
 .capmode__warn {
   margin: 0.5rem 0 0;
-  color: #b45309;
+  color: var(--caut-fg);
   font-size: 0.82rem;
 }
 
@@ -801,7 +799,7 @@ body {
 
 .capmodal__err {
   margin: 0.75rem 0 0;
-  color: var(--danger, #ef4444);
+  color: var(--danger);
   font-size: 0.85rem;
 }
 
@@ -809,13 +807,13 @@ body {
 .rec {
   margin-bottom: 1.5rem;
   padding: 1rem 1.25rem;
-  border: 1px solid #fecaca;
-  border-radius: 10px;
+  border: 1px solid var(--danger-bd);
+  border-radius: var(--radius-card);
   background: var(--danger-tint);
 }
 
 .rec--paused {
-  border-color: #fcd34d;
+  border-color: var(--caut-bd);
   background: var(--caut-bg);
 }
 
@@ -829,12 +827,12 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--danger);
   animation: rec-pulse 1.4s ease-in-out infinite;
 }
 
 .rec--paused .rec__dot {
-  background: #d97706;
+  background: var(--draft);
   animation: none;
 }
 
@@ -879,7 +877,7 @@ body {
   gap: 0.5rem;
   padding: 0.35rem 0.5rem;
   background: var(--surface);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   font-size: 0.85rem;
 }
 
@@ -922,7 +920,7 @@ body {
 .project__sort-chip {
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--control-bd);
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: var(--surface);
   color: var(--ink-2);
   font-size: 0.82rem;
@@ -939,7 +937,7 @@ body {
   font-weight: 600;
   padding: 0.25rem 0.4rem;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   min-width: 0;
   width: 100%;
 }
@@ -959,7 +957,7 @@ body {
   gap: 0.25rem;
   padding: 0.35rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
 }
@@ -1024,7 +1022,7 @@ body {
 .menu__pop--up {
   padding: 0.3rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: var(--surface);
   box-shadow: var(--menu-shadow);
   display: flex;
@@ -1041,7 +1039,7 @@ body {
   padding: 0.42rem 0.6rem;
   border: none;
   background: none;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   color: var(--ink);
   font-size: var(--fs-body);
   cursor: pointer;
@@ -1077,6 +1075,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+  font-stretch: var(--label-stretch);
   color: var(--ink-3);
   user-select: none;
 }
@@ -1102,7 +1101,7 @@ body {
   min-width: 180px;
   padding: 0.3rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
@@ -1114,7 +1113,7 @@ body {
   padding: 0.4rem 0.6rem;
   border: none;
   background: none;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   color: var(--ink);
   font-size: 0.88rem;
   cursor: pointer;
@@ -1185,7 +1184,7 @@ body {
   /* Fixed, not flex: the bar wraps, and a growing slider would shove the SOP
      buttons onto another row at some window widths. */
   width: 88px;
-  accent-color: var(--accent, #4f8cff);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -1196,7 +1195,7 @@ body {
   width: 3.6em;
   padding: 0.1rem 0.2rem;
   border: 1px solid var(--control-bd);
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
   background: var(--surface);
   color: inherit;
   font: inherit;
@@ -1216,6 +1215,10 @@ body {
 .export__menu {
   position: absolute;
   top: calc(100% + 4px);
+  /* Anchored to the trigger's RIGHT edge, so it opens leftward — correct while
+     Export sits at the right end of the command bar. When it does not (a wrapped
+     row puts it at the left margin), ProjectDetail measures and adds --left.
+     Without that the menu opens to a negative x and is unreachable. */
   right: 0;
   z-index: 20;
   min-width: 230px;
@@ -1224,8 +1227,14 @@ body {
   padding: 4px;
   background: var(--surface);
   border: 1px solid var(--hair);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+/* Opens rightward instead: the trigger is too close to the window's left edge
+   for the menu to fit to its left. */
+.export__menu--left {
+  left: 0;
+  right: auto;
 }
 .export__item {
   display: flex;
@@ -1234,7 +1243,7 @@ body {
   width: 100%;
   padding: 0.5rem 0.6rem;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: transparent;
   text-align: left;
   font: inherit;
@@ -1303,7 +1312,7 @@ body {
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--hair);
   border-left: 4px solid var(--accent, var(--accent));
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   background: var(--surface-2);
 }
 .rep__intro-h {
@@ -1332,7 +1341,7 @@ body {
   width: 100%;
   padding: 0.6rem 0.9rem;
   border: 1px dashed var(--hair);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink-3, var(--ink-2));
   font: inherit;
@@ -1413,7 +1422,7 @@ body {
   border: none;
   background: none;
   padding: 0;
-  color: #c2c7d0;
+  color: var(--control-bd);
   cursor: grab;
   font-size: 0.85rem;
   line-height: 1;
@@ -1438,7 +1447,7 @@ body {
   margin-top: 0.85rem;
   padding: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-chip);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 650;
@@ -1457,7 +1466,7 @@ body {
   margin-top: 0.85rem;
   text-align: center;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   font-weight: 650;
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
@@ -1466,7 +1475,11 @@ body {
 
 .rep__num-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  /* The accent at 18%, mixed rather than written out: these paired a raw
+     indigo glow with a var(--accent) BORDER, so under LFI the border went
+     rust and the glow stayed violet-blue. The hex guard could not see it —
+     rgba() has no #. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 /* Hide the number spinners so the 2-digit value isn't cramped in the rail. */
@@ -1486,16 +1499,20 @@ body {
   font-weight: 600;
   font-family: inherit;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
 }
 
 .rep__cap-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  /* The accent at 18%, mixed rather than written out: these paired a raw
+     indigo glow with a var(--accent) BORDER, so under LFI the border went
+     rust and the glow stayed violet-blue. The hex guard could not see it —
+     rgba() has no #. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .rep__caption-empty {
-  color: #9ca3af;
+  color: var(--ink-3);
   font-style: italic;
   font-weight: 500;
 }
@@ -1521,7 +1538,7 @@ body {
 }
 
 .rep__insert:hover::before {
-  border-color: #d8dbe2;
+  border-color: var(--control-bd);
 }
 
 .rep__insert-btn {
@@ -1531,8 +1548,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed #b8bdc7;
-  border-radius: 50%;
+  border: 1px dashed var(--control-bd);
+  border-radius: var(--radius-chip);
   background: var(--ground);
   color: var(--ink-2);
   font-size: 1rem;
@@ -1570,7 +1587,7 @@ body {
   padding: 0.4rem;
   background: var(--surface);
   border: 1px solid var(--hair);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   box-shadow: var(--menu-shadow);
 }
 
@@ -1585,6 +1602,7 @@ body {
 .rep__insert-label {
   font-size: var(--fs-label);
   text-transform: uppercase;
+  font-stretch: var(--label-stretch);
   letter-spacing: 0.06em;
   font-weight: 700;
   color: var(--ink-3);
@@ -1610,7 +1628,7 @@ body {
   max-width: calc(820px * var(--doc-scale, 1));
   /* #40: the step card — a subtle rounded frame around each step's content. */
   border: 1px solid var(--hair-2);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: var(--surface-2);
   padding: 0.85rem 1rem;
 }
@@ -1650,7 +1668,7 @@ body {
   margin-left: -0.3rem;
   font-size: 1rem;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
   cursor: text;
 }
 
@@ -1681,7 +1699,7 @@ body {
      inert here, and it cannot change layout for a lone block child. */
   line-height: 0;
   border: 1px solid var(--hair);
-  border-radius: 10px;
+  border-radius: var(--radius-figure);
   /* hidden (not auto): drag-pan still works via programmatic scrollLeft/Top, but
      the mouse wheel doesn't pan the image — it scrolls the page as expected. */
   overflow: hidden;
@@ -1748,7 +1766,7 @@ body {
   justify-content: center;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: rgba(17, 24, 39, 0.62);
   color: var(--on-accent);
   font-size: 1.05rem;
@@ -1766,10 +1784,17 @@ body {
   margin-top: 6px;
 }
 .rep__imgctl-btn--del:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.9);
+  /* rgba(220, 38, 38, .9) was --danger written longhand for its alpha, which
+     froze it at the default brand's red. */
+  background: color-mix(in srgb, var(--danger) 90%, transparent);
 }
 
 /* Click-register marker, positioned as a fraction of the image's natural size */
+/* NOT tokenized, deliberately (#77). The click markers mirror the annotation
+   colours that are FLATTENED INTO THE PNG at save time — rose for a left click,
+   blue for a right click. Retinting them here would make the live overlay
+   disagree with every screenshot already on disk, and fixing that properly means
+   re-flattening every step of every project. Same decision on macOS. */
 .rep__marker {
   position: absolute;
   width: 22px;
@@ -1917,7 +1942,7 @@ body {
   padding: 0.7rem 0.9rem;
   border: 1px solid;
   border-left-width: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 .rep__callout--note {
   background: var(--note-bg);
@@ -1985,13 +2010,13 @@ body {
 }
 /* Insert-menu callout buttons: a tinted left accent to telegraph the color */
 .rep__insert-callout--note {
-  border-left: 3px solid #34d399;
+  border-left: 3px solid var(--note-bd);
 }
 .rep__insert-callout--caution {
-  border-left: 3px solid #fbbf24;
+  border-left: 3px solid var(--caut-bd);
 }
 .rep__insert-callout--warning {
-  border-left: 3px solid #f87171;
+  border-left: 3px solid var(--warn-bd);
 }
 
 /* Per-step controls (move / edit / delete), shared by shot + text steps */
@@ -2016,7 +2041,7 @@ body {
   box-sizing: border-box;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--control-bd);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   font-family: inherit;
 }
 
@@ -2036,7 +2061,11 @@ body {
 .rep__textedit-b:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  /* The accent at 18%, mixed rather than written out: these paired a raw
+     indigo glow with a var(--accent) BORDER, so under LFI the border went
+     rust and the glow stayed violet-blue. The hex guard could not see it —
+     rgba() has no #. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .rep__textedit-actions {
@@ -2114,7 +2143,7 @@ body {
   gap: 1rem;
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface-2);
   cursor: pointer;
 }
@@ -2139,7 +2168,7 @@ body {
   width: 38px;
   height: 22px;
   flex: none;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   background: var(--control-bd);
   cursor: pointer;
   transition: background 0.15s ease;
@@ -2171,7 +2200,7 @@ body {
   margin: 1rem 0 0;
   padding: 0.9rem 1.1rem;
   border: 1px dashed var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   color: var(--ink-3);
   font-size: var(--fs-body);
 }
@@ -2181,7 +2210,7 @@ body {
   margin-top: 1rem;
   padding: 1rem 1.1rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -2249,7 +2278,7 @@ body {
   gap: 0.35rem;
   margin-right: auto; /* sit at the left edge of the action row */
   padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   border: 1px solid transparent;
   font-size: var(--fs-meta);
   font-weight: 600;
@@ -2278,7 +2307,7 @@ body {
 .settings__slider {
   flex: 1;
   min-width: 0;
-  accent-color: var(--accent, #4f8cff);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -2288,7 +2317,11 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: var(--text, #e7e9ee);
+  /* Was `var(--text, #e7e9ee)`. --text has never existed, so this always painted
+     the fallback: a near-white numeral on a white Settings sheet, invisible in
+     light mode and only legible in dark. Found by the "every var() resolves"
+     test added with #77. */
+  color: var(--ink);
 }
 
 /* Projects-folder row (path + Change…) inside Settings. */
@@ -2314,21 +2347,21 @@ body {
   margin-top: 0.5rem;
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.92rem;
   font-family: inherit;
   resize: vertical;
 }
 
 .settings__textarea:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
 .settings__ok {
   margin: 0.5rem 0 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--note-bg);
   color: var(--note-fg);
   font-size: 0.9rem;
@@ -2340,13 +2373,13 @@ body {
   gap: 0.25rem;
   padding: 0.15rem;
   background: var(--surface-2);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 
 .detail__tab {
   padding: 0.3rem 0.8rem;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: transparent;
   color: var(--ink-2);
   font-size: 0.82rem;
@@ -2389,7 +2422,7 @@ body {
 
 .sop__doc {
   border: 1px solid var(--hair);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
   padding: 1.5rem;
 }
@@ -2430,7 +2463,7 @@ body {
   width: 100%;
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.92rem;
   font-family: inherit;
   line-height: 1.5;
@@ -2438,7 +2471,7 @@ body {
 }
 
 .sop__textarea:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -2465,7 +2498,7 @@ body {
   align-items: start;
   padding: 1rem;
   border: 1px solid var(--hair);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: var(--surface-2);
 }
 
@@ -2488,13 +2521,13 @@ body {
   width: 100%;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--control-bd);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 1rem;
   font-weight: 650;
 }
 
 .sop__step-heading:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
   border-color: var(--accent);
 }
 
@@ -2503,7 +2536,7 @@ body {
   max-height: 240px;
   object-fit: contain;
   border: 1px solid var(--hair);
-  border-radius: 8px;
+  border-radius: var(--radius-figure);
   background: var(--surface-2);
 }
 
@@ -2526,7 +2559,7 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   padding: 1.25rem 1.5rem;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
@@ -2537,7 +2570,7 @@ body {
   width: 100%;
   max-width: 420px;
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   padding: 1.25rem 1.5rem;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
@@ -2561,10 +2594,10 @@ body {
 .sop__warn {
   margin: 0 0 0.6rem;
   padding: 0.6rem 0.8rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--caut-bg);
   border: 1px solid var(--caut-bd);
-  color: #92400e;
+  color: var(--caut-fg);
   font-size: 0.85rem;
   line-height: 1.45;
 }
@@ -2616,7 +2649,7 @@ body {
   height: 60px;
   object-fit: cover;
   border: 1px solid var(--hair);
-  border-radius: 6px;
+  border-radius: var(--radius-control-sm);
   background: var(--surface-2);
 }
 
@@ -2732,7 +2765,7 @@ body {
 .rep__shotbody {
   margin: 0.65rem 0 0;
   padding: 0.15rem 0 0.15rem 0.75rem;
-  border-left: 3px solid #a5b4fc;
+  border-left: 3px solid var(--accent-soft);
   color: var(--ink);
   font-size: 1.05rem;
   line-height: 1.6;
@@ -2762,9 +2795,9 @@ body {
   gap: 0.75rem;
   margin: 0.55rem 0 0;
   padding: 0.5rem 0.7rem;
-  border: 1px solid #c7d2fe;
-  border-left: 3px solid #6366f1;
-  border-radius: 6px;
+  border: 1px solid var(--focus-ring);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-control-sm);
   background: var(--accent-tint);
   color: var(--accent-ink);
   font-size: 0.86rem;
@@ -2785,7 +2818,7 @@ body {
   margin: 0.65rem 0 0;
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 1.02rem;
   font-family: inherit;
   line-height: 1.6;
@@ -2793,7 +2826,7 @@ body {
 }
 
 .rep__body-input:focus {
-  outline: 2px solid #c7d2fe;
+  outline: 2px solid var(--focus-ring);
 }
 
 /* Inline "preparing" indicator in the SOP banner (unobtrusive) */
@@ -2809,7 +2842,7 @@ body {
   align-items: center;
   gap: 0.7rem;
   background: var(--surface);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   padding: 0.7rem 0.75rem 0.7rem 1rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   font-size: 0.95rem;
@@ -2843,7 +2876,7 @@ body {
    a huge spread shadow. Pointer-events off so the scrim underneath gets clicks. */
 .tour__spot {
   position: fixed;
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   pointer-events: none;
   box-shadow:
     0 0 0 3px var(--accent),
@@ -2868,8 +2901,8 @@ body {
   width: 330px;
   max-width: calc(100vw - 24px);
   background: var(--surface);
-  border: 1px solid #d4d8f5;
-  border-radius: 14px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-panel);
   box-shadow: 0 18px 44px rgba(20, 22, 31, 0.3);
   padding: 16px 18px 14px;
 }
@@ -2879,7 +2912,7 @@ body {
   width: 14px;
   height: 14px;
   background: var(--surface);
-  border: 1px solid #d4d8f5;
+  border: 1px solid var(--hair);
   transform: rotate(45deg);
 }
 
@@ -2900,6 +2933,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  font-stretch: var(--label-stretch);
   color: var(--accent);
 }
 
@@ -2918,6 +2952,10 @@ body {
 }
 
 /* Mini recording-pill illustration inside the recording step. */
+/* NOT tokenized, deliberately (#77). This is a MOCK-UP of the recording pill,
+   shown in the tour to teach what to look for. The real pill is a separate
+   document that never receives [data-theme] and is out of scope by decision, so
+   a themed mock would stop resembling the thing it is teaching. */
 .tour__pill {
   display: flex;
   align-items: center;
@@ -3001,7 +3039,7 @@ body {
 .tour__btn {
   font-size: 0.82rem;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   padding: 6px 12px;
   border: 1px solid var(--hair);
   background: var(--surface);
@@ -3080,7 +3118,7 @@ body {
   font-weight: 700;
   color: var(--ink-3);
   background: var(--hair-2);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   padding: 0.05rem 0.45rem;
   margin-left: 0.4rem;
 }
@@ -3098,7 +3136,7 @@ body {
   flex-wrap: wrap;
   background: var(--accent-tint);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   padding: 0.55rem 0.7rem;
   margin: 0.35rem 0 0.75rem;
 }
@@ -3119,7 +3157,7 @@ body {
 .project__check-box {
   width: 1rem;
   height: 1rem;
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
   border: 1.5px solid var(--accent);
   display: inline-block;
 }
@@ -3165,6 +3203,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  font-stretch: var(--label-stretch);
   color: var(--ink-3);
   padding: 0.9rem 0.15rem 0.35rem;
 }

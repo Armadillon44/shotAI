@@ -13,6 +13,11 @@ import { SCALE_STEPS, clampScale, isLegalScale } from '../../shared/doc-scale';
 import { Editor } from '../editor/Editor';
 import { Notice } from '../Notice';
 
+/** `.export__menu`'s min-width. Kept in sync with project.css by a test. */
+const EXPORT_MENU_MIN_W = 230;
+/** Keep this much clear of the window edge when deciding which way to open. */
+const EXPORT_MENU_GUTTER = 8;
+
 const EXPORT_LABEL: Record<ExportFormat, string> = {
   html: 'HTML',
   'html-plain': 'HTML (for Word)',
@@ -263,6 +268,13 @@ export function ProjectDetail({
   }, []);
   const [exportErr, setExportErr] = React.useState<string | null>(null);
   const exportRef = React.useRef<HTMLDivElement | null>(null);
+  // The menu hangs off the trigger's RIGHT edge and extends leftward, which is
+  // right while Export sits near the window's right edge and wrong the moment it
+  // does not: on a wrapped toolbar row the button starts at the left margin, so a
+  // 230px menu anchored to its right edge lands at roughly -100px and the whole
+  // thing is off-screen. Measured on open and flipped, the same way OverflowMenu
+  // already flips upward when there is no room below.
+  const [exportMenuLeft, setExportMenuLeft] = React.useState(false);
   // Shareable-package export: a small dialog picks redacted-only (default) vs.
   // include-originals (full editing, recoverable redactions).
   const [packageDialog, setPackageDialog] = React.useState(false);
@@ -460,7 +472,13 @@ export function ProjectDetail({
               type="button"
               className="btn btn--small"
               disabled={!hasShots || exporting !== null || packageBusy || textEditing || importing}
-              onClick={() => setExportMenuOpen((o) => !o)}
+              onClick={() => {
+                if (!exportMenuOpen && exportRef.current) {
+                  const rect = exportRef.current.getBoundingClientRect();
+                  setExportMenuLeft(rect.right - EXPORT_MENU_MIN_W < EXPORT_MENU_GUTTER);
+                }
+                setExportMenuOpen((o) => !o);
+              }}
               title={
                 !hasShots
                   ? 'Add a screenshot before exporting'
@@ -481,7 +499,10 @@ export function ProjectDetail({
                   : '⬇ Export'}
             </button>
             {exportMenuOpen && (
-              <div className="export__menu" role="menu">
+              <div
+                className={`export__menu${exportMenuLeft ? ' export__menu--left' : ''}`}
+                role="menu"
+              >
                 <button
                   type="button"
                   role="menuitem"

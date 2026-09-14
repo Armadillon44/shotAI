@@ -8,6 +8,7 @@
  */
 
 import type { SopTone } from './sop';
+import type { BrandId } from './theme-palette';
 
 export const PROJECT_SCHEMA_VERSION = 1;
 
@@ -223,11 +224,21 @@ export type CalloutKind = 'note' | 'caution' | 'warning' | 'section';
 
 /** Type glyph for each callout kind — the rail badge in the app and the leading
  *  mark in every export (so the type reads even in grayscale where color is lost).
- *  `section` has no glyph (renderers special-case it as a divider heading). */
+ *  `section` has no glyph (renderers special-case it as a divider heading).
+ *
+ *  Every mark here must be a TYPOGRAPHIC symbol, not an emoji. The warning glyph
+ *  was U+26D4 NO ENTRY, which carries Emoji_Presentation: most fonts draw it as a
+ *  red-and-white orb, so it sat as a colour illustration beside two plain marks —
+ *  and it keeps that colour in a grayscale print, where the box tint is gone and
+ *  the glyph is the only thing left carrying the kind. Replaced with U+2501,
+ *  matching macOS so the same project shows the same mark on both platforms,
+ *  including in exported HTML, PDF, Word and PowerPoint. project.test.ts asserts
+ *  the PROPERTY (no emoji presentation) rather than the character, because that
+ *  is what would go wrong again if someone picked a different mark. */
 export const CALLOUT_GLYPH: Record<CalloutKind, string> = {
   note: 'ℹ',
   caution: '⚠',
-  warning: '⛔',
+  warning: '━',
   section: '',
 };
 
@@ -390,6 +401,47 @@ export interface ProjectManifest {
    * different widths depending on which app opened it last.
    */
   displayScale?: number;
+  /**
+   * The BRAND this project's report and exports wear (#77 phase 1b).
+   *
+   * ABSENT means "follow the app preference", which is what every project
+   * written before this key does, so nothing on disk changes for anyone who
+   * never picks a brand.
+   *
+   * PRECEDENCE, stated once so both platforms implement it identically:
+   *   1. A project carrying the key renders and exports in that brand,
+   *      INCLUDING the window chrome while it is open. A corporate report
+   *      inside a violet shell is incoherent, and the report is meant to be
+   *      WYSIWYG with the export.
+   *   2. A project with no key falls back to the app preference.
+   *   3. Home and Settings always use the app preference; they belong to no
+   *      project.
+   *
+   * WRITE RULE, adapted from displayScale: stamped at CREATION from the current
+   * app preference and omitted there when it is the default brand, so a
+   * default-branded new project writes nothing and existing projects stay
+   * byte-identical. An EXPLICIT choice, however, always writes — including the
+   * default brand.
+   *
+   * ⚠ That last part is a deliberate divergence from the rule as first written,
+   * which omitted the default on every path. "Absent" and "explicitly the
+   * default" are not the same state: absent means FOLLOW THE APP, and the two
+   * come apart as soon as the app preference is something else. With the app on
+   * LFI there was no way to hold a project on shotAI, because the only value
+   * that would have said so was refused on write and dropped on read. Reported
+   * to macOS on #77 — it renders a pinned default correctly either way, but its
+   * own control cannot currently produce one.
+   *
+   * The store also refuses a no-op write, because mutate() bumps updatedAt
+   * unconditionally and a no-op save would re-date the project and jump it to
+   * the top of the Home list.
+   *
+   * CROSS-PLATFORM: this is the byte-compatible schema. macOS reads and writes
+   * the same field with the same values ('shotAI' | 'lfi', its BrandPref raw
+   * values). An unknown value decodes to the default rather than failing, so a
+   * project carrying a brand one side does not know about still opens.
+   */
+  theme?: BrandId;
   /** SOP overview rendered as a preamble above the steps (not a step). */
   intro: SopIntro | null;
   /**

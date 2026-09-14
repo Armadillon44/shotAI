@@ -16,6 +16,7 @@ import type {
   WindowInfo,
 } from './project';
 import type { SopModelId, SopSettings } from './sop';
+import type { BrandId } from './theme-palette';
 
 export interface AppInfo {
   name: string;
@@ -191,6 +192,7 @@ export const IpcChannels = {
   addTextStep: 'projects:add-text-step',
   setProjectIntro: 'projects:set-intro',
   setDisplayScale: 'projects:set-display-scale',
+  setProjectTheme: 'projects:set-theme',
   redactScan: 'projects:redact-scan',
   exportProject: 'projects:export',
   exportToDir: 'projects:export-to-dir',
@@ -222,6 +224,8 @@ export const IpcChannels = {
   setArchiveAgeDays: 'settings:set-archive-age',
   getTheme: 'settings:get-theme',
   setTheme: 'settings:set-theme',
+  getBrand: 'settings:get-brand',
+  setBrand: 'settings:set-brand',
   claudeKeyStatus: 'claude:key-status',
   claudeSetKey: 'claude:set-key',
   claudeClearKey: 'claude:clear-key',
@@ -267,6 +271,10 @@ export const IpcChannels = {
   // Application menu → renderer
   openSettings: 'menu:open-settings',
   menuImportProject: 'menu:import-project',
+  /** main -> renderer: the user picked a brand in View -> Brand. */
+  menuSetProjectTheme: 'menu:set-project-theme',
+  /** renderer -> main: what View -> Brand should show. */
+  setBrandMenu: 'view:set-brand-menu',
 } as const;
 
 /** The typed API exposed to the renderer on `window.shotai` via contextBridge. */
@@ -284,6 +292,21 @@ export interface ShotaiApi {
   /** Fires when the application menu's File → Import Project… is chosen. Returns
    *  an unsubscribe fn. */
   onImportProject(cb: () => void): () => void;
+  /**
+   * The user picked a brand in View -> Brand (#77). `null` is "App default",
+   * which clears the project's key rather than writing the default brand into
+   * it.
+   */
+  onMenuSetProjectTheme(cb: (brand: BrandId | null) => void): () => void;
+  /**
+   * Tell main what View -> Brand should show. The control is per project and the
+   * application menu is global, so the renderer owns this state and pushes it.
+   */
+  setBrandMenu(state: {
+    projectOpen: boolean;
+    projectTheme: BrandId | null;
+    appBrand: BrandId;
+  }): Promise<void>;
   /** Tell main the user entered (true) / left (false) a project, so the window
    *  grows to the report width and shrinks back on the list (F5). */
   /**
@@ -372,6 +395,14 @@ export interface ShotaiApi {
     setIntro(projectPath: string, intro: SopIntro | null): Promise<ProjectManifest>;
     /** Per-project document scale (#70). Clamped main-side to a legal detent. */
     setDisplayScale(projectPath: string, scale: number): Promise<ProjectManifest>;
+    /**
+     * Per-project brand (#77 phase 1b).
+     *
+     * `null` clears the key so the project follows the app preference; a brand
+     * PINS it, the default brand included. Coerced main-side, and a write that
+     * changes nothing is refused so it cannot re-date the project.
+     */
+    setProjectTheme(projectPath: string, brand: BrandId | null): Promise<ProjectManifest>;
     /** Revert Claude's inline SOP edits, restoring the pre-generation snapshot. */
     revertSop(projectPath: string): Promise<ProjectManifest>;
     /**
@@ -460,6 +491,10 @@ export interface ShotaiApi {
     getTheme(): Promise<ThemePref>;
     /** Persist the theme preference; returns the stored value. */
     setTheme(value: ThemePref): Promise<ThemePref>;
+    /** Which brand the app wears (#77) — separate axis from the appearance. */
+    getBrand(): Promise<BrandId>;
+    /** Persist the brand preference; returns the stored value. */
+    setBrand(value: BrandId): Promise<BrandId>;
     /** Whether shotAI checks GitHub once a day for a newer release (#54). */
     getUpdateCheckEnabled(): Promise<boolean>;
     setUpdateCheckEnabled(value: boolean): Promise<boolean>;

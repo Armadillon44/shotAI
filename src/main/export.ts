@@ -8,8 +8,11 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
+import { DEFAULT_EXPORT_THEME, exportTheme, type ExportTheme } from '../shared/export-theme';
+import { coerceBrand, type BrandId } from '../shared/theme-palette';
 import type { ExportFormat, ExportProgress, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
@@ -29,6 +32,7 @@ import { buildDocx } from './export-docx';
 import { buildPptx } from './export-pptx';
 import { getReportByline } from './settings';
 import { mainLog } from './logger';
+import { brandFontPath } from './paths';
 
 // Windows/macOS filesystem-reserved characters + device names. Used to derive a
 // safe EXPORT filename from the project title (project folders themselves are
@@ -427,6 +431,7 @@ async function buildHtmlDoc(
   createdLine: string,
   policy: EmbedPolicy,
   onProgress?: (p: ExportProgress) => void,
+  theme: ExportTheme = DEFAULT_EXPORT_THEME,
 ): Promise<string> {
   // Per-project document scale (#70). Clamped here rather than trusted: this is
   // the boundary where a manifest value becomes a rendered width.
@@ -514,7 +519,7 @@ async function buildHtmlDoc(
     `<meta charset="utf-8">\n` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<title>${title}</title>\n` +
-    `<style>${docCss(docScale)}</style>\n` +
+    `<style>${docCss(docScale, theme)}</style>\n` +
     // A plain <div>, not <main>: this wrapper gets unwrapped on a KB-editor paste
     // either way (which is why every block carries its own column — see DOC_CSS),
     // and semantic tags are commonly off a sanitizer's allowlist. It only pads.
@@ -536,6 +541,7 @@ async function buildHtmlDoc(
 async function buildPlainHtmlDoc(
   manifest: ProjectManifest,
   items: ExportItem[],
+  theme: ExportTheme = DEFAULT_EXPORT_THEME,
 ): Promise<string> {
   const docScale = clampScale(manifest.displayScale);
   const br = (s: string) => escapeHtml(s).replace(/\n/g, '<br>');
@@ -594,14 +600,46 @@ async function buildPlainHtmlDoc(
   return (
     `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n` +
     `<title>${escapeHtml(manifest.title)}</title>\n` +
-    `<style>${plainCss(docScale)}</style>\n</head>\n<body>\n` +
+    `<style>${plainCss(docScale, theme)}</style>\n</head>\n<body>\n` +
     parts.join('\n') +
     `\n</body>\n</html>\n`
   );
 }
 
 /** Render the HTML to a PDF via a hidden BrowserWindow + printToPDF (offline). */
-async function htmlToPdf(dir: string, html: string, outputPath: string): Promise<void> {
+/**
+ * A `@font-face` pointing at the bundled face on disk, for the print document.
+ *
+ * Injected into the PRINT copy only, never into the .html the user keeps. The
+ * weight range is the same load-bearing declaration as in the app's stylesheet:
+ * Archivo's variable default instance is wght 600, so without it a bare request
+ * for the family renders semibold.
+ *
+ * Empty string when the brand has no face of its own, or when the file is
+ * missing — in which case the document simply resolves its fallback stack, which
+ * is what it did before this existed.
+ */
+function printFontFace(theme: ExportTheme): string {
+  const family = theme.fontFamily;
+  if (!family) return '';
+  const file = brandFontPath();
+  if (!file) {
+    mainLog.warn('brand face not found on disk; the PDF will use the fallback stack');
+    return '';
+  }
+  return (
+    `<style>@font-face{font-family:"${family}";` +
+    `src:url("${pathToFileURL(file).href}") format("truetype-variations");` +
+    `font-weight:100 900;font-stretch:62% 125%;font-style:normal}</style>\n`
+  );
+}
+
+async function htmlToPdf(
+  dir: string,
+  html: string,
+  outputPath: string,
+  theme: ExportTheme = DEFAULT_EXPORT_THEME,
+): Promise<void> {
   const renderDir = path.join(dir, 'export', '.render');
   await fs.mkdir(renderDir, { recursive: true });
   // Best-effort sweep of any temp HTML orphaned by a prior failed export.
@@ -615,7 +653,8 @@ async function htmlToPdf(dir: string, html: string, outputPath: string): Promise
     /* directory unreadable — proceed anyway */
   }
   const tmpHtml = path.join(renderDir, `_print-${randomUUID()}.html`);
-  await fs.writeFile(tmpHtml, html, 'utf8');
+  // The print copy gets the face embedded; the .html export never does.
+  await fs.writeFile(tmpHtml, html.replace('<head>\n', `<head>\n${printFontFace(theme)}`), 'utf8');
   const win = new BrowserWindow({
     show: false,
     width: 900,
@@ -752,6 +791,17 @@ export async function exportProject(
     reveal?: boolean;
     /** Per-image encode progress; only the image-embedding formats call it. */
     onProgress?: (p: ExportProgress) => void;
+    /**
+     * The brand to use when the PROJECT does not pin one (#77).
+     *
+     * The precedence itself lives here rather than in the caller, because only
+     * this function has the manifest: a project carrying `theme` exports in
+     * that brand on any machine, and everything else falls back to the app
+     * preference the caller passes. Omitted entirely, it is the default brand,
+     * so every existing caller and test produces exactly the document it
+     * produced before.
+     */
+    brand?: BrandId;
   } = {},
 ): Promise<ExportResult> {
   // Reveal the written file unless told not to — bulk exports (to a shared folder
@@ -759,6 +809,10 @@ export async function exportProject(
   // don't pop open mid-run.
   const reveal = opts.reveal ?? true;
   const { dir, manifest } = await getProjectForRead(projectPath);
+  // #77 phase 1b precedence: the project's own brand wins, so a document
+  // reproduces identically wherever it is exported from; otherwise the app
+  // preference the caller passed; otherwise the default.
+  const theme = exportTheme(coerceBrand(manifest.theme ?? opts.brand));
   const items = await collectSteps(dir, manifest);
   const base = safeFileBase(manifest.title);
   // Document footer (F7): "Created on <datetime>", plus "by <name>" when the user
@@ -816,15 +870,15 @@ export async function exportProject(
   }
 
   if (format === 'docx') {
-    await fs.writeFile(outputPath, await buildDocx(manifest, items, createdLine));
+    await fs.writeFile(outputPath, await buildDocx(manifest, items, createdLine, theme));
   } else if (format === 'pptx') {
-    await fs.writeFile(outputPath, await buildPptx(manifest, items, createdLine));
+    await fs.writeFile(outputPath, await buildPptx(manifest, items, createdLine, theme));
   } else if (format === 'html-plain') {
-    await fs.writeFile(outputPath, await buildPlainHtmlDoc(manifest, items), 'utf8');
+    await fs.writeFile(outputPath, await buildPlainHtmlDoc(manifest, items, theme), 'utf8');
   } else if (format === 'html') {
     await fs.writeFile(
       outputPath,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress, theme),
       'utf8',
     );
   } else {
@@ -832,8 +886,9 @@ export async function exportProject(
     // the codec explicitly, or it silently inherits them and prints soft (#56 scope).
     await htmlToPdf(
       dir,
-      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress),
+      await buildHtmlDoc(manifest, items, createdLine, htmlEmbedPolicy(format, clampScale(manifest.displayScale)), opts.onProgress, theme),
       outputPath,
+      theme,
     );
   }
 

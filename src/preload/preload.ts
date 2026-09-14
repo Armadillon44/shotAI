@@ -13,6 +13,7 @@ import {
   type SopProgress,
 } from '../shared/ipc';
 import type { CalloutKind, CaptureTarget, ProjectStep, Rect, SopIntro, StepPatch, ThemePref } from '../shared/project';
+import type { BrandId } from '../shared/theme-palette';
 import type { SopSettings } from '../shared/sop';
 
 const api: ShotaiApi = {
@@ -28,6 +29,16 @@ const api: ShotaiApi = {
     ipcRenderer.on(IpcChannels.menuImportProject, listener);
     return () => ipcRenderer.removeListener(IpcChannels.menuImportProject, listener);
   },
+  onMenuSetProjectTheme: (cb: (brand: BrandId | null) => void) => {
+    const listener = (_e: unknown, brand: BrandId | null) => cb(brand);
+    ipcRenderer.on(IpcChannels.menuSetProjectTheme, listener);
+    return () => ipcRenderer.removeListener(IpcChannels.menuSetProjectTheme, listener);
+  },
+  setBrandMenu: (state: {
+    projectOpen: boolean;
+    projectTheme: BrandId | null;
+    appBrand: BrandId;
+  }) => ipcRenderer.invoke(IpcChannels.setBrandMenu, state),
   setDetailView: (open: boolean, scale?: number) =>
     ipcRenderer.invoke(IpcChannels.setDetailView, open, scale),
   projects: {
@@ -99,6 +110,8 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.setProjectIntro, projectPath, intro),
     setDisplayScale: (projectPath: string, scale: number) =>
       ipcRenderer.invoke(IpcChannels.setDisplayScale, projectPath, scale),
+    setProjectTheme: (projectPath: string, brand: BrandId | null) =>
+      ipcRenderer.invoke(IpcChannels.setProjectTheme, projectPath, brand),
     revertSop: (projectPath: string) =>
       ipcRenderer.invoke(IpcChannels.revertSop, projectPath),
     export: (projectPath: string, format: ExportFormat) =>
@@ -141,6 +154,8 @@ const api: ShotaiApi = {
       ipcRenderer.invoke(IpcChannels.setArchiveAgeDays, value),
     getTheme: () => ipcRenderer.invoke(IpcChannels.getTheme),
     setTheme: (value: ThemePref) => ipcRenderer.invoke(IpcChannels.setTheme, value),
+    getBrand: () => ipcRenderer.invoke(IpcChannels.getBrand),
+    setBrand: (value: BrandId) => ipcRenderer.invoke(IpcChannels.setBrand, value),
     getUpdateCheckEnabled: () => ipcRenderer.invoke(IpcChannels.getUpdateCheckEnabled),
     setUpdateCheckEnabled: (value: boolean) =>
       ipcRenderer.invoke(IpcChannels.setUpdateCheckEnabled, value),

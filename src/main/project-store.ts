@@ -17,8 +17,10 @@ import {
 } from '../shared/project';
 import { DEFAULT_SOP_TONE, isSopTone } from '../shared/sop';
 import { SCALE_DEFAULT, clampScale } from '../shared/doc-scale';
+import { coerceBrand, isBrandId, DEFAULT_BRAND, type BrandId } from '../shared/theme-palette';
 import {
   addRecent,
+  getBrand,
   getProjectsDir,
   getRecents,
   persistProjectsDir,
@@ -130,6 +132,18 @@ export function coerceManifest(
     ...(clampScale(parsed.displayScale) !== SCALE_DEFAULT
       ? { displayScale: clampScale(parsed.displayScale) }
       : {}),
+    // Same trap as displayScale (#77 phase 1b): an uncoerced field is dropped on
+    // EVERY read, so a macOS-authored brand would be discarded the first time
+    // Windows opened the project.
+    //
+    // Kept for ANY brand this build knows, including the default one. It used to
+    // drop the default on the theory that an absent key says the same thing —
+    // which is false, and the falsehood was user-visible: with the APP brand set
+    // to LFI, a project could not be pinned to shotAI at all, because the only
+    // value that would have said so was being thrown away on read and refused on
+    // write. An unknown brand is still dropped, so a value from a newer build
+    // falls back to the app preference rather than to nothing.
+    ...(isBrandId(parsed.theme) ? { theme: parsed.theme } : {}),
     intro: coerceIntro(parsed.intro),
     // MUST be coerced explicitly. This function rebuilds the manifest field by
     // field, so an uncoerced field is silently dropped on EVERY read — the flag
@@ -202,6 +216,7 @@ function defaultTitle(): string {
 /** Create a new, empty project folder and write its v1 manifest. An empty title
  *  gets a timestamped default ("Project yyyy/MM/dd HH:mm:ss"). */
 export async function createProject(title?: string): Promise<ProjectSummary> {
+  const brand: BrandId = await getBrand();
   const root = await getProjectsDir();
   await fs.mkdir(root, { recursive: true });
 
@@ -228,6 +243,11 @@ export async function createProject(title?: string): Promise<ProjectSummary> {
     sopBackup: null,
     archived: false,
     archivedAt: null,
+    // Stamped from the app preference at creation (#77 phase 1b), and omitted
+    // when it is the default — so an operator working in one brand gets projects
+    // that reproduce in that brand on any machine, while everyone else's
+    // manifests are unchanged.
+    ...(brand !== DEFAULT_BRAND ? { theme: brand } : {}),
   };
   await writeManifest(dir, manifest); // atomic, same as every other manifest write
 
@@ -546,12 +566,20 @@ let writeQueue: Promise<unknown> = Promise.resolve();
  */
 export function mutate(
   projectPath: string,
-  fn: (manifest: ProjectManifest) => void | Promise<void>,
+  /**
+   * Returning 'unchanged' skips the write AND the updatedAt bump.
+   *
+   * Needed because a no-op save re-dates the project and jumps it to the top of
+   * the Home list under "Today" purely because a control was touched. Callers
+   * used to guard in the renderer; a setter that can be reached from IPC needs
+   * the guard on this side too.
+   */
+  fn: (manifest: ProjectManifest) => void | 'unchanged' | Promise<void | 'unchanged'>,
 ): Promise<ProjectManifest> {
   const run = writeQueue.then(async () => {
     const resolved = await resolveKnownProject(projectPath);
     const manifest = await readManifest(resolved);
-    await fn(manifest);
+    if ((await fn(manifest)) === 'unchanged') return manifest;
     manifest.updatedAt = new Date().toISOString();
     await writeManifest(resolved, manifest);
     return manifest;
@@ -575,6 +603,40 @@ export function setProjectDisplayScale(
   return mutate(projectPath, (manifest) => {
     if (clean === SCALE_DEFAULT) delete manifest.displayScale;
     else manifest.displayScale = clean;
+  });
+}
+
+/**
+ * Set — or with `null`, clear — the per-project brand (#77 phase 1b).
+ *
+ * `null` means "follow the app preference" and removes the key. Any BRAND pins
+ * that brand into the file, so the project reproduces identically on any
+ * machine.
+ *
+ * THE DEFAULT BRAND IS PINNABLE, and that is a correction. This used to treat
+ * "set the default" as "clear", on the theory that an absent key already says
+ * the default. It does not: an absent key says *follow the app*, and the two
+ * diverge the moment the app is set to anything else. With the app on LFI there
+ * was then no way to keep one project on shotAI — every option in the menu
+ * rendered the same document, which is how the bug was found.
+ *
+ * Creation still omits the key for a default-branded project (see
+ * createProject), so existing projects and the common case stay byte-identical;
+ * only an explicit choice writes it.
+ *
+ * A write that changes nothing is refused rather than bumping updatedAt.
+ */
+export function setProjectTheme(
+  projectPath: string,
+  brand: unknown,
+): Promise<ProjectManifest> {
+  const clean = brand == null ? null : coerceBrand(brand);
+  return mutate(projectPath, (manifest) => {
+    // Compared RAW, not coerced. Coercing both sides would fold an absent key
+    // and an explicit default back together and reintroduce the bug above.
+    if ((manifest.theme ?? null) === clean) return 'unchanged';
+    if (clean === null) delete manifest.theme;
+    else manifest.theme = clean;
   });
 }
 

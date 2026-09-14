@@ -18,6 +18,7 @@ import { Notice } from '../Notice';
 import { Settings } from './Settings';
 import { Tour } from './Tour';
 import { applyTheme, watchSystemTheme } from './theme';
+import { DEFAULT_BRAND, type BrandId } from '../../shared/theme-palette';
 
 type Targets = { windows: WindowInfo[]; monitors: MonitorInfo[] };
 
@@ -46,6 +47,9 @@ export function App(): React.JSX.Element {
   const [steps, setSteps] = React.useState<ProjectStep[]>([]);
   const [showSettings, setShowSettings] = React.useState(false);
   const [themePref, setThemePref] = React.useState<ThemePref>('system');
+  // The BRAND is a second, independent axis (#77): every brand has a light and a
+  // dark set, so this is not a fourth value of themePref.
+  const [brand, setBrand] = React.useState<BrandId>(DEFAULT_BRAND);
   // #54: main checks GitHub once a day on startup and pushes ONLY when something
   // newer exists — deliberately no "you're up to date" noise. Dismissing hides it for
   // this session; the next launch (a day later) offers it again.
@@ -356,11 +360,67 @@ export function App(): React.JSX.Element {
   // set to 'system'). Changing it in Settings updates themePref → re-applies here.
   React.useEffect(() => {
     window.shotai.settings.getTheme().then(setThemePref).catch(() => undefined);
+    window.shotai.settings.getBrand().then(setBrand).catch(() => undefined);
   }, []);
+  // #77 phase 1b precedence. A project carrying a brand wears it EVERYWHERE
+  // while it is open, chrome included: a corporate report inside a violet shell
+  // is incoherent, and the report is meant to be WYSIWYG with the export. Home
+  // and Settings belong to no project, so they always use the app preference —
+  // which is what `openPath &&` here means.
+  const projectTheme = useProjectStore((s) => s.projectTheme);
+  // `!showSettings` because Settings REPLACES the project view in this same
+  // window rather than opening its own, so openPath is still set while the
+  // project is not on screen. Without the term, Settings reached from inside a
+  // pinned project wore that project's brand — and Settings belongs to no
+  // project, which is the settled rule on both platforms.
+  const activeBrand = (openPath && !showSettings && projectTheme) || brand;
   React.useEffect(() => {
-    applyTheme(themePref);
-    return watchSystemTheme(themePref, () => applyTheme(themePref));
-  }, [themePref]);
+    applyTheme(themePref, activeBrand);
+    return watchSystemTheme(themePref, () => applyTheme(themePref, activeBrand));
+  }, [themePref, activeBrand]);
+
+  // Keep View -> Brand in step with what is open (#77). Pushed from App rather
+  // than from ProjectDetail because the menu also has to be correct — and
+  // disabled — while NO project is open, which is exactly when ProjectDetail is
+  // unmounted and could push nothing.
+  React.useEffect(() => {
+    // Caught, not floated: this crosses into main and a rejection here is an
+    // unhandled rejection in the renderer, which is noise at best and a
+    // swallowed diagnostic at worst. The menu is cosmetic — a failure to update
+    // it must not surface as an error.
+    void window.shotai
+      .setBrandMenu({
+        projectOpen: !!openPath,
+        // Guarded on openPath as well: the store clears projectTheme on close,
+        // but ordering between that and this effect is not something to rely on
+        // for what the menu claims about a project that is no longer open.
+        projectTheme: openPath ? projectTheme : null,
+        appBrand: brand,
+      })
+      .catch(() => undefined);
+  }, [openPath, projectTheme, brand]);
+
+  // …and take the choice back. null is "App default", which CLEARS the key; a
+  // brand PINS it, the default brand included. Passed through untouched: the
+  // renderer used to fold null into DEFAULT_BRAND here, which made "App default"
+  // and "shotAI" the same request and left no way to pin the default.
+  //
+  // Reads the store imperatively instead of closing over projectPath so the
+  // listener can be registered once. A listener re-registered on every project
+  // change is a listener that can be missing for a frame, and the menu click
+  // that lands in that frame simply does nothing.
+  React.useEffect(
+    () =>
+      window.shotai.onMenuSetProjectTheme((choice) => {
+        const { projectPath, applyManifest } = useProjectStore.getState();
+        if (!projectPath) return;
+        void window.shotai.projects
+          .setProjectTheme(projectPath, choice)
+          .then(applyManifest)
+          .catch(fail);
+      }),
+    [],
+  );
 
   // `createdThisSession` marks a freshly-created project so a Discard from the
   // pill deletes the whole project (vs. only this session's steps).
@@ -581,6 +641,7 @@ export function App(): React.JSX.Element {
             onProjectsDirChanged={() => void refresh()}
             onReplayTour={replayTour}
             onThemeChanged={setThemePref}
+            onBrandChanged={setBrand}
           />
         )}
 

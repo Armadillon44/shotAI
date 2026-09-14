@@ -15,6 +15,7 @@ import {
 import * as projectStore from './project-store';
 import { revertSop } from './sop-apply';
 import { exportProject, chooseExportDirectory, revealExportDir } from './export';
+import type { BrandId } from '../shared/theme-palette';
 import { exportPackage, importPackage } from './export-package';
 import { checkForUpdate } from './update-check';
 import { getPendingUpdate, setPendingUpdate } from './update-state';
@@ -57,6 +58,8 @@ import {
   setLastUpdateCheckAt,
   getTheme,
   setTheme,
+  getBrand,
+  setBrand,
 } from './settings';
 import { getApiKeyStatus, setApiKey, clearApiKey } from './secrets';
 import { scanForSensitiveRects } from './ocr';
@@ -539,9 +542,22 @@ export function registerIpcHandlers(
     },
   );
 
+  /**
+   * The brand an export FALLS BACK to (#77 phases 4, 1b).
+   *
+   * A project that pins its own brand wins over this; exportProject decides,
+   * because only it has the manifest. This is the app preference for everything
+   * else.
+   *
+   * Read at export time rather than cached, so switching brand in Settings takes
+   * effect on the next export without a restart. It is one small JSON read against
+   * an operation that already encodes images.
+   */
+  const brandForExport = async (): Promise<BrandId> => getBrand();
+
   ipcMain.handle(
     IpcChannels.exportProject,
-    (event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+    async (event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
       devLog('ipc: projects:export');
       // Single export → prompt a Save dialog (issue #37). Per-image encode progress
       // streams back to the window that asked (same pattern as claudeSopProgress) so
@@ -549,6 +565,7 @@ export function registerIpcHandlers(
       const sender = event.sender;
       return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
         saveAs: true,
+        brand: await brandForExport(),
         onProgress: (p) => {
           if (!sender.isDestroyed()) sender.send(IpcChannels.exportProgress, p);
         },
@@ -558,24 +575,26 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     IpcChannels.exportToDir,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown, dir: unknown) => {
+    async (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown, dir: unknown) => {
       devLog('ipc: projects:export-to-dir');
       // Bulk export → write into the pre-chosen destination folder (no dialog, no
       // per-file reveal; the folder is opened once when the run finishes).
       return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
         targetDir: asString(dir, 'dir'),
         reveal: false,
+        brand: await brandForExport(),
       });
     },
   );
 
   ipcMain.handle(
     IpcChannels.exportToOwnFolder,
-    (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
+    async (_event: IpcMainInvokeEvent, projectPath: unknown, format: unknown) => {
       devLog('ipc: projects:export-to-own-folder');
       // Bulk export → each project to its own export/ folder (no dialog, no reveal).
       return exportProject(asString(projectPath, 'projectPath'), parseExportFormat(format), {
         reveal: false,
+        brand: await brandForExport(),
       });
     },
   );
@@ -709,6 +728,14 @@ export function registerIpcHandlers(
     devLog('ipc: settings:set-theme');
     return setTheme(value); // coerced in setTheme
   });
+  ipcMain.handle(IpcChannels.getBrand, () => {
+    devLog('ipc: settings:get-brand');
+    return getBrand();
+  });
+  ipcMain.handle(IpcChannels.setBrand, (_event: IpcMainInvokeEvent, value: unknown) => {
+    devLog('ipc: settings:set-brand');
+    return setBrand(value); // coerced in setBrand
+  });
   ipcMain.handle(IpcChannels.getUpdateCheckEnabled, () => {
     devLog('ipc: settings:get-update-check');
     return getUpdateCheckEnabled();
@@ -824,6 +851,17 @@ export function registerIpcHandlers(
       return projectStore.setProjectIntro(asString(projectPath, 'projectPath'), intro);
     },
   );
+  ipcMain.handle(
+    IpcChannels.setProjectTheme,
+    (_event: IpcMainInvokeEvent, projectPath: unknown, brand: unknown) => {
+      devLog('ipc: projects:set-theme');
+      // Coerced in setProjectTheme; an unknown brand becomes the default rather
+      // than reaching the manifest, since this value also arrives from the other
+      // platform's files.
+      return projectStore.setProjectTheme(asString(projectPath, 'projectPath'), brand);
+    },
+  );
+
   ipcMain.handle(
     IpcChannels.setDisplayScale,
     (_event: IpcMainInvokeEvent, projectPath: unknown, scale: unknown) => {

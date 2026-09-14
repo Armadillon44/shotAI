@@ -13,6 +13,11 @@
  * see the note on HTML_IMG_MAX_W for why 738 is kept regardless.)
  */
 import { HTML_COL_BASE, docWidths } from '../shared/doc-scale';
+import {
+  chipRadiusCss,
+  DEFAULT_EXPORT_THEME,
+  type ExportTheme,
+} from '../shared/export-theme';
 
 /** The column at scale 1. Per-scale widths come from docWidths(scale). */
 export const HTML_COL_W = HTML_COL_BASE;
@@ -32,7 +37,9 @@ const COL_BLOCKS = ['.doc__title', '.doc__meta', '.doc__intro', '.step', '.secti
  * htmlToPdf). Step framing (#40): every step is a distinct CARD — the number/glyph
  * badge sits in a left gutter, and a tinted rounded card (.step__main) holds the
  * content to its right. Callouts are the same card, tinted by kind. Mirrors the
- * in-app report and the macOS port. Light-only (exports don't theme).
+ * in-app report and the macOS port. Every colour below is read from DOC_LIGHT in
+ * shared/theme-palette, which is the one palette the exports render with — so these
+ * stylesheets are still light-only.
  *
  * **The 816px column is repeated on EVERY top-level block, deliberately (#57).**
  * Read this before "simplifying" it back onto a `.doc` wrapper — that IS the bug.
@@ -76,38 +83,40 @@ const COL_BLOCKS = ['.doc__title', '.doc__meta', '.doc__intro', '.step', '.secti
  * image inside it. That is why the image width is re-derived in doc-scale rather
  * than multiplied.
  */
-export function docCss(scale = 1): string {
+export function docCss(scale = 1, theme: ExportTheme = DEFAULT_EXPORT_THEME): string {
   const COL = docWidths(scale).htmlCol;
+  const C = theme.palette;
+  const R = theme.radii;
   return `
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1f2937;background:#fff;line-height:1.6}
+body{margin:0;font-family:${theme.fontStack};color:${C.ink};background:${C.surface};line-height:1.6}
 .doc{padding:40px 32px 64px}
 .doc__title{max-width:${COL}px;margin:0 auto 4px;font-size:1.9rem;line-height:1.25}
-.doc__meta{max-width:${COL}px;margin:0 auto 28px;color:#6b7280;font-size:.85rem}
-.doc__intro{max-width:${COL}px;margin:0 auto 28px;padding:14px 18px;border:1px solid #e7e4f2;border-left:4px solid #6344f1;border-radius:8px;background:#efeafe}
-.doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:#6b7280;margin:0 0 6px}
+.doc__meta{max-width:${COL}px;margin:0 auto 28px;color:${C.ink3};font-size:.85rem}
+.doc__intro{max-width:${COL}px;margin:0 auto 28px;padding:14px 18px;border:1px solid ${C.hair};border-left:4px solid ${C.accent};border-radius:${R.card}px;background:${C.accentTint}}
+.doc__intro-eyebrow{text-transform:uppercase;letter-spacing:.6px;font-size:.7rem;font-weight:700;color:${C.ink3};margin:0 0 6px}
 .doc__intro-h{margin:0 0 6px;font-size:1.15rem}
-.doc__intro-b{margin:0;color:#374151;white-space:pre-wrap}
+.doc__intro-b{margin:0;color:${C.ink2};white-space:pre-wrap}
 /* The 46px left pad is the step gutter (30px badge + 16px gap), so a section's
    rule and text align with the step CONTENT column rather than the badge. The
    rule lives on .section__inner because the padding and the width can't share a
    box once .section carries the column. Values match the macOS export. */
 .section{max-width:${COL}px;margin:28px auto 4px;padding-left:46px;break-inside:avoid}
-.section__inner{padding:14px 16px 0;border-top:2px solid #e7e4f2}
-.section__h{font-size:1.2rem;font-weight:700;margin:0 0 4px;color:#191826}
-.section__b{margin:0;color:#5a5772;white-space:pre-wrap}
+.section__inner{padding:14px 16px 0;border-top:2px solid ${C.hair}}
+.section__h{font-size:1.2rem;font-weight:700;margin:0 0 4px;color:${C.ink}}
+.section__b{margin:0;color:${C.ink2};white-space:pre-wrap}
 .step{display:flex;gap:16px;max-width:${COL}px;margin:0 auto 18px;align-items:flex-start;page-break-inside:avoid;break-inside:avoid}
-.step__num{flex:0 0 auto;width:30px;height:30px;margin-top:14px;border-radius:50%;background:#6344f1;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
-.step__num--note{background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7}
-.step__num--caution{background:#fffbeb;color:#92400e;border:1px solid #fcd34d}
-.step__num--warning{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5}
-.step__main{flex:1 1 auto;min-width:0;padding:14px 16px;border:1px solid #e7e4f2;border-radius:12px;background:#faf9ff}
-.step__main--note{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
-.step__main--caution{background:#fffbeb;border-color:#fcd34d;color:#92400e}
-.step__main--warning{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
+.step__num{flex:0 0 auto;width:30px;height:30px;margin-top:14px;border-radius:${chipRadiusCss(R)};background:${C.accent};color:${C.onAccent};font-weight:600;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+.step__num--note{background:${C.noteBg};color:${C.noteFg};border:1px solid ${C.noteBd}}
+.step__num--caution{background:${C.cautBg};color:${C.cautFg};border:1px solid ${C.cautBd}}
+.step__num--warning{background:${C.warnBg};color:${C.warnFg};border:1px solid ${C.warnBd}}
+.step__main{flex:1 1 auto;min-width:0;padding:14px 16px;border:1px solid ${C.hair};border-radius:${R.card}px;background:${C.surface2}}
+.step__main--note{background:${C.noteBg};border-color:${C.noteBd};color:${C.noteFg}}
+.step__main--caution{background:${C.cautBg};border-color:${C.cautBd};color:${C.cautFg}}
+.step__main--warning{background:${C.warnBg};border-color:${C.warnBd};color:${C.warnFg}}
 .step__title{font-size:1.15rem;margin:0 0 10px}
-.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid #e5e7eb;border-radius:8px}
+.step__img{display:block;max-width:100%;height:auto;margin-inline:auto;border:1px solid ${C.hair};border-radius:${R.figure}px}
 .step__instr{margin:10px 0 0;white-space:pre-wrap;font-size:1.02rem}
 .step--textonly .step__instr{margin-top:0}
 .callout__h{display:block;font-weight:700;margin-bottom:.25rem}
@@ -127,17 +136,18 @@ body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-s
  * height attributes (see htmlImageSize).
  */
 /** The plain "HTML (for Word)" stylesheet at a given document scale (#70). */
-export function plainCss(scale = 1): string {
+export function plainCss(scale = 1, theme: ExportTheme = DEFAULT_EXPORT_THEME): string {
+  const C = theme.palette;
   const BODY = Math.round(PLAIN_BODY_W * (docWidths(scale).htmlCol / HTML_COL_BASE));
   return [
-    `body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.5;max-width:${BODY}px;margin:24px auto;padding:0 20px}`,
+    `body{font-family:${theme.plainFontStack};color:${C.ink};line-height:1.5;max-width:${BODY}px;margin:24px auto;padding:0 20px}`,
     'h1{font-size:1.8rem;font-weight:700;margin:0 0 .3rem}',
     'h2{font-size:1.2rem;font-weight:700;margin:1.3rem 0 .4rem}',
     'p{margin:.5rem 0}',
     'strong{font-weight:700}',
     'img{max-width:100%;height:auto}',
-    'blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid #cbd5e1;color:#374151}',
-    'hr{border:0;border-top:1px solid #e5e7eb;margin:1.4rem 0}',
+    `blockquote{margin:1rem 0;padding:.4rem .85rem;border-left:3px solid ${C.controlBd};color:${C.ink2}}`,
+    `hr{border:0;border-top:1px solid ${C.hair};margin:1.4rem 0}`,
   ].join('');
 }
 

@@ -24,7 +24,7 @@
   max-width: 100%;
   max-height: 100%;
   padding: 0.9rem;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
 }
@@ -87,8 +87,8 @@
   min-height: 2.5rem;
   padding: 0.35rem 0.55rem;
   border: 1px solid var(--hair);
-  border-radius: var(--radius);
-  background: #f8f9fc;
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -106,7 +106,7 @@
   width: 100%;
   padding: 0.4rem 0.55rem;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink);
   font-size: 0.82rem;
@@ -122,7 +122,7 @@
   background: var(--accent-tint);
   border-color: var(--accent);
   font-weight: 600;
-  color: #3730a3;
+  color: var(--accent-ink);
 }
 
 .ed__tool-ico {
@@ -139,15 +139,15 @@
 /* Segmented toggle (replaces the flaky native <select> for redaction style). */
 .ed__seg {
   display: inline-flex;
-  border: 1px solid #cbd1d9;
-  border-radius: 6px;
+  border: 1px solid var(--control-bd);
+  border-radius: var(--radius-control-sm);
   overflow: hidden;
 }
 
 .ed__seg-btn {
   padding: 0.2rem 0.6rem;
   border: 0;
-  background: #fff;
+  background: var(--surface);
   color: var(--ink-2);
   font-size: 0.78rem;
   cursor: pointer;
@@ -155,7 +155,7 @@
 
 .ed__seg-btn--on {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* Relative wrapper so a hovering .notice-stack pins to the top of the canvas
@@ -183,22 +183,22 @@
      doesn't change clientWidth — which otherwise feeds back through the
      ResizeObserver->viewport->stage-size loop and makes the image pulse (B3). */
   scrollbar-gutter: stable both-edges;
-  border: 1px solid #e3e6ea;
-  border-radius: 8px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-figure);
   /* checkerboard so transparent/edges are legible */
-  background-color: #f8fafc;
+  background-color: var(--surface-2);
   background-image:
-    linear-gradient(45deg, #eceff3 25%, transparent 25%),
-    linear-gradient(-45deg, #eceff3 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #eceff3 75%),
-    linear-gradient(-45deg, transparent 75%, #eceff3 75%);
+    linear-gradient(45deg, var(--hair-2) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--hair-2) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--hair-2) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--hair-2) 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 }
 
 .ed__hint {
   margin: 0;
-  color: #6b7280;
+  color: var(--ink-3);
   font-size: 0.8rem;
 }
 
@@ -207,7 +207,7 @@
   align-items: center;
   gap: 0.35rem;
   font-size: 0.78rem;
-  color: #4b5563;
+  color: var(--ink-2);
 }
 
 .ed__opt input[type='range'] {
@@ -218,8 +218,8 @@
   width: 30px;
   height: 26px;
   padding: 0;
-  border: 1px solid #cbd1d9;
-  border-radius: 6px;
+  border: 1px solid var(--control-bd);
+  border-radius: var(--radius-control-sm);
   background: none;
   cursor: pointer;
 }
@@ -231,8 +231,8 @@
   justify-content: center;
   gap: 0.15rem;
   padding: 0.15rem;
-  background: #f3f4f6;
-  border-radius: var(--radius);
+  background: var(--surface-2);
+  border-radius: var(--radius-control);
 }
 
 /* Zoom uses .ed__tool buttons but they must stay compact, not rail-width. */
@@ -252,11 +252,11 @@
   margin: 0;
   padding: 0 1px;
   border: 0;
-  outline: 1px dashed #4f46e5;
+  outline: 1px dashed var(--accent);
   background: rgba(255, 255, 255, 0.14);
   line-height: 1;
   /* Match Konva Text's default font so the overlay lines up with the baked text. */
   font-family: Arial, sans-serif;
   white-space: pre;
-  caret-color: #4f46e5;
+  caret-color: var(--accent);
 }

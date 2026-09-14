@@ -19,7 +19,8 @@ import { detailWindowWidth } from '../shared/doc-scale';
 import { checkForUpdate, startupCheckDecision } from './update-check';
 import { setPendingUpdate } from './update-state';
 import { IpcChannels } from '../shared/ipc';
-import { installAppMenu } from './menu';
+import { armBrandMenu, installAppMenu, setBrandMenuState } from './menu';
+import { coerceBrand } from '../shared/theme-palette';
 import { appIconPath } from './paths';
 import { decideGpu, type GpuDecision } from './gpu-policy';
 import { fixArpIconOnSquirrelEvent } from './arp-icon';
@@ -455,9 +456,31 @@ app.whenReady().then(async () => {
   ipcMain.handle(IpcChannels.setDetailView, (_e, open: unknown, scale: unknown) => {
     setDetailView(open === true, typeof scale === 'number' ? scale : 1);
   });
-  installAppMenu(() =>
-    projectWindow && !projectWindow.isDestroyed() ? projectWindow : null,
-  );
+  // #77: View -> Brand is per project, and only the renderer knows which project
+  // is open. Coerced here rather than trusted — this crosses the IPC boundary,
+  // and an unknown brand must land on the default rather than on a menu item
+  // that can never be checked.
+  ipcMain.handle(IpcChannels.setBrandMenu, (_e, state: unknown) => {
+    const s = (state ?? {}) as Record<string, unknown>;
+    mainLog.debug(
+      `ipc: view:set-brand-menu open=${s.projectOpen === true} project=${String(
+        s.projectTheme,
+      )} app=${String(s.appBrand)}`,
+    );
+    setBrandMenuState({
+      projectOpen: s.projectOpen === true,
+      projectTheme: s.projectTheme == null ? null : coerceBrand(s.projectTheme),
+      appBrand: coerceBrand(s.appBrand),
+    });
+  });
+  const projectWindowRef = () =>
+    projectWindow && !projectWindow.isDestroyed() ? projectWindow : null;
+  // armBrandMenu BEFORE the first build: setBrandMenuState can arrive as soon as
+  // the renderer mounts, and a state push with no rebuilder registered would be
+  // stored and never drawn — the menu would sit at its startup values until
+  // something else happened to change them.
+  armBrandMenu(projectWindowRef);
+  installAppMenu(projectWindowRef);
   createWindows();
   // Windows are constructed with contentProtection ON and only opened up
   // afterwards if the setting says so. That ordering is deliberate and
@@ -526,6 +549,24 @@ app.whenReady().then(async () => {
 });
 
 // Quit when all windows are closed, except on macOS.
+// A window vanishing with no trace in the log is nearly impossible to diagnose
+// after the fact — a renderer that dies looks identical to a clean quit, because
+// the app then exits 0 through window-all-closed below. Logged rather than
+// handled: these are reports, and recovery is out of scope here.
+app.on('render-process-gone', (_e, _wc, details) => {
+  mainLog.error(
+    `renderer gone: reason=${details.reason} exitCode=${details.exitCode}`,
+  );
+});
+app.on('child-process-gone', (_e, details) => {
+  mainLog.error(
+    `child process gone: type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`,
+  );
+});
+process.on('uncaughtException', (err) => {
+  mainLog.error('uncaught exception in main:', err);
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
