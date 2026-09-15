@@ -59,8 +59,13 @@ export async function confinePathNoSymlinks(dir: string, rel: string): Promise<s
     if (component === '') continue;
     current = path.join(current, component);
     try {
-      // NB on Windows: Node reports a directory junction as a symbolic link
-      // here, which is what we want — a junction redirects exactly the same way.
+      // Windows junctions are covered. Node reports a directory junction as a
+      // symbolic link here, which is what we want since a junction redirects
+      // identically — CONFIRMED on a real Windows box (2026-09-15):
+      //   mklink /J %TEMP%\junc %TEMP%
+      //   lstatSync(...).isSymbolicLink()  ->  true
+      // Worth keeping written down: CI runs Linux and the maintainer works on
+      // macOS, so nothing in the automated path exercises a junction.
       if ((await fs.lstat(current)).isSymbolicLink()) return null;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') break; // nothing deeper exists either
