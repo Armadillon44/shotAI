@@ -4,7 +4,7 @@
 // redaction) over the raw screenshot once a step has been edited. Each image is
 // constrained to ~REPORT_BASE (800x600), with a per-step report zoom to enlarge.
 import React from 'react';
-import { CALLOUT_GLYPH, type CalloutKind, type ProjectStep } from '../../shared/project';
+import { CALLOUT_GLYPH, type CalloutKind, type ProjectStep, isCalloutKind } from '../../shared/project';
 import { shotUrl, useProjectStore } from './store';
 import { canMergeInto, mergeStepInto } from './merge';
 import { markerColorFor } from '../editor/annotations';
@@ -32,7 +32,11 @@ const ZOOM_MAX = 4;
 
 /** A text step styled as a callout — an annotation, NOT a numbered step (E10). */
 function isCalloutStep(s: ProjectStep): boolean {
-  return s.kind === 'text' && !!s.callout;
+  // isCalloutKind, not truthiness. An unrecognised callout is KEPT on read for
+  // forward-compat, so `!!s.callout` made it a callout here: un-numbered, which
+  // shifted every LATER step's number — and macOS renders the same step as a
+  // plain numbered one, so the two disagreed on every number after it (#90).
+  return s.kind === 'text' && isCalloutKind(s.callout);
 }
 
 function StepFigure({
@@ -983,7 +987,7 @@ export function Report({
                 </div>
                 <div className="rep__actions">{controls(s, idx)}</div>
               </div>
-            ) : s.callout ? (
+            ) : isCalloutKind(s.callout) ? (
               // Callout: the box COLOR conveys the type; the rail shows the type glyph.
               // Box + controls share one row so the box lines up with the glyph.
               <div className="rep__calloutrow">
