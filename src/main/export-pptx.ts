@@ -4,7 +4,7 @@
 // Pure-JS `pptxgenjs` (no CDN, no native deps).
 import pptxgen from 'pptxgenjs';
 import { clampScale } from '../shared/doc-scale';
-import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
+import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest, isCalloutKind } from '../shared/project';
 import { hexNoHash, type Palette } from '../shared/theme-palette';
 import { DEFAULT_EXPORT_THEME, type ExportTheme } from '../shared/export-theme';
 import { loadItemImage, type ExportItem } from './export';
@@ -162,7 +162,8 @@ export async function buildPptx(
         }
         continue;
       }
-      if (it.callout) {
+      // isCalloutKind, not truthiness — CALLOUT[unknown] threw here too (#90).
+      if (isCalloutKind(it.callout)) {
         // Callout slide: the card is tinted by kind; content sits inside it.
         const c = CALLOUT[it.callout];
         addCard(slide, c.fill, c.bd);

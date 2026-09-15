@@ -18,7 +18,7 @@ import {
   WidthType,
   type ISectionOptions,
 } from 'docx';
-import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
+import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest, isCalloutKind } from '../shared/project';
 import { hexNoHash, type Palette } from '../shared/theme-palette';
 import { DEFAULT_EXPORT_THEME, type ExportTheme } from '../shared/export-theme';
 import { loadItemImage, type ExportItem } from './export';
@@ -159,7 +159,10 @@ export async function buildDocx(
         }
         continue;
       }
-      if (it.callout) {
+      // isCalloutKind, not truthiness: CALLOUT[unknown] is undefined and `.fg`
+      // threw. The value is kept on read for forward-compat, so it must be
+      // narrowed HERE (#90).
+      if (isCalloutKind(it.callout)) {
         const c = CALLOUT[it.callout];
         const content: Paragraph[] = [
           new Paragraph({

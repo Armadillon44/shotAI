@@ -10,7 +10,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
-import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest } from '../shared/project';
+import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest, isCalloutKind } from '../shared/project';
 import { DEFAULT_EXPORT_THEME, exportTheme, type ExportTheme } from '../shared/export-theme';
 import { coerceBrand, type BrandId } from '../shared/theme-palette';
 import type { ExportFormat, ExportProgress, ExportResult } from '../shared/ipc';
@@ -364,7 +364,11 @@ async function collectSteps(
     if (step.kind === 'text') {
       const heading = (step.heading ?? '').trim();
       const body = (step.body ?? '').trim();
-      if (step.callout) {
+      // isCalloutKind, not truthiness: an unrecognised value is KEPT on read for
+        // forward-compat (section-callout.test.ts), so a truthiness test made it a
+        // callout — un-numbered, shifting every later step, and crashing the Office
+        // exports on CALLOUT[unknown]. Narrow at the point of USE (#90).
+      if (isCalloutKind(step.callout)) {
         // A `section` divider with neither heading nor body would emit a stray
         // rule/hr/---, so skip it (like an empty plain text step). Colored callouts
         // stay meaningful even when empty. Either way, un-numbered (no stepNo).
@@ -457,7 +461,7 @@ async function buildHtmlDoc(
         );
         continue;
       }
-      if (it.callout) {
+      if (isCalloutKind(it.callout)) {
         // Callout = the same step card, tinted by kind: a glyph badge in the left
         // gutter + the content in a tinted .step__main card (no inner box).
         const glyph = CALLOUT_GLYPH[it.callout];
@@ -560,7 +564,7 @@ async function buildPlainHtmlDoc(
         // Non-counted divider → a real heading + body (no glyph, no blockquote).
         if (it.heading) block.push(`<h2>${escapeHtml(it.heading)}</h2>`);
         if (it.body) block.push(`<p>${br(it.body)}</p>`);
-      } else if (it.callout) {
+      } else if (isCalloutKind(it.callout)) {
         // Bold glyph (+ heading) on the first line, then the body.
         const glyph = CALLOUT_GLYPH[it.callout];
         const h = `<strong>${glyph}${it.heading ? ` ${escapeHtml(it.heading)}` : ''}</strong>`;
@@ -728,7 +732,7 @@ async function buildMarkdown(
           if (it.heading) chunk.push('');
           chunk.push(it.body);
         }
-      } else if (it.callout) {
+      } else if (isCalloutKind(it.callout)) {
         // Blockquote with a bold glyph (+ heading) as the first quoted line, then
         // the body. A blank ">" line separates them (without it, two adjacent quoted
         // lines merge into one paragraph — CommonMark soft break = space).
