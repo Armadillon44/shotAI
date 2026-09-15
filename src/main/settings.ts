@@ -134,7 +134,23 @@ async function load(): Promise<Settings> {
   try {
     const raw = await fs.readFile(settingsFile(), 'utf8');
     const parsed = JSON.parse(raw) as Partial<Settings>;
+    // Carry keys this build does not name. `save` writes JSON.stringify(settings),
+    // so a field-by-field rebuild DELETES anything omitted here — and the realistic
+    // trigger is a rollback, not corruption: pick the LFI brand on a newer build,
+    // open the app on a machine still on v1.2.0, and that build's first settings
+    // write removes `brand` with no indication why (#92). Same additive-schema
+    // principle project.json already rests on, one layer over.
+    //
+    // Guarded on shape: only a plain object can carry keys worth preserving. A
+    // JSON scalar or array would spread into indexed junk — `{...'ab'}` is
+    // `{0:'a',1:'b'}` — and a null spreads to nothing, which is correct anyway.
+    //
+    // Every KNOWN key is coerced below and overwrites whatever rode in, so a bad
+    // value for a field this build owns is still repaired.
+    const carried =
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     return {
+      ...carried,
       projectsDir:
         typeof parsed.projectsDir === 'string'
           ? parsed.projectsDir
