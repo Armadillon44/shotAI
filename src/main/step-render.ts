@@ -4,7 +4,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { ProjectStep, StepPatch } from '../shared/project';
-import { confinePath } from './path-confine';
+import { confinePathNoSymlinks } from './path-confine';
 
 /**
  * Apply a patch to a step and, when NO fresh render is co-written, invalidate any
@@ -49,7 +49,9 @@ export async function writeStepRender(
 ): Promise<void> {
   // posix separators for the shot:// URL the renderer builds from step.flattened.
   const rel = path.posix.join('export', '.render', `${id}.png`);
-  const abs = confinePath(resolved, rel);
+  // Symlink-hardened: this WRITES, and a symlinked `shots/` would redirect it
+  // out of the project while lexical confinement saw nothing wrong (#82).
+  const abs = await confinePathNoSymlinks(resolved, rel);
   if (!abs) throw new Error(`refusing to write render for step "${id}" — path escapes the project folder`);
   await fs.mkdir(path.dirname(abs), { recursive: true });
   await fs.writeFile(abs, png);
