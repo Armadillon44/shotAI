@@ -330,4 +330,12 @@ docs/                        product plan, phase notes, hardening/feature histor
 
 ## License
 
-MIT
+MIT.
+
+### Bundled third-party assets
+
+**Archivo** (the LFI brand typeface) is © The Archivo Project Authors and licensed under the
+**SIL Open Font License 1.1**, not MIT. The licence ships with the font in the installed app
+(`resources/OFL.txt`) and lives at [`src/renderer/fonts/OFL.txt`](src/renderer/fonts/OFL.txt)
+in the tree. The OFL requires the licence to travel with the font, so if you repackage this
+app, keep them together.

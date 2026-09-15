@@ -114,6 +114,11 @@ const config: ForgeConfig = {
       // read, and the PDF is printed from HTML by a real browser engine, so the
       // print page has to be handed the file or the PDF embeds the fallback.
       './src/renderer/fonts/Archivo.ttf',
+      // Archivo is SIL OFL 1.1, which requires the licence to travel WITH the
+      // font. It was already in the source tree (and asserted there by
+      // theme-palette.test.ts), but the source tree is not what we hand a user —
+      // only extraResource puts it in the installed app next to the .ttf (#93).
+      './src/renderer/fonts/OFL.txt',
     ],
   },
   // Our native deps (uiohook-napi, node-screenshots, get-windows) are all N-API
