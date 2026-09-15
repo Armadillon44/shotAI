@@ -71,9 +71,24 @@ describe('project.json conformance (shared with the macOS app)', () => {
     it(`${c.name} [${c.status}]`, () => {
       // Round trip through the real codec, then through JSON so the comparison
       // sees exactly what would be written.
-      const written = JSON.parse(
-        JSON.stringify(coerceManifest(c.input as never, 'Imported project')),
-      ) as unknown;
+      //
+      // The codec THROWING is itself a possible divergence — a null entry in
+      // `steps` makes coerceManifest throw here and is merely dropped on macOS —
+      // so a throw has to be reportable rather than an unconditional test
+      // failure, or an `open` case covering it can never be expressed.
+      let written: unknown;
+      try {
+        written = JSON.parse(
+          JSON.stringify(coerceManifest(c.input as never, 'Imported project')),
+        ) as unknown;
+      } catch (err) {
+        const threw = `${c.name}: the codec THREW — ${(err as Error).message}`;
+        if (c.status === 'open') {
+          console.warn(`[conformance] open divergence — ${threw}\n  ${c.divergence ?? ''}\n  tracked: ${c.issue ?? 'untracked'}`);
+          return;
+        }
+        expect.fail(`${threw}\n  why this matters: ${c.why}`);
+      }
 
       const failures: string[] = [];
       for (const key of Object.keys(c.expect).sort()) {
