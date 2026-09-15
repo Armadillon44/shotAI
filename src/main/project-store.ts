@@ -66,13 +66,34 @@ async function resolveKnownProject(projectPath: string): Promise<string> {
  *  Exported for sop-apply (revertSop normalizes the restored snapshot). */
 export function normalizeSteps(steps: unknown): ProjectStep[] {
   if (!Array.isArray(steps)) return [];
-  return steps.map((s) => {
+  const kept: ProjectStep[] = [];
+  let dropped = 0;
+  for (const s of steps) {
+    // A null element used to reach `step.annotations` and throw a TypeError,
+    // which failed coerceManifest, failed openProject, and — because the Home
+    // listing walks every project through the same path — made the project
+    // VANISH from the list rather than showing an error (#86). Note the spread
+    // was never the culprit: `{...null}` is legal and yields {}. It was the
+    // property access.
+    //
+    // Non-object junk (42, "x", [], true) does not throw and was already kept as
+    // a ghost step; it is now dropped for the same reason a null is. One bad
+    // element costs that element, which is the tolerance every field here
+    // already has, and matches what macOS does after Armadillon44/shotAI_MacOS#108.
+    if (typeof s !== 'object' || s === null || Array.isArray(s)) {
+      dropped += 1;
+      continue;
+    }
     const step = s as ProjectStep;
-    return {
+    kept.push({
       ...step,
       annotations: Array.isArray(step.annotations) ? step.annotations : [],
-    };
-  });
+    });
+  }
+  // Say so. A silent drop is indistinguishable from a project that never had
+  // those steps, which is most of what made the macOS twin of this hard to see.
+  if (dropped > 0) projectsLog.error(`manifest: dropped ${dropped} malformed step(s) of ${steps.length}`);
+  return kept;
 }
 
 /** Coerce a persisted SOP intro (or null) — a preamble, not a step. */

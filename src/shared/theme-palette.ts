@@ -249,18 +249,28 @@ export const DEFAULT_BRAND: BrandId = 'shotAI';
 /**
  * Whether `v` names a brand this build knows.
  *
+ * `Object.hasOwn`, NOT `in`. `in` walks the prototype chain, so every
+ * Object.prototype member passed as a valid BrandId: isBrandId('toString') was
+ * true, coerceBrand('toString') returned 'toString' rather than the default, and
+ * BRANDS['toString'] is a Function — so brandPalette() returned undefined and
+ * plainFontStackFor() threw. Worse, coerceManifest KEPT theme:"toString" while
+ * discarding a legitimate unknown like "solarpunk", which is exactly backwards.
+ *
+ * coerceBrand delegates rather than repeating the test, so the two can never
+ * drift apart again (#89).
+ *
  * Distinct from coerceBrand, and the distinction matters since a project may
  * PIN the default brand: coerceBrand('nonsense') and coerceBrand('shotAI') are
  * both 'shotAI', so coercion alone cannot tell an unknown value from a
  * deliberate default and would silently promote the first into the second.
  */
 export function isBrandId(v: unknown): v is BrandId {
-  return typeof v === 'string' && v in BRANDS;
+  return typeof v === 'string' && Object.hasOwn(BRANDS, v);
 }
 
 /** Narrow an untrusted value to a brand id (default DEFAULT_BRAND). */
 export function coerceBrand(v: unknown): BrandId {
-  return typeof v === 'string' && v in BRANDS ? (v as BrandId) : DEFAULT_BRAND;
+  return isBrandId(v) ? v : DEFAULT_BRAND;
 }
 
 /** The palette a brand wears in an appearance. */
