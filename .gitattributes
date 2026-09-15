@@ -1,0 +1,18 @@
+# Normalise line endings in the working tree by default.
+* text=auto
+
+# THE CROSS-REPO CONTRACT — pin to LF, unconditionally.
+#
+# `contract/brand.json` is hashed byte-for-byte and the digest is stamped into
+# the generated tables in BOTH this repo and Armadillon44/shotAI_MacOS. That
+# stamp is the only thing making "the two repos hold the same contract" visible
+# in a diff. A default Windows clone (core.autocrlf=true) rewrites the worktree
+# copy to CRLF, which changes the digest — so the file must never be converted.
+#
+# The same applies to the generated outputs: the staleness check compares them
+# byte-for-byte against freshly generated LF output.
+contract/**                        text eol=lf
+src/shared/brand-colors.generated.ts text eol=lf
+
+# Shell scripts must stay LF or they will not execute.
+*.sh text eol=lf

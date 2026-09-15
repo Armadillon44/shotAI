@@ -107,7 +107,24 @@ describe('project.json conformance (shared with the macOS app)', () => {
         }
       }
 
-      if (failures.length === 0) return;
+      if (failures.length === 0) {
+        // An `open` case that passes HERE is worth saying out loud: without it, a
+        // divergence that gets fixed keeps its `open` label forever and nobody
+        // re-checks by hand, which is the promise the README makes for the status
+        // field.
+        //
+        // But it is NOT proof of resolution. A case is open because at least one
+        // platform diverges, and most are open for the OTHER one — so this must
+        // not tell anyone to flip the status on the strength of one side passing.
+        if (c.status === 'open') {
+          console.warn(
+            `[conformance] ${c.name} is marked open and PASSES HERE. It stays open until ` +
+              `the other platform passes too — check there before flipping status to ` +
+              `"agreed" (tracked: ${c.issue ?? 'untracked'}).`,
+          );
+        }
+        return;
+      }
       const detail = `${c.name}: ${failures.join('; ')}`;
       if (c.status === 'open') {
         // A KNOWN divergence: reported, never failed. Resolving one is a status

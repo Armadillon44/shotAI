@@ -26,11 +26,17 @@ const die = (m) => {
 };
 
 const specBytes = readFileSync(specPath);
+// Hash the CANONICAL bytes, not whatever the worktree holds. A default Windows
+// clone (core.autocrlf=true) rewrites this file to CRLF on checkout, which
+// changes the digest and makes the stamp disagree with the macOS copy — the one
+// disagreement the stamp exists to reveal. .gitattributes now pins the file to
+// LF, and this makes the script correct even in a tree that predates it.
+const canonicalSpec = Buffer.from(specBytes.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
 // The contract's content hash, stamped into the generated header. The same file
 // lives in Armadillon44/shotAI_MacOS and its generated table carries the same
 // line, so "both repos hold the same contract" is checkable by eye rather than
 // asserted in prose.
-const specHash = createHash('sha256').update(specBytes).digest('hex');
+const specHash = createHash('sha256').update(canonicalSpec).digest('hex');
 const spec = JSON.parse(specBytes.toString('utf8'));
 const { brands, windowsRenames: RENAME = {}, platforms } = spec;
 const tokens = platforms?.windows?.colors ?? die('spec has no platforms.windows.colors');
@@ -116,7 +122,11 @@ if (check) {
   } catch {
     /* missing counts as stale */
   }
-  if (existing !== out) {
+  // Compare line-ending-normalised. Without this, a CRLF worktree copy reads as
+  // stale on every run, and the remedy the message prints — regenerate and
+  // commit — would stamp the CRLF-derived hash and silently unpin the contract.
+  const norm = (t) => t.replace(/\r\n/g, '\n');
+  if (norm(existing) !== norm(out)) {
     die(`${path.basename(outPath)} is STALE.\nRun \`npm run gen:brand\` and commit the result.`);
   }
   console.log('gen-brand: up to date');
