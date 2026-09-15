@@ -22,7 +22,8 @@
 
 import { REPORT_COL_BASE, clampScale } from '../../shared/doc-scale';
 
-/** Max image box at zoom 1, scale 1. Width matches macOS ReportPresentation.baseWidth. */
+/** Max image box at zoom 1, scale 1. Derived from the EXPORT column, so the
+ *  report figure is the exported figure — see doc-scale.ts REPORT_COL_BASE (#81). */
 export const REPORT_BASE_W = REPORT_COL_BASE;
 export const REPORT_BASE_H = 600;
 

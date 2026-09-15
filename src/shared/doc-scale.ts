@@ -65,14 +65,31 @@ export function isLegalScale(value: unknown): boolean {
 // export, which is the point of them living together.
 // ---------------------------------------------------------------------------
 
-/** `.rep` max-width. Matches the macOS ReportView content frame. */
-export const REP_FRAME_BASE = 880;
-/** `.rep__bodywrap` max-width, the in-app step card. */
-export const REPORT_COL_BASE = 820;
 /** The export document's CONTENT column: `.doc` is this + DOC_PAD*2. */
 export const HTML_COL_BASE = 816;
 /** `.doc` horizontal padding, per side. Fixed: chrome does not scale. */
 export const HTML_DOC_PAD = 32;
+
+/**
+ * `.rep__bodywrap` max-width, the in-app step card. DERIVED, not a constant.
+ *
+ * It was 820 against the export's 816, so a step figure was 4px wider on screen
+ * than in the file the app produced — at every scale, growing with it. WYSIWYG
+ * between the report and the export is the property both apps claim, and this was
+ * the only place breaking it (#81).
+ *
+ * macOS collapsed the same pair (DocScale.swift: `reportColumnBase =
+ * htmlColumnBase`). Keeping them as two numbers is how they drifted.
+ */
+export const REPORT_COL_BASE = HTML_COL_BASE;
+
+/**
+ * `.rep` max-width. DERIVED: the column plus the document padding either side.
+ *
+ * Also 880, so nothing moves — but it is now 880 BECAUSE 816 + 32*2, not by
+ * coincidence. The difference shows up when scaled: see `docWidths`.
+ */
+export const REP_FRAME_BASE = HTML_COL_BASE + HTML_DOC_PAD * 2;
 
 /** Fixed chrome subtracted from the column to get the image width. */
 export const STEP_BADGE_W = 30;
@@ -115,8 +132,13 @@ export function docWidths(scale: number): DocWidths {
   // Never let the chrome eat the whole column: at the floor there is still an image.
   const htmlImgMax = Math.max(120, htmlCol - STEP_CHROME);
   return {
-    repFrame: Math.round(REP_FRAME_BASE * s),
-    reportCol: Math.round(REPORT_COL_BASE * s),
+    // Derived from the SCALED column plus FIXED padding, not `REP_FRAME_BASE * s`.
+    // Padding is chrome and must not scale — multiplying the whole frame scaled it
+    // too, so the frame grew faster than the content inside it. macOS fixed the
+    // same thing (`reportFrame(s) = htmlColumn(s) + 2 * docPadding`), and at scale
+    // 1 both spellings give 880, which is what hid it.
+    repFrame: htmlCol + HTML_DOC_PAD * 2,
+    reportCol: htmlCol,
     htmlCol,
     htmlDoc: htmlCol + HTML_DOC_PAD * 2,
     htmlImgMax,
