@@ -26,7 +26,7 @@ import {
   persistProjectsDir,
   setRecents,
 } from './settings';
-import { confinePath } from './path-confine';
+import { confinePath, confinePathNoSymlinks } from './path-confine';
 import { applyPatchAndInvalidate, writeStepRender } from './step-render';
 import { writeFileAtomic } from './atomic-write';
 import { packArchive, unpackArchive, isArchivedOnDisk } from './archive';
@@ -301,7 +301,8 @@ export async function createProjectFromImport(
     if (!/^shots\/[^/]+$/.test(rel) && !/^export\/\.render\/[^/]+$/.test(rel)) {
       throw new Error(`Package contains an unexpected file path: ${f.rel}`);
     }
-    const abs = confinePath(dir, rel); // defense-in-depth against zip-slip
+    // Symlink-hardened: this WRITES untrusted package bytes (#82).
+    const abs = await confinePathNoSymlinks(dir, rel); // + zip-slip defence
     if (!abs) throw new Error(`Refusing to extract a path outside the project: ${f.rel}`);
     await fs.mkdir(path.dirname(abs), { recursive: true });
     await fs.writeFile(abs, f.bytes, { flag: 'wx' }); // wx: never overwrite in a fresh dir
@@ -827,7 +828,9 @@ export function deleteSteps(
         if (!rel) continue;
         // Confine: a manifest-sourced path must stay inside the project folder
         // before we rm it (defends against a hand-edited traversal path).
-        const abs = confinePath(resolved, rel);
+        // Symlink-hardened: this DELETES. A symlinked component would send the
+        // rm outside the project entirely (#82).
+        const abs = await confinePathNoSymlinks(resolved, rel);
         if (!abs) continue;
         await fs.rm(abs, { force: true }).catch(() => undefined);
       }

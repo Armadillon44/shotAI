@@ -14,7 +14,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
-import { confinePath } from './path-confine';
+import { confinePathNoSymlinks } from './path-confine';
 import { projectsLog } from './logger';
 
 const ARCHIVE_ZIP = 'archive.zip';
@@ -119,7 +119,9 @@ export async function unpackArchive(projectDir: string): Promise<void> {
     // Only restore into the dirs we archive — reject anything else (a tampered zip).
     const allowed = ARCHIVED_DIRS.some((d) => rel === d || rel.startsWith(`${d}/`));
     if (!allowed) throw new Error(`archive contains an unexpected path: ${e.name}`);
-    const abs = confinePath(projectDir, rel); // defense-in-depth against zip-slip
+    // Symlink-hardened: restore WRITES, and the archive may be restoring over a
+    // tree whose directories were replaced with links since it was made (#82).
+    const abs = await confinePathNoSymlinks(projectDir, rel); // + zip-slip defence
     if (!abs) throw new Error(`refusing to extract a path outside the project: ${e.name}`);
     await fs.mkdir(path.dirname(abs), { recursive: true });
     await fs.writeFile(abs, await e.async('nodebuffer'));
