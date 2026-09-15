@@ -49,6 +49,13 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
+      # The brand table is generated from contract/brand.json, which is byte-identical
+      # to the copy in Armadillon44/shotAI_MacOS. This step is what makes that true:
+      # it fails if the checked-in table no longer matches the contract, so a colour
+      # cannot be edited on one platform and silently left alone on the other.
+      - name: Brand table is current
+        run: npm run gen:brand:check
+
       # Typecheck first: a type error explains a test failure, so seeing it first
       # is strictly more useful than seeing the symptom.
       - name: Typecheck

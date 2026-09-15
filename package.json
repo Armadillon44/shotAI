@@ -2,7 +2,7 @@
   "name": "shotai",
   "productName": "shotAI",
   "version": "1.2.0",
-  "description": "Local-first SOP builder — record a process and let Claude write the step-by-step guide.",
+  "description": "Local-first SOP builder \u2014 record a process and let Claude write the step-by-step guide.",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -13,6 +13,8 @@
     "lint": "eslint --ext .ts,.tsx .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "gen:brand": "node scripts/gen-brand.mjs",
+    "gen:brand:check": "node scripts/gen-brand.mjs --check",
     "build:element-locator": "node scripts/build-element-locator.mjs",
     "postinstall": "node scripts/postinstall.mjs"
   },
