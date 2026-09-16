@@ -15,7 +15,32 @@ short-lived Claude credential. Exactly one is **automatic**: a once-a-day check 
 shotAI release (switchable off in Settings). Windows and **macOS** are both released and
 share a byte-compatible project format, so a guide moves between them unchanged.
 
-> **Status:** **1.2.0**. Users can now **sign in with their work account** instead of
+> **Status:** **1.3.0**. shotAI can now wear a **second brand**. **View → Brand** switches
+> the whole app, and a project can be **pinned** to a brand so it always renders and exports
+> that way, whatever the app is set to — the report, the window chrome and every export
+> follow it, including the bundled **Archivo** typeface embedded in the PDF. The brand
+> palette is generated from a single spec shared byte-for-byte with the macOS app, so a
+> colour cannot be changed on one platform and quietly left alone on the other.
+>
+> 1.3.0 also makes **Claude's SOP generation fail honestly**. A generation that wrote no
+> step instructions, or wrote them against step numbers that match no screenshot, used to be
+> applied anyway: the user got a fresh title and overview, every caption unchanged, and no
+> error at all. It now refuses and says so, leaving the project exactly as it was. The
+> prompt was also taught how the step numbers actually work, which is what produced those
+> unusable generations in the first place. Alongside that, Claude is told when a project
+> title is just a timestamp so it replaces it, an overview **you** wrote is no longer fed
+> back to Claude as its own, and the pre-send review screen no longer implies nothing has
+> left your machine — the estimate it shows is measured by Anthropic, so the screenshots go
+> out when the review appears rather than when you confirm it.
+>
+> Under the surface, a project file written by a **newer** build — or by the macOS app — now
+> survives being opened here: unknown keys and unrecognised brands are kept rather than
+> silently deleted, a malformed step costs that step instead of the whole project, and an
+> unknown callout no longer renumbers everything after it. A shared conformance suite runs
+> the same fixtures against both platforms' codecs so the two cannot drift apart unnoticed.
+> The report also now renders at exactly the width it exports.
+>
+> 1.2.0 let users **sign in with their work account** instead of
 > handling an Anthropic API key. Where an administrator has set it up, **Settings → AI**
 > offers **Sign in with Microsoft**: shotAI trades that sign-in for a short-lived Claude
 > credential, so no key is issued, pasted, stored or rotated, and access is granted or
@@ -125,7 +150,11 @@ share a byte-compatible project format, so a guide moves between them unchanged.
    review is your gate on the generation, not on the images leaving.
 
 4. **Export & share.** Export to **HTML**, **Word** (`.docx`), **PowerPoint** (`.pptx`),
-   **PDF**, **Markdown**, or **HTML-for-Word** (paste into Word/Docs). Each is footed with
+   **PDF**, **Markdown**, or **HTML-for-Word** (paste into Word/Docs). Every format carries
+   the project's **brand** — colours, corner radius and typeface — so a document looks the
+   same wherever it was exported from. **View → Brand** sets the brand for the app, and
+   picking one while a project is open **pins** that project to it, so it keeps rendering
+   and exporting that way even when the app is set to something else. Each is footed with
    "Created on <date>", optionally "by <your name>". The project's **Size** setting
    applies where each format allows it: HTML scales fully, the PDF scales its
    screenshots while the text column still fills the page, Word and PowerPoint can
