@@ -12,7 +12,8 @@ SOP, Microsoft (`login.microsoftonline.com`) when you sign in and when shotAI re
 sign-in for a request you made, and a
 token exchange with Anthropic (`POST /v1/oauth/token`) that turns that sign-in into a
 short-lived Claude credential. Exactly one is **automatic**: a once-a-day check for a newer
-shotAI release (switchable off in Settings). **Windows first**, macOS later.
+shotAI release (switchable off in Settings). Windows and **macOS** are both released and
+share a byte-compatible project format, so a guide moves between them unchanged.
 
 > **Status:** **1.2.0**. Users can now **sign in with their work account** instead of
 > handling an Anthropic API key. Where an administrator has set it up, **Settings → AI**
@@ -72,8 +73,17 @@ shotAI release (switchable off in Settings). **Windows first**, macOS later.
 > review-before-send + one-click revert, element-at-point captions (native UI Automation),
 > export to HTML / Word / PowerPoint / PDF / Markdown + a shareable round-trip package,
 > project archiving, and light/dark themes — is all in place. See
-> [docs/PLAN.md](docs/PLAN.md) for the product roadmap and
-> [docs/HARDENING-PLAN.md](docs/HARDENING-PLAN.md) for the hardening/feature history.
+> [docs/PLAN.md](docs/PLAN.md) for the product roadmap, and
+> [docs/HARDENING-PLAN.md](docs/HARDENING-PLAN.md) for the security-hardening plan —
+> a plan, not a changelog: it does not track shipped features, and the release notes
+> and git history are the record of what landed.
+>
+> **Unreleased on `main`:** a second **brand theme**. Settings → Appearance picks the brand
+> for the app; **View → Brand** pins one project to its own, and that pin travels inside a
+> shared package and round-trips with macOS. The brand reaches the report *and* every styled
+> export — colour, corner radii and typeface — so a guide looks the same wherever it is
+> opened. Projects that never choose a brand are untouched: nothing is written to
+> `project.json` unless you pick one.
 
 ## How it works
 
@@ -324,9 +334,30 @@ src/renderer/overlay/        area drag-select overlay (React)
 src/shared/                  IPC contract + types shared by main and renderer
 native/element-locator/      Rust cdylib (UI-Automation element-at-point) loaded via koffi
 assets/                      app icon (png + ico) + installer graphic
-scripts/                     build / postinstall helpers
-docs/                        product plan, phase notes, hardening/feature history
+scripts/                     build / postinstall helpers, brand-table codegen
+contract/                    SHARED WITH macOS — see below
+docs/                        product plan, phase notes, security-hardening plan
+.github/workflows/ci.yml     tests + typecheck + lint on every push and PR
 ```
+
+### `contract/` is shared with the macOS repo
+
+`contract/` is **byte-identical** to the copy in
+[Armadillon44/shotAI_MacOS](https://github.com/Armadillon44/shotAI_MacOS). Two things live
+there, and both exist because the same fact used to be written twice and drift:
+
+- **`brand.json`** — every brand colour, radius and font. Each platform GENERATES its table
+  from it (`npm run gen:brand` here, `swift Scripts/gen-brand.swift` there), and the
+  generated file stamps the contract's sha256 so a mismatch between the repos shows up in a
+  diff. `npm run gen:brand:check` fails if the checked-in table is stale, and CI runs it.
+  **Never hand-edit `src/shared/brand-colors.generated.ts`.**
+- **`conformance/`** — cases both apps run against their own `project.json` codec, so the
+  rules for what a malformed or unrecognised value degrades to cannot diverge silently. A
+  case is `agreed` (both must pass) or `open` (a known divergence, reported with the issue
+  tracking it).
+
+**A change to `contract/` has to land in both repos**, or the two copies diverge. Nothing
+enforces that automatically yet; `contract/conformance/README.md` says so too.
 
 ## License
 
