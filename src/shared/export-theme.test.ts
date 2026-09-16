@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
+import path from 'node:path';
 import {
   DEFAULT_EXPORT_THEME,
   chipRadiusCss,
@@ -127,10 +128,47 @@ describe('the PDF embeds the face; nothing else does', () => {
     // extraResource puts it OUTSIDE the asar. Existence is not loadability, but
     // a path inside the archive would not even be readable by fs, so this at
     // least pins the packaging decision next to the code that depends on it.
-    expect(read('forge.config.ts')).toContain('./src/renderer/fonts/Archivo.ttf');
+    //
+    // Matching the two literals SEPARATELY is what this used to do, and it is
+    // too weak: renaming the file in extraResource leaves the paths.ts half
+    // passing against the stale name, and the mismatch only shows up in a
+    // package nobody builds during a normal change (#93). So derive one from
+    // the other — the basename Forge flattens INTO resources/ has to be the
+    // basename main looks for THERE.
+    const shipped = /extraResource:\s*\[([\s\S]*?)\]/.exec(read('forge.config.ts'));
+    expect(shipped, 'forge.config.ts must declare extraResource').not.toBeNull();
+    const entries = [...(shipped as RegExpExecArray)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+
+    const face = entries.find((e) => e.endsWith('.ttf'));
+    expect(face, 'the brand face must be shipped as a resource').toBeTruthy();
+    expect(
+      fs.existsSync(face as string),
+      `${face} is declared in extraResource but is not in the tree`,
+    ).toBe(true);
+
     const paths = read('src/main/paths.ts');
     expect(paths).toContain('brandFontPath');
-    expect(paths).toContain("path.join(process.resourcesPath, 'Archivo.ttf')");
+    // The name main joins onto process.resourcesPath, read back rather than
+    // retyped, so a rename on either side fails here instead of in a package.
+    const looksFor = /path\.join\(process\.resourcesPath,\s*'([^']+\.ttf)'\)/.exec(paths);
+    expect(looksFor, 'brandFontPath must resolve a .ttf under resourcesPath').not.toBeNull();
+    expect((looksFor as RegExpExecArray)[1]).toBe(path.basename(face as string));
+  });
+
+  it('ships the licence with the font, because the OFL requires it to travel', () => {
+    // theme-palette.test.ts asserts OFL.txt is in the SOURCE tree. That is not
+    // what a user is handed: only extraResource puts it in the installed app,
+    // and it was missing from there until #93.
+    const shipped = /extraResource:\s*\[([\s\S]*?)\]/.exec(read('forge.config.ts'));
+    const entries = [...(shipped as RegExpExecArray)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    const face = entries.find((e) => e.endsWith('.ttf')) as string;
+    const licence = entries.find((e) => e.endsWith('OFL.txt'));
+
+    expect(licence, 'the SIL OFL licence must ship alongside the face').toBeTruthy();
+    expect(fs.existsSync(licence as string)).toBe(true);
+    // Both flatten into the same resources/ dir, so shipping a licence for a
+    // face that lives elsewhere would be the wrong licence in the right place.
+    expect(path.dirname(licence as string)).toBe(path.dirname(face));
   });
 });
 
