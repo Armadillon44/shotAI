@@ -2,7 +2,7 @@
 // capture-mode picker) stays in App.tsx; this owns the currently-open project.
 import { create } from 'zustand';
 import { SCALE_DEFAULT, clampScale } from '../../shared/doc-scale';
-import type { BrandId } from '../../shared/theme-palette';
+import { pinnedBrand, type BrandId } from '../../shared/theme-palette';
 import type {
   ProjectManifest,
   ProjectStep,
@@ -114,7 +114,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         intro: manifest.intro,
         displayScale: clampScale(manifest.displayScale),
         committedScale: clampScale(manifest.displayScale),
-        projectTheme: manifest.theme ?? null,
+        projectTheme: pinnedBrand(manifest.theme),
         sopBackup: manifest.sopBackup,
         updatedAt: manifest.updatedAt,
         manifestRev: s.manifestRev + 1,
@@ -155,7 +155,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       intro: manifest.intro,
       displayScale: clampScale(manifest.displayScale),
       committedScale: clampScale(manifest.displayScale),
-      projectTheme: manifest.theme ?? null,
+      projectTheme: pinnedBrand(manifest.theme),
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,
@@ -191,7 +191,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       intro: manifest.intro,
       displayScale: clampScale(manifest.displayScale),
       committedScale: clampScale(manifest.displayScale),
-      projectTheme: manifest.theme ?? null,
+      projectTheme: pinnedBrand(manifest.theme),
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,

@@ -7,7 +7,7 @@ import {
   fontStackFor,
   plainFontStackFor,
 } from './export-theme';
-import { BRANDS, BRAND_IDS, DEFAULT_BRAND } from './theme-palette';
+import { BRANDS, BRAND_IDS, DEFAULT_BRAND, coerceBrand, pinnedBrand, type BrandId } from './theme-palette';
 import { docCss, plainCss } from '../main/export-css';
 
 describe('an export is a brand, never an appearance', () => {
@@ -190,9 +190,34 @@ describe('the brand actually reaches the exporters', () => {
     // would have to read project.json a second time, and the two reads would
     // eventually disagree — which is the whole failure mode #77 phase 1b exists
     // to prevent: the same project exporting differently on two machines.
+    //
+    // The narrowing must sit INSIDE the `??`, not around it (#95). Written as
+    // `coerceBrand(manifest.theme ?? opts.brand)`, a preserved-but-unrecognised
+    // brand is non-nullish, so `??` never fires, opts.brand is discarded, and
+    // coerceBrand maps the unknown to the DEFAULT — an LFI user gets a violet
+    // document. This regex is what stops that shape coming back.
     const src = read('src/main/export.ts');
     expect(src, 'exportProject should prefer the project key').toMatch(
-      /exportTheme\(\s*coerceBrand\(manifest\.theme \?\? opts\.brand\)\s*\)/,
+      /exportTheme\(\s*pinnedBrand\(manifest\.theme\) \?\? coerceBrand\(opts\.brand\)\s*\)/,
     );
+    expect(src, 'the old shape swallows the app preference').not.toMatch(
+      /coerceBrand\(manifest\.theme \?\? opts\.brand\)/,
+    );
+  });
+
+  it('falls back to the APP brand for an unknown pin, not to the default', () => {
+    // The behavioural half of the assertion above. The source scan ties export.ts
+    // to one expression; this ties that expression to what it must MEAN, so a
+    // future rewrite that keeps the behaviour is free to change the shape.
+    //
+    // The app preference here is deliberately 'lfi'. With 'shotAI' the correct
+    // answer and the buggy one are the same value and the test cannot fail.
+    const resolve = (theme: unknown, appBrand: BrandId): BrandId =>
+      pinnedBrand(theme) ?? coerceBrand(appBrand);
+
+    expect(resolve('solarpunk', 'lfi'), 'an unknown pin must not override the app').toBe('lfi');
+    expect(resolve(undefined, 'lfi'), 'an absent pin follows the app').toBe('lfi');
+    expect(resolve('shotAI', 'lfi'), 'an explicit pin beats the app').toBe('shotAI');
+    expect(resolve(42, 'lfi'), 'a non-string is not a pin').toBe('lfi');
   });
 });

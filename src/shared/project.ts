@@ -8,7 +8,6 @@
  */
 
 import type { SopTone } from './sop';
-import type { BrandId } from './theme-palette';
 
 export const PROJECT_SCHEMA_VERSION = 1;
 
@@ -404,16 +403,24 @@ export interface ProjectManifest {
   /**
    * The BRAND this project's report and exports wear (#77 phase 1b).
    *
-   * ABSENT means "follow the app preference", which is what every project
-   * written before this key does, so nothing on disk changes for anyone who
-   * never picks a brand.
+   * ABSENT, or a value this build does not recognise, means "follow the app
+   * preference". Absent is what every project written before this key does, so
+   * nothing on disk changes for anyone who never picks a brand.
+   *
+   * TYPED AS `string`, not `BrandId`, and that is the point (#95). The value on
+   * disk may name a brand only a NEWER build knows. It is preserved verbatim
+   * and narrowed at every read site with `pinnedBrand`, which yields null for
+   * anything unrecognised. Narrowing with `coerceBrand` instead is a bug: it
+   * returns DEFAULT_BRAND, which overrides the app preference rather than
+   * falling back to it.
    *
    * PRECEDENCE, stated once so both platforms implement it identically:
-   *   1. A project carrying the key renders and exports in that brand,
-   *      INCLUDING the window chrome while it is open. A corporate report
-   *      inside a violet shell is incoherent, and the report is meant to be
-   *      WYSIWYG with the export.
-   *   2. A project with no key falls back to the app preference.
+   *   1. A project carrying a key this build RECOGNISES renders and exports in
+   *      that brand, INCLUDING the window chrome while it is open. A corporate
+   *      report inside a violet shell is incoherent, and the report is meant to
+   *      be WYSIWYG with the export.
+   *   2. A project with no key, or one naming a brand this build does not know,
+   *      falls back to the app preference.
    *   3. Home and Settings always use the app preference; they belong to no
    *      project.
    *
@@ -421,7 +428,9 @@ export interface ProjectManifest {
    * app preference and omitted there when it is the default brand, so a
    * default-branded new project writes nothing and existing projects stay
    * byte-identical. An EXPLICIT choice, however, always writes — including the
-   * default brand.
+   * default brand. A value read from disk that this build does not recognise is
+   * written back UNCHANGED: it was neither stamped here nor chosen here, and
+   * deleting it would let an older build silently destroy a newer build's pin.
    *
    * ⚠ That last part is a deliberate divergence from the rule as first written,
    * which omitted the default on every path. "Absent" and "explicitly the
@@ -438,10 +447,17 @@ export interface ProjectManifest {
    *
    * CROSS-PLATFORM: this is the byte-compatible schema. macOS reads and writes
    * the same field with the same values ('shotAI' | 'lfi', its BrandPref raw
-   * values). An unknown value decodes to the default rather than failing, so a
-   * project carrying a brand one side does not know about still opens.
+   * values), and stores it as a raw `String?` for the same reason this is a
+   * `string`. An unknown value is PRESERVED byte-for-byte and narrowed only at
+   * the point of use, where it resolves to ABSENT rather than to the default
+   * brand. Dropping it lets an older build delete a newer build's pin; the
+   * pinned project then silently changes appearance and there is no way to tell
+   * the value ever existed. Pinned by `theme-unknown-value` in
+   * contract/conformance/manifest/.
+   *
+   * A NON-STRING is still dropped, matching macOS's `String` decode.
    */
-  theme?: BrandId;
+  theme?: string;
   /** SOP overview rendered as a preamble above the steps (not a step). */
   intro: SopIntro | null;
   /**
@@ -468,6 +484,39 @@ export interface ProjectManifest {
   archived: boolean;
   archivedAt: string | null;
 }
+
+/**
+ * Every root key this build names, as data (#95).
+ *
+ * `coerceManifest` preserves any root key NOT listed here, so this set is the
+ * definition of "unknown" and getting it wrong is silent. It is a
+ * `Record<keyof Required<ProjectManifest>, true>` rather than a plain array so
+ * the compiler maintains it: adding a field to the interface without adding it
+ * here is TS2739, and leaving a stale name behind is TS2353.
+ *
+ * It must be an exact list of KEY NAMES, never derived from "whatever
+ * coerceManifest emitted", because displayScale, theme and introEditedByUser are
+ * emitted CONDITIONALLY. Deriving it from the output would classify a key as
+ * unknown precisely when it was deliberately omitted, and the preserved copy
+ * would resurrect the value the coercion just rejected.
+ */
+export const MANIFEST_KEYS: Record<keyof Required<ProjectManifest>, true> = {
+  version: true,
+  id: true,
+  title: true,
+  createdWith: true,
+  createdAt: true,
+  updatedAt: true,
+  captureSettings: true,
+  steps: true,
+  displayScale: true,
+  theme: true,
+  intro: true,
+  introEditedByUser: true,
+  sopBackup: true,
+  archived: true,
+  archivedAt: true,
+};
 
 /** UI color theme preference (F10). 'system' follows the OS setting. */
 export type ThemePref = 'light' | 'dark' | 'system';
