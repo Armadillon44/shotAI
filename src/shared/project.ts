@@ -492,7 +492,15 @@ export interface ProjectManifest {
  * definition of "unknown" and getting it wrong is silent. It is a
  * `Record<keyof Required<ProjectManifest>, true>` rather than a plain array so
  * the compiler maintains it: adding a field to the interface without adding it
- * here is TS2739, and leaving a stale name behind is TS2353.
+ * here fails the build (TS2741 for one missing key, TS2739 for several), and
+ * leaving a stale name behind is TS2353.
+ *
+ * REMOVING a field is the direction the compiler does NOT protect you from, and
+ * it fails open: drop a field from the interface and from this list, and its
+ * stale on-disk value stops being coerced and starts being preserved verbatim
+ * instead. That is usually what you want for forward compatibility, but it means
+ * a retired field keeps whatever junk the last build left in it. Decide which you
+ * want when you retire one.
  *
  * It must be an exact list of KEY NAMES, never derived from "whatever
  * coerceManifest emitted", because displayScale, theme and introEditedByUser are

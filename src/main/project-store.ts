@@ -145,6 +145,15 @@ export function coerceManifest(
   // Object.create(null) and a SPREAD, deliberately: assigning into a plain {}
   // would let a JSON `__proto__` key reparent the object instead of becoming an
   // own property, which both loses the key and corrupts the result.
+  // Scoped to the extras loop below, and NOT null-safety for this function: the
+  // named fields are still read off `parsed` directly, so a manifest of `null`
+  // throws on the next line either way. That is deliberate — a project.json
+  // containing `null` is corrupt, and coercing it into a default manifest would
+  // hide the corruption rather than report it. The guard exists so Object.keys
+  // does not throw first with a worse message. (The message the caller actually
+  // shows for this is a separate, pre-existing gap: export-package.ts wraps only
+  // JSON.parse, so the raw TypeError reaches the user instead of its "corrupt
+  // package" text.)
   const raw = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)
     ? parsed
     : {}) as Record<string, unknown>;
