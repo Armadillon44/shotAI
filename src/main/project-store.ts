@@ -6,6 +6,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { shell } from 'electron';
 import {
+  MANIFEST_KEYS,
   PROJECT_SCHEMA_VERSION,
   type CalloutKind,
   type ProjectManifest,
@@ -17,7 +18,7 @@ import {
 } from '../shared/project';
 import { DEFAULT_SOP_TONE, isSopTone } from '../shared/sop';
 import { SCALE_DEFAULT, clampScale } from '../shared/doc-scale';
-import { coerceBrand, isBrandId, DEFAULT_BRAND, type BrandId } from '../shared/theme-palette';
+import { coerceBrand, DEFAULT_BRAND, type BrandId } from '../shared/theme-palette';
 import {
   addRecent,
   getBrand,
@@ -133,7 +134,43 @@ export function coerceManifest(
   parsed: Partial<ProjectManifest>,
   fallbackTitle: string,
 ): ProjectManifest {
+  // Root keys this build does not name, carried through untouched (#95).
+  //
+  // Without this the rebuild below is a filter: anything unnamed is dropped on
+  // every read and gone at the next write, so a key a NEWER build (or the macOS
+  // app) wrote is destroyed simply by opening the project here. That breaks the
+  // additive-schema assumption both platforms rest on, and it breaks it
+  // silently — the value does not fall back, it ceases to exist.
+  //
+  // Object.create(null) and a SPREAD, deliberately: assigning into a plain {}
+  // would let a JSON `__proto__` key reparent the object instead of becoming an
+  // own property, which both loses the key and corrupts the result.
+  // Scoped to the extras loop below, and NOT null-safety for this function: the
+  // named fields are still read off `parsed` directly, so a manifest of `null`
+  // throws on the next line either way. That is deliberate — a project.json
+  // containing `null` is corrupt, and coercing it into a default manifest would
+  // hide the corruption rather than report it. The guard exists so Object.keys
+  // does not throw first with a worse message. (The message the caller actually
+  // shows for this is a separate, pre-existing gap: export-package.ts wraps only
+  // JSON.parse, so the raw TypeError reaches the user instead of its "corrupt
+  // package" text.)
+  const raw = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? parsed
+    : {}) as Record<string, unknown>;
+  const extras: Record<string, unknown> = Object.create(null);
+  for (const k of Object.keys(raw)) {
+    if (!Object.hasOwn(MANIFEST_KEYS, k)) extras[k] = raw[k];
+  }
   return {
+    // FIRST, so the coerced fields below always win. If the MANIFEST_KEYS filter
+    // ever lets a named key through, spreading extras LAST would overwrite the
+    // coerced value with the raw one — and for `steps` that means handing every
+    // consumer an uncoerced array, which is exactly the #86 crash. Here a filter
+    // leak is inert instead. Key ORDER is not part of the cross-platform
+    // contract (the conformance harness compares dotted paths, and macOS writes
+    // its keys in nondeterministic order anyway), and a project with no extras
+    // is byte-identical either way.
+    ...extras,
     version:
       typeof parsed.version === 'number'
         ? parsed.version
@@ -162,9 +199,17 @@ export function coerceManifest(
     // which is false, and the falsehood was user-visible: with the APP brand set
     // to LFI, a project could not be pinned to shotAI at all, because the only
     // value that would have said so was being thrown away on read and refused on
-    // write. An unknown brand is still dropped, so a value from a newer build
-    // falls back to the app preference rather than to nothing.
-    ...(isBrandId(parsed.theme) ? { theme: parsed.theme } : {}),
+    // write.
+    //
+    // An unknown STRING is now kept verbatim too (#95). It used to be dropped,
+    // which meant an older build silently deleted a newer build's pin. It is
+    // narrowed to ABSENT at every read site by pinnedBrand, so it still falls
+    // back to the app preference while surviving the round trip — the value is
+    // unrendered, not destroyed.
+    //
+    // A NON-string is still dropped, matching macOS's `String` decode: 42, null,
+    // {} and [] are not brands anyone could have meant.
+    ...(typeof parsed.theme === 'string' ? { theme: parsed.theme } : {}),
     intro: coerceIntro(parsed.intro),
     // MUST be coerced explicitly. This function rebuilds the manifest field by
     // field, so an uncoerced field is silently dropped on EVERY read — the flag

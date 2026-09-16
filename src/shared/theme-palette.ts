@@ -273,6 +273,23 @@ export function coerceBrand(v: unknown): BrandId {
   return isBrandId(v) ? v : DEFAULT_BRAND;
 }
 
+/**
+ * The brand a manifest PINS, or null when it pins none this build knows (#95).
+ *
+ * `coerceBrand` is the WRONG function at a manifest read site, and the
+ * difference is user-visible rather than academic. It maps an unknown value to
+ * DEFAULT_BRAND, which OVERRIDES the app preference; this returns null, which
+ * lets the caller's `?? appPreference` fall back to it. A project pinned to a
+ * brand a newer build wrote must render as the user's chosen brand, not as
+ * shotAI.
+ *
+ * Since #95 an unrecognised value is KEPT on disk, so every read site has to
+ * narrow. Use this one, not `coerceBrand`, anywhere the input came from a file.
+ */
+export function pinnedBrand(v: unknown): BrandId | null {
+  return isBrandId(v) ? v : null;
+}
+
 /** The palette a brand wears in an appearance. */
 export function brandPalette(brand: BrandId, appearance: Appearance): Palette {
   return BRANDS[coerceBrand(brand)][appearance];

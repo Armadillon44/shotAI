@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { BrowserWindow, dialog, nativeImage, shell } from 'electron';
 import { CALLOUT_GLYPH, type CalloutKind, type ProjectManifest, isCalloutKind } from '../shared/project';
 import { DEFAULT_EXPORT_THEME, exportTheme, type ExportTheme } from '../shared/export-theme';
-import { coerceBrand, type BrandId } from '../shared/theme-palette';
+import { coerceBrand, pinnedBrand, type BrandId } from '../shared/theme-palette';
 import type { ExportFormat, ExportProgress, ExportResult } from '../shared/ipc';
 import { getProjectForRead } from './project-store';
 import { resolveSendableRender } from './render-gate';
@@ -816,7 +816,15 @@ export async function exportProject(
   // #77 phase 1b precedence: the project's own brand wins, so a document
   // reproduces identically wherever it is exported from; otherwise the app
   // preference the caller passed; otherwise the default.
-  const theme = exportTheme(coerceBrand(manifest.theme ?? opts.brand));
+  //
+  // The narrowing sits INSIDE the `??`, not around it (#95). Since an
+  // unrecognised brand is now preserved on disk, `manifest.theme ?? opts.brand`
+  // would find the raw string non-nullish, discard the app preference, and hand
+  // coerceBrand something it maps to the DEFAULT brand — so an LFI user
+  // exporting a project pinned to a brand only a newer build knows would get a
+  // shotAI-violet document instead of their own. pinnedBrand yields null there,
+  // which is what lets the app preference win.
+  const theme = exportTheme(pinnedBrand(manifest.theme) ?? coerceBrand(opts.brand));
   const items = await collectSteps(dir, manifest);
   const base = safeFileBase(manifest.title);
   // Document footer (F7): "Created on <datetime>", plus "by <name>" when the user

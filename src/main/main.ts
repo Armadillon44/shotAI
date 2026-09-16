@@ -20,7 +20,7 @@ import { checkForUpdate, startupCheckDecision } from './update-check';
 import { setPendingUpdate } from './update-state';
 import { IpcChannels } from '../shared/ipc';
 import { armBrandMenu, installAppMenu, setBrandMenuState } from './menu';
-import { coerceBrand } from '../shared/theme-palette';
+import { coerceBrand, pinnedBrand } from '../shared/theme-palette';
 import { appIconPath } from './paths';
 import { decideGpu, type GpuDecision } from './gpu-policy';
 import { fixArpIconOnSquirrelEvent } from './arp-icon';
@@ -458,8 +458,14 @@ app.whenReady().then(async () => {
   });
   // #77: View -> Brand is per project, and only the renderer knows which project
   // is open. Coerced here rather than trusted — this crosses the IPC boundary,
-  // and an unknown brand must land on the default rather than on a menu item
-  // that can never be checked.
+  // and an unknown brand must land on a menu item that can actually be checked.
+  //
+  // The two fields narrow DIFFERENTLY and it is not an oversight (#95). appBrand
+  // is this app's own setting, so an unreadable one falls back to the default
+  // brand. projectTheme may name a brand only a newer build knows, and for that
+  // the honest tick is "App default" — which is what the document actually
+  // renders, since every read site falls back to the app preference. Coercing it
+  // to shotAI here would tick a brand the project is not pinned to.
   ipcMain.handle(IpcChannels.setBrandMenu, (_e, state: unknown) => {
     const s = (state ?? {}) as Record<string, unknown>;
     mainLog.debug(
@@ -469,7 +475,7 @@ app.whenReady().then(async () => {
     );
     setBrandMenuState({
       projectOpen: s.projectOpen === true,
-      projectTheme: s.projectTheme == null ? null : coerceBrand(s.projectTheme),
+      projectTheme: pinnedBrand(s.projectTheme),
       appBrand: coerceBrand(s.appBrand),
     });
   });

@@ -25,7 +25,8 @@ vi.mock('./settings', () => ({
   getBrand: async () => h.brand,
 }));
 
-import { createProject, setProjectTheme, openProject } from './project-store';
+import { createProject, setProjectTheme, setProjectIntro, openProject } from './project-store';
+import { pinnedBrand } from '../shared/theme-palette';
 
 let projectDir: string;
 
@@ -165,14 +166,31 @@ describe('reading a key the other platform wrote', () => {
     expect((await openProject(projectDir)).theme).toBe('lfi');
   });
 
-  it('falls back to the default for a brand it does not know', async () => {
+  it('keeps a brand it does not know, and renders it as none (#95)', async () => {
+    // Two separable things, and fusing them was the bug. The value MUST NOT
+    // reach the renderer, because an unmatched [data-brand] matches none of the
+    // generated blocks and falls back to the bare :root — default brand, LIGHT,
+    // even in dark mode. But "must not be rendered" never required "must be
+    // deleted from the file", and deleting it means an older build silently
+    // destroys a newer build's pin with no trace it existed.
     const raw = await onDisk(projectDir);
     await fs.writeFile(
       path.join(projectDir, 'project.json'),
       JSON.stringify({ ...raw, theme: 'some-future-brand' }),
     );
+
     const m = await openProject(projectDir);
-    expect(m.theme, 'an unknown brand must not reach the renderer').toBeUndefined();
+    expect(m.theme, 'the raw value survives the read').toBe('some-future-brand');
+    expect(pinnedBrand(m.theme), 'but resolves to no brand, so the app preference wins').toBeNull();
+
+    // A read that preserves is worthless if the next WRITE drops it, which is
+    // where the field-by-field rebuild actually bit. Force a real save and
+    // re-read from disk rather than trusting the in-memory object.
+    await setProjectIntro(projectDir, { heading: 'H', body: 'B' });
+    expect(
+      (await onDisk(projectDir)).theme,
+      'and survives a real write, not just the read',
+    ).toBe('some-future-brand');
   });
 
   it('is not confused by a non-string', async () => {
