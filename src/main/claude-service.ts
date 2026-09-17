@@ -99,7 +99,7 @@ const BASE_SYSTEM_PROMPT = [
 ].join('\n\n');
 
 /** Map an SDK error to a short, user-facing message (never leaks the key). */
-function friendlyError(e: unknown, mode: AuthMode): string {
+export function friendlyError(e: unknown, mode: AuthMode): string {
   // Connection errors FIRST. Offline must never render as a sign-in prompt: even
   // with a valid cached Entra token the exchange itself needs api.anthropic.com,
   // so offline means generation is unavailable regardless of sign-in state. This
