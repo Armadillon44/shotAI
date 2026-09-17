@@ -174,3 +174,74 @@ describe('the empty-plan rejection is identified by its payload', () => {
     );
   });
 });
+
+describe('a 429 says whether waiting will help', () => {
+  // #113. Two situations, two DIFFERENT ACTIONS: wait and retry, or stop
+  // retrying and go to whoever can raise the limit. One message for both told a
+  // capped user to keep retrying something that may not clear until the cap
+  // resets — and under work-account sign-in the cap is shared, so it is not even
+  // theirs to fix.
+  // No return annotation: `Anthropic.RateLimitError` as a TYPE resolves to the
+  // API response shape from resources/shared, not the error class from
+  // core/error, and the two are not assignable. Inference picks the right one.
+  const rl = (h: Record<string, string>) =>
+    new Anthropic.RateLimitError(429, { type: 'error' }, 'slow', new Headers(h));
+
+  it('promises a wait only when the server named a usable one', () => {
+    const msg = friendlyError(rl({ 'retry-after': '30' }), 'federated');
+    expect(msg).toMatch(/try again in about 30 seconds/i);
+    expect(msg, 'a transient limit must not send anyone to an administrator').not.toMatch(
+      /administers|billing/i,
+    );
+  });
+
+  it('treats a BARE 429 as a limit reached, not as a transient wait', () => {
+    // The server declined to promise it would clear. Promising that to the user
+    // would be our invention, not its answer.
+    const msg = friendlyError(rl({}), 'federated');
+    expect(msg).toMatch(/Retrying will not help/i);
+    expect(msg).not.toMatch(/try again in about/i);
+  });
+
+  it('honours x-should-retry: false even when a retry-after is present', () => {
+    // Both conditions are required. Taking retry-after alone would override an
+    // explicit instruction not to retry.
+    const msg = friendlyError(rl({ 'retry-after': '30', 'x-should-retry': 'false' }), 'federated');
+    expect(msg).toMatch(/Retrying will not help/i);
+  });
+
+  it('rejects a retry-after that is not usable integer seconds', () => {
+    // Retry-After also permits an HTTP-date, which is not evidence of a short
+    // wait; and past 300s this is a queue nobody should sit in front of.
+    for (const bad of ['Wed, 21 Oct 2026 07:28:00 GMT', '0', '-5', '301', '12.5', 'soon']) {
+      expect(friendlyError(rl({ 'retry-after': bad }), 'federated'), bad).toMatch(
+        /Retrying will not help/i,
+      );
+    }
+    // The boundary is inclusive on 300 and exclusive on 0.
+    expect(friendlyError(rl({ 'retry-after': '300' }), 'federated')).toMatch(/about 300 seconds/i);
+    expect(friendlyError(rl({ 'retry-after': '1' }), 'federated')).toMatch(/about 1 second\./i);
+  });
+
+  it('names the party who can actually act, per auth mode', () => {
+    // Asserted in BOTH directions, since a test checking only the federated
+    // wording passes with the mode branch inverted.
+    const fed = friendlyError(rl({}), 'federated');
+    const key = friendlyError(rl({}), 'apiKey');
+
+    expect(fed).toMatch(/administers your organization/i);
+    expect(fed, 'a federated user has no billing page of their own').not.toMatch(/your Anthropic account\./i);
+    expect(key).toMatch(/billing on your Anthropic account/i);
+    expect(key, 'a BYO-key user administers themselves').not.toMatch(/administers/i);
+    expect(fed).not.toBe(key);
+  });
+
+  it('does not claim WHICH limit was hit', () => {
+    // A spend cap and a sustained rate limit are indistinguishable from the
+    // response. Naming one reads as more helpful right up until it is wrong.
+    for (const mode of ['federated', 'apiKey'] as const) {
+      const msg = friendlyError(rl({}), mode);
+      expect(msg, mode).toMatch(/rate limit or spending cap/i);
+    }
+  });
+});
