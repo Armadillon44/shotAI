@@ -305,6 +305,8 @@ export interface ShotaiApi {
   setBrandMenu(state: {
     projectOpen: boolean;
     projectTheme: BrandId | null;
+    /** The project pins a brand this build does not know (#107): tick NOTHING. */
+    projectPinUnrecognised: boolean;
     appBrand: BrandId;
   }): Promise<void>;
   /** Tell main the user entered (true) / left (false) a project, so the window

@@ -290,6 +290,26 @@ export function pinnedBrand(v: unknown): BrandId | null {
   return isBrandId(v) ? v : null;
 }
 
+/**
+ * The project pins a brand, and this build cannot read it (#107).
+ *
+ * The state `pinnedBrand` cannot express. It returns null both for "no pin" and
+ * for "a pin I do not recognise", which is right for RENDERING — both fall back
+ * to the app brand — and wrong for anything that reports what the project is in.
+ * The brand menu bound straight to it and so ticked "App default" for a pinned
+ * project, turning "clear the pin" into a click that looks like a no-op.
+ *
+ * Kept beside `pinnedBrand` on purpose: the two answer different questions about
+ * the same value, and a reader reaching for one should see the other.
+ *
+ * A non-string is NOT a pin. `coerceManifest` keeps only strings, so anything
+ * else never reaches a manifest this build wrote, and treating stray JSON as a
+ * user's deliberate choice would be generous to the wrong party.
+ */
+export function pinIsUnrecognised(v: unknown): boolean {
+  return typeof v === 'string' && v !== '' && !isBrandId(v);
+}
+
 /** The palette a brand wears in an appearance. */
 export function brandPalette(brand: BrandId, appearance: Appearance): Palette {
   return BRANDS[coerceBrand(brand)][appearance];

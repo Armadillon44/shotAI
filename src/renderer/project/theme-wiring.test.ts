@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
+import { pinIsUnrecognised, pinnedBrand } from '../../shared/theme-palette';
 
 // The brand axis only works if BOTH ends of it are connected, and neither end is
 // something a typecheck can notice is missing:
@@ -121,7 +122,9 @@ describe('View -> Brand is driven by what is actually open', () => {
     expect(src, 'App should push the menu state').toContain('setBrandMenu(');
     // A dependency array missing any one of these leaves the menu describing a
     // previous project, or checking the wrong item after the app brand changes.
-    expect(src).toMatch(/\[openPath,\s*projectTheme,\s*brand\]/);
+    // projectPinUnrecognised joined the list in #107: without it the menu keeps
+    // ticking "App default" after opening a project with an unreadable pin.
+    expect(src).toMatch(/\[openPath,\s*projectTheme,\s*projectPinUnrecognised,\s*brand\]/);
   });
 
   it('App pushes from the top level, not from the project view', () => {
@@ -170,8 +173,18 @@ describe('View -> Brand is driven by what is actually open', () => {
     const src = read('src/main/main.ts');
     const at = src.indexOf('IpcChannels.setBrandMenu');
     expect(at, 'main should handle setBrandMenu').toBeGreaterThan(-1);
-    const handler = src.slice(at, at + 600);
+    // Sliced to the END of the setBrandMenuState call rather than a fixed number
+    // of characters. The 600-char window this used to take broke the moment the
+    // handler grew a comment (#107), which is a test failing on prose rather than
+    // on behaviour.
+    const body = src.slice(at);
+    const handler = body.slice(0, body.indexOf('});', body.indexOf('setBrandMenuState(')));
     expect(handler, 'an unknown brand must land on the default').toContain('coerceBrand(');
+    // The unrecognised-pin flag crosses the same boundary and is trusted as a
+    // boolean, so it has to be compared rather than cast (#107).
+    expect(handler, 'the flag must be coerced, not truthy-tested').toContain(
+      "s.projectPinUnrecognised === true",
+    );
   });
 
   it('the menu refuses to rebuild when nothing changed', () => {
@@ -247,3 +260,82 @@ describe('View -> Brand is driven by what is actually open', () => {
   });
 });
 
+
+describe('the brand menu never ticks a state the project is not in (#107)', () => {
+  // A project can carry a pin this build cannot read — a brand a NEWER build
+  // wrote. pinnedBrand is null for it, correctly, because the pin cannot be
+  // honoured and the document really does render in the app brand. But null also
+  // means "no pin at all", and the menu was bound straight to it, so "App
+  // default" showed as selected for a pinned project. Clicking that already-
+  // ticked row is presented by the UI as a no-op, and it DELETED the pin and
+  // re-dated the project — the loss #95 preserved the value to prevent.
+  //
+  // macOS reached the same design (their #119): show nothing ticked, and do not
+  // offer the unrecognised state as a choice, since it is not something a user
+  // can pick.
+  const read = (f: string): string => fs.readFileSync(f, 'utf8');
+
+  it('distinguishes an unreadable pin from no pin at all', () => {
+    // The predicate the whole fix rests on. Asserted in every direction, because
+    // one that answered true for everything, or for nothing, would satisfy a
+    // one-sided test.
+    expect(pinIsUnrecognised('solarpunk'), 'a brand a newer build wrote').toBe(true);
+    expect(pinIsUnrecognised('lfi'), 'a brand this build knows is not unrecognised').toBe(false);
+    expect(pinIsUnrecognised('shotAI'), 'nor is the default, pinned explicitly').toBe(false);
+    expect(pinIsUnrecognised(undefined), 'no key at all is not a pin').toBe(false);
+    expect(pinIsUnrecognised(''), 'an empty string is not a brand anyone chose').toBe(false);
+    expect(pinIsUnrecognised(42), 'a non-string never reaches a manifest we wrote').toBe(false);
+  });
+
+  it('and pinnedBrand still answers null for BOTH, which is why the flag exists', () => {
+    // The two functions answer different questions about the same value. If
+    // pinnedBrand ever started distinguishing them, an unrecognised brand would
+    // reach data-brand and drop the page to the bare :root — default brand,
+    // LIGHT palette, in dark mode too.
+    expect(pinnedBrand('solarpunk')).toBeNull();
+    expect(pinnedBrand(undefined)).toBeNull();
+  });
+
+  it('ticks App default only when nothing is pinned', () => {
+    const src = read('src/main/menu.ts');
+    // The checked expression must consult BOTH. Matching only the old
+    // `projectTheme === null` would pass with the fix reverted.
+    expect(src).toMatch(
+      /checked:\s*!brandState\.projectPinUnrecognised\s*&&\s*brandState\.projectTheme === null/,
+    );
+  });
+
+  it('never offers the unrecognised state as something to pick', () => {
+    // It is not a choice a user can make, only a state a project can be in. If
+    // it appeared in the radio list, picking it would have no meaning.
+    const src = read('src/main/menu.ts');
+    const items = src.slice(src.indexOf('label: `App default'));
+    expect(items).not.toMatch(/label:.*[Uu]nrecognised/);
+    expect(items).not.toMatch(/label:.*[Uu]nknown/);
+  });
+
+  it('carries the flag through every layer between the manifest and the menu', () => {
+    // Windows narrows the raw value away in the renderer, deliberately, so the
+    // signal needs its own path. A layer that drops it silently re-opens the bug,
+    // and tsc cannot catch a field that is simply never set.
+    for (const f of [
+      'src/renderer/project/store.ts',
+      'src/renderer/project/App.tsx',
+      'src/shared/ipc.ts',
+      'src/preload/preload.ts',
+      'src/main/main.ts',
+      'src/main/menu.ts',
+    ]) {
+      expect(read(f), `${f} must carry projectPinUnrecognised`).toContain(
+        'projectPinUnrecognised',
+      );
+    }
+  });
+
+  it('clears the flag when the project closes', () => {
+    // A stale true would tick nothing for the NEXT project, which is the same
+    // class of lie in the other direction.
+    const src = read('src/renderer/project/store.ts');
+    expect(src.match(/projectPinUnrecognised: false/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+  });
+});
