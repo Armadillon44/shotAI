@@ -125,6 +125,59 @@ export function isEmptyPlanRejection(raw: string): boolean {
   return raw.includes('too_small') && raw.includes('steps');
 }
 
+/**
+ * The wait the server ASKED for, or null when it named none we can use.
+ *
+ * Integer seconds only. `Retry-After` also permits an HTTP-date, and a date is
+ * not evidence of a short transient wait — treating one as "retry shortly" would
+ * invent a promise the server did not make. The upper bound is 300s for the same
+ * reason: past five minutes this is a queue the user should not sit and wait on.
+ */
+function retryAfterSeconds(headers: Headers | null | undefined): number | null {
+  const raw = headers?.get?.('retry-after');
+  if (raw == null || !/^\d+$/.test(raw.trim())) return null;
+  const n = Number.parseInt(raw.trim(), 10);
+  return n > 0 && n <= 300 ? n : null;
+}
+
+/**
+ * What a 429 actually means for this user, and what they should do about it (#113).
+ *
+ * TWO DIFFERENT ACTIONS, not two wordings. A transient rate limit clears on its
+ * own and the user waits. An exhausted limit does not, and the user should stop
+ * retrying and go to whoever can raise it. One message for both tells a capped
+ * user to keep retrying something that may not succeed until the cap resets.
+ *
+ * THE PREDICATE IS HEADERS-ONLY, and deliberately. Anthropic publishes no
+ * distinct error type for an exhausted spend cap, so `error.type` cannot separate
+ * the two; the headers are the only signal that exists. A 429 is transient only
+ * when the server named a usable wait AND did not say not to retry. A BARE 429,
+ * with no headers at all, is treated as limit-reached: the server declined to
+ * promise it would clear, so promising that to the user would be our invention.
+ *
+ * WHAT IT DOES NOT CLAIM: which limit was hit. A spend cap and a sustained rate
+ * limit are indistinguishable from the response, so naming one would be a guess
+ * presented as fact. The wording covers both.
+ *
+ * The party who can act DOES depend on the auth mode, which is why this takes
+ * one. Under federation the organization shares a single Anthropic account, so a
+ * cap is somebody else's to raise; a bring-your-own-key user administers
+ * themselves and being sent to find an administrator would waste their time. Same
+ * reasoning as the 401/403 split in friendlyError above. Ported from macOS with
+ * that mode split added, which they then adopted back as their #122.
+ */
+export function rateLimitMessage(headers: Headers | null | undefined, mode: AuthMode): string {
+  const secs = retryAfterSeconds(headers);
+  if (secs !== null && headers?.get?.('x-should-retry') !== 'false') {
+    return `Rate limited — try again in about ${secs} second${secs === 1 ? '' : 's'}.`;
+  }
+  return mode === 'federated'
+    ? "Claude is unavailable: your organization's rate limit or spending cap has been reached. " +
+        'Retrying will not help — this needs whoever administers your organization’s Anthropic account.'
+    : "Claude is unavailable: your account's rate limit or spending cap has been reached. " +
+        'Retrying will not help — check the limits and billing on your Anthropic account.';
+}
+
 const BASE_SYSTEM_PROMPT = [
   'You are an expert technical writer turning a captured screen recording into a polished Standard Operating Procedure (SOP) by EDITING the project in place. You are given an ordered sequence of steps: each screenshot step (labeled "Screenshot step N") has the exact click point marked on the image with a colored ring (a circle), plus metadata (application/window, an auto-generated caption); author-written "Text step" entries are interleaved.',
 'Return an edit plan (structured output) that improves the project IN-LINE: for every screenshot step, write a concise, action-oriented `caption` (the step title, e.g. "Open the navigation menu") and a clear instruction `body` (the detail the reader follows). You may add a leading `intro` (heading + body) and, where the procedure shifts to a new phase, a `sectionHeading`/`sectionBody` inserted before a step — this renders as a NON-counted phase-divider heading, not a numbered step, so use it to separate phases rather than to add instructions. Always set `title` to a clear, descriptive name for the overall procedure.',
@@ -184,8 +237,10 @@ export function friendlyError(e: unknown, mode: AuthMode): string {
       return 'The selected model is unavailable for this key.';
   }
 
-  if (e instanceof Anthropic.RateLimitError)
-    return 'Rate limited — wait a moment and try again.';
+  // A 429 is two different situations with two different actions (#113); see
+  // rateLimitMessage. This has to stay AHEAD of the generic APIError branch,
+  // which RateLimitError extends.
+  if (e instanceof Anthropic.RateLimitError) return rateLimitMessage(e.headers, mode);
   if (e instanceof Anthropic.APIError)
     return e.message || `API error${e.status ? ` (${e.status})` : ''}.`;
   return e instanceof Error ? e.message : String(e);
