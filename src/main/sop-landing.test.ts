@@ -216,6 +216,28 @@ describe('the numbering matches applySopEdits exactly', () => {
       applySopEdits(dir, planOf(entry(1, 'Click Save'), entry(1, '', '')), PROV),
     ).rejects.toBeInstanceOf(SopNoLandingError);
   });
+
+  it('diagnoses a cancelled duplicate as "wrote nothing", not as bad numbering', async () => {
+    // The decision and the DIAGNOSIS have to read the same reduction. Step 1
+    // exists here and the plan names it, so "wrote for steps that do not exist"
+    // would be a confidently wrong answer — the real cause is that the duplicate
+    // cancelled the content before it reached the step. Scanning plan.steps for
+    // this flag reintroduces the plan-vs-result confusion in the diagnosis after
+    // it was removed from the decision.
+    await write([shot('s1')]);
+    await expect(
+      applySopEdits(dir, planOf(entry(1, 'Click Save'), entry(1, '', '')), PROV),
+    ).rejects.toThrow(/wrote no step content/);
+  });
+
+  it('still diagnoses genuinely bad numbering as such', async () => {
+    // The control for the test above. Without it, a flag hardcoded to "wrote
+    // nothing" would pass and the two causes would stop being distinguishable.
+    await write([shot('s1')]);
+    await expect(applySopEdits(dir, planOf(entry(99, 'Click Save')), PROV)).rejects.toThrow(
+      /wrote for steps that do not exist/,
+    );
+  });
 });
 
 describe('an intentionally step-free plan still applies', () => {

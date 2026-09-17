@@ -185,7 +185,16 @@ export async function applySopEdits(
       throw new SopNoLandingError(
         plan.steps.map((e) => e.stepNumber),
         base.flatMap((s, idx) => (s.kind === 'text' ? [] : [idx + 1])),
-        plan.steps.some((e) => e.caption.trim() || e.body.trim()),
+        // Judged off the EFFECTIVE edits, not the raw plan. `editByNum` is
+        // last-wins, so a duplicate stepNumber can cancel a good entry: the plan
+        // `[{2,"Click Save"}, {2,"",""}]` reads as content when scanned raw, but
+        // what reached the loop was the empty one. Scanning the plan here would
+        // report "wrote for steps that do not exist" about a step number that
+        // exists perfectly well — the same plan-vs-result confusion this guard
+        // was built to fix, surviving in the diagnosis after being removed from
+        // the decision. Found by the macOS side (shotAI_MacOS, fix/guard-matches-
+        // last-wins) reproducing it end to end.
+        [...editByNum.values()].some((e) => e.caption.trim() || e.body.trim()),
       );
     }
 
