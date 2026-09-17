@@ -368,6 +368,11 @@ export function App(): React.JSX.Element {
   // and Settings belong to no project, so they always use the app preference —
   // which is what `openPath &&` here means.
   const projectTheme = useProjectStore((s) => s.projectTheme);
+  // Only the MENU needs this (#107). It deliberately does not reach activeBrand
+  // below: an unreadable pin must still RENDER as the app brand, because an
+  // unmatched [data-brand] matches none of the generated blocks and drops the
+  // page to the bare :root — default brand, light palette, in dark mode too.
+  const projectPinUnrecognised = useProjectStore((s) => s.projectPinUnrecognised);
   // `!showSettings` because Settings REPLACES the project view in this same
   // window rather than opening its own, so openPath is still set while the
   // project is not on screen. Without the term, Settings reached from inside a
@@ -395,10 +400,11 @@ export function App(): React.JSX.Element {
         // but ordering between that and this effect is not something to rely on
         // for what the menu claims about a project that is no longer open.
         projectTheme: openPath ? projectTheme : null,
+        projectPinUnrecognised: openPath ? projectPinUnrecognised : false,
         appBrand: brand,
       })
       .catch(() => undefined);
-  }, [openPath, projectTheme, brand]);
+  }, [openPath, projectTheme, projectPinUnrecognised, brand]);
 
   // …and take the choice back. null is "App default", which CLEARS the key; a
   // brand PINS it, the default brand included. Passed through untouched: the

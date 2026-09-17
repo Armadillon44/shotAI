@@ -33,6 +33,27 @@ export interface BrandMenuState {
   projectOpen: boolean;
   /** The open project's PINNED brand, or null when it follows the app setting. */
   projectTheme: BrandId | null;
+  /**
+   * The project carries a pin this build cannot read — a brand a NEWER build
+   * wrote (#107).
+   *
+   * A THIRD state, and the menu only offers two. `projectTheme` is null here,
+   * correctly, because the pin cannot be honoured and the document really does
+   * render in the app brand. But null also means "no pin at all", and binding the
+   * menu straight to it ticked "App default" for a project that is not on App
+   * default. The user then clicks an already-ticked row — which the UI presents
+   * as a no-op — and it deletes their pin and re-dates the project.
+   *
+   * When this is set, NOTHING is ticked. That is the honest answer: the project
+   * is in none of the states the menu offers, and choosing one then reads as the
+   * change it actually is rather than as a no-op. It is deliberately not offered
+   * as a choice, because it is not something a user can pick, only something a
+   * project can be in.
+   *
+   * macOS reached the same design independently (their #119); Windows needs the
+   * extra field because its renderer narrows the raw value away much earlier.
+   */
+  projectPinUnrecognised: boolean;
   /** The app-level setting, so "App default" can say what it resolves to. */
   appBrand: BrandId;
 }
@@ -40,6 +61,7 @@ export interface BrandMenuState {
 let brandState: BrandMenuState = {
   projectOpen: false,
   projectTheme: null,
+  projectPinUnrecognised: false,
   appBrand: DEFAULT_BRAND,
 };
 
@@ -97,6 +119,7 @@ export function setBrandMenuState(next: BrandMenuState): void {
   if (
     next.projectOpen === brandState.projectOpen &&
     next.projectTheme === brandState.projectTheme &&
+    next.projectPinUnrecognised === brandState.projectPinUnrecognised &&
     next.appBrand === brandState.appBrand
   ) {
     return;
@@ -162,7 +185,10 @@ export function installAppMenu(getProjectWindow: () => BrowserWindow | null): vo
       {
         label: `App default (${BRANDS[brandState.appBrand].label})`,
         type: 'radio',
-        checked: brandState.projectTheme === null,
+        // NOT simply `projectTheme === null` (#107): an unreadable pin also
+        // resolves to null, and ticking this for it claims a state the project is
+        // not in, turning "clear the pin" into a click that looks like a no-op.
+        checked: !brandState.projectPinUnrecognised && brandState.projectTheme === null,
         click: () => choose(null),
       },
       ...BRAND_IDS.map(

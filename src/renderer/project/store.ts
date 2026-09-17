@@ -2,7 +2,7 @@
 // capture-mode picker) stays in App.tsx; this owns the currently-open project.
 import { create } from 'zustand';
 import { SCALE_DEFAULT, clampScale } from '../../shared/doc-scale';
-import { pinnedBrand, type BrandId } from '../../shared/theme-palette';
+import { pinnedBrand, pinIsUnrecognised, type BrandId } from '../../shared/theme-palette';
 import type {
   ProjectManifest,
   ProjectStep,
@@ -33,6 +33,8 @@ interface ProjectState {
    * and only the first keeps following the app preference when it changes.
    */
   projectTheme: BrandId | null;
+  /** The pin names a brand this build does not know (#107). */
+  projectPinUnrecognised: boolean;
   /**
    * The last scale that came from a MANIFEST, i.e. the committed value. Separate
    * from displayScale on purpose.
@@ -93,6 +95,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   intro: null,
   displayScale: SCALE_DEFAULT,
   projectTheme: null,
+  projectPinUnrecognised: false,
   committedScale: SCALE_DEFAULT,
   sopBackup: null,
   updatedAt: '',
@@ -115,6 +118,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         displayScale: clampScale(manifest.displayScale),
         committedScale: clampScale(manifest.displayScale),
         projectTheme: pinnedBrand(manifest.theme),
+        projectPinUnrecognised: pinIsUnrecognised(manifest.theme),
         sopBackup: manifest.sopBackup,
         updatedAt: manifest.updatedAt,
         manifestRev: s.manifestRev + 1,
@@ -137,6 +141,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
         displayScale: SCALE_DEFAULT,
         committedScale: SCALE_DEFAULT,
         projectTheme: null,
+        projectPinUnrecognised: false,
         sopBackup: null,
         updatedAt: '',
         selectedStepId: null,
@@ -156,6 +161,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       displayScale: clampScale(manifest.displayScale),
       committedScale: clampScale(manifest.displayScale),
       projectTheme: pinnedBrand(manifest.theme),
+      projectPinUnrecognised: pinIsUnrecognised(manifest.theme),
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,
@@ -174,6 +180,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       displayScale: SCALE_DEFAULT,
       committedScale: SCALE_DEFAULT,
       projectTheme: null,
+      projectPinUnrecognised: false,
       sopBackup: null,
       updatedAt: '',
       selectedStepId: null,
@@ -192,6 +199,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       displayScale: clampScale(manifest.displayScale),
       committedScale: clampScale(manifest.displayScale),
       projectTheme: pinnedBrand(manifest.theme),
+      projectPinUnrecognised: pinIsUnrecognised(manifest.theme),
       sopBackup: manifest.sopBackup,
       updatedAt: manifest.updatedAt,
       manifestRev: s.manifestRev + 1,

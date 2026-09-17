@@ -476,6 +476,10 @@ app.whenReady().then(async () => {
     setBrandMenuState({
       projectOpen: s.projectOpen === true,
       projectTheme: pinnedBrand(s.projectTheme),
+      // Trusted as a plain boolean rather than re-derived here, because main
+      // does not have the manifest — the renderer owns which project is open.
+      // Coerced anyway: this crosses the IPC boundary (#107).
+      projectPinUnrecognised: s.projectPinUnrecognised === true,
       appBrand: coerceBrand(s.appBrand),
     });
   });

@@ -37,6 +37,7 @@ const api: ShotaiApi = {
   setBrandMenu: (state: {
     projectOpen: boolean;
     projectTheme: BrandId | null;
+    projectPinUnrecognised: boolean;
     appBrand: BrandId;
   }) => ipcRenderer.invoke(IpcChannels.setBrandMenu, state),
   setDetailView: (open: boolean, scale?: number) =>
