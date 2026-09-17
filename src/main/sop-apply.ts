@@ -35,6 +35,32 @@ export class SopNoLandingError extends Error {
   }
 }
 
+/**
+ * What to TELL THE USER when a generation came back unusable.
+ *
+ * Lives beside the discriminator that selects it, and is pure, so a test can pin
+ * each cause to its own sentence. That pairing is the point: the two strings give
+ * OPPOSITE advice, and nothing else ties either one to the case it belongs to —
+ * swap them and the app still runs, still refuses correctly, and quietly sends
+ * half its users to a setting that cannot help them.
+ *
+ * This started as a single message for both causes, on the reasoning that the
+ * user's next action was the same either way. It is not. Under-production
+ * genuinely does respond to more Effort; a plan numbered against the wrong
+ * scheme does not, and telling someone to raise a setting that will not move the
+ * outcome is worse than telling them nothing. The macOS side hit exactly this and
+ * rewrote their equivalent pair after a real failure pointed users at Effort for
+ * a cause Effort could not fix.
+ */
+export function incompleteSopMessage(wroteContent: boolean): string {
+  return wroteContent
+    ? 'Claude wrote step instructions but numbered them against steps that do not exist, ' +
+        'so none of them could be applied. Trying again usually clears it. Raising Effort ' +
+        'will not help with this one.'
+    : 'Claude returned an incomplete SOP — no step instructions were written. ' +
+        'Try again, and consider raising Effort (Settings ▸ AI) — low effort sometimes under-produces.';
+}
+
 /** Build a fresh text step. `aiInserted` marks SOP-generated intro/section steps;
  *  `callout` optionally styles it (e.g. a non-counted `section` divider). */
 function makeTextStep(
@@ -78,6 +104,17 @@ function makeTextStep(
  *
  * Throws SopNoLandingError when a non-empty plan lands nothing, leaving the
  * project untouched on disk.
+ *
+ * ⚠ THE GUARD AND THE APPLY MUST STAY IN THIS FUNCTION TOGETHER. The landing
+ * count is taken inside the same loop that applies the edits, reading the same
+ * `editByNum` map, so the guard cannot disagree with what actually happens. That
+ * guarantee is PROXIMITY, not a shared call — split this function and it
+ * dissolves silently, with no test failing, because the count would have to be
+ * re-derived somewhere else and would then be free to drift. If a caller ever
+ * needs "what would land" WITHOUT applying, do not copy the reduction: extract
+ * it and have both sides call it, the way macOS does with `effectiveEdits`.
+ * Raised by the macOS side, and worth writing down because a comment is a weaker
+ * guard than a shared function and the next reader should know which one this is.
  */
 export async function applySopEdits(
   projectPath: string,
