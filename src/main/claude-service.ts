@@ -78,6 +78,53 @@ type SopEdit = z.infer<typeof SopEditSchema>;
 /** Rough output-token allowance for the cost estimate (input dominates anyway). */
 const EST_OUTPUT_TOKENS = 2500;
 
+const CUTOFF_MSG =
+  'The SOP was cut off at the output limit. Try again, or split the project into fewer steps.';
+const REFUSAL_MSG = 'Claude declined to generate this SOP (the content was flagged).';
+const NO_CONTENT_MSG = 'Claude returned no SOP content.';
+
+/**
+ * Why a streamed response cannot be used, or null when it can.
+ *
+ * Pure and exported so the ORDER is testable, because the order is load-bearing
+ * and nothing else pins it. A refusal carries NO text, so it satisfies the
+ * empty-body condition too — check refusal second and a flagged request reports
+ * as "returned no SOP content", which reads as a transient glitch and invites the
+ * user to retry the same flagged input indefinitely.
+ *
+ * The three messages give three different actions: stop and change the content,
+ * split the project up, or simply retry. Nothing but the tests beside this
+ * function ties any of them to the case it belongs to — inverting any one of
+ * these conditions used to pass all 657 tests.
+ *
+ * Raised by the macOS side after finding the same order dependency there, where
+ * an existing refusal test could not catch a reorder because its fixture streamed
+ * a non-empty body, so the empty-body guard was never the competing branch. The
+ * fixtures below therefore use an EMPTY body for the refusal case, which is what
+ * a real refusal looks like and the only shape that makes the order observable.
+ */
+export function responseFailure(stopReason: string | null, hasText: boolean): string | null {
+  if (stopReason === 'refusal') return REFUSAL_MSG;
+  if (!hasText) return stopReason === 'max_tokens' ? CUTOFF_MSG : NO_CONTENT_MSG;
+  return null;
+}
+
+/**
+ * Whether an SDK error is the schema refusing an empty `steps` array (#108).
+ *
+ * Keyed on the zod payload rather than the SDK's generic "Failed to parse
+ * structured output" prefix: that prefix also covers malformed JSON and every
+ * other schema violation, and relabelling those as "no steps" would be a
+ * confidently wrong diagnosis handed to the user.
+ *
+ * Both terms are required. `too_small` alone would match a future minimum on any
+ * other field, and `steps` alone appears in almost any error mentioning the
+ * schema at all.
+ */
+export function isEmptyPlanRejection(raw: string): boolean {
+  return raw.includes('too_small') && raw.includes('steps');
+}
+
 const BASE_SYSTEM_PROMPT = [
   'You are an expert technical writer turning a captured screen recording into a polished Standard Operating Procedure (SOP) by EDITING the project in place. You are given an ordered sequence of steps: each screenshot step (labeled "Screenshot step N") has the exact click point marked on the image with a colored ring (a circle), plus metadata (application/window, an auto-generated caption); author-written "Text step" entries are interleaved.',
 'Return an edit plan (structured output) that improves the project IN-LINE: for every screenshot step, write a concise, action-oriented `caption` (the step title, e.g. "Open the navigation menu") and a clear instruction `body` (the detail the reader follows). You may add a leading `intro` (heading + body) and, where the procedure shifts to a new phase, a `sectionHeading`/`sectionBody` inserted before a step — this renders as a NON-counted phase-divider heading, not a numbered step, so use it to separate phases rather than to add instructions. Always set `title` to a clear, descriptive name for the overall procedure.',
@@ -396,17 +443,9 @@ export async function generateSop(
   const { system, messages } = await assembleRequest(projectPath);
   const params = MODEL_PARAMS[settings.model];
 
-  const CUTOFF_MSG =
-    'The SOP was cut off at the output limit. Try again, or split the project into fewer steps.';
-
-  // One message for BOTH ways a generation can come back unusable (#108): the
-  // model returned no steps at all (caught by the schema's minItems, which the
-  // SDK enforces inside finalMessage), or it returned steps that landed on
-  // nothing (caught in applySopEdits). The user's next action is the same for
-  // both, so the wording is too; the LOG distinguishes them.
-  // The schema rejection below is the "wrote nothing" cause by construction: the
-  // model returned no steps at all, so `minItems` refused it before anything
-  // could be numbered. The landing failure picks its own wording from its
+  // The schema rejection is the "wrote nothing" cause by construction: the model
+  // returned no steps at all, so `minItems` refused it before anything could be
+  // numbered. The LANDING failure picks its own wording from its own
   // discriminator, at the catch around applySopEdits.
   const EMPTY_PLAN_MSG = incompleteSopMessage(false);
 
@@ -454,16 +493,14 @@ export async function generateSop(
 
     const msg = await stream.finalMessage();
     stopReason = msg.stop_reason ?? stopReason;
-    if (msg.stop_reason === 'refusal') {
-      throw new Error('Claude declined to generate this SOP (the content was flagged).');
-    }
     const textBlock = msg.content.find(
       (b): b is Anthropic.TextBlock => b.type === 'text',
     );
-    if (!textBlock || !textBlock.text.trim()) {
-      throw new Error(stopReason === 'max_tokens' ? CUTOFF_MSG : 'Claude returned no SOP content.');
-    }
-    finalText = textBlock.text;
+    // Refusal-before-empty is decided in responseFailure, where it can be tested;
+    // a refusal carries no text, so inlining these checks hides the order.
+    const failure = responseFailure(stopReason, Boolean(textBlock?.text.trim()));
+    if (failure) throw new Error(failure);
+    finalText = (textBlock as Anthropic.TextBlock).text;
   } catch (e) {
     if (stopReason === 'max_tokens') throw new Error(CUTOFF_MSG);
     // The schema's `minItems` is enforced by the SDK INSIDE finalMessage(),
@@ -477,7 +514,7 @@ export async function generateSop(
     // every other schema violation, and relabelling those as "no steps" would be
     // a confidently wrong diagnosis.
     const raw = e instanceof Error ? e.message : String(e);
-    if (raw.includes('too_small') && raw.includes('steps')) {
+    if (isEmptyPlanRejection(raw)) {
       claudeLog.warn(`generation unusable — model returned no steps: ${raw}`);
       throw new Error(EMPTY_PLAN_MSG);
     }

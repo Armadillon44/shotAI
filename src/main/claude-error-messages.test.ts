@@ -30,7 +30,7 @@ vi.mock('./settings', () => ({
   getReportByline: async () => '',
 }));
 
-import { friendlyError } from './claude-service';
+import { friendlyError, responseFailure, isEmptyPlanRejection } from './claude-service';
 
 const H = (): Headers => new Headers();
 const auth = (): Error => new Anthropic.AuthenticationError(401, { type: 'error' }, 'denied', H());
@@ -107,5 +107,70 @@ describe('ordering invariants the comments claim', () => {
 
     expect(msg).toContain('500');
     expect(msg).not.toMatch(/key|role|sign-in|network connection/i);
+  });
+});
+
+describe('why a response is unusable, and in what order', () => {
+  // Three branches, three different user actions, and before these tests
+  // inverting ANY of them passed all 657 tests. Raised by the macOS side, which
+  // found the same order dependency in its own wire layer.
+  it('reports a refusal as a refusal even though a refusal has no text', () => {
+    // THE order test, and the fixture is the point. A real refusal streams an
+    // EMPTY body, so it satisfies the empty-body condition too. Check refusal
+    // second and this surfaces as "returned no SOP content" — which reads as a
+    // transient glitch and invites the user to retry the same flagged input
+    // forever. macOS's refusal test could not catch a reorder because its fixture
+    // streamed a non-empty body, so the empty-body guard was never competing.
+    expect(responseFailure('refusal', false)).toMatch(/declined/i);
+    expect(responseFailure('refusal', false)).not.toMatch(/no SOP content/i);
+  });
+
+  it('separates being cut off from getting nothing back', () => {
+    // Different actions: split the project up, versus just try again. Asserted
+    // in both directions so inverting the discriminator cannot pass.
+    const cutOff = responseFailure('max_tokens', false);
+    const nothing = responseFailure('end_turn', false);
+
+    expect(cutOff).toMatch(/fewer steps/i);
+    expect(cutOff).not.toMatch(/no SOP content/i);
+    expect(nothing).toMatch(/no SOP content/i);
+    expect(nothing).not.toMatch(/fewer steps/i);
+    expect(cutOff).not.toBe(nothing);
+  });
+
+  it('passes a usable response through', () => {
+    // The control. Without it, a function that failed everything would satisfy
+    // every assertion above.
+    expect(responseFailure('end_turn', true)).toBeNull();
+    expect(responseFailure(null, true)).toBeNull();
+  });
+
+  it('still refuses a refusal that somehow carried text', () => {
+    // Refusal wins regardless of body, so the order cannot be "fixed" by
+    // reasoning that a refusal is just a special case of empty.
+    expect(responseFailure('refusal', true)).toMatch(/declined/i);
+  });
+});
+
+describe('the empty-plan rejection is identified by its payload', () => {
+  it('matches the zod shape, and not the SDK prefix alone', () => {
+    // Keyed on the payload rather than "Failed to parse structured output",
+    // because that prefix also covers malformed JSON and every other schema
+    // violation — calling those "no steps" would be a confidently wrong
+    // diagnosis. This branch was added in #108 and, until now, untested.
+    expect(isEmptyPlanRejection('Failed to parse structured output: too_small at steps')).toBe(
+      true,
+    );
+    expect(
+      isEmptyPlanRejection('Failed to parse structured output: invalid_type at steps.0.caption'),
+      'a different schema violation is not an empty plan',
+    ).toBe(false);
+    expect(
+      isEmptyPlanRejection('too_small at intro.body'),
+      'a minimum on some other field is not this',
+    ).toBe(false);
+    expect(isEmptyPlanRejection('Unexpected token < in JSON'), 'malformed JSON is not this').toBe(
+      false,
+    );
   });
 });
