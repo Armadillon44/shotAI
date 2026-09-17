@@ -30,7 +30,7 @@ vi.mock('./settings', () => ({
   persistProjectsDir: async () => undefined,
 }));
 
-import { applySopEdits, SopNoLandingError } from './sop-apply';
+import { applySopEdits, SopNoLandingError, incompleteSopMessage } from './sop-apply';
 import { DEFAULT_SOP_TONE } from '../shared/sop';
 import type { ProjectStep } from '../shared/project';
 
@@ -216,6 +216,28 @@ describe('the numbering matches applySopEdits exactly', () => {
       applySopEdits(dir, planOf(entry(1, 'Click Save'), entry(1, '', '')), PROV),
     ).rejects.toBeInstanceOf(SopNoLandingError);
   });
+
+  it('diagnoses a cancelled duplicate as "wrote nothing", not as bad numbering', async () => {
+    // The decision and the DIAGNOSIS have to read the same reduction. Step 1
+    // exists here and the plan names it, so "wrote for steps that do not exist"
+    // would be a confidently wrong answer — the real cause is that the duplicate
+    // cancelled the content before it reached the step. Scanning plan.steps for
+    // this flag reintroduces the plan-vs-result confusion in the diagnosis after
+    // it was removed from the decision.
+    await write([shot('s1')]);
+    await expect(
+      applySopEdits(dir, planOf(entry(1, 'Click Save'), entry(1, '', '')), PROV),
+    ).rejects.toThrow(/wrote no step content/);
+  });
+
+  it('still diagnoses genuinely bad numbering as such', async () => {
+    // The control for the test above. Without it, a flag hardcoded to "wrote
+    // nothing" would pass and the two causes would stop being distinguishable.
+    await write([shot('s1')]);
+    await expect(applySopEdits(dir, planOf(entry(99, 'Click Save')), PROV)).rejects.toThrow(
+      /wrote for steps that do not exist/,
+    );
+  });
 });
 
 describe('an intentionally step-free plan still applies', () => {
@@ -251,5 +273,36 @@ describe('the schema makes an empty plan unrepresentable on the wire', () => {
       schema: { properties: { steps: { minItems?: number } } };
     };
     expect(out.schema.properties.steps.minItems).toBe(1);
+  });
+});
+
+describe('each failure carries the advice that fits it', () => {
+  // Raised by the macOS side: the two messages give OPPOSITE advice about Effort,
+  // and nothing but this test ties either one to the cause it belongs to. Swap
+  // them and the app still runs, still refuses correctly, and quietly sends half
+  // its users to a setting that cannot help them. macOS hit that for real and
+  // rewrote their pair afterwards.
+  it('offers Effort for under-production, and rules it out for bad numbering', () => {
+    const wroteNothing = incompleteSopMessage(false);
+    const badNumbering = incompleteSopMessage(true);
+
+    // Under-production: more Effort genuinely can fix this one.
+    expect(wroteNothing).toMatch(/raising Effort/i);
+    expect(wroteNothing).not.toMatch(/will not help/i);
+
+    // Bad numbering: it cannot, and saying so is the point.
+    expect(badNumbering).toMatch(/will not help/i);
+    expect(badNumbering).toMatch(/numbered them against steps that do not exist/i);
+
+    // And they must not be the same string, which would make the pairing vacuous.
+    expect(wroteNothing).not.toBe(badNumbering);
+  });
+
+  it('describes bad numbering as written-but-unapplied, not as nothing written', () => {
+    // The single message this replaced said "no step instructions were written"
+    // for BOTH causes. For a numbering failure that is simply false — they were
+    // written, they just landed nowhere — and it sent the reader looking for the
+    // wrong problem.
+    expect(incompleteSopMessage(true)).not.toMatch(/no step instructions were written/i);
   });
 });
