@@ -1,0 +1,33 @@
+<Project>
+  <!--
+    Shared build settings for every project under dotnet/.
+
+    EnableWindowsTargeting lets the Windows-only projects (WPF, CsWin32 interop) BUILD
+    on Linux and macOS. They cannot run there, but compiling them is what lets the
+    Linux CI job and cloud sessions catch a broken build before a Windows runner does.
+  -->
+  <PropertyGroup>
+    <RepoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..'))</RepoRoot>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <Deterministic>true</Deterministic>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <Product>shotAI</Product>
+    <Company>LFI</Company>
+    <!-- Native builds ship as prereleases until cutover, so the Electron app's update
+         check (which refuses prereleases) never offers them. See docs/native/PLAN.md. -->
+    <Version>2.0.0-alpha.0</Version>
+  </PropertyGroup>
+
+  <!-- The minimum Windows build. 10.0.19041 (Windows 10 2004) is the first with
+       WDA_EXCLUDEFROMCAPTURE, which keeps shotAI's own windows out of its captures. -->
+  <PropertyGroup>
+    <ShotAIWindowsTfm>net10.0-windows10.0.19041.0</ShotAIWindowsTfm>
+    <ShotAIMinWindows>10.0.19041.0</ShotAIMinWindows>
+  </PropertyGroup>
+</Project>

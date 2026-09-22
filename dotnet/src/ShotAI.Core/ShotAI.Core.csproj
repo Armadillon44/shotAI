@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Platform-neutral core: the project.json model and codec, store logic, geometry,
+    SOP request and apply logic, export templates, brand palette and settings schema.
+    Anything that can be tested without Windows belongs here, because this project and
+    its tests build and run on Linux. It must never reference a Windows-only API.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ShotAI.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ShotAI.Core.Tests" />
+  </ItemGroup>
+</Project>

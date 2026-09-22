@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The WPF app: windows, views, view models and the composition root. Keeps the
+    executable name shotAI.exe, the same as the Electron build.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(ShotAIWindowsTfm)</TargetFramework>
+    <SupportedOSPlatformVersion>$(ShotAIMinWindows)</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>shotAI</AssemblyName>
+    <RootNamespace>ShotAI.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>$(RepoRoot)assets/shotAI_icon.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ShotAI.Core\ShotAI.Core.csproj" />
+    <ProjectReference Include="..\ShotAI.Platform\ShotAI.Platform.csproj" />
+  </ItemGroup>
+</Project>
