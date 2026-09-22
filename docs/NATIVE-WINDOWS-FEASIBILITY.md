@@ -18,8 +18,10 @@ one-to-one. The UI (about 8.4k lines of React plus 4k lines of CSS) and the Konv
 editor have no reuse and are rebuilt from scratch. Estimate: **6-8 weeks to v1.3.0 parity** at
 the pace this project has run, then a pilot (basis under [Effort](#effort)).
 
-**Worth it: yes, if the operational gains matter to you.** Users get no new features. What
-changes is how the app is patched, deployed and supported:
+**Worth it: yes, if the operational gains matter to you.** Users get no new features. The app
+will feel quicker, though less of that depends on the rewrite than it seems (see
+[Will it feel faster?](#will-it-feel-faster)). What mainly changes is how the app is patched,
+deployed and supported:
 
 - **Patching.** Electron bundles its own Chromium and Node, so every Chromium security fix means
   an Electron upgrade, a rebuild and an Intune redeploy. A native build is patched by Microsoft
@@ -159,6 +161,42 @@ The macOS port also proved the three things a Windows port depends on:
 9. **Credentials don't carry over.** Each user signs in once after cutover (usually silent under
    WAM) or re-enters their API key. Project folders, `project.json` and the policy key carry over
    unchanged.
+
+## Will it feel faster?
+
+Yes, but only part of today's "spongey" feel comes from Electron. There are three separate
+causes, and they need different fixes.
+
+1. **The test machine.** On the Windows-on-ARM dev VM, shotAI runs as x64 under emulation with
+   the GPU forced off (`gpu-policy.ts`), so Chromium draws everything on the CPU. That's the
+   worst case for an Electron app, and a native ARM64 build removes both problems. To see what
+   the fleet actually gets, judge the current app on an x64 PC with a GPU before crediting the
+   whole difference to Electron.
+2. **Edits wait for the disk (app design, not Electron).** Eleven edit paths in `Report.tsx`
+   work the same way:
+   - The change goes to the main process, which re-reads `project.json` and rewrites it
+     atomically.
+   - The whole step list comes back and every card re-renders. None are memoized.
+   - A caption edit shows the old text until the write returns.
+   - Reorder, delete and merge drop any click that arrives mid-write (`busyRef`).
+
+   The macOS app uses the same wait-for-disk design. Its round trip is just much shorter:
+   in-process, APFS, and no antivirus scanning the temp file. A native Windows port that copied
+   it would still pay the NTFS and Defender cost on every edit. The fix is to update the screen
+   first and save in the background, and it works in the current Electron app too (mostly
+   `Report.tsx` and `store.ts`). The editor's save path carries the redaction bake and should
+   stay as it is.
+3. **Electron's own overhead.** The IPC hop and manifest serialization on every edit, the
+   separate GPU and renderer processes, and a slower cold start. This is the part only a
+   rewrite removes.
+
+What won't change: SOP generation time, which is bound by the network and the model. Exports get
+somewhat faster, because today's AVIF encoder is the single-threaded WASM build and a native
+encoder can use every core.
+
+Set expectations accordingly. A native WPF app will feel like a responsive Windows app, not like
+the Mac app: part of the Mac app's feel comes from macOS's own controls and scrolling, which WPF
+doesn't reproduce.
 
 ## Effort
 
