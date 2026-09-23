@@ -95,15 +95,38 @@ public sealed class ProjectSessionTests : IAsyncLifetime
         Pump();
     }
 
-    /// <summary>Queues a write that fails before it can read the manifest, and returns what the rollback shows.</summary>
+    /// <summary>
+    /// <see cref="Block"/>, returning once the blocking job has read the manifest and closed it.
+    /// Windows refuses to delete a file that a read still has open, so a test that changes the
+    /// file behind the queue waits for this first.
+    /// </summary>
+    private async Task<TaskCompletionSource> BlockAfterItsReadAsync()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _gates.Add(gate);
+        _ = _h.Store.MutateAsync(_project, async _ =>
+        {
+            entered.SetResult();
+            await gate.Task;
+            return MutateResult.Unchanged;
+        });
+        await Within(entered.Task);
+        return gate;
+    }
+
+    /// <summary>
+    /// Queues a write that the store's gate refuses before it reads the manifest, because the
+    /// project is no longer under the projects folder or in the recents, and returns what the
+    /// rollback shows.
+    /// </summary>
     private async Task<ProjectManifest> FailBeforeTheReadAsync()
     {
-        var gate = Block();
+        _h.Settings.ProjectsDir = _h.Temp.Combine("elsewhere");
+        _h.Settings.SeedRecents();
         var task = _session.Apply(new SetTitle("Lost"));
-        File.Delete(Path.Join(_project, "project.json"));
-        gate.SetResult();
         await SettleAsync(task);
-        await Assert.ThrowsAsync<ManifestCorruptException>(() => task);
+        await Assert.ThrowsAsync<ProjectNotKnownException>(() => task);
         return _session.Current;
     }
 
@@ -276,7 +299,7 @@ public sealed class ProjectSessionTests : IAsyncLifetime
     [Fact]
     public async Task AWriteThatCouldNotReadFallsBackToTheLastPersistedManifest()
     {
-        var gate = Block();
+        var gate = await BlockAfterItsReadAsync();
         var task = _session.Apply(new SetTitle("New"));
         File.Delete(Path.Join(_project, "project.json"));
         gate.SetResult();
