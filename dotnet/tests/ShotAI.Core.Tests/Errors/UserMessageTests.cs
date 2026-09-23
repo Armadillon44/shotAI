@@ -10,7 +10,7 @@ public sealed class UserMessageTests
     public void ShotAIExceptionShowsMessage()
     {
         // Verbatim, including the em dash the Electron strings carry.
-        const string text = "A capture failed — see the log for details.";
+        const string text = "A capture failed \u2014 see the log for details.";
         Assert.Equal(text, UserMessage.From(new ShotAIException(text)));
         Assert.Equal("cannot merge a step into itself", UserMessage.From(new DerivedException("cannot merge a step into itself")));
     }
