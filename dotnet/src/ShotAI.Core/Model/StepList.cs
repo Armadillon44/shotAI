@@ -12,4 +12,38 @@ public static class StepList
         ArgumentNullException.ThrowIfNull(steps);
         for (var i = 0; i < steps.Count; i++) steps[i].Order = i + 1;
     }
+
+    /// <summary>
+    /// <c>reorderSteps</c> without its data loss (IMPROVEMENT D-10, EDGE-MODEL-25): each id in
+    /// <paramref name="orderedIds"/> takes the first step with that id not yet placed, and every
+    /// step left over follows in its original order, so the result always holds every step
+    /// once. Electron keeps the last step per id in a map and macOS the first, and each drops
+    /// the other one of two steps that share an id.
+    /// </summary>
+    /// <remarks>Only a JSON string id matches, compared ordinally; an unknown or repeated id is skipped.</remarks>
+    public static List<ProjectStep> Reorder(IReadOnlyList<ProjectStep> steps, IReadOnlyList<string> orderedIds)
+    {
+        ArgumentNullException.ThrowIfNull(steps);
+        ArgumentNullException.ThrowIfNull(orderedIds);
+        var waiting = new Dictionary<string, Queue<int>>(StringComparer.Ordinal);
+        for (var i = 0; i < steps.Count; i++)
+        {
+            if (steps[i].Id is not { } id) continue;
+            if (!waiting.TryGetValue(id, out var queue)) waiting[id] = queue = new Queue<int>();
+            queue.Enqueue(i);
+        }
+        var placed = new bool[steps.Count];
+        var reordered = new List<ProjectStep>(steps.Count);
+        foreach (var id in orderedIds)
+        {
+            if (!waiting.TryGetValue(id, out var queue) || !queue.TryDequeue(out var i)) continue;
+            placed[i] = true;
+            reordered.Add(steps[i]);
+        }
+        for (var i = 0; i < steps.Count; i++)
+        {
+            if (!placed[i]) reordered.Add(steps[i]);
+        }
+        return reordered;
+    }
 }

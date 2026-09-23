@@ -16,8 +16,9 @@ namespace ShotAI.Core.Store;
 /// <remarks>
 /// Every manifest write runs in one <see cref="SerialWriteQueue"/> shared by all projects, and
 /// each job re-reads <c>project.json</c> from disk, so the disk is the source of truth and
-/// nothing is cached between operations (2.9.2). The archive engine (WP-A8) and the render
-/// writer (WP-C5) join the constructor with the members that use them.
+/// nothing is cached between operations (2.9.2). The step operations are in
+/// <c>ProjectStore.Steps.cs</c>. The archive engine (WP-A8) and the render writer (WP-C5) join
+/// the constructor with the members that use them.
 /// </remarks>
 public sealed partial class ProjectStore : IProjectService, IDisposable, IAsyncDisposable
 {
@@ -180,6 +181,56 @@ public sealed partial class ProjectStore : IProjectService, IDisposable, IAsyncD
         };
         try
         {
+            await WriteAsync(dir, manifest).ConfigureAwait(false);
+        }
+        catch
+        {
+            TryDeleteTree(dir);
+            throw;
+        }
+        await _settings.AddRecentAsync(dir).ConfigureAwait(false);
+        return ProjectSummary.Of(manifest, dir);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Not queued: the folder is new. Each file must be <c>shots/&lt;name&gt;</c> or
+    /// <c>export/.render/&lt;name&gt;</c> after <c>\</c> becomes <c>/</c>, lands only through
+    /// <see cref="PathConfine.ConfineNoLinks"/>, and never overwrites, so a duplicate entry (or,
+    /// on Windows, two names differing only in case) aborts the import (EDGE-MODEL-19). On any
+    /// failure the new folder, and only it, is removed (IMPROVEMENT D-9, Q-MODEL-10). The
+    /// <paramref name="manifest"/> is changed in place: new id, fresh dates, no SOP backup, live.
+    /// </remarks>
+    public async Task<ProjectSummary> CreateProjectFromImportAsync(ProjectManifest manifest, IReadOnlyList<ImportFile> files)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        ArgumentNullException.ThrowIfNull(files);
+        var root = await _settings.GetProjectsDirAsync().ConfigureAwait(false);
+        Directory.CreateDirectory(root);
+
+        var id = _newId();
+        var dir = Path.Join(root, id);
+        Directory.CreateDirectory(Path.Join(dir, "shots"));
+        Directory.CreateDirectory(Path.Join(dir, "export"));
+        try
+        {
+            foreach (var file in files)
+            {
+                var rel = file.Rel.Replace('\\', '/');
+                if (!PackageShot().IsMatch(rel) && !PackageRender().IsMatch(rel)) throw ImportRejectedException.UnexpectedPath(file.Rel);
+                var abs = PathConfine.ConfineNoLinks(dir, rel, _probe) ?? throw ImportRejectedException.OutsideProject(file.Rel);
+                Directory.CreateDirectory(Path.GetDirectoryName(abs)!);
+                await WriteNewFileAsync(abs, file.Bytes).ConfigureAwait(false);
+            }
+
+            // Title and theme are the sender's; the revert history and the archive state are not.
+            var now = IsoTime.ToIsoString(_time.GetUtcNow());
+            manifest.Id = id;
+            if (manifest.CreatedAt.Length == 0) manifest.CreatedAt = now;
+            manifest.UpdatedAt = now;
+            manifest.SopBackup = null;
+            manifest.Archived = false;
+            manifest.ArchivedAt = null;
             await WriteAsync(dir, manifest).ConfigureAwait(false);
         }
         catch
@@ -468,6 +519,13 @@ public sealed partial class ProjectStore : IProjectService, IDisposable, IAsyncD
 
     [GeneratedRegex(@"^project\.json\.[0-9]+\.tmp\z", RegexOptions.CultureInvariant)]
     private static partial Regex StaleTmpName();
+
+    // The two folders a package carries files in; \z, because .NET's $ also matches before a final newline (D-26).
+    [GeneratedRegex(@"^shots/[^/]+\z", RegexOptions.CultureInvariant)]
+    private static partial Regex PackageShot();
+
+    [GeneratedRegex(@"^export/\.render/[^/]+\z", RegexOptions.CultureInvariant)]
+    private static partial Regex PackageRender();
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "list: skipped {Folder}, not a readable project")]
     private static partial void SkippedFolder(ILogger logger, Exception exception, string folder);

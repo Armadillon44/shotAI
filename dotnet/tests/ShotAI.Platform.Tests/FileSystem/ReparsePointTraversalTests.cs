@@ -23,7 +23,7 @@ public sealed class ReparsePointTraversalTests : IAsyncLifetime
     {
         Directory.CreateDirectory(Root);
         _store = new ProjectStore(
-            new Settings(Root),
+            new FakeProjectStoreSettings(Root),
             new WindowsPathProbe(),
             new AtomicFile(TimeProvider.System, new WindowsRenameRetryClassifier()),
             TimeProvider.System,
@@ -85,30 +85,5 @@ public sealed class ReparsePointTraversalTests : IAsyncLifetime
 
         Assert.False(Path.Exists(junction));
         Assert.True(File.Exists(Path.Combine(outside, "project.json")));
-    }
-
-    private sealed class Settings(string root) : IProjectStoreSettings
-    {
-        private IReadOnlyList<string> _recents = [];
-
-        public ValueTask<string> GetProjectsDirAsync() => ValueTask.FromResult(root);
-
-        public ValueTask SetProjectsDirAsync(string dir) => ValueTask.CompletedTask;
-
-        public ValueTask<IReadOnlyList<string>> GetRecentsAsync() => ValueTask.FromResult(_recents);
-
-        public ValueTask AddRecentAsync(string path)
-        {
-            _recents = [path, .. _recents.Where(r => r != path)];
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask SetRecentsAsync(IReadOnlyList<string> recents)
-        {
-            _recents = recents;
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask<string> GetBrandAsync() => ValueTask.FromResult("shotAI");
     }
 }

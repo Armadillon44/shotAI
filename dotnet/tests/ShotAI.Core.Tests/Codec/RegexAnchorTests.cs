@@ -7,7 +7,8 @@ namespace ShotAI.Core.Tests.Codec;
 /// <summary>
 /// Ported regexes use <c>\z</c> and <c>[0-9]</c> (EDGE-MODEL-55, D-26): .NET's <c>$</c> also
 /// matches before a final newline, and its <c>\d</c> matches every Unicode decimal digit.
-/// The import-whitelist case lands with the importer in WP-A7, where that regex is.
+/// The import whitelist's newline case is <c>Store/CreateFromImportTests</c>: <c>[^/]</c> matches
+/// a newline in both engines, so that name passes both whitelists.
 /// </summary>
 public sealed class RegexAnchorTests
 {

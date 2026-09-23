@@ -352,12 +352,12 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | Every step operation and both import entry points, with no data loss on duplicate ids and link-refusing writes |
 | Spec inputs | 01 2.9.9, 2.9.12, 7.8, D-9, D-10, D-22, D-23, EDGE-MODEL-19, EDGE-MODEL-25, EDGE-MODEL-49, EDGE-MODEL-50, EDGE-MODEL-52; 11 7.3.2 (`ImportLimits`), D-IPC-13; 05 7.1 (`TextStepFactory`); Q-MODEL-10 |
-| Deliverables | `ProjectStore` members `AddStepAsync`, `InsertStepAtAsync`, `DeleteStepsAsync`, `ReorderStepsAsync`, `AddTextStepAsync` (builds the step with `ShotAI.Core.Report.Operations.TextStepFactory`, which lands here), `ImportStepAsync` (`ImportLimits.Check` first, magic bytes, `.jpg` for JPEG, counter past orphans, `ConfineNoLinks`), `CreateProjectFromImportAsync` (whitelist, duplicate abort, cleanup of exactly the new folder through `ReparseSafeDelete`); `ImportLimits`, `ImportFile`, `UnsupportedImageException`, `ImportRejectedException`, `StepNotFoundException` |
-| Tests | No Electron file. New: `Store/StepOperationTests`, `ReorderNoDropTests`, `CreateFromImportTests` (with the Windows case-variant duplicate, and `RegexAnchorTests`' import-whitelist case, `"shots/a.png\n"` refused, moved here from WP-A3 because the whitelist regex lands here), `ImportStepConfineTests` (plus the junction duplicate in Platform.Tests), `DeleteStepsMalformedPathTests`, `Validation/ImportLimitsTests` |
+| Deliverables | `ProjectStore` members `AddStepAsync`, `InsertStepAtAsync`, `DeleteStepsAsync`, `ReorderStepsAsync`, `AddTextStepAsync` (builds the step with `ShotAI.Core.Report.Operations.TextStepFactory`, which lands here), `ImportStepAsync` (`ImportLimits.Check` first, magic bytes, `.jpg` for JPEG, counter past orphans, `ConfineNoLinks`), `CreateProjectFromImportAsync` (whitelist, duplicate abort, cleanup of exactly the new folder through `ReparseSafeDelete`); `ImportLimits`, `ImportFile`, `UnsupportedImageException`, `ImportRejectedException`, `StepNotFoundException`; added in WP-A7: `DeleteStepAsync` (01 7.8, 11 S3), which no WP listed, and `StepList.Reorder`, the no-drop algorithm as a pure function |
+| Tests | No Electron file. New: `Store/StepOperationTests`, `ReorderNoDropTests`, `CreateFromImportTests` (with the Windows case-variant duplicate, and `RegexAnchorTests`' import-whitelist case, moved here from WP-A3 because the whitelist regex lands here; corrected in WP-A7: `"shots/a.png\n"` passes the whitelist in JavaScript and .NET alike, because `[^/]` matches the newline, and Windows then refuses the name), `ImportStepConfineTests` (plus the junction duplicate in Platform.Tests), `DeleteStepsMalformedPathTests`, `Validation/ImportLimitsTests`; added in WP-A7: `Report/Operations/TextStepFactoryTests`, the step and package rows of `UpdatedAtSemanticsTests`, and `Platform.Tests/FileSystem/ImportStepJunctionTests` (the junction duplicate) |
 | Acceptance criteria | AC-MODEL-18, AC-MODEL-19, AC-MODEL-20, AC-MODEL-21, AC-MODEL-34, AC-MODEL-35 |
 | Depends on | WP-A6 |
 | Size | M |
-| Risks and de-risking | Cleanup deleting the wrong folder if confinement were wrong (Q-MODEL-10): delete only the exact `<root>/<new uuid>` path; a test plants a sibling and asserts it survives |
+| Risks and de-risking | Cleanup deleting the wrong folder if confinement were wrong (Q-MODEL-10): delete only the exact `<root>/<new uuid>` path; a test plants a sibling and asserts it survives. Outcome in WP-A7: `TheCleanupLeavesEverythingElseUnderTheRoot` does, and 28 mutations of the step operations, the importers and the factory were each caught by a test |
 | Demo | tests |
 
 #### WP-A8. Archive engine
@@ -1484,7 +1484,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-MODEL-7 | restore size caps | WP-A8 | no caps (streaming) |
 | Q-MODEL-8 | hostile-segment rejection | WP-A5 | reject (decided in WP-A5) |
 | Q-MODEL-9 | queued delete waits | WP-A6 | accept (decided in WP-A6) |
-| Q-MODEL-10 | import cleanup scope | WP-A7 | exact new folder only, through `ReparseSafeDelete` |
+| Q-MODEL-10 | import cleanup scope | WP-A7 | exact new folder only, through `ReparseSafeDelete` (decided in WP-A7) |
 | Q-MODEL-11 | unreadable-manifest text | WP-A17 | the recommended sentence; parser message in the log only |
 | Q-MODEL-12 | rollback notice text | WP-C2 | `Your last change couldn't be saved and was undone. ` plus the message |
 | Q-MODEL-13 | paths over 260 characters | WP-A8 | `longPathAware` already in the manifest; 300-character-root test on Windows |
@@ -2410,7 +2410,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-A4. Brand generator and palette (#126)
 - [x] WP-A5. Atomic file, write queue and path confinement (#127)
 - [x] WP-A6. Project store: projects (#128)
-- [ ] WP-A7. Project store: steps and imports
+- [x] WP-A7. Project store: steps and imports (#129)
 - [ ] WP-A8. Archive engine
 - [ ] WP-A9. Project session
 - [ ] WP-A10. Settings service
