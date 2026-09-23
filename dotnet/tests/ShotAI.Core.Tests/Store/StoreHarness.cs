@@ -30,10 +30,11 @@ internal sealed class StoreHarness : IAsyncDisposable
         Settings = new FakeProjectStoreSettings(Root) { Brand = brand };
         var probe = new ManagedPathProbe();
         var atomic = new AtomicFile(Time, new ManagedRenameRetryClassifier());
+        Archive = new ArchiveEngine(probe, atomic, Logs.CreateLogger<ArchiveEngine>());
         var log = Logs.CreateLogger<ProjectStore>();
         Store = newId is null
-            ? new ProjectStore(Settings, probe, atomic, Time, log)
-            : new ProjectStore(Settings, probe, atomic, Time, log, newId);
+            ? new ProjectStore(Settings, probe, atomic, Archive, Time, log)
+            : new ProjectStore(Settings, probe, atomic, Archive, Time, log, newId);
     }
 
     public TempDir Temp { get; } = new("store-");
@@ -47,6 +48,9 @@ internal sealed class StoreHarness : IAsyncDisposable
     public FakeProjectStoreSettings Settings { get; }
 
     public ProjectStore Store { get; }
+
+    /// <summary>The engine the store archives with, for tests that drive it directly.</summary>
+    public ArchiveEngine Archive { get; }
 
     /// <summary>A project folder under the root holding <paramref name="json"/> as its manifest.</summary>
     public string Project(string name, string json = BaseJson)

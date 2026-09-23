@@ -8,11 +8,16 @@ namespace ShotAI.Core.Store;
 /// (R-ARCH-4); the container does.
 /// </summary>
 /// <remarks>
-/// The members that exist so far. WP-A8 adds archiving and <c>ProjectsChanged</c>, and WP-C5
-/// the render-writing step updates.
+/// The members that exist so far; WP-C5 adds the render-writing step updates.
 /// </remarks>
 public interface IProjectService
 {
+    /// <summary>
+    /// E1: raised after <see cref="AutoArchiveStaleAsync"/> moved at least one project, on the
+    /// thread that ran it, outside any lock; subscribers marshal with <c>IUiDispatcher.Post</c>.
+    /// </summary>
+    event EventHandler? ProjectsChanged;
+
     /// <summary>The projects folder (P1).</summary>
     Task<string> GetProjectsDirAsync();
 
@@ -48,7 +53,19 @@ public interface IProjectService
     /// <summary>Deletes the folder without following a link, and prunes it from recents (P7).</summary>
     Task DeleteProjectAsync(string projectPath);
 
-    /// <summary>Reads the manifest, back-fills a missing id and marks the project recent (P11).</summary>
+    /// <summary>Packs <c>shots/</c> and <c>export/</c> into <c>archive.zip</c> and flags the project (P9).</summary>
+    /// <exception cref="ArchiveException">The zip did not verify; nothing was deleted.</exception>
+    Task<ProjectSummary> ArchiveProjectAsync(string projectPath);
+
+    /// <summary>Restores the files from <c>archive.zip</c> and clears the flag (P10).</summary>
+    /// <exception cref="ArchiveException">An entry that may not be restored; the zip is kept.</exception>
+    Task<ProjectSummary> UnarchiveProjectAsync(string projectPath);
+
+    /// <summary>Archives every live project not updated for more than <paramref name="ageDays"/> days; 0 or less does nothing (startup).</summary>
+    /// <returns>How many projects were archived.</returns>
+    Task<int> AutoArchiveStaleAsync(int ageDays, CancellationToken ct = default);
+
+    /// <summary>Restores an archived project, reads the manifest, back-fills a missing id and marks the project recent (P11).</summary>
     /// <exception cref="ManifestCorruptException">The manifest is missing or is not a project.</exception>
     Task<OpenedProject> OpenProjectAsync(string projectPath);
 

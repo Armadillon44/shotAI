@@ -17,8 +17,8 @@ namespace ShotAI.Core.Store;
 /// Every manifest write runs in one <see cref="SerialWriteQueue"/> shared by all projects, and
 /// each job re-reads <c>project.json</c> from disk, so the disk is the source of truth and
 /// nothing is cached between operations (2.9.2). The step operations are in
-/// <c>ProjectStore.Steps.cs</c>. The archive engine (WP-A8) and the render writer (WP-C5) join
-/// the constructor with the members that use them.
+/// <c>ProjectStore.Steps.cs</c> and the archive operations in <c>ProjectStore.Archive.cs</c>. The
+/// render writer joins the constructor with the step updates that use it (WP-C5).
 /// </remarks>
 public sealed partial class ProjectStore : IProjectService, IDisposable, IAsyncDisposable
 {
@@ -29,29 +29,39 @@ public sealed partial class ProjectStore : IProjectService, IDisposable, IAsyncD
     private readonly IProjectStoreSettings _settings;
     private readonly IPathProbe _probe;
     private readonly AtomicFile _atomic;
+    private readonly ArchiveEngine _archive;
     private readonly TimeProvider _time;
     private readonly ILogger<ProjectStore> _log;
     private readonly Func<string> _newId;
     private readonly SerialWriteQueue _queue;
 
-    public ProjectStore(IProjectStoreSettings settings, IPathProbe probe, AtomicFile atomic, TimeProvider time, ILogger<ProjectStore> log)
-        : this(settings, probe, atomic, time, log, NewUuid)
+    public ProjectStore(
+        IProjectStoreSettings settings, IPathProbe probe, AtomicFile atomic, ArchiveEngine archive, TimeProvider time, ILogger<ProjectStore> log)
+        : this(settings, probe, atomic, archive, time, log, NewUuid)
     {
     }
 
     /// <summary>The same, with the source of new ids given, for a test that must know a new folder's name.</summary>
     internal ProjectStore(
-        IProjectStoreSettings settings, IPathProbe probe, AtomicFile atomic, TimeProvider time, ILogger<ProjectStore> log, Func<string> newId)
+        IProjectStoreSettings settings,
+        IPathProbe probe,
+        AtomicFile atomic,
+        ArchiveEngine archive,
+        TimeProvider time,
+        ILogger<ProjectStore> log,
+        Func<string> newId)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(probe);
         ArgumentNullException.ThrowIfNull(atomic);
+        ArgumentNullException.ThrowIfNull(archive);
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(log);
         ArgumentNullException.ThrowIfNull(newId);
         _settings = settings;
         _probe = probe;
         _atomic = atomic;
+        _archive = archive;
         _time = time;
         _log = log;
         _newId = newId;
@@ -244,13 +254,15 @@ public sealed partial class ProjectStore : IProjectService, IDisposable, IAsyncD
 
     /// <inheritdoc/>
     /// <remarks>
-    /// An empty id is back-filled in a queued job (D-7) that re-reads the file first, with no
-    /// <c>updatedAt</c> bump and a failed write logged and swallowed. The archive engine
-    /// (WP-A8) adds the unarchive that runs before the read.
+    /// An archived project is restored first, through the queue; a failed restore fails the
+    /// open and keeps <c>archive.zip</c>. A flag without a zip is left alone (EDGE-MODEL-18). An
+    /// empty id is back-filled in a queued job (D-7) that re-reads the file first, with no
+    /// <c>updatedAt</c> bump and a failed write logged and swallowed.
     /// </remarks>
     public async Task<OpenedProject> OpenProjectAsync(string projectPath)
     {
         var resolved = await ResolveKnownProjectAsync(projectPath).ConfigureAwait(false);
+        if (ArchiveEngine.IsArchivedOnDisk(resolved)) await UnarchiveProjectAsync(resolved).ConfigureAwait(false);
         var manifest = await ReadAsync(resolved).ConfigureAwait(false);
         if (manifest.Id.Length == 0)
             manifest = await _queue.EnqueueAsync(_ => BackFillIdAsync(resolved)).ConfigureAwait(false);

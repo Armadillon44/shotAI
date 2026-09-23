@@ -8,9 +8,8 @@ using Xunit;
 namespace ShotAI.Core.Tests.Store;
 
 /// <summary>
-/// The rows of spec 01 2.9.4 whose operations exist after WP-A7: which operations re-date a
-/// project. The archive rows land with WP-A8 (AC-MODEL-15), and the render-writing step
-/// updates with WP-C5.
+/// The rows of spec 01 2.9.4 whose operations exist after WP-A8 (AC-MODEL-15): which operations
+/// re-date a project. The render-writing step updates land with WP-C5.
 /// </summary>
 public sealed class UpdatedAtSemanticsTests : IAsyncLifetime
 {
@@ -103,6 +102,39 @@ public sealed class UpdatedAtSemanticsTests : IAsyncLifetime
         await _h.Store.OpenProjectAsync(project);
         Assert.Equal(Original, StoreHarness.OnDisk(project)["updatedAt"]!.GetValue<string>());
         Assert.NotEqual("", StoreHarness.OnDisk(project)["id"]!.GetValue<string>());
+    }
+
+    /// <summary>They write <c>archived</c> and <c>archivedAt</c> only, so Home's order and the auto-archive age hold.</summary>
+    [Fact]
+    public async Task ArchiveAndUnarchiveDoNotReDate()
+    {
+        StoreHarness.WriteFile(_project, "shots/step-0001.png");
+        _h.Time.Advance(TimeSpan.FromDays(1));
+        await _h.Store.ArchiveProjectAsync(_project);
+        Assert.Equal(Original, UpdatedAt());
+
+        _h.Time.Advance(TimeSpan.FromDays(1));
+        await _h.Store.UnarchiveProjectAsync(_project);
+        Assert.Equal(Original, UpdatedAt());
+    }
+
+    [Fact]
+    public async Task TheRestoreOnOpenDoesNotReDate()
+    {
+        await _h.Store.ArchiveProjectAsync(_project);
+        _h.Time.Advance(TimeSpan.FromDays(1));
+
+        await _h.Store.OpenProjectAsync(_project);
+
+        Assert.Equal(Original, UpdatedAt());
+        Assert.False(ArchiveEngine.IsArchivedOnDisk(_project));
+    }
+
+    [Fact]
+    public async Task AutoArchiveDoesNotReDate()
+    {
+        Assert.Equal(1, await _h.Store.AutoArchiveStaleAsync(90, TestContext.Current.CancellationToken));
+        Assert.Equal(Original, UpdatedAt());
     }
 
     /// <summary>Electron's setter has no no-op guard; the intro write always re-dates (Q-MODEL-16 is WP-C1's).</summary>

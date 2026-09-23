@@ -9,7 +9,7 @@ namespace ShotAI.Core.Tests.Composition;
 public sealed class AddShotAICoreTests
 {
     [Fact]
-    public void RegistersTheSystemClockAndTheAtomicWriter()
+    public void RegistersTheSystemClockTheAtomicWriterAndTheArchiveEngine()
     {
         var services = new ServiceCollection().AddShotAICore();
 
@@ -18,6 +18,9 @@ public sealed class AddShotAICoreTests
 
         var atomic = Assert.Single(services, d => d.ServiceType == typeof(AtomicFile));
         Assert.Equal(ServiceLifetime.Singleton, atomic.Lifetime);
+
+        var archive = Assert.Single(services, d => d.ServiceType == typeof(ArchiveEngine));
+        Assert.Equal(ServiceLifetime.Singleton, archive.Lifetime);
     }
 
     /// <summary>
@@ -42,7 +45,7 @@ public sealed class AddShotAICoreTests
     {
         var ctor = Assert.Single(typeof(ProjectStore).GetConstructors());
         Assert.Equal(
-            [typeof(IProjectStoreSettings), typeof(IPathProbe), typeof(AtomicFile), typeof(TimeProvider), typeof(Microsoft.Extensions.Logging.ILogger<ProjectStore>)],
+            [typeof(IProjectStoreSettings), typeof(IPathProbe), typeof(AtomicFile), typeof(ArchiveEngine), typeof(TimeProvider), typeof(Microsoft.Extensions.Logging.ILogger<ProjectStore>)],
             ctor.GetParameters().Select(p => p.ParameterType));
     }
 }

@@ -7,9 +7,9 @@ using Xunit;
 namespace ShotAI.Core.Tests.Store;
 
 /// <summary>
-/// <c>loadProject</c> and <c>getProjectForRead</c> (spec 01 2.9.10): the gate, the read, the id
-/// back-fill in the queue (D-7), the stale-tmp sweep (Q-MODEL-20) and the recents entry. The
-/// auto-unarchive lands with the archive engine (WP-A8).
+/// <c>loadProject</c> and <c>getProjectForRead</c> (spec 01 2.9.10): the gate, the
+/// auto-unarchive (F2), the read, the id back-fill in the queue (D-7), the stale-tmp sweep
+/// (Q-MODEL-20) and the recents entry.
 /// </summary>
 public sealed class OpenProjectTests : IAsyncDisposable
 {
@@ -160,6 +160,56 @@ public sealed class OpenProjectTests : IAsyncDisposable
 
         Assert.True(opened.Manifest.Archived);
         Assert.Equal(bytes, StoreHarness.Bytes(project));
+    }
+
+    /// <summary>F2: an archived project is restored first, through the queued unarchive, without re-dating.</summary>
+    [Fact]
+    public async Task AutoUnarchivesAnArchivedProject()
+    {
+        var project = _h.Project("proj1");
+        StoreHarness.WriteFile(project, "shots/step-0001.png", [1, 2, 3]);
+        await _h.Store.ArchiveProjectAsync(project);
+
+        var opened = await _h.Store.OpenProjectAsync(project);
+
+        var onDisk = StoreHarness.OnDisk(project);
+        Assert.False(opened.Manifest.Archived);
+        Assert.Null(opened.Manifest.ArchivedAt);
+        Assert.False(onDisk["archived"]!.GetValue<bool>());
+        Assert.Equal("2026-01-01T00:00:00.000Z", onDisk["updatedAt"]!.GetValue<string>());
+        Assert.False(ArchiveEngine.IsArchivedOnDisk(project));
+        Assert.Equal([1, 2, 3], await File.ReadAllBytesAsync(Path.Join(project, "shots", "step-0001.png"), TestContext.Current.CancellationToken));
+        Assert.Equal([project], _h.Settings.Recents);
+    }
+
+    /// <summary>HalfPacked and open: a zip without the flag is restored too, and the flag is written false.</summary>
+    [Fact]
+    public async Task OpeningAHalfPackedProjectRestoresIt()
+    {
+        var project = _h.Project("proj1");
+        ZipFixture.Write(Path.Join(project, ArchiveEngine.ZipName), new ZipFixture.Entry("shots/step-0001.png", [1, 2, 3]));
+
+        var opened = await _h.Store.OpenProjectAsync(project);
+
+        Assert.False(opened.Manifest.Archived);
+        Assert.False(StoreHarness.OnDisk(project)["archived"]!.GetValue<bool>());
+        Assert.True(File.Exists(Path.Join(project, "shots", "step-0001.png")));
+        Assert.False(ArchiveEngine.IsArchivedOnDisk(project));
+    }
+
+    /// <summary>Archived and a failed restore: the open fails, the zip and the flag stay, and the project is not made recent.</summary>
+    [Fact]
+    public async Task AFailedRestoreFailsTheOpenAndKeepsTheZip()
+    {
+        var project = _h.Project("proj1", StoreHarness.BaseJson.TrimEnd('}') + ",\"archived\":true,\"archivedAt\":\"2026-02-01T00:00:00.000Z\"}");
+        ZipFixture.Write(Path.Join(project, ArchiveEngine.ZipName), new ZipFixture.Entry("../evil.txt", "x"));
+        var bytes = StoreHarness.Bytes(project);
+
+        await Assert.ThrowsAsync<ArchiveException>(() => _h.Store.OpenProjectAsync(project));
+
+        Assert.True(ArchiveEngine.IsArchivedOnDisk(project));
+        Assert.Equal(bytes, StoreHarness.Bytes(project));
+        Assert.Empty(_h.Settings.Recents);
     }
 
     /// <summary>Q-MODEL-20: only <c>project.json.&lt;pid&gt;.tmp</c> files untouched for more than a day.</summary>

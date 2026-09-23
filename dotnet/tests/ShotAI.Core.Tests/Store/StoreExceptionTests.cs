@@ -35,6 +35,24 @@ public sealed class StoreExceptionTests
         Assert.Equal("Refusing to extract a path outside the project: x/y", UserMessage.From(ImportRejectedException.OutsideProject("x/y")));
     }
 
+    /// <summary>Electron's texts, the lowercase first letters included.</summary>
+    [Fact]
+    public void TheArchiveFailuresShowElectronsText()
+    {
+        Assert.Equal(
+            "archive verification failed (1 entries, expected 2) " + (char)0x2014 + " nothing deleted",
+            UserMessage.From(ArchiveException.VerificationFailed(1, 2)));
+        Assert.Equal("archive contains an unexpected path: notes.txt", UserMessage.From(ArchiveException.UnexpectedPath("notes.txt")));
+        Assert.Equal("refusing to extract a path outside the project: shots/a.png", UserMessage.From(ArchiveException.OutsideProject("shots/a.png")));
+    }
+
+    [Fact]
+    public void AVerificationFailureKeepsWhatCausedIt()
+    {
+        var cause = new InvalidDataException("bad zip");
+        Assert.Same(cause, ArchiveException.VerificationFailed(0, 2, cause).InnerException);
+    }
+
     /// <summary>New native text, for a refusal Electron could not make (D-22).</summary>
     [Fact]
     public void TheImportedImageRefusalNamesTheFile() =>

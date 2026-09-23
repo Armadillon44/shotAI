@@ -20,6 +20,7 @@ public static class CoreServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<AtomicFile>();
+        services.AddSingleton<ArchiveEngine>();
         // The only registration of the store (R-ARCH-4); the container disposes it (7.12).
         services.AddSingleton<IProjectService, ProjectStore>();
         return services;

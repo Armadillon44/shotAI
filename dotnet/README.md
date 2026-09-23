@@ -9,8 +9,9 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 - Behavior to reproduce, subsystem by subsystem: [docs/native/spec/](../docs/native/spec/)
 
 **Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), the model
-and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5)
-and the project store's project and step operations and imports (WP-A6, WP-A7): analyzers, supply-chain
+and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5),
+the project store's project and step operations and imports (WP-A6, WP-A7) and the archive
+engine (WP-A8): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -22,7 +23,11 @@ contract stamp as the Electron and macOS tables. `AtomicFile`, `SerialWriteQueue
 in `tests/ShotAI.Platform.Tests` on the Windows jobs, x64 and arm64. `ProjectStore` gates,
 lists, creates, opens, renames, deletes and changes projects with Electron's persistence
 rules, behind `IProjectService`, and adds, moves, deletes and imports steps and packages without
-losing a step to a duplicate id or writing through a link; the archive engine is next (WP-A8).
+losing a step to a duplicate id or writing through a link. `ArchiveEngine` packs a project's
+`shots/` and `export/` into `archive.zip`, checks every entry's length and CRC-32 before it
+deletes an original, and restores zips Electron wrote (`tests/ShotAI.Core.Tests/Golden/archive/`);
+the store archives, restores on open, and auto-archives stale projects. The project session is
+next (WP-A9).
 
 ## Layout
 

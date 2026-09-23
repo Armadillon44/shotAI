@@ -11,12 +11,17 @@ namespace ShotAI.Core.Tests.Store;
 public sealed class MutateSerializeTests : IAsyncLifetime
 {
     private const string Init = "INIT";
+
+    /// <summary>The TS test's manifest, <c>JSON.stringify</c>-ed: the title non-empty, so the read keeps it, and both dates empty.</summary>
+    private const string Manifest =
+        """{"version":1,"id":"test","title":"INIT","createdWith":"shotAI","createdAt":"","updatedAt":"","captureSettings":null,"steps":[],"sopBackup":null}""";
+
     private readonly StoreHarness _h = new();
     private string _project = "";
 
     public ValueTask InitializeAsync()
     {
-        _project = _h.Project("proj1", StoreHarness.BaseJson.Replace("\"title\":\"T\"", "\"title\":\"" + Init + "\"", StringComparison.Ordinal));
+        _project = _h.Project("proj1", Manifest);
         return ValueTask.CompletedTask;
     }
 

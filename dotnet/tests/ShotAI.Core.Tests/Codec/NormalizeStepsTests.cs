@@ -66,8 +66,15 @@ public sealed class NormalizeStepsTests
     [Fact]
     public void StillRepairsAMalformedAnnotationsField()
     {
+        var steps = ManifestCodec.NormalizeSteps(Steps(Good.Replace("}", ",\"annotations\":\"nope\"}", StringComparison.Ordinal)));
+        Assert.Empty(Assert.Single(steps).Raw["annotations"]!.AsArray());
+    }
+
+    /// <summary>Native: the repaired value takes the old one's place, so the key order is unchanged.</summary>
+    [Fact]
+    public void AMalformedAnnotationsFieldIsReplacedWhereItStands()
+    {
         var steps = ManifestCodec.NormalizeSteps(Steps("""{"id":"s1","annotations":"nope","caption":"c"}"""));
-        // Replaced where it stood, so the key order is unchanged.
         Assert.Equal("""{"id":"s1","annotations":[],"caption":"c"}""", JsJson.Stringify(Assert.Single(steps).Raw, 0));
     }
 
