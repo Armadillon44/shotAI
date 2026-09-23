@@ -324,12 +324,12 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | The three primitives every writer depends on, with the Windows reparse-point behavior proven on a Windows runner; the Windows Platform test project exists |
 | Spec inputs | 01 2.10, 2.11, 7.5, 7.6, 7.7, INV-MODEL-13 to INV-MODEL-16, INV-MODEL-33, INV-MODEL-34, D-5, D-6, D-15, EDGE-MODEL-13, EDGE-MODEL-20; ARCHITECTURE 7.10, 9.2 S12; 12 Q-PKG-12; Q-MODEL-5, Q-MODEL-8 |
-| Deliverables | Core `ShotAI.Core.Store`: `AtomicFile` (tmp `<file>.<pid>.tmp`, `Flush(flushToDisk: true)`, `File.Move(overwrite: true)`, retries at 10, 25, 50, 100, 200, 350, 600 ms through `TimeProvider`, `onRetry`, tmp removed on failure), `IRenameRetryClassifier` and its managed default, `SerialWriteQueue` (`Channel` with one consumer, FIFO, cancellation before start only, `DrainAsync`), `PathConfine` (`Confine`, `ConfineNoLinks`, `HasHostileSegment`), `IPathProbe`, `ManagedPathProbe`, `ReparseSafeDelete`; Platform `ShotAI.Platform.FileSystem`: `WindowsPathProbe` (name-surrogate reparse bit), `WindowsRenameRetryClassifier` (mapping checked against libuv `src/win/error.c`); new project `tests/ShotAI.Platform.Tests` (`net10.0-windows10.0.19041.0`, xunit.v3) in `ShotAI.slnx`; `dotnet.yml` windows job becomes the x64 plus arm64 matrix of 12 7.11.2 (`windows-11-arm`; if the label is unavailable, keep x64 only and record the manual ARM64 fallback in section 6, Q-PKG-12) |
-| Tests | Port `src/main/path-confine.test.ts` (`Store/PathConfineTests`, including the Windows-only rows) and `src/main/path-confine-symlink.test.ts` (`Store/PathConfineSymlinkTests` on Linux with real symlinks, `Platform.Tests/FileSystem/JunctionConfineTests` with `mklink /J`). New: `Store/AtomicFileTests`, `Store/SerialWriteQueueTests`, `Store/HostileSegmentTests`, `Platform.Tests/FileSystem/WindowsPathProbeTests`, `RenameRetryClassifierTests` |
+| Deliverables | Core `ShotAI.Core.Store`: `AtomicFile` (tmp `<file>.<pid>.tmp`, `Flush(flushToDisk: true)`, `File.Move(overwrite: true)`, retries at 10, 25, 50, 100, 200, 350, 600 ms through `TimeProvider`, `onRetry`, tmp removed on failure), `IRenameRetryClassifier` and its managed default, `SerialWriteQueue` (`Channel` with one consumer, FIFO, cancellation before start only, `DrainAsync`), `PathConfine` (`Confine`, `ConfineNoLinks`, `HasHostileSegment`), `IPathProbe`, `ManagedPathProbe`, `ReparseSafeDelete`; Platform `ShotAI.Platform.FileSystem`: `WindowsPathProbe` (name-surrogate reparse bit), `WindowsRenameRetryClassifier` (mapping checked against libuv `src/win/error.c`); new project `tests/ShotAI.Platform.Tests` (`net10.0-windows10.0.19041.0`, xunit.v3) in `ShotAI.slnx`; `dotnet.yml` windows job becomes the x64 plus arm64 matrix of 12 7.11.2 (`windows-11-arm`; if the label is unavailable, keep x64 only and record the manual ARM64 fallback in section 6, Q-PKG-12); added in WP-A5: `PathKind` and `ManagedRenameRetryClassifier` (the managed default's name) in Core, `AddShotAICore` registering `TimeProvider.System` and `AtomicFile`, and the new `ShotAI.Platform.Composition.AddShotAIPlatform` registering the two Platform seams (ARCHITECTURE 4.1 C7); the queue method is `EnqueueAsync` (VSTHRD200, 01 7.7) |
+| Tests | Port `src/main/path-confine.test.ts` (`Store/PathConfineTests`, including the Windows-only rows) and `src/main/path-confine-symlink.test.ts` (`Store/PathConfineSymlinkTests` on Linux with real symlinks, `Platform.Tests/FileSystem/JunctionConfineTests` with `mklink /J`). New: `Store/AtomicFileTests`, `Store/SerialWriteQueueTests`, `Store/HostileSegmentTests`, `Platform.Tests/FileSystem/WindowsPathProbeTests`, `RenameRetryClassifierTests`; added in WP-A5: `Store/ManagedPathProbeTests`, `ReparseSafeDeleteTests`, `ManagedRenameRetryClassifierTests`, `Composition/AddShotAICoreTests`, `Platform.Tests/FileSystem/ReparseSafeDeleteJunctionTests`, `Composition/AddShotAIPlatformTests` |
 | Acceptance criteria | AC-MODEL-11, AC-MODEL-14, AC-MODEL-27, AC-MODEL-30 |
 | Depends on | WP-A1 |
 | Size | M |
-| Risks and de-risking | A confinement mistake is a security regression that Linux CI cannot see (01 risk): the junction cases must execute on the runner, not skip (AC-MODEL-11 says so). `File.Move` flags and the Win32 to errno mapping are unverified: `RenameRetryClassifierTests` measures real sharing violations |
+| Risks and de-risking | A confinement mistake is a security regression that Linux CI cannot see (01 risk): the junction cases must execute on the runner, not skip (AC-MODEL-11 says so). `File.Move` flags and the Win32 to errno mapping are unverified: `RenameRetryClassifierTests` measures real sharing violations. Outcome in WP-A5: the flags were checked in the .NET 10 source; the mapping was checked against libuv 1.52.1, Electron 42.5.0's, and corrected in 01 7.6; `windows-11-arm` is available, so both legs run |
 | Demo | the Windows job log lists `JunctionConfineTests` executed and passed |
 
 #### WP-A6. Project store: projects
@@ -1465,6 +1465,7 @@ Built from every spec's risk statements (the `Risk` entries of each section 11 a
 | X49 | The 6 to 8 week estimate slips (feasibility "Effort") | M / M | this plan | lanes run in parallel; WPs sized to one or two sessions; phase exits measure progress |
 | X50 | An `RS0030` allowance lifts every ban in its file, so an allowlisted file can use another banned API unnoticed (found in WP-A1, ARCHITECTURE 14.9) | L / M | every WP that adds an allowlisted file | keep those files single-purpose; ARCHITECTURE 9.5 item 7; `VSTHRD002` still catches waits outside `ShutdownFlush.cs` |
 | X51 | Under Microsoft.Testing.Platform, `dotnet test` shows nothing a passing test emits (test output, xunit diagnostic messages, warnings) unless run with `--output Detailed`, so a report that is meant to be read in CI stays invisible (found in WP-A3, 01 7.11) | M / L | every WP whose tests report without failing | report as test output and give the report its own `dotnet.yml` step with `--output Detailed`, as the conformance report does; never rely on a passing test's output otherwise |
+| X52 | `Directory.Delete(path, recursive: true)` throws on a tree holding a directory junction on .NET 10: it calls `DeleteVolumeMountPoint` on every mount-point tag (found in WP-A5, 01 7.5) | M / M | every WP that deletes a folder a user can reach: WP-A6 delete, WP-A7 import cleanup, WP-A8 archive | delete through `ReparseSafeDelete.DeleteTree` only; a proposed guard is an RS0030 ban on `Directory.Delete(string, bool)` with an allowance for `ReparseSafeDelete.cs` |
 
 ### 6.2 Open questions by spec
 
@@ -1478,10 +1479,10 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-MODEL-2 | System.Text.Json interpretation | WP-A2 | accepted as I-1; goldens prove bytes |
 | Q-MODEL-3 | canonical root key order (D-3) | WP-A3 | accept; goldens compare decode-then-encode |
 | Q-MODEL-4 | BOM stripping | WP-A2 | strip on read, never write a BOM |
-| Q-MODEL-5 | `FlushFileBuffers` latency | WP-A5 | flush; measure PB-14 at M-A |
+| Q-MODEL-5 | `FlushFileBuffers` latency | WP-A5 | flush; measure PB-14 at M-A (decided in WP-A5) |
 | Q-MODEL-6 | cloud placeholders as links | WP-A8 | implement D-15; verify on P5 in M-A; Electron issue if confirmed |
 | Q-MODEL-7 | restore size caps | WP-A8 | no caps (streaming) |
-| Q-MODEL-8 | hostile-segment rejection | WP-A5 | reject |
+| Q-MODEL-8 | hostile-segment rejection | WP-A5 | reject (decided in WP-A5) |
 | Q-MODEL-9 | queued delete waits | WP-A6 | accept |
 | Q-MODEL-10 | import cleanup scope | WP-A7 | exact new folder only, through `ReparseSafeDelete` |
 | Q-MODEL-11 | unreadable-manifest text | WP-A17 | the recommended sentence; parser message in the log only |
@@ -1788,7 +1789,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-PKG-9 | desktop shortcut | WP-E3 | none; IT passes `DESKTOPSHORTCUT=1` every version |
 | Q-PKG-10 | ReadyToRun | WP-E3, WP-E7 | first-party only; keep if it saves 100 ms (PB-9) |
 | Q-PKG-11 | symbols | WP-E4 | zip on the release |
-| Q-PKG-12 | ARM64 CI runner | WP-A5 | hosted `windows-11-arm`; manual per release otherwise |
+| Q-PKG-12 | ARM64 CI runner | WP-A5 | hosted `windows-11-arm`; manual per release otherwise (decided in WP-A5: the hosted runner works) |
 | Q-PKG-13 | libaom build | WP-D11 | pinned NASM; native ARM64 build; generic fallback |
 | Q-PKG-14 | audit severity in PR CI | WP-A1, WP-E4 | high and critical fail; NU1901 and NU1902 stay warnings unless `ShotAIStrictAudit` is `true`, which `release.yml` sets (12 7.2.1) |
 | Q-PKG-15 | fleet update-check opt-out | WP-E1 | not in 2.0.0 |
@@ -2407,7 +2408,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-A2. ECMAScript JSON semantics (#121)
 - [x] WP-A3. Model, codec and conformance (#125)
 - [x] WP-A4. Brand generator and palette (#126)
-- [ ] WP-A5. Atomic file, write queue and path confinement
+- [x] WP-A5. Atomic file, write queue and path confinement (#127)
 - [ ] WP-A6. Project store: projects
 - [ ] WP-A7. Project store: steps and imports
 - [ ] WP-A8. Archive engine

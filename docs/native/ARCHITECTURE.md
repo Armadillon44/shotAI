@@ -98,7 +98,7 @@ In priority order (section 9 has the owner, mechanism and tests of each):
 | `src/ShotAI.Platform` | `net10.0-windows10.0.19041.0` (`$(ShotAIWindowsTfm)`) | library, `AllowUnsafeBlocks` | Core | Windows (builds on Linux) | exists |
 | `src/ShotAI.App` | `$(ShotAIWindowsTfm)`, `UseWPF`, `AssemblyName` `shotAI` | `WinExe` `shotAI.exe` | Core, Platform | Windows | exists |
 | `tests/ShotAI.Core.Tests` | `net10.0`, xunit.v3 on Microsoft.Testing.Platform | test exe | Core, `tools/ShotAI.GenBrand`, `tools/ShotAI.Release` | Linux, Windows | exists; references `tools/ShotAI.GenBrand` since WP-A4 (10 7.3) and gains `tools/ShotAI.Release` (12 7.15) |
-| `tests/ShotAI.Platform.Tests` | `$(ShotAIWindowsTfm)`, xunit.v3 | test exe | Platform, Core | Windows only | added by the first Platform PR (01 8.2, 02 8.4, 03 8.3) |
+| `tests/ShotAI.Platform.Tests` | `$(ShotAIWindowsTfm)`, xunit.v3 | test exe | Platform, Core | Windows only | exists (WP-A5, the first Platform PR); 01 8.2, 02 8.4, 03 8.3 |
 | `tests/ShotAI.App.Tests` | `$(ShotAIWindowsTfm)`, `UseWPF`, xunit.v3 with an in-repo STA harness (Q-HOME-15) | test exe | App, Platform, Core | Windows only | added by the first App PR (03, 05, 06, 11 8.2) |
 | `tools/ShotAI.GenBrand` | `net10.0` | console | none (BCL only, EDGE-INFRA-48) | Linux, Windows | exists (WP-A4), 10 7.3 |
 | `tools/ShotAI.Release` | `net10.0` | console | Core | Linux, Windows | 12 7.15 |
@@ -581,7 +581,7 @@ IAppLifetime.Stopping (cancelled at the start of App.OnExit)
 
 ### 7.3 The write queue and the store job
 
-- One `SerialWriteQueue` per `ProjectStore`, shared by every project, strictly FIFO in `Enqueue` order (a `Channel` with one consumer, never `SemaphoreSlim`), so captures, report edits, SOP applies and archive operations never interleave (01 7.7; Electron `src/main/project-store.ts:637`, `:647-670`).
+- One `SerialWriteQueue` per `ProjectStore`, shared by every project, strictly FIFO in `EnqueueAsync` order (a `Channel` with one consumer, never `SemaphoreSlim`), so captures, report edits, SOP applies and archive operations never interleave (01 7.7; Electron `src/main/project-store.ts:637`, `:647-670`).
 - Each job re-reads the manifest from disk, applies its change, bumps `updatedAt` unless the change returned `Unchanged`, and writes atomically (01 2.9.3). This keeps Electron's persistence semantics under the optimistic layer.
 - A job's exception completes only its own task; the queue continues. A job whose token is cancelled before it starts never runs; once started it completes (01 7.7, INV-IPC-21).
 - Reads outside the queue (list, get-for-read) may overlap a write and see the old or the new file, never a torn one (INV-MODEL-12).

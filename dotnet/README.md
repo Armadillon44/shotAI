@@ -9,14 +9,16 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 - Behavior to reproduce, subsystem by subsystem: [docs/native/spec/](../docs/native/spec/)
 
 **Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), the model
-and `project.json` codec (WP-A3), and the brand palette (WP-A4): analyzers, supply-chain
+and `project.json` codec (WP-A3), the brand palette (WP-A4), and the store's file primitives (WP-A5): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
 shared conformance suite runs its round trips: every `agreed` case passes, and the one
 `open` case is reported (see `dotnet test ... --output Detailed` below). `BrandPalette` is
 generated from `contract/brand.json` by `tools/ShotAI.GenBrand` and carries the same
-contract stamp as the Electron and macOS tables.
+contract stamp as the Electron and macOS tables. `AtomicFile`, `SerialWriteQueue` and
+`PathConfine` are the primitives every writer uses; the junction and reparse-tag cases run
+in `tests/ShotAI.Platform.Tests` on the Windows jobs, x64 and arm64.
 
 ## Layout
 
@@ -26,6 +28,7 @@ contract stamp as the Electron and macOS tables.
 | `src/ShotAI.Platform` | `net10.0-windows10.0.19041.0` | Windows services: hooks, capture, UI Automation, display affinity, DPAPI, policy registry, OCR, WebView2 PDF host, libavif. |
 | `src/ShotAI.App` | `net10.0-windows10.0.19041.0` | The WPF app (`shotAI.exe`): windows, views, view models, composition root. |
 | `tests/ShotAI.Core.Tests` | `net10.0` | xunit.v3 tests for Core, including the shared `contract/conformance` suite. Runs on Linux and Windows. |
+| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations. Builds everywhere, runs on Windows only. |
 | `tools/ShotAI.GenBrand` | `net10.0` | The brand generator: writes `src/ShotAI.Core/Brand/BrandPalette.Generated.cs` from `contract/brand.json`; `--check` fails when it is stale. BCL only, so it builds when the table does not. |
 
 Windows 10 2004 (10.0.19041) is the minimum because it is the first build with

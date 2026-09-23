@@ -970,7 +970,7 @@ The Swift port (`Packages/ShotModel`) is a field-for-field mirror with deliberat
 | `ShotAI.Core.Json` | ShotAI.Core | `JsJson` (reader and writer with ECMAScript semantics), `JsNumber`, `JsMath`, `JsString`, `IsoTime`, `JsJsonException`; the internal `JsValue` (JavaScript `typeof`, `=== true` and truthiness over a `JsonNode`, classified by `GetValueKind()`; added in WP-A3, shared by the codec, the model views and the writer) |
 | `ShotAI.Core.Model` | ShotAI.Core | `ProjectManifest`, `ProjectStep`, `SopIntro`, `SopBackup`, `StepClick`, `CapturedWindow`, `CapturedMonitor`, `StepElement`, `CaptureTarget`, `Rect`, `Point`, `CalloutKinds`, `CalloutGlyphs`, `StepNumbering`, `StepList` (`Renumber`), `StepGeometry` (`ParseRect`, `ParsePoint`; not `Geometry`, which would share its simple name with the namespace `ShotAI.Core.Geometry`: code in any other `ShotAI.Core.*` namespace that writes `Geometry.ParseRect(...)` binds `Geometry` to that namespace before using directives are consulted and fails with CS0234), `ProjectSummary`, `ProjectTitles` |
 | `ShotAI.Core.Codec` | ShotAI.Core | `ManifestCodec`, `ManifestKeys` |
-| `ShotAI.Core.Store` | ShotAI.Core | `IProjectService` (declared by 11 7.3.2, implemented only by `ProjectStore`), `ProjectStore`, `IProjectStoreSettings`, `OpenedProject`, `SerialWriteQueue`, `AtomicFile`, `IRenameRetryClassifier`, `PathConfine`, `IPathProbe`, `PathKind`, `ManagedPathProbe`, `ReparseSafeDelete`, `ArchiveEngine`, `ProjectSearch`, `ImportLimits` (11 7.3.2), `ImportFile`, `MutateResult`, `ProjectOperation`, `ManifestChangeKind`, `ManifestChangedEventArgs`, `PersistFailedEventArgs` (R-ARCH-20), `IProjectSession`, `ProjectSession`, `IProjectSessionFactory`, `IProjectSettle`, `ProjectSessionFactory` (R-ARCH-5, R-ARCH-6), the exceptions of 7.13 (all deriving from `ShotAI.Core.Errors.ShotAIException`) |
+| `ShotAI.Core.Store` | ShotAI.Core | `IProjectService` (declared by 11 7.3.2, implemented only by `ProjectStore`), `ProjectStore`, `IProjectStoreSettings`, `OpenedProject`, `SerialWriteQueue`, `AtomicFile`, `IRenameRetryClassifier`, `PathConfine`, `IPathProbe`, `PathKind`, `ManagedPathProbe`, `ManagedRenameRetryClassifier` (the managed `IRenameRetryClassifier`, named in WP-A5), `ReparseSafeDelete`, `ArchiveEngine`, `ProjectSearch`, `ImportLimits` (11 7.3.2), `ImportFile`, `MutateResult`, `ProjectOperation`, `ManifestChangeKind`, `ManifestChangedEventArgs`, `PersistFailedEventArgs` (R-ARCH-20), `IProjectSession`, `ProjectSession`, `IProjectSessionFactory`, `IProjectSettle`, `ProjectSessionFactory` (R-ARCH-5, R-ARCH-6), the exceptions of 7.13 (all deriving from `ShotAI.Core.Errors.ShotAIException`) |
 | `ShotAI.Core.Geometry` | ShotAI.Core | `DocScale.Clamp` (05 owns the rest of the geometry) |
 | `ShotAI.Core.Composition` | ShotAI.Core | this spec's registrations inside `CoreServiceCollectionExtensions.AddShotAICore` (7.14) |
 | `ShotAI.Platform.FileSystem` | ShotAI.Platform | `WindowsPathProbe` (reparse tags), `WindowsRenameRetryClassifier`; both `internal sealed`, registered only as their Core interfaces by `AddShotAIPlatform` (INV-ARCH-4) |
@@ -1218,9 +1218,9 @@ public interface IPathProbe
 public static class PathConfine
 {
     /// confinePath: lexical. Returns the full path or null.
-    public static string? Confine(string dir, string rel);
+    public static string? Confine(string dir, string? rel);
     /// confinePathNoSymlinks: lexical, then per-component probe.
-    public static string? ConfineNoLinks(string dir, string rel, IPathProbe probe);
+    public static string? ConfineNoLinks(string dir, string? rel, IPathProbe probe);
     /// Native hardening applied inside both (IMPROVEMENT, EDGE-MODEL-20).
     public static bool HasHostileSegment(string rel);
 }
@@ -1236,6 +1236,13 @@ public static class PathConfine
 `Path.GetFullPath` applies the same Win32 normalization that `CreateFileW` will apply (dot segments, trailing dots and spaces on the last segment), so the checked path is the opened path.
 
 `HasHostileSegment(rel)` (Windows rules, applied on every platform so Linux tests cover them): true if `rel` contains `\0`, `:`, `*`, `?`, `"`, `<`, `>` or `|`, starts with `\\?\`, `\\.\`, `//?/` or `//./`, or any segment (split on `/` and `\`) ends with `.` or space (other than the exact segments `.` and `..`, which the lexical check handles), or any segment's name before its first `.` equals, case-insensitively, `CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, or `COM` or `LPT` followed by U+00B9, U+00B2 or U+00B3. Consequence: an absolute `rel` with a drive letter is rejected even when it lands inside the folder, which Electron accepted; no shotAI writer produces one.
+
+Added in WP-A5:
+
+- The device-name stem is compared after its trailing spaces are removed, because Win32 strips them before its own device check: `NUL .txt` opens the device too.
+- `rel` is nullable (a manifest value may be missing), and a null `dir` throws `ArgumentNullException`: it is always the app's own path, and `path.resolve` throws on it too.
+- The verbatim prefixes `\\?\` and `//?/` need no separate check, because they contain `?`.
+- The device list is Microsoft's current one (Learn, "Naming Files, Paths, and Namespaces", read 2026-09-23): no `COM0` or `LPT0`.
 
 `ConfineNoLinks(dir, rel, probe)`:
 
@@ -1272,6 +1279,14 @@ return a has Directory ? Directory : File
 
 **Reparse-safe traversal** (INV-MODEL-33): `ReparseSafeDelete.DeleteTree(string path, IPathProbe probe)` walks with `Directory.EnumerateFileSystemEntries` one level at a time; for an entry probed as `Link`, delete the link itself (`Directory.Delete(entry, recursive: false)` for a directory link on Windows, where `RemoveDirectory` removes a junction or directory symlink without touching the target; `File.Delete` for a file link, and on Linux for any symlink, since `unlink` removes a symlink whatever it points to; which .NET call removes a directory symlink on Linux is UNVERIFIED, so the Linux test pins it) and never descend; for a directory, recurse, then delete it; clear `ReadOnly` on files before deleting (Node's `fs.rm` removes read-only files on Windows). A missing path is fine (`force: true`). The archive walk and the root listing use the same probe to skip links. Do not rely on `Directory.Delete(path, true)`'s own reparse handling; the explicit walk is what the test pins.
 
+Settled in WP-A5:
+
+- Each level is listed with `Directory.GetFileSystemEntries` before anything in it is deleted.
+- An entry the probe calls `Unknown` is left in place and `DeleteTree` throws `IOException` (`cannot tell whether '<path>' is a link, so it was not deleted`).
+- A read-only file or folder is cleared and deleted again only after a first delete fails, so nothing is changed when the delete succeeds first time. On Linux the delete succeeds without clearing, as `unlink` does not need write permission on the file.
+- On Linux the call that removes a directory symlink is `File.Delete` (`unlink`), pinned by `ReparseSafeDeleteTests.OnLinuxFileDeleteRemovesADirectorySymlink`. Windows uses `Directory.Delete(link, recursive: false)` for a link with the directory attribute.
+- The rule not to rely on `Directory.Delete(path, true)` is not only caution. On .NET 10 it throws `IOException` ("The parameter is incorrect") on a tree that holds a directory junction: it calls `DeleteVolumeMountPoint` on every `IO_REPARSE_TAG_MOUNT_POINT` entry, and that fails for a junction that is not a volume mount (`FileSystem.Windows.cs`, `RemoveDirectoryRecursive`; seen on the Windows runners in WP-A5). The Platform tests clean up with `ReparseSafeDelete` for the same reason.
+
 ### 7.6 Atomic file
 
 ```csharp
@@ -1285,8 +1300,8 @@ public sealed class AtomicFile(TimeProvider time, IRenameRetryClassifier classif
 {
     // Not `[10, 25, ...].Select(...)`: a collection expression has no natural type, so
     // calling an extension method on one does not compile.
-    public static readonly TimeSpan[] RenameRetryDelays =
-        new[] { 10, 25, 50, 100, 200, 350, 600 }.Select(ms => TimeSpan.FromMilliseconds(ms)).ToArray();
+    public static IReadOnlyList<TimeSpan> RenameRetryDelays { get; } =
+        Array.AsReadOnly(new[] { 10, 25, 50, 100, 200, 350, 600 }.Select(ms => TimeSpan.FromMilliseconds(ms)).ToArray());
 
     public Task WriteAsync(string file, ReadOnlyMemory<byte> data, Action<string>? onRetry = null, CancellationToken ct = default);
     public Task RenameWithRetryAsync(string from, string to, Action<string>? onRetry = null);
@@ -1302,38 +1317,54 @@ public sealed class AtomicFile(TimeProvider time, IRenameRetryClassifier classif
 
 `ct` is honored only before step 3 begins; a started write always completes.
 
-`RenameWithRetryAsync`: `for attempt = 0..7`: `File.Move(from, to, overwrite: true)` (on Windows this is `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`, the flag libuv uses; the .NET runtime also passes `MOVEFILE_COPY_ALLOWED`, which is inert for a same-directory rename; UNVERIFIED against the runtime source for .NET 10); on exception, `code = classifier.Classify(ex)`; if `code is null || attempt >= 7` rethrow; if `attempt == 0` invoke `onRetry(code)`; `await Task.Delay(RenameRetryDelays[attempt], time)`.
+Corrected in WP-A5:
 
-`WindowsRenameRetryClassifier` (Platform) maps the Win32 error in `ex.HResult` (when `(HResult >> 16) == 0x8007`, code = `HResult & 0xFFFF`), following libuv's mapping (verify against libuv `src/win/error.c` when implementing):
+- `RenameRetryDelays` is an `IReadOnlyList<TimeSpan>`, not a public array, which any caller could change for every writer.
+- Step 3 passes `CancellationToken.None` to `WriteAsync` and `FlushAsync`, not `ct`, because a started write always completes.
+
+`RenameWithRetryAsync`: `for attempt = 0..7`: `File.Move(from, to, overwrite: true)` (on Windows this is `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`, the flag libuv uses; the .NET runtime also passes `MOVEFILE_COPY_ALLOWED`, which is inert for a same-directory rename; checked in WP-A5 against the .NET 10 source, `Interop.MoveFileEx.cs`, which also adds the long-path prefix first); on exception, `code = classifier.Classify(ex)`; if `code is null || attempt >= 7` rethrow; if `attempt == 0` invoke `onRetry(code)`; `await Task.Delay(RenameRetryDelays[attempt], time)`.
+
+`WindowsRenameRetryClassifier` (Platform) maps the Win32 error in `ex.HResult` (when `((uint)HResult >> 16) == 0x8007`, code = `HResult & 0xFFFF`), following libuv's mapping.
+
+Corrected in WP-A5, checked against libuv 1.52.1 (`src/win/error.c`), which is the libuv of Electron 42.5.0 (Node 24.17.0):
+
+- `ERROR_NOACCESS` has mapped to EFAULT since libuv 1.50, so it is not retried.
+- Four more codes map to a retried error.
 
 | Win32 error | libuv code | Classified |
 |---|---|---|
-| `ERROR_ACCESS_DENIED` (5), surfaced as `UnauthorizedAccessException` | EPERM | `"EPERM"` |
-| `ERROR_SHARING_VIOLATION` (32) | EBUSY | `"EBUSY"` |
-| `ERROR_LOCK_VIOLATION` (33) | EBUSY | `"EBUSY"` |
-| `ERROR_NOACCESS` (998), `ERROR_CANT_ACCESS_FILE` (1920) | EACCES | `"EACCES"` |
-| anything else | | null |
+| `ERROR_ACCESS_DENIED` (5), surfaced as `UnauthorizedAccessException`; `ERROR_PRIVILEGE_NOT_HELD` (1314) | EPERM | `"EPERM"` |
+| `ERROR_SHARING_VIOLATION` (32), `ERROR_LOCK_VIOLATION` (33), `ERROR_PIPE_BUSY` (231) | EBUSY | `"EBUSY"` |
+| `ERROR_ELEVATION_REQUIRED` (740), `ERROR_CANT_ACCESS_FILE` (1920), `WSAEACCES` (10013) | EACCES | `"EACCES"` |
+| anything else, `ERROR_NOACCESS` (998) included | | null |
 
-The managed default (Core, Linux) classifies `UnauthorizedAccessException` as `"EACCES"` and an `IOException` whose message or HResult indicates EBUSY as `"EBUSY"`. Tests inject a fake classifier and a `FakeTimeProvider` (NuGet `Microsoft.Extensions.TimeProvider.Testing`) so the schedule is asserted without sleeping.
+The managed default (Core, Linux; named `ManagedRenameRetryClassifier` in WP-A5) classifies `UnauthorizedAccessException` as `"EACCES"` and an `IOException` whose message or HResult indicates EBUSY as `"EBUSY"`: an HResult of 16, the raw errno .NET stores there on Linux and macOS, or a message containing `resource busy`. Tests inject a fake classifier and a `FakeTimeProvider` (NuGet `Microsoft.Extensions.TimeProvider.Testing`) so the schedule is asserted without sleeping.
 
 ### 7.7 The write queue
 
 ```csharp
 public sealed class SerialWriteQueue : IDisposable, IAsyncDisposable
 {
-    public Task<T> Enqueue<T>(Func<CancellationToken, Task<T>> job, CancellationToken ct = default);
+    public SerialWriteQueue(TimeProvider? time = null);   // the clock DrainAsync times out on
+    public Task<T> EnqueueAsync<T>(Func<CancellationToken, Task<T>> job, CancellationToken ct = default);
     public Task DrainAsync(TimeSpan timeout);      // IMPROVEMENT: used at app exit
 }
 ```
 
+Corrected in WP-A5:
+
+- The method is `EnqueueAsync`, not `Enqueue`: it returns a task, and VSTHRD200 is an error in Core (ARCHITECTURE 14.9).
+- The constructor takes the clock `DrainAsync` times out on, the system clock by default, so its timeout is tested on a `FakeTimeProvider`.
+- A job must not wait for another job of the same queue, which could start only after it.
+
 The same type backs `SettingsService`'s own queue (10 7.4.3); the two queues are independent (ARCHITECTURE 6.1).
 
 - One instance per `ProjectStore`, shared by all projects (parity: one global chain).
-- Implementation: an unbounded `Channel<WorkItem>` with `SingleReader = true` and one consumer loop started at construction; each `WorkItem` holds the job and a `TaskCompletionSource<T>` created with `TaskCreationOptions.RunContinuationsAsynchronously`; because `Enqueue<T>` is generic and the channel is not, the channel carries a non-generic abstract `WorkItem` with `abstract Task RunAsync()`, implemented by a private `WorkItem<T>`. The consumer awaits each job with `ConfigureAwait(false)`. FIFO in `Enqueue` call order. Do NOT use `SemaphoreSlim.WaitAsync` (not FIFO).
+- Implementation: an unbounded `Channel<WorkItem>` with `SingleReader = true` and one consumer loop started at construction; each `WorkItem` holds the job and a `TaskCompletionSource<T>` created with `TaskCreationOptions.RunContinuationsAsynchronously`; because `EnqueueAsync<T>` is generic and the channel is not, the channel carries a non-generic abstract `WorkItem` with `abstract Task RunAsync()`, implemented by a private `WorkItem<T>`. The consumer awaits each job with `ConfigureAwait(false)`. FIFO in `EnqueueAsync` call order. Do NOT use `SemaphoreSlim.WaitAsync` (not FIFO).
 - A job's exception completes only its own task; the loop continues (parity with `run.then(noop, noop)`).
 - A job whose `ct` is canceled before it starts completes as canceled without running.
 - `DrainAsync(timeout)` completes when every job enqueued before the call has finished, or when `timeout` elapses (it then completes without faulting; the jobs keep running). `ProjectStore.FlushAsync(timeout)` delegates to it; `ShutdownFlush` calls it on exit together with the settings flush (7.12, ARCHITECTURE 4.5 step 3) so a save issued just before quit reaches disk (IMPROVEMENT D-18: Electron can lose a pending chain at process exit).
-- `Dispose()` (synchronous, R-ARCH-10): completes the channel writer so later `Enqueue` calls throw `ObjectDisposedException`, and returns without waiting for the consumer, because it runs on the UI thread after the exit flush already drained the queue; a job still running then finishes on the pool or ends with the process (a started atomic write leaves the old or the new file, 7.6). Idempotent. `DisposeAsync()` does the same and then awaits the consumer loop (tests and non-container owners).
+- `Dispose()` (synchronous, R-ARCH-10): completes the channel writer so later `EnqueueAsync` calls throw `ObjectDisposedException`, and returns without waiting for the consumer, because it runs on the UI thread after the exit flush already drained the queue; a job still running then finishes on the pool or ends with the process (a started atomic write leaves the old or the new file, 7.6). Idempotent. `DisposeAsync()` does the same and then awaits the consumer loop (tests and non-container owners).
 
 ### 7.8 ProjectStore API
 
@@ -1675,6 +1706,8 @@ services.AddSingleton<IPathProbe, WindowsPathProbe>();                       // 
 services.AddSingleton<IRenameRetryClassifier, WindowsRenameRetryClassifier>();
 ```
 
+Added in WP-A5: `AddShotAICore` carries the `TimeProvider` and `AtomicFile` lines, and the new `AddShotAIPlatform` the two Platform lines; the other lines land with their types.
+
 `ManagedPathProbe` and the managed `IRenameRetryClassifier` default are used by `ShotAI.Core.Tests` and the Core self-test (10 7.8), never registered in the shipped container.
 
 Shutdown: `ShutdownFlush.Run(TimeSpan.FromSeconds(5))` flushes this store together with the settings queue, then `provider.Dispose()` (7.12, ARCHITECTURE 4.5, R-ARCH-10).
@@ -1763,13 +1796,14 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 | `Store/HostileSegmentTests` | every rule in 7.5 true and false cases, platform-neutral |
 | Windows-only `Platform.Tests/FileSystem/ReparsePointTraversalTests` | a junction under the projects root is not listed; deleting a project containing a junction to an outside folder leaves the outside folder's files intact; archiving skips a junction inside `shots/` |
 | Windows-only `Platform.Tests/FileSystem/WindowsPathProbeTests` | junction and symlink are `Link`; a regular file and directory are classified; a missing path is `Missing`; an access-denied path is `Unknown` |
-| Windows-only `Platform.Tests/FileSystem/RenameRetryClassifierTests` | a file opened with `FileShare.None` makes `File.Move(overwrite: true)` onto it fail and classify as `EBUSY` or `EPERM`; release after 30 ms and `RenameWithRetryAsync` succeeds |
+| Windows-only `Platform.Tests/FileSystem/RenameRetryClassifierTests` | a file opened with `FileShare.None` makes `File.Move(overwrite: true)` onto it fail and classify as `EBUSY` or `EPERM`; release after 30 ms and `RenameWithRetryAsync` succeeds; added in WP-A5: every row of the 7.6 table, `ERROR_NOACCESS` null |
+| Added in WP-A5 | `Store/ManagedPathProbeTests` (every kind, dangling symlinks included); `Store/ReparseSafeDeleteTests` (Linux symlinks, read-only files, an `Unknown` entry kept, `OnLinuxFileDeleteRemovesADirectorySymlink`); `Store/ManagedRenameRetryClassifierTests`; `Composition/AddShotAICoreTests`; Windows-only `Platform.Tests/FileSystem/ReparseSafeDeleteJunctionTests` (junctions, directory symlinks, read-only files and folders) and `Composition/AddShotAIPlatformTests`; `WindowsPathProbeTests` also checks an invalid name (`Unknown`), an app execution alias (`File`, skipped where none exists) and a path longer than `MAX_PATH` |
 | `Store/ImportStepConfineTests` | `shots/` replaced by a symlink (Linux) or junction (Windows-only duplicate in Platform.Tests) makes `ImportStepAsync` throw and write nothing outside (D-22); a digit string beyond double range names the file `step-Infinity.png`; a counter of `1e21` names it `step-1e+21.png` |
 | `Store/DeleteStepsMalformedPathTests` | a removed step with `screenshot: 42` and `flattened: true` completes successfully, the manifest is written, and the other removed steps' files are deleted (D-23) |
 | `Store/ArchiveNameRulesTests` | entries `export\..\project.json`, `export/../project.json`, `./shots/a.png`, `shots//a.png` are all refused with the zip kept and `project.json` byte-identical (D-13, D-25); an entry whose external attributes carry `0x10` is treated as a directory; a non-ASCII entry name without the UTF-8 flag restores under its UTF-8 decoding |
 | `Codec/RegexAnchorTests` | `"shots/a.png\n"` fails the import whitelist; `"Project 2026/01/01 00:00:00\n"` untrimmed fails `IsAutoGenerated`'s regex and passes after `JsString.Trim`; Arabic-Indic digits do not match `[0-9]` (D-26). The import-whitelist case is in `Store/CreateFromImportTests` (WP-A7), which lands that regex; WP-A3 has no import code (corrected in WP-A3) |
 | `Store/ProjectSearchComparerTests` | `'a'`, `'A'`, `'\u00e1'` compare equal under the name comparer; ISO dates order identically under Ordinal and the JS expected order; descending keeps tie order |
-| `Store/ProjectStoreDisposalTests` | `Dispose()` returns without waiting for a running job and is idempotent; `Enqueue` after `Dispose` throws `ObjectDisposedException`; `FlushAsync(timeout)` returns within the timeout while a job is blocked and completes early when the queue drains; `ProjectStore` implements `IDisposable` (R-ARCH-10); the container-level checks are 11's `Composition.ContainerTests.NoAsyncOnlyDisposables` and `LifecycleTests.ExitOrderMatchesSpec11` (App.Tests) |
+| `Store/ProjectStoreDisposalTests` | `Dispose()` returns without waiting for a running job and is idempotent; `EnqueueAsync` after `Dispose` throws `ObjectDisposedException`; `FlushAsync(timeout)` returns within the timeout while a job is blocked and completes early when the queue drains; `ProjectStore` implements `IDisposable` (R-ARCH-10); the container-level checks are 11's `Composition.ContainerTests.NoAsyncOnlyDisposables` and `LifecycleTests.ExitOrderMatchesSpec11` (App.Tests) |
 | `Store/StoreExceptionTests` | every exception of 7.13 derives from `ShotAIException` and `UserMessage.From` returns its exact message (11 X2) |
 
 ## 9. Acceptance criteria
@@ -1874,13 +1908,13 @@ Every consumer outside the store reaches it through `IProjectService` (11 7.3.2)
 
 **Q-MODEL-4.** Stripping a BOM (D-4) makes native read files Electron cannot. Recommended default: strip; never write a BOM. Decided in WP-A2: default adopted; `JsJson.Parse` skips one leading BOM and nothing in `JsJson` writes one (the file writer is WP-A5's `AtomicFile`).
 
-**Q-MODEL-5.** `FlushFileBuffers` on every manifest write costs latency on NTFS (typically a few ms to tens of ms, more under Defender). Recommended default: flush; the optimistic UI hides the latency. Measure during Phase A and revisit if a capture burst slows down. Adopted by ARCHITECTURE 7.10; the proposed budget is PB-14 (p95 under 50 ms for a 100-step manifest), measured manually in Phase A.
+**Q-MODEL-5.** `FlushFileBuffers` on every manifest write costs latency on NTFS (typically a few ms to tens of ms, more under Defender). Recommended default: flush; the optimistic UI hides the latency. Measure during Phase A and revisit if a capture burst slows down. Adopted by ARCHITECTURE 7.10; the proposed budget is PB-14 (p95 under 50 ms for a 100-step manifest), measured manually in Phase A. Decided in WP-A5: flush, the default; PB-14 is still measured in Phase A (M-A exit test A-7).
 
 **Q-MODEL-6.** The claim that libuv reports every reparse point as a link in `readdir` (and therefore that Electron skips OneDrive placeholder folders and drops placeholder files from archives) is from reading, not measurement. Recommended default: implement D-15 regardless; verify on a Windows machine with a Files On-Demand folder (dehydrate a project, list it in Electron, archive a copy) and file an Electron issue if confirmed.
 
 **Q-MODEL-7.** Restore size caps (macOS: 256 MiB per entry, 2 GiB total). Recommended default: no caps natively, because streaming removes the memory risk and a cap could lock a user out of a legitimately large archive; revisit if a zip-bomb threat model appears for synced folders.
 
-**Q-MODEL-8.** Hostile-segment rejection (D-6) could refuse a legitimate name some future writer produces. Recommended default: reject; no current writer on either platform produces `:`, device names or trailing dots.
+**Q-MODEL-8.** Hostile-segment rejection (D-6) could refuse a legitimate name some future writer produces. Recommended default: reject; no current writer on either platform produces `:`, device names or trailing dots. Decided in WP-A5: reject, the default, with the trailing-space stem rule of 7.5.
 
 **Q-MODEL-9.** Queuing `DeleteProjectAsync` and the id back-fill (D-7, D-8) means a delete waits behind pending writes. Recommended default: accept; deletes are rare and the queue is short.
 
