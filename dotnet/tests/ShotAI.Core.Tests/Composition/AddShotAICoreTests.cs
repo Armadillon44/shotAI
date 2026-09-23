@@ -39,6 +39,33 @@ public sealed class AddShotAICoreTests
         Assert.DoesNotContain(services, d => d.ServiceType == typeof(IProjectStoreSettings));
     }
 
+    /// <summary>
+    /// One factory instance serves both interfaces, so a settle finds the sessions that same
+    /// instance created (spec 01 7.14).
+    /// </summary>
+    [Fact]
+    public void RegistersOneSessionFactoryForBothInterfaces()
+    {
+        var services = new ServiceCollection().AddShotAICore();
+        var factory = Assert.Single(services, d => d.ServiceType == typeof(ProjectSessionFactory));
+        Assert.Equal(ServiceLifetime.Singleton, factory.Lifetime);
+        Assert.Equal(typeof(ProjectSessionFactory), factory.ImplementationType);
+        var instance = (ProjectSessionFactory)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ProjectSessionFactory));
+        var provider = new OneServiceProvider(typeof(ProjectSessionFactory), instance);
+
+        foreach (var type in new[] { typeof(IProjectSessionFactory), typeof(IProjectSettle) })
+        {
+            var forwarded = Assert.Single(services, d => d.ServiceType == type);
+            Assert.Equal(ServiceLifetime.Singleton, forwarded.Lifetime);
+            Assert.Same(instance, forwarded.ImplementationFactory!(provider));
+        }
+    }
+
+    private sealed class OneServiceProvider(Type type, object instance) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => serviceType == type ? instance : null;
+    }
+
     /// <summary>The container activates public constructors only, so the tests' id seam is never chosen.</summary>
     [Fact]
     public void TheStoreHasOnePublicConstructor()

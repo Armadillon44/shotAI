@@ -491,7 +491,7 @@ The rules T1 to T12 of 11 7.6 are normative; in summary:
 | # | Rule | Enforcement |
 |---|---|---|
 | T1 | The UI thread owns every window, view model, `IProjectSession.Current`, `INoticeService` and `IConfirmService` call. | `Threading.ViewModelAffinityTests` |
-| T2, T3 | Core and Platform are free-threaded and use `ConfigureAwait(false)`, except the three UI-affine types: 08's `MsalGateway.AcquireInteractiveAsync`, 09's `WebView2PdfRenderer`, 01's `ProjectSession` event raising. | `CA2007` as error in Core and Platform, per-file suppression with justification for those three |
+| T2, T3 | Core and Platform are free-threaded and use `ConfigureAwait(false)`, except the three UI-affine types: 08's `MsalGateway.AcquireInteractiveAsync`, 09's `WebView2PdfRenderer`, 01's `ProjectSession` event raising. | `CA2007` as error in Core and Platform, per-file suppression with justification for `MsalGateway.cs` and `WebView2PdfRenderer.cs`. `ProjectSession` posts its events to the captured context itself and awaits with `ConfigureAwait(false)`, so it needs none (corrected in WP-A9) |
 | T4 | App code awaits without `ConfigureAwait(false)`, so continuations return to the UI thread. | `CA2007` off in App |
 | T5 | Services raise events on the thread that caused them, outside their locks, through `EventRaiser.Raise` (a throwing handler is logged and the rest still run). | `Threading.EventRaiserTests`, INV-IPC-24 |
 | T6 | App subscribers marshal with `IUiDispatcher.Post` only; `Dispatcher.Invoke`, `BeginInvoke` and `InvokeAsync` are banned outside the allowlisted files of 14.9. | BannedApiAnalyzers |
@@ -627,7 +627,7 @@ public interface IProjectSettle { Task WhenSettledAsync(string projectPath, Canc
 | S3 | When the last pending operation persists, `Current` becomes the persisted manifest. The event is `Changed(Persisted)` when it equals the previous `Current` apart from `updatedAt`, else `Changed(External)` (the disk carried a change this session did not make). | 05 7.5 request 4, 7.6 |
 | S4 | When a queued operation fails, the session re-reads the disk (or uses the last persisted manifest if the read fails), re-applies every still-pending operation in order, sets `Current`, raises `Changed(RolledBack)` and `PersistFailed(op, error)`, and faults that operation's task. | 01 7.10, 05 7.5 request 5 |
 | S5 | `ApplyDurable(call)` awaits `call(IProjectService)`; `Current` becomes its result with every optimistic operation issued after the durable call started re-applied on top; `Changed(Durable)` is raised. It takes the interface, not the concrete `ProjectStore`. | 05 7.5 request 2, 11 7.3.2 |
-| S6 | `WhenIdleAsync` completes when every operation queued and every durable call started before the call has finished (persisted or rolled back). | 07 INV-SOP-28, 09 INV-EXP-28 |
+| S6 | `WhenIdleAsync` completes when every operation queued and every durable call started before the call has finished (persisted or rolled back). Finished means its store work is done, so the disk holds the outcome; the session's processing of that outcome on the UI context may follow, so a settle never needs the UI thread (clarified in WP-A9). | 07 INV-SOP-28, 09 INV-EXP-28 |
 | S7 | `IProjectSettle.WhenSettledAsync(path)` finds every registered session for `Path.GetFullPath(path)` (compared `OrdinalIgnoreCase`, 02 D9), the open one and any disposed one still draining (S9), and awaits their `WhenIdleAsync`; with none registered it completes at once. 09's requested `IProjectService.WhenIdleAsync(path)` is this member (R-ARCH-6). | 07 7.13, 09 Q-EXP-11, R-ARCH-27 |
 | S8 | Events are posted (never sent) to the context captured by `Create`; handlers check `sender == currentSession` (INV-REP-31). | 01 7.12, 05 7.3 |
 | S9 | `DisposeAsync` stops raising events at once and lets queued writes drain on the shared queue; it never cancels them. The session stays registered with `IProjectSettle` until every operation and durable call it accepted has finished (persisted or rolled back), and unregisters only then, so an export or SOP run started from Home right after Back still waits for those writes (superseded wording: "unregisters at `DisposeAsync`", R-ARCH-27). | 01 7.12, 05 7.3, R-ARCH-27 |
@@ -1220,7 +1220,7 @@ Severities live in `dotnet/.editorconfig`; warnings are errors, so "error" and "
 |---|---|---|---|---|
 | Nullable warnings | error | error | error | 14.3 |
 | `CA1416` platform compatibility | error | error | error | INV-ARCH-1 |
-| `CA2007` ConfigureAwait | error (one reasoned per-file suppression: `ProjectSession.cs`, T3) | error (two reasoned per-file suppressions: `MsalGateway.cs`, `WebView2PdfRenderer.cs`, T3) | off | T3, T4 |
+| `CA2007` ConfigureAwait | error (no suppression; corrected in WP-A9: `ProjectSession` posts to its captured context itself, T3) | error (two reasoned per-file suppressions: `MsalGateway.cs`, `WebView2PdfRenderer.cs`, T3) | off | T3, T4 |
 | `CA2016` forward the token | error | error | error | K1 |
 | `CA2012` use `ValueTask` correctly | error | error | error | 01's `ValueTask` mutations |
 | `VSTHRD002` no synchronous waits | error | error | error (one allowlisted file) | T9 |

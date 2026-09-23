@@ -96,10 +96,6 @@ dotnet_diagnostic.RS0030.severity = none
 [src/ShotAI.Core/Store/ProjectSessionFactory.cs]
 dotnet_diagnostic.RS0030.severity = none
 
-# Core: ProjectSession continues on the captured UI context by design (T3).
-[src/ShotAI.Core/Store/ProjectSession.cs]
-dotnet_diagnostic.CA2007.severity = none
-
 # Platform: these must resume on their own threads (T3).
 [src/ShotAI.Platform/Auth/MsalGateway.cs]
 dotnet_diagnostic.CA2007.severity = none

@@ -10,8 +10,8 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 
 **Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), the model
 and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5),
-the project store's project and step operations and imports (WP-A6, WP-A7) and the archive
-engine (WP-A8): analyzers, supply-chain
+the project store's project and step operations and imports (WP-A6, WP-A7), the archive
+engine (WP-A8) and the optimistic project session (WP-A9): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -26,8 +26,10 @@ rules, behind `IProjectService`, and adds, moves, deletes and imports steps and 
 losing a step to a duplicate id or writing through a link. `ArchiveEngine` packs a project's
 `shots/` and `export/` into `archive.zip`, checks every entry's length and CRC-32 before it
 deletes an original, and restores zips Electron wrote (`tests/ShotAI.Core.Tests/Golden/archive/`);
-the store archives, restores on open, and auto-archives stale projects. The project session is
-next (WP-A9).
+the store archives, restores on open, and auto-archives stale projects. `IProjectSession` shows an
+edit at once, writes it through the store's queue, and on a failed write rolls back only that
+edit, with the others still pending shown again on top of the disk; `IProjectSettle` lets an export
+or SOP run wait for those writes. The settings service is next (WP-A10).
 
 ## Layout
 

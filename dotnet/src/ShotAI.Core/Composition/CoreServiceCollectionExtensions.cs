@@ -23,6 +23,10 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ArchiveEngine>();
         // The only registration of the store (R-ARCH-4); the container disposes it (7.12).
         services.AddSingleton<IProjectService, ProjectStore>();
+        // One factory instance serves both interfaces, so a settle finds the sessions it created.
+        services.AddSingleton<ProjectSessionFactory>();
+        services.AddSingleton<IProjectSessionFactory>(sp => sp.GetRequiredService<ProjectSessionFactory>());
+        services.AddSingleton<IProjectSettle>(sp => sp.GetRequiredService<ProjectSessionFactory>());
         return services;
     }
 }

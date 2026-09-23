@@ -380,12 +380,12 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | The consolidated optimistic editing contract S1 to S10 (ARCHITECTURE 7.4) that 05, 07, 09 and 11 build on |
 | Spec inputs | ARCHITECTURE 7.2 to 7.5, R-ARCH-5, R-ARCH-6, R-ARCH-20, R-ARCH-23, R-ARCH-27; 01 7.10, 7.12, Q-MODEL-25; 05 7.5 requests and Q-REP-14; 07 INV-SOP-28, Q-SOP-21; 09 INV-EXP-28, Q-EXP-11; 11 7.3.2; Q-IPC-21 |
-| Deliverables | Core `ShotAI.Core.Store`: `ManifestChangeKind`, `ManifestChangedEventArgs`, `PersistFailedEventArgs`, `ProjectOperation` (`Apply`, `BumpsUpdatedAt`, virtual `AffectedStepIds`), `IProjectSession`, `ProjectSession`, `IProjectSessionFactory`, `ProjectSessionFactory` (the only Core file allowed `SynchronizationContext.Current`, with its `.editorconfig` allowance), `IProjectSettle`; `VSTHRD200` suppressions on `Apply` and `ApplyDurable` only (01 7.10 already points at ARCHITECTURE 7.4 as the contract, and 01 7.10 and 05 7.3 already state R-ARCH-27's disposed-while-draining registration, 1.5) |
-| Tests | No Electron file. New: `Store/ProjectSessionTests` covering S1 to S10 (`DurableResultKeepsLaterOptimisticEdits`, clone-throw queues nothing, `Unchanged` queues nothing, `Persisted` versus `External`, re-apply after a failure with the failed operation in `PersistFailed`, `WhenIdleAsync`, `IProjectSettle` for open and closed projects and for a session disposed with writes still pending (`DisposedSessionStaysRegisteredUntilDrained`: `WhenSettledAsync` for its path waits for those writes, and the session unregisters only after them, S7, S9, R-ARCH-27), and `ShippedOperationsBumpUpdatedAt`, a reflection case that asserts every shipped `ProjectOperation` returns `BumpsUpdatedAt == true` and so picks up the operations later WPs add, Q-MODEL-25), plus a randomized interleaving test of `Apply`, `ApplyDurable` and injected failures |
+| Deliverables | Core `ShotAI.Core.Store`: `ManifestChangeKind`, `ManifestChangedEventArgs`, `PersistFailedEventArgs`, `ProjectOperation` (`Apply`, `BumpsUpdatedAt`, virtual `AffectedStepIds`), `IProjectSession`, `ProjectSession`, `IProjectSessionFactory`, `ProjectSessionFactory` (the only Core file allowed `SynchronizationContext.Current`, with its `.editorconfig` allowance), `IProjectSettle`; `VSTHRD200` suppressions on `Apply` and `ApplyDurable` only (01 7.10 already points at ARCHITECTURE 7.4 as the contract, and 01 7.10 and 05 7.3 already state R-ARCH-27's disposed-while-draining registration, 1.5); added in WP-A9: `ProjectSessionFactory.RegisteredCount` (internal), which only the drain test reads; corrected in WP-A9: the `CA2007` exemption the WP-A1 scaffold reserved for `ProjectSession.cs` is removed, because the session posts to its captured context itself and awaits with `ConfigureAwait(false)` (ARCHITECTURE 6.2, 14.9, 01 7.10, 7.12, 11 7.6) |
+| Tests | No Electron file. New: `Store/ProjectSessionTests` covering S1 to S10 (`DurableResultKeepsLaterOptimisticEdits`, clone-throw queues nothing, `Unchanged` queues nothing, `Persisted` versus `External`, re-apply after a failure with the failed operation in `PersistFailed`, `WhenIdleAsync`, `IProjectSettle` for open and closed projects and for a session disposed with writes still pending (`DisposedSessionStaysRegisteredUntilDrained`: `WhenSettledAsync` for its path waits for those writes, and the session unregisters only after them, S7, S9, R-ARCH-27), and `ShippedOperationsBumpUpdatedAt`, a reflection case that asserts every shipped `ProjectOperation` returns `BumpsUpdatedAt == true` and so picks up the operations later WPs add, Q-MODEL-25), plus a randomized interleaving test of `Apply`, `ApplyDurable` and injected failures; added in WP-A9: `Support/ManualSynchronizationContext`, a context over the existing `ManualUiDispatcher` that the test drains, and the `Composition/AddShotAICoreTests` case that one factory instance serves both interfaces |
 | Acceptance criteria | AC-ARCH-4 |
 | Depends on | WP-A6 |
 | Size | M |
-| Risks and de-risking | The re-apply rules under concurrent durable calls are subtle (05 risk on Q-REP-14): the randomized test compares the session's final `Current` with a sequential model; operations are pure and deterministic (S10), which the test also asserts |
+| Risks and de-risking | The re-apply rules under concurrent durable calls are subtle (05 risk on Q-REP-14): the randomized test compares the session's final `Current` with a sequential model; operations are pure and deterministic (S10), which the test also asserts. Outcome in WP-A9: the randomized test ends equal to the model on each of its 12 seeded runs of 30 steps, and 55 mutations of the session, the factory and the registration were each caught by a test. The first pass found one that no test caught (outcomes posted as each write finished instead of in acceptance order), now caught by `OutcomesAreProcessedInAcceptanceOrder`, and five that the tests caught only by hanging, which now fail within 10 s |
 | Demo | tests |
 
 #### WP-A10. Settings service
@@ -1499,7 +1499,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-MODEL-22 | step ids as file names | WP-C5 | decided by D-EDIT-22: refuse non-segment ids |
 | Q-MODEL-23 | `CompressionLevel.Optimal` mapping | WP-A8 | do not assert compressed sizes (decided in WP-A8) |
 | Q-MODEL-24 | 01's answer to Q-INFRA-3 | closed | agreed: a non-absolute `projectsDir` loads as the default, so the store always sees a fully qualified root; WP-A10 edits no spec |
-| Q-MODEL-25 | `ProjectOperation.BumpsUpdatedAt` has no carrier through `MutateAsync` | WP-A9 | keep the property; `ProjectSessionTests.ShippedOperationsBumpUpdatedAt` asserts every shipped operation returns `true`; the first operation that needs `false` adds an optional `bool bumpUpdatedAt = true` to `IProjectService.MutateAsync` (11 7.3.2, ARCHITECTURE 7.4, 01 7.8) in its own PR |
+| Q-MODEL-25 | `ProjectOperation.BumpsUpdatedAt` has no carrier through `MutateAsync` | WP-A9 | keep the property; `ProjectSessionTests.ShippedOperationsBumpUpdatedAt` asserts every shipped operation returns `true` (done in WP-A9); the first operation that needs `false` adds an optional `bool bumpUpdatedAt = true` to `IProjectService.MutateAsync` (11 7.3.2, ARCHITECTURE 7.4, 01 7.8) in its own PR |
 
 #### 02 Capture
 
@@ -1599,7 +1599,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-REP-11 | virtualization | WP-A20 | none unless PB-7 fails |
 | Q-REP-12 | Tab between fields | WP-C2 | not in 2.0.0 |
 | Q-REP-13 | grab cursors | WP-C3 | `Hand` and `SizeAll` |
-| Q-REP-14 | session change kinds | WP-A9 | closed by ARCHITECTURE 7.4 |
+| Q-REP-14 | session change kinds | WP-A9 | closed by ARCHITECTURE 7.4 (implemented in WP-A9) |
 | Q-REP-15 | rollback moves a card | WP-C2 | accept |
 | Q-REP-16 | draft recovery | WP-C2 | only when no editor of that kind is open |
 | Q-REP-17 | text heights differ | WP-A17 | accept |
@@ -1655,7 +1655,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-SOP-18 | the estimate sends images | WP-D6 | keep |
 | Q-SOP-19 | optimistic apply versus a refused disk run | WP-D8 | accept; `SopMessages.Incomplete` with the rollback notice |
 | Q-SOP-20 | proxy environment variables | WP-D2 | Q-ARCH-3 option (a): remove them at startup step 5 |
-| Q-SOP-21 | an operation throwing on the clone | WP-A9 | closed by S2 |
+| Q-SOP-21 | an operation throwing on the clone | WP-A9 | closed by S2 (implemented in WP-A9) |
 
 #### 08 Auth, secrets and policy
 
@@ -1698,7 +1698,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-EXP-8 | Markdown Save As folder rule | WP-D10 | as specified; file the macOS fix |
 | Q-EXP-9 | undecodable renders in Office | WP-D13 | parity, logged |
 | Q-EXP-10 | Office ignores brand fonts | WP-D13 | parity |
-| Q-EXP-11 | `WhenIdleAsync` in 01 | WP-A9 | closed by R-ARCH-6 (`IProjectSettle`) |
+| Q-EXP-11 | `WhenIdleAsync` in 01 | WP-A9 | closed by R-ARCH-6 (`IProjectSettle`) (implemented in WP-A9) |
 | Q-EXP-12 | extended reserved names | WP-D9 | adopt |
 | Q-EXP-13 | Save dialog behavior | WP-D10 | `AddExtension`, `OverwritePrompt`; check once against Electron |
 | Q-EXP-14 | meaning of byte-identical | WP-D10 | text with replayed or normalized payloads |
@@ -1770,7 +1770,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-18 | singleton keeping a view alive | WP-A12 | `SubscriberDisposalTests` |
 | Q-IPC-19 | channel map maintenance | WP-A1 | `MatchesElectronWhileItExists` |
 | Q-IPC-20 | dispatcher priority | WP-B9 | `Normal` plus coalescing; the 20-click script |
-| Q-IPC-21 | `VSTHRD200` on `Apply` | WP-A9 | keep the names, suppress on two members |
+| Q-IPC-21 | `VSTHRD200` on `Apply` | WP-A9 | keep the names, suppress on two members (done in WP-A9) |
 | Q-IPC-22 | `GetState()` ahead of `StepLanded` | WP-B9 | panel shows the list length |
 | Q-IPC-23 | `StartAsync` during a screenshot | WP-B2 | throws `A recording is already in progress` (D21) |
 
@@ -2412,7 +2412,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-A6. Project store: projects (#128)
 - [x] WP-A7. Project store: steps and imports (#129)
 - [x] WP-A8. Archive engine (#130)
-- [ ] WP-A9. Project session
+- [x] WP-A9. Project session (#131)
 - [ ] WP-A10. Settings service
 - [ ] WP-A11. Logging
 - [ ] WP-A12. App host and composition root
