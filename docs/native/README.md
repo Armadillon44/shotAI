@@ -43,7 +43,7 @@ design, tests, acceptance criteria (`AC-`), interfaces, and open questions (`Q-`
   - **REQUIRED** means parity with the Electron app.
   - **IMPROVEMENT** is a deliberate change, with its reason.
   - **ELECTRON-ONLY** disappears, and the spec says what replaces its intent.
-- **`—` inside a quoted string stands for the em dash** in the product string. A normal
+- **`\u2014` inside a quoted string stands for the em dash** in the product string. A normal
   C# string literal turns the escape into the character, which is correct. A raw (`"""`)
   or verbatim (`@"..."`) literal keeps the six characters and silently changes the text.
 - **`UNVERIFIED`** marks a claim that couldn't be checked from source or documentation,

@@ -25,7 +25,7 @@ planned in detail; follow the plan instead of improvising scope.
    - Don't change Electron code except for a parity fix made in both apps (B6).
    - Don't commit ids or anything from a `*.local.json` file. The repo is public (B8).
    - Don't skip a test to get CI green.
-7. **Strings:** the docs write an em dash inside a quoted product string as `—`.
+7. **Strings:** the docs write an em dash inside a quoted product string as `\u2014`.
    A normal C# string literal turns that into the character, which is what you want.
    A raw (`"""`) or verbatim (`@"..."`) literal does not, and would change the text.
    Prompt and message strings must match the Electron source exactly.
