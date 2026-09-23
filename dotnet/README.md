@@ -8,9 +8,11 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 - How, in order: [docs/native/PLAN.md](../docs/native/PLAN.md)
 - Behavior to reproduce, subsystem by subsystem: [docs/native/spec/](../docs/native/spec/)
 
-**Status:** foundations (WP-A1): analyzers, supply-chain rules, and Core's error,
-threading and composition types. The shared conformance suite is wired in with its
-round-trip cases skipped until the `project.json` codec lands.
+**Status:** foundations (WP-A1) and JSON with JavaScript semantics (WP-A2): analyzers,
+supply-chain rules, Core's error, threading and composition types, and `JsJson`, which
+reads what `JSON.parse` reads and writes the bytes `JSON.stringify` writes. The shared
+conformance suite is wired in with its round-trip cases skipped until the `project.json`
+codec lands (WP-A3).
 
 ## Layout
 
