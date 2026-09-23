@@ -8,8 +8,9 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 - How, in order: [docs/native/PLAN.md](../docs/native/PLAN.md)
 - Behavior to reproduce, subsystem by subsystem: [docs/native/spec/](../docs/native/spec/)
 
-**Status:** scaffold. The solution builds, CI runs, and the shared conformance suite is
-wired in with its round-trip cases skipped until the `project.json` codec lands.
+**Status:** foundations (WP-A1): analyzers, supply-chain rules, and Core's error,
+threading and composition types. The shared conformance suite is wired in with its
+round-trip cases skipped until the `project.json` codec lands.
 
 ## Layout
 
@@ -41,10 +42,22 @@ Windows-only tests. CI: [.github/workflows/dotnet.yml](../.github/workflows/dotn
 
 Requires the .NET 10 SDK.
 
+A restore that cannot reach the certificate revocation servers fails with NU3018,
+because `nuget.config` requires signed packages. This happens in cloud sessions, whose
+sandbox blocks those servers. There, run `export NUGET_CERT_REVOCATION_MODE=offline` in
+the same shell before `dotnet`. It checks revocation against cached lists only, so never
+set it in a workflow; CI's online check is the one that gates merges (12 7.8).
+
 ## Rules
 
 - **Warnings are errors**, analyzers on (`Directory.Build.props`).
-- **Package versions live only in `Directory.Packages.props`.**
+- **Package versions live only in `Directory.Packages.props`.** Restore is locked to the
+  committed `packages.lock.json` files, from nuget.org only, with repository signatures
+  required (`nuget.config`). After a package change, run
+  `dotnet restore ShotAI.slnx --force-evaluate` and commit the lock files.
+- **Banned APIs** are listed per project in `src/*/BannedSymbols.txt` (RS0030). An
+  allowance is an `.editorconfig` section for exactly one file, and it lifts every ban
+  in that file, so keep allowlisted files small (ARCHITECTURE 14.9).
 - **P/Invoke comes from CsWin32:** add the API name to `src/ShotAI.Platform/NativeMethods.txt`.
   Don't hand-write `DllImport` signatures.
 - **`contract/` is read in place, never copied.** It is byte-identical with the macOS repo,

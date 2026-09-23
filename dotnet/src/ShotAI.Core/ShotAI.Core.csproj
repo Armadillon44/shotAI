@@ -9,6 +9,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>ShotAI.Core</RootNamespace>
   </PropertyGroup>
+  <!-- The Core package allowlist is ARCHITECTURE 3.2; a package outside it needs a change there. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="ShotAI.Core.Tests" />
   </ItemGroup>

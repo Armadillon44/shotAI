@@ -1,0 +1,132 @@
+# Analyzer severities for the native app (docs/native/ARCHITECTURE.md 14.9, spec 11 7.12).
+# Warnings are errors (Directory.Build.props), so "error" and "warning" fail CI the same way.
+#
+# Each rule is set per source project. Test and tool projects get the defaults except for
+# the rules turned off in their own section below. An allowance for one banned API is a
+# section for exactly the file that may use it, never a project-wide NoWarn.
+
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+# Rules about JoinableTaskFactory and the Visual Studio main thread, which this app does not
+# have (spec 11 7.12). Deadlocks here come from synchronous waits, which VSTHRD002 catches.
+dotnet_diagnostic.VSTHRD001.severity = none
+dotnet_diagnostic.VSTHRD003.severity = none
+dotnet_diagnostic.VSTHRD004.severity = none
+dotnet_diagnostic.VSTHRD010.severity = none
+dotnet_diagnostic.VSTHRD012.severity = none
+dotnet_diagnostic.VSTHRD111.severity = none
+
+# ---------------------------------------------------------------------------------------
+# Core
+# ---------------------------------------------------------------------------------------
+[src/ShotAI.Core/**.cs]
+dotnet_diagnostic.CA1416.severity = error
+dotnet_diagnostic.CA2007.severity = error
+dotnet_diagnostic.CA2012.severity = error
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.VSTHRD002.severity = error
+dotnet_diagnostic.VSTHRD100.severity = error
+dotnet_diagnostic.VSTHRD101.severity = error
+dotnet_diagnostic.VSTHRD110.severity = error
+dotnet_diagnostic.VSTHRD200.severity = error
+dotnet_diagnostic.RS0030.severity = error
+
+# ---------------------------------------------------------------------------------------
+# Platform
+# ---------------------------------------------------------------------------------------
+[src/ShotAI.Platform/**.cs]
+dotnet_diagnostic.CA1416.severity = error
+dotnet_diagnostic.CA2007.severity = error
+dotnet_diagnostic.CA2012.severity = error
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.VSTHRD002.severity = error
+dotnet_diagnostic.VSTHRD100.severity = error
+dotnet_diagnostic.VSTHRD101.severity = error
+dotnet_diagnostic.VSTHRD110.severity = error
+dotnet_diagnostic.VSTHRD200.severity = error
+dotnet_diagnostic.RS0030.severity = error
+
+# ---------------------------------------------------------------------------------------
+# App (CA2007 is off: the App awaits on the UI thread and must resume there, T4)
+# ---------------------------------------------------------------------------------------
+[src/ShotAI.App/**.cs]
+dotnet_diagnostic.CA1416.severity = error
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA2012.severity = error
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.VSTHRD002.severity = error
+dotnet_diagnostic.VSTHRD100.severity = error
+dotnet_diagnostic.VSTHRD101.severity = error
+dotnet_diagnostic.VSTHRD110.severity = error
+dotnet_diagnostic.VSTHRD200.severity = error
+dotnet_diagnostic.RS0030.severity = error
+
+# ---------------------------------------------------------------------------------------
+# Tests and tools: xunit test methods are async without an Async suffix, tests have no UI
+# thread to return to, and they may use any API to set up a case.
+# ---------------------------------------------------------------------------------------
+[{tests,tools}/**.cs]
+dotnet_diagnostic.VSTHRD200.severity = none
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.RS0030.severity = none
+
+# ---------------------------------------------------------------------------------------
+# Generated code (CsWin32, CommunityToolkit.Mvvm and other generator output): exempt for
+# this glob only, never globally (Q-IPC-9).
+# ---------------------------------------------------------------------------------------
+[**.g.cs]
+generated_code = true
+
+# ---------------------------------------------------------------------------------------
+# Per-file allowances. Each names the one file that may use a banned API or skip a rule,
+# and why (ARCHITECTURE 14.9). A file listed here that does not exist yet is harmless.
+# ---------------------------------------------------------------------------------------
+
+# Core: JS rounding lives in one file; everything else calls JsMath.Round (Q-ARCH-5).
+[src/ShotAI.Core/Json/JsMath.cs]
+dotnet_diagnostic.RS0030.severity = none
+
+# Core: the session factory captures the UI SynchronizationContext at creation.
+[src/ShotAI.Core/Store/ProjectSessionFactory.cs]
+dotnet_diagnostic.RS0030.severity = none
+
+# Core: ProjectSession continues on the captured UI context by design (T3).
+[src/ShotAI.Core/Store/ProjectSession.cs]
+dotnet_diagnostic.CA2007.severity = none
+
+# Platform: these must resume on their own threads (T3).
+[src/ShotAI.Platform/Auth/MsalGateway.cs]
+dotnet_diagnostic.CA2007.severity = none
+
+[src/ShotAI.Platform/Export/WebView2PdfRenderer.cs]
+dotnet_diagnostic.CA2007.severity = none
+
+# Process.Start: the URL launcher, Explorer reveal, and the personal-copy hand-off.
+[src/ShotAI.Platform/Shell/{ShellUrlLauncher,ShellReveal}.cs]
+dotnet_diagnostic.RS0030.severity = none
+
+[src/ShotAI.Platform/Processes/ProcessStarter.cs]
+dotnet_diagnostic.RS0030.severity = none
+
+# App: the three files that may use Dispatcher.Invoke, BeginInvoke or InvokeAsync.
+[src/ShotAI.App/Threading/{WpfUiDispatcher,UiDeferral}.cs]
+dotnet_diagnostic.RS0030.severity = none
+
+# StaRenderThread drives its own dispatcher (spec 04 7.10.6, ShotAI.App.Editor).
+[src/ShotAI.App/Editor/StaRenderThread.cs]
+dotnet_diagnostic.RS0030.severity = none
+
+# App: the exit flush is the one allowed blocking wait (R-ARCH-10).
+[src/ShotAI.App/Threading/ShutdownFlush.cs]
+dotnet_diagnostic.RS0030.severity = none
+dotnet_diagnostic.VSTHRD002.severity = none
+
+# App: the legacy-instance notice is a MessageBox until stage S5 (Q-SHELL-19).
+[src/ShotAI.App/Startup/LegacyInstanceGuard.cs]
+dotnet_diagnostic.RS0030.severity = none

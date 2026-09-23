@@ -851,7 +851,7 @@ Electron contained the risky parts of the app in a sandboxed renderer: it decode
 4. Does new code send an image anywhere? Only from the render gate, after `EnsureFlattenedAsync` and the settle.
 5. Does new code make an HTTP request? Through `ISharedHttp`; an Anthropic request only through `IAnthropicClientFactory`.
 6. Does new code log? Nothing on the never-log list; identifiers by name, not value.
-7. Does new code open a URL or a folder? `IExternalLinks` or `IShellReveal`, never `Process.Start`.
+7. Does new code open a URL or a folder? `IExternalLinks` or `IShellReveal`, never `Process.Start`. Does it change a file with an `RS0030` allowance (14.9)? The allowance covers the whole file, so check that the change adds no other banned API.
 8. Does a new type expose anything from `ShotAI.Core.Auth` to the App? Only `IAuthService` and its value types.
 9. Does new code add a package or native binary? Section 3 rules, the notices file and, for native code, 12 7.7 provenance.
 
@@ -1227,23 +1227,31 @@ Severities live in `dotnet/.editorconfig`; warnings are errors, so "error" and "
 | `VSTHRD100`, `VSTHRD101` no `async void`, no async lambdas to void delegates | error | error | error (per-site suppression for event handlers) | T12 |
 | `VSTHRD110` observe async results | error | error | error | 14.4 |
 | `VSTHRD200` `Async` suffix | error | error | error | 14.2; suppressed on `Apply` and `ApplyDurable` only |
+| `VSTHRD001`, `VSTHRD003`, `VSTHRD004`, `VSTHRD010`, `VSTHRD012`, `VSTHRD111` | off | off | off | JoinableTaskFactory rules (11 7.12). Corrected in WP-A1: `VSTHRD003` joins them, because it flags every await of a task held in a field or parameter, which in-flight joins (10's `UpdateService`) and the test dispatchers' `InvokeAsync` do by design |
 | `RS0030` banned symbols | error | error | error | the lists below |
-| Generated code (`*.g.cs`, CsWin32 and toolkit output) | suppressed for that glob only, never globally | | | Q-IPC-9 |
+| Generated code (`*.g.cs`, CsWin32 and toolkit output) | suppressed for that glob only, never globally | | | Q-IPC-9; `RS0030` still applies there (the analyzer's default), so generated code cannot call a banned API either |
 
 Banned symbols (`BannedSymbols.txt`, 11 7.12, plus this document's additions). The analyzer has no per-file allowlist, so each allowance is an `.editorconfig` section for exactly that file:
 
 | Project | Banned | Allowed only in |
 |---|---|---|
-| App | `Dispatcher.Invoke`, `Dispatcher.BeginInvoke`, `Dispatcher.InvokeAsync` | `WpfUiDispatcher.cs`; `StaRenderThread.cs` (it drives its own dispatcher, 04 7.10.6); `UiDeferral.cs` (focus and layout deferrals at a named priority, R-ARCH-18) |
-| App | `Task.Wait`, `Task.WaitAll`, `Task<T>.Result`, `TaskAwaiter.GetResult`, `ValueTask<T>.Result` | `ShutdownFlush.cs` |
+| App | `Dispatcher.Invoke`, `Dispatcher.BeginInvoke`, `Dispatcher.InvokeAsync`, and the `DispatcherExtensions` `Invoke` and `BeginInvoke` extension methods (`System.Windows.Presentation`) | `WpfUiDispatcher.cs`; `StaRenderThread.cs` (it drives its own dispatcher, 04 7.10.6); `UiDeferral.cs` (focus and layout deferrals at a named priority, R-ARCH-18) |
+| App | `Task.Wait`, `Task.WaitAll`, `Task.WaitAny`, `Task<T>.Result`, `ValueTask<T>.Result`, and `GetResult` of every task awaiter (`TaskAwaiter`, `TaskAwaiter<T>`, `ValueTaskAwaiter`, `ValueTaskAwaiter<T>` and the four `Configured...Awaiter` types) | `ShutdownFlush.cs` |
 | all | `Process.Start` | `ShellUrlLauncher.cs`, `ShellReveal.cs`, `ProcessStarter.cs` (the personal-copy hand-off, 12 7.10.4) |
 | all | `Microsoft.Web.WebView2.Wpf.WebView2`, `Microsoft.Web.WebView2.WinForms.WebView2` | nowhere (INV-ARCH-5) |
 | Core | `SynchronizationContext.Current`, `SynchronizationContext.SetSynchronizationContext` | `ProjectSessionFactory.cs` |
-| Core | `Math.Round` (every overload) | `JsMath.cs` (Q-ARCH-5 default) |
-| Core | `N:Microsoft.Win32`, `N:Windows` (namespace entries) | nowhere (AC-MODEL-26, INV-ARCH-1) |
+| Core | every half-to-even rounding: `Math.Round`, `MathF.Round`, the static `Round` of `double`, `float`, `decimal` and `Half`, `IFloatingPoint<T>.Round`, and `Convert.ToByte` to `Convert.ToUInt64` from `double`, `float` or `decimal` | `JsMath.cs` (Q-ARCH-5 default) |
+| Core | `N:Microsoft.Win32`, `N:Windows` (namespace entries; each also bans the namespaces nested in it, so `Microsoft.Win32.SafeHandles` too) | nowhere (AC-MODEL-26, INV-ARCH-1) |
 | all | `MessageBox.Show` (WPF and WinForms) | `LegacyInstanceGuard.cs` until stage S5 (Q-SHELL-19) |
 
-Whether an `M:` entry without a parameter list bans every overload in the pinned analyzer version is UNVERIFIED; the PR that adds the file proves it with a deliberate violation and lists overloads explicitly if it does not (11 7.12, AC-ARCH-3). The same applies to `N:` namespace entries: if the pinned BannedApiAnalyzers does not accept them (proved with the WP-A1 deliberate violation), AC-MODEL-26 is met by `CA1416` plus `Architecture.CoreReferencesTests`, and 01 section 9 is corrected in WP-A1.
+Corrected in WP-A1, from its deliberate violations against BannedApiAnalyzers 5.6.0 (AC-ARCH-3):
+
+- An `M:` entry without a parameter list bans only the parameterless overload: `M:System.Math.Round` banned nothing, and `M:System.Diagnostics.Process.Start` banned only the instance `Start()`. Each `BannedSymbols.txt` therefore lists every overload by its full documentation ID, taken from the .NET 10 reference assemblies; an SDK that adds an overload needs a new line.
+- `N:` entries hold, and each also bans the namespaces nested in it: `N:Microsoft.Win32` bans `Microsoft.Win32.SafeHandles`, so Core cannot name `SafeFileHandle` (01 opens files by path). A call whose banned return type is never named (`var h = File.OpenHandle(path)`) is not flagged.
+- `await` is not flagged, although it compiles to `GetAwaiter().GetResult()`.
+- An allowance turns `RS0030` off for the whole file, because the analyzer reports every ban under that one ID: an allowlisted file may use any banned API, not only the one it is allowlisted for. The allowlisted files stay small and single-purpose, 9.5 item 7 asks about them, and the other rules still apply in them (a synchronous wait also fails `VSTHRD002`, which is off only in `ShutdownFlush.cs`).
+- The lists cover the look-alikes of each rule that the first draft missed: the other half-to-even roundings in Core, and in the App the `DispatcherExtensions` methods, `Task.WaitAny` and every awaiter's `GetResult`.
+- The WebView2 and WinForms `MessageBox` entries were proved in a scratch project with the App's list, because no project references those assemblies yet.
 
 ### 14.10 Pull requests
 
@@ -1385,7 +1393,7 @@ Closed in the 2026-09-23 consolidation (kept so the IDs still resolve; each clos
 | # | Question | Closed by |
 |---|---|---|
 | Q-ARCH-4 | `ANTHROPIC_CUSTOM_HEADERS`: mutate the environment or filter in a handler (Q-AUTH-17) | default adopted: removed at startup step 5 (4.2) with the per-client host guard kept (R-ARCH-15); 08 Q-AUTH-17 records the adoption |
-| Q-ARCH-5 | Ban `Math.Round` in Core | default adopted: banned Core-wide with only `JsMath.cs` allowlisted (14.9, 11 7.12); 02 INV-CAP-18 and 03's notation state it; `NoMathRoundInCapture` stays as the capture-specific check |
+| Q-ARCH-5 | Ban `Math.Round` in Core | default adopted: banned Core-wide with only `JsMath.cs` allowlisted (14.9, 11 7.12), together with every other half-to-even rounding (WP-A1); 02 INV-CAP-18 and 03's notation state it; `NoMathRoundInCapture` stays as the capture-specific check |
 | Q-PKG-31 | `docs/native/PLAN.md` is missing | resolved: `PLAN.md` exists (12 Q-PKG-31) |
 | R-ARCH-13 sign-off | Native-only local data location | adopted: new native-only local data lives under `%LOCALAPPDATA%\LFI\shotAI` (`IAppPaths.LocalDataDirectory`: the MSAL cache and the WebView2 user data); `settings.json`, the logs and the projects stay where the Electron build keeps them (10.1); applied in 08, 09, 10 and 12 (12 Q-PKG-4 resolved) |
 | Q-IPC-16 | Image decoding in the privileged process | resolved by R-ARCH-21: accepted with the magic-byte check and explicit PNG and JPEG decoders (11 Q-IPC-16) |

@@ -1271,18 +1271,18 @@ Packages (versions only in `dotnet/Directory.Packages.props`; `PrivateAssets="al
 | `VSTHRD101` no async lambdas to void delegates | error | error | error | T12 |
 | `VSTHRD110` observe async results | error | error | error | fire-and-forget only through an explicit `_ =` with a logged continuation |
 | `VSTHRD200` `Async` suffix | error | error | error | naming (hence `RevealInExplorerAsync`). Conflicts with 01's fixed names `ProjectSession.Apply` and `ApplyDurable` (both return `Task<ProjectManifest>`, 01 7.10) and this spec's `IProjectSession.Apply`/`ApplyDurable`: Q-IPC-21 |
-| `VSTHRD001`, `VSTHRD004`, `VSTHRD010`, `VSTHRD012`, `VSTHRD111` | none | none | none | JoinableTaskFactory rules that do not apply; ConfigureAwait is `CA2007` |
+| `VSTHRD001`, `VSTHRD003`, `VSTHRD004`, `VSTHRD010`, `VSTHRD012`, `VSTHRD111` | none | none | none | JoinableTaskFactory rules that do not apply; ConfigureAwait is `CA2007`. Corrected in WP-A1: `VSTHRD003` (await of a task held in a field or parameter) belongs here too; in-flight joins (10's `UpdateService`) and the test dispatchers' `InvokeAsync` await such tasks by design |
 
-`BannedSymbols.txt` (BannedApiAnalyzers, diagnostic `RS0030`). Entries are documentation comment IDs; an `M:` entry written without a parameter list is meant to ban every overload of that name (UNVERIFIED against the analyzer's help file for the pinned package version: the PR that adds the file confirms it with a deliberate violation, and falls back to listing each overload if it does not hold). The analyzer has no per-file allowlist, so "Allowed only in" is implemented as a `.editorconfig` section for exactly that file (`[**/WpfUiDispatcher.cs]` with `dotnet_diagnostic.RS0030.severity = none`), never with a project-wide `NoWarn`:
+`BannedSymbols.txt` (BannedApiAnalyzers, diagnostic `RS0030`). Entries are documentation comment IDs, one overload each. Corrected in WP-A1: an `M:` entry written without a parameter list bans only the parameterless overload (the deliberate violation showed `M:System.Math.Round` banning nothing), so the files list every overload by its full ID, and "every overload" below means one line per overload (ARCHITECTURE 14.9). The analyzer has no per-file allowlist, so "Allowed only in" is implemented as a `.editorconfig` section for exactly that file (`[**/WpfUiDispatcher.cs]` with `dotnet_diagnostic.RS0030.severity = none`), never with a project-wide `NoWarn`:
 
 | Project | Banned (one entry per line) | Allowed only in |
 |---|---|---|
-| App | `M:System.Windows.Threading.Dispatcher.Invoke`, `M:System.Windows.Threading.Dispatcher.BeginInvoke`, `M:System.Windows.Threading.Dispatcher.InvokeAsync` | `WpfUiDispatcher.cs`; `StaRenderThread.cs` (it drives its own dispatcher, 04 7.10.6); `UiDeferral.cs` (focus and layout deferrals at a named priority, 04 7.10.5, R-ARCH-18). Service-event marshaling stays `IUiDispatcher.Post` only (T6) |
-| App | `M:System.Threading.Tasks.Task.Wait`, `M:System.Threading.Tasks.Task.WaitAll`, ``P:System.Threading.Tasks.Task`1.Result``, `M:System.Runtime.CompilerServices.TaskAwaiter.GetResult`, ``M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult``, ``P:System.Threading.Tasks.ValueTask`1.Result`` | `ShutdownFlush.cs` |
+| App | `M:System.Windows.Threading.Dispatcher.Invoke`, `M:System.Windows.Threading.Dispatcher.BeginInvoke`, `M:System.Windows.Threading.Dispatcher.InvokeAsync` and `System.Windows.Threading.DispatcherExtensions` (every overload of each) | `WpfUiDispatcher.cs`; `StaRenderThread.cs` (it drives its own dispatcher, 04 7.10.6); `UiDeferral.cs` (focus and layout deferrals at a named priority, 04 7.10.5, R-ARCH-18). Service-event marshaling stays `IUiDispatcher.Post` only (T6) |
+| App | `M:System.Threading.Tasks.Task.Wait`, `M:System.Threading.Tasks.Task.WaitAll`, `M:System.Threading.Tasks.Task.WaitAny` (every overload of each), ``P:System.Threading.Tasks.Task`1.Result``, ``P:System.Threading.Tasks.ValueTask`1.Result``, and `GetResult` of `TaskAwaiter`, ``TaskAwaiter`1``, `ValueTaskAwaiter`, ``ValueTaskAwaiter`1`` and the four configured awaiters | `ShutdownFlush.cs` |
 | all | `M:System.Diagnostics.Process.Start` (every overload) | `ShellUrlLauncher.cs`, `ShellReveal.cs`, `ProcessStarter.cs` (12 7.10.4) |
 | all | `T:Microsoft.Web.WebView2.Wpf.WebView2`, `T:Microsoft.Web.WebView2.WinForms.WebView2` | nowhere (09 uses the Core controller, INV-IPC-20); the App project additionally has no package reference to WebView2 at all |
 | Core | `P:System.Threading.SynchronizationContext.Current`, `M:System.Threading.SynchronizationContext.SetSynchronizationContext(System.Threading.SynchronizationContext)` | `ProjectSessionFactory.cs` (captures the UI context at creation) |
-| Core | `M:System.Math.Round` (every overload) | `JsMath.cs` (JS rounding goes through `JsMath.Round`; .NET `Math.Round` rounds half to even, ARCHITECTURE Q-ARCH-5) |
+| Core | `M:System.Math.Round` (every overload) and the other half-to-even roundings of ARCHITECTURE 14.9 | `JsMath.cs` (JS rounding goes through `JsMath.Round`; .NET `Math.Round` rounds half to even, ARCHITECTURE Q-ARCH-5) |
 
 This table and ARCHITECTURE 14.9 describe the same `BannedSymbols.txt`; ARCHITECTURE 14.9 is canonical. Where they differ, the file and its `.editorconfig` allowlist sections follow ARCHITECTURE 14.9, which also carries the Core namespace entries (`N:Microsoft.Win32`, `N:Windows`) and the `MessageBox.Show` entry that this spec does not own.
 
@@ -1388,6 +1388,8 @@ The `channel-map.json` format (one object per channel, in 2.4 order):
   "class": "REQUIRED", "owner": "01" }
 ```
 
+`member` is the full name of the interface or type, a `.`, and the member, written as the 7.4 tables name it. Two forms go further (added in WP-A1, which wrote the file): a settings row names the property path through the snapshot, `ShotAI.Core.Settings.ISettingsService.Current.Sop`, and a progress row names the method with the parameter in parentheses, `ShotAI.Core.Sop.IClaudeService.GenerateAsync(progress)`. `ChannelMapResolutionTests` resolves both forms.
+
 ---
 
 ## 9. Acceptance criteria
@@ -1480,13 +1482,13 @@ The `channel-map.json` format (one object per channel, in 2.4 order):
 
 **Q-IPC-8. Unknown keys in `settings.json`.** Electron drops them on the next write (`captureNoHide`, `f24b3dc`); 06 describes 10 as preserving them. Recommended default: preserve (harmless, and it protects a rollback to the Electron build from losing a key the native build does not know); in either case never act on `captureNoHide`.
 
-**Q-IPC-9. Analyzer noise.** `VSTHRD200` (Async suffix) and `VSTHRD100` may flag WPF event handlers and CommunityToolkit-generated members. Recommended default: adopt the table in 7.12; if generated code trips a rule, suppress it for `*.g.cs` only, not globally.
+**Q-IPC-9. Analyzer noise.** `VSTHRD200` (Async suffix) and `VSTHRD100` may flag WPF event handlers and CommunityToolkit-generated members. Recommended default: adopt the table in 7.12; if generated code trips a rule, suppress it for `*.g.cs` only, not globally. Decided in WP-A1: the 7.12 table, plus `VSTHRD003` off; `dotnet/.editorconfig` marks `**.g.cs` as generated code and suppresses nothing globally; `RS0030` still analyzes generated code (the analyzer's default), and nothing generated calls a banned API today.
 
 **Q-IPC-10. Exit flush by blocking wait.** The alternative is cancelling `MainWindow.Closing`, awaiting the flush, and closing again; `Application.Shutdown` paths (File, Exit; session end) make that fragile. Recommended default: the bounded blocking wait of 7.10 step 3, justified by the flush never needing the UI thread; `ExitFlushTests` proves it.
 
 **Q-IPC-11. Debug call logging volume.** One Debug line per service call may be noisy at Debug level during a long report session. Recommended default: keep at Debug (off in release unless the user enables verbose logging, 10); snapshot reads never log.
 
-**Q-IPC-12. `ShotAIException` across all specs.** Several specs name BCL exception types for user-facing messages. Recommended default: PLAN.md adds a foundation task that introduces `ShotAI.Core.Errors` first, and each subsystem PR derives its user-text exceptions from it; `UserMessageTests` plus each spec's message tests catch misses.
+**Q-IPC-12. `ShotAIException` across all specs.** Several specs name BCL exception types for user-facing messages. Recommended default: PLAN.md adds a foundation task that introduces `ShotAI.Core.Errors` first, and each subsystem PR derives its user-text exceptions from it; `UserMessageTests` plus each spec's message tests catch misses. Decided in WP-A1: default adopted; `ShotAI.Core.Errors` (`ShotAIException`, `UserMessage.From`, `UserMessage.Generic`) and `Errors/UserMessageTests` are in place.
 
 **Q-IPC-13. Clearing recents on a projects-folder change.** macOS clears; Electron does not. Recommended default: Electron parity for 2.0.0; raise a cross-platform issue.
 
@@ -1500,7 +1502,7 @@ The `channel-map.json` format (one object per channel, in 2.4 order):
 
 **Q-IPC-18. Risk: a singleton keeps a closed view alive.** An unremoved event handler roots the view model and its view. Recommended default: `SubscriberDisposalTests`; consider WPF `WeakEventManager` only if a leak is found in practice (it hides lifetime bugs).
 
-**Q-IPC-19. Channel map maintenance before cutover.** Electron is feature-frozen during the port, but a hotfix could add a channel. Recommended default: `MatchesElectronWhileItExists` fails the Linux CI job when `src/shared/ipc.ts` gains or loses a channel, forcing the map (and this spec) to be updated in the same PR.
+**Q-IPC-19. Channel map maintenance before cutover.** Electron is feature-frozen during the port, but a hotfix could add a channel. Recommended default: `MatchesElectronWhileItExists` fails the Linux CI job when `src/shared/ipc.ts` gains or loses a channel, forcing the map (and this spec) to be updated in the same PR. Decided in WP-A1: default adopted; `ChannelInventoryTests.MatchesElectronWhileItExists` runs in every Core test run.
 
 **Q-IPC-20. The `Dispatcher` priority for events.** `DispatcherPriority.Normal` (9) is ABOVE `DataBind` (8), `Render` (7), `Loaded` (6) and `Input` (5) (Microsoft Learn, `DispatcherPriority` enum), so every queued `Normal` item runs before the next layout, render or input pass: a long burst of posted capture events delays the pill's repaint and input until the queue drains. It is also the priority `await` continuations and `Progress<T>` use through `DispatcherSynchronizationContext`, so a lower priority for events alone would break the FIFO relation between events and awaited results. Recommended default: `Normal` for everything (FIFO is the invariant), and keep each posted action short: state subscribers already re-read `GetState()` (T7), so a subscriber MAY coalesce by skipping a post while one of its own is still queued (a per-subscriber `_pending` flag), which bounds the queue to one item per subscriber for `StateChanged`; `StepLanded` and `CaptureFailed` are never coalesced. Measure during Phase B with a 20-clicks-in-5-seconds script.
 

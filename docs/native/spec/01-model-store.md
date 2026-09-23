@@ -1813,7 +1813,7 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 
 **AC-MODEL-25.** Manual: open a project whose `project.json` was saved with a BOM by Notepad; it lists and opens natively.
 
-**AC-MODEL-26.** `ShotAI.Core` has no reference to any `Windows.*` namespace, `Microsoft.Win32` or a Windows TFM (enforced by the Linux build of ShotAI.Core.Tests, `CA1416` as error, `Architecture.CoreReferencesTests`, and the `N:Microsoft.Win32` and `N:Windows` entries of Core's `BannedSymbols.txt`, ARCHITECTURE 14.9). If the pinned BannedApiAnalyzers does not accept `N:` namespace entries (proved or disproved by WP-A1's deliberate violation), the banned-symbol part is dropped and the criterion is met by `CA1416` plus `Architecture.CoreReferencesTests`.
+**AC-MODEL-26.** `ShotAI.Core` has no reference to any `Windows.*` namespace, `Microsoft.Win32` or a Windows TFM (enforced by the Linux build of ShotAI.Core.Tests, `CA1416` as error, `Architecture.CoreReferencesTests`, and the `N:Microsoft.Win32` and `N:Windows` entries of Core's `BannedSymbols.txt`, ARCHITECTURE 14.9). If the pinned BannedApiAnalyzers does not accept `N:` namespace entries (proved or disproved by WP-A1's deliberate violation), the banned-symbol part is dropped and the criterion is met by `CA1416` plus `Architecture.CoreReferencesTests`. Checked in WP-A1: 5.6.0 accepts both entries, so the banned-symbol part stays; each entry also bans the namespaces nested in it (ARCHITECTURE 14.9).
 
 **AC-MODEL-27.** `HostileSegmentTests` pass; `PathConfine.Confine(dir, "shots/a.png:x")` and `"shots/CON.png"` return null.
 

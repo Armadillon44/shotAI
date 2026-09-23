@@ -114,5 +114,9 @@ src/main/entra/federation.local.json
 dotnet/**/bin/
 dotnet/**/obj/
 dotnet/**/TestResults/
+# Publish and MSI output, and the local federation file for internal builds
+# (docs/native/spec/12-packaging-deploy-ci.md 7.2.1). The file names a tenant: never commit it.
+dotnet/artifacts/
+dotnet/federation.local.json
 .vs/
 *.user
