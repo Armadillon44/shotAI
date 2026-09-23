@@ -1001,11 +1001,11 @@ Algorithm:
 2. Decode with `Encoding.UTF8.GetString` (replacement fallback, U+FFFD) and re-encode with `Encoding.UTF8.GetBytes`, so invalid sequences behave as in Node (EDGE-MODEL-29).
 3. Tokenize with `Utf8JsonReader` (`JsonReaderOptions { CommentHandling = Disallow, AllowTrailingCommas = false, MaxDepth = 1000 }`). Build the tree iteratively (explicit stack, no recursion).
 4. Strings and property names: if `reader.ValueIsEscaped`, unescape `reader.ValueSpan` with Core's own unescaper, which decodes `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t` and `\uXXXX` and KEEPS lone surrogates; otherwise `Encoding.UTF8.GetString(reader.ValueSpan)`. Never call `reader.GetString()` (it rejects lone surrogates) (EDGE-MODEL-30).
-5. Numbers: `reader.TryGetDouble(out d)`; if that fails, `double.Parse(raw, NumberStyles.Float, CultureInfo.InvariantCulture)`, which yields +/-Infinity on overflow. Store `JsonValue.Create(d)`. Every number becomes a double, as in JS (EDGE-MODEL-32). (Microsoft Learn documents only that `TryGetDouble` returns false when the token cannot be parsed; whether it returns false or Infinity for `1e400` is not documented for the reader, so the fallback is required either way.) A tree holding a non-finite double must never be handed to a System.Text.Json serializer (`ToJsonString`, `JsonSerializer`), which rejects non-finite numbers by default; only `JsJson.Stringify` writes manifest trees.
+5. Numbers: `reader.TryGetDouble(out d)`; if that fails, `double.Parse(raw, NumberStyles.Float, CultureInfo.InvariantCulture)`, which yields +/-Infinity on overflow. Store `JsonValue.Create(d)`. Every number becomes a double, as in JS (EDGE-MODEL-32). (Microsoft Learn documents only that `TryGetDouble` returns false when the token cannot be parsed; whether it returns false or Infinity for `1e400` is not documented for the reader, so the fallback is required either way. Checked in WP-A2: the .NET 10 SDK returns true with +/-Infinity for `1e400` and 0 for `1e-400`; `JsJsonReaderTests.NumbersAreDoublesAsInJavaScript` pins the result, and the fallback stays for an SDK that returns false.) A tree holding a non-finite double must never be handed to a System.Text.Json serializer (`ToJsonString`, `JsonSerializer`), which rejects non-finite numbers by default; only `JsJson.Stringify` writes manifest trees.
 6. Objects: when a property name already exists, replace its value in place (`obj[name] = value`), keeping the first position (EDGE-MODEL-31). Never call `JsonObject.Add` for a possibly duplicate key.
 7. Any `JsonException` becomes `JsJsonException` with the reader's message.
 
-The `MaxDepth` of 1000 is a bounded divergence from V8 (which has no fixed limit); deeper files are reported as corrupt.
+The `MaxDepth` of 1000 is a bounded divergence from V8 (which has no fixed limit); deeper files are reported as corrupt. `Parse(string)` reads the text as UTF-8, so a raw (unescaped) lone surrogate in the string becomes U+FFFD, while an escaped one is kept; only an in-memory string can hold a raw one, and no caller passes such text (added in WP-A2).
 
 #### 7.2.2 Writer: `JsJson.Stringify`
 
@@ -1016,6 +1016,7 @@ Hand-written text emission, not `Utf8JsonWriter`, because `Utf8JsonWriter` canno
 - String escaping exactly per 2.7 (`QuoteJSONString`, ES2019 well-formed).
 - Numbers: `JsNumber.ToJsString(double)`; non-finite writes `null`.
 - `null` node writes `null`; booleans `true` and `false`.
+- `indent` follows `JSON.stringify`'s number argument: at most 10 spaces, and the compact form below 1. A tree built in code may hold any CLR number (`int`, `long`, `decimal` and the rest); each is written as the double JavaScript would hold. Nesting deeper than `MaxDepth` throws `JsJsonException`, the reader's bound (D-21). Added in WP-A2.
 
 `JsNumber.ToJsString(x)` implements ECMAScript `Number::toString(x)` for radix 10:
 
@@ -1065,7 +1066,7 @@ Reference table (a unit test):
 | `JsMath.ClampIndex(double atIndex, int len)` | `r = Round(atIndex)`; NaN returns 0 (JS `splice(NaN)`); else `Math.Max(0, Math.Min(r, len))` converted to int |
 | `JsString.Trim(string)` | removes leading and trailing ECMAScript WhiteSpace and LineTerminator: U+0009, U+000A, U+000B, U+000C, U+000D, U+0020, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF. Not `string.Trim()`, which also trims U+0085 and does not trim U+FEFF. |
 | `IsoTime.ToIsoString(DateTimeOffset t)` | `t.UtcDateTime.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'", CultureInfo.InvariantCulture)`. Never `"o"` (7 fractional digits). |
-| `IsoTime.TryParseJsDate(string s, TimeZoneInfo local, out DateTimeOffset t)` | the ECMAScript Date Time String Format subset of `Date.parse`: `YYYY`, `YYYY-MM`, `YYYY-MM-DD` (UTC), optionally followed by `THH:mm`, `:ss`, `.sss` (1 or more digits, truncated to ms) and then `Z` or `+HH:mm` or `-HH:mm`; a date-time with no offset is LOCAL time. Anything else fails (skip). IMPROVEMENT: V8 also accepts legacy formats; no shotAI writer produces them. |
+| `IsoTime.TryParseJsDate(string s, TimeZoneInfo local, out DateTimeOffset t)` | the ECMAScript Date Time String Format subset of `Date.parse`: `YYYY`, `YYYY-MM`, `YYYY-MM-DD` (UTC), optionally followed by `THH:mm`, `:ss`, `.sss` (1 or more digits, truncated to ms) and then `Z` or `+HH:mm` or `-HH:mm`; a date-time with no offset is LOCAL time. Anything else fails (skip). IMPROVEMENT: V8 also accepts legacy formats; no shotAI writer produces them. Checked in WP-A2 against Node 22 with `TZ=America/New_York`: `T24:00` is the end of that day; a local time that DST skips moves forward by the gap, and one that occurs twice takes the earlier instant, both reproduced here; V8's legacy parser also reads `2026-02-30` (as 2026-03-02), `2026-01-01Z`, `2026-1-01` and expanded years such as `+002026-01-01`, which this subset rejects. |
 | `ProjectTitles.DefaultTitle(DateTimeOffset now, TimeZoneInfo local)` | `"Project " + local time formatted "yyyy'/'MM'/'dd HH':'mm':'ss"` with the invariant culture (the `/` must be literal, not the culture date separator) |
 | `ProjectTitles.IsAutoGenerated(string)` | `JsString.Trim`, empty is true, else regex `^Project [0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\z` with `RegexOptions.CultureInvariant` (`[0-9]` because JS `\d` is ASCII-only; `\z` because .NET `$` also matches before a final newline, EDGE-MODEL-55) |
 | ids | `Guid.NewGuid().ToString("D")` (lowercase, version 4 like `randomUUID`); never `Guid.CreateVersion7` |
@@ -1861,7 +1862,7 @@ Every consumer outside the store reaches it through `IProjectService` (11 7.3.2)
 
 **Q-MODEL-3.** Canonical root key order (D-3) makes the first native save of an Electron file that was just mutated reorder up to three keys. Recommended default: accept; golden tests compare decode-then-encode, where both agree.
 
-**Q-MODEL-4.** Stripping a BOM (D-4) makes native read files Electron cannot. Recommended default: strip; never write a BOM.
+**Q-MODEL-4.** Stripping a BOM (D-4) makes native read files Electron cannot. Recommended default: strip; never write a BOM. Decided in WP-A2: default adopted; `JsJson.Parse` skips one leading BOM and nothing in `JsJson` writes one (the file writer is WP-A5's `AtomicFile`).
 
 **Q-MODEL-5.** `FlushFileBuffers` on every manifest write costs latency on NTFS (typically a few ms to tens of ms, more under Defender). Recommended default: flush; the optimistic UI hides the latency. Measure during Phase A and revisit if a capture burst slows down. Adopted by ARCHITECTURE 7.10; the proposed budget is PB-14 (p95 under 50 ms for a 100-step manifest), measured manually in Phase A.
 
