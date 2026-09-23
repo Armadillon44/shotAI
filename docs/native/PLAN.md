@@ -2397,11 +2397,11 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 
 **Prerequisite**
 
-- [ ] P0. The PR of the branch `claude/native-windows-rewrite-feasibility-8tpy3t` (the scaffold, the architecture, the twelve specs and this plan) merged to `main` (Q-PLAN-3)
+- [x] P0. The PR of the branch `claude/native-windows-rewrite-feasibility-8tpy3t` (the scaffold, the architecture, the twelve specs and this plan) merged to `main` (Q-PLAN-3): #118
 
 **Phase A: model and viewer**
 
-- [ ] WP-A1. Guardrails and Core foundations
+- [x] WP-A1. Guardrails and Core foundations (#119)
 - [ ] WP-A2. ECMAScript JSON semantics
 - [ ] WP-A3. Model, codec and conformance
 - [ ] WP-A4. Brand generator and palette
