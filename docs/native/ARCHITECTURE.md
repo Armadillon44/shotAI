@@ -374,6 +374,7 @@ The view models see the application through the interfaces of 11 7.3, with the c
 | `IExportService` | `ShotAI.App.Export` | the seven export and package entry points of 09 7.13 | 09 | entry on the UI thread (dialogs), work on the pool, WebView2 on the UI thread |
 | `ISettingsService` | `ShotAI.Core.Settings` | `Current`, optimistic `UpdateAsync`, `Changed` | 10 | any thread |
 | `IUpdateService` | `ShotAI.Core.Updates` | `Pending`, `UpdateAvailable`, `CheckNowAsync` | 10 | any thread |
+| `IInstallInfo` | `ShotAI.Core.Install` | `Scope`: on a per-machine install the update notice and `Check now` say who installs updates (06 INV-HOME-45) | 12 | any thread (immutable) |
 | `IExternalLinks`, `IShellReveal`, `IAppInfo`, `IFileDialogs` | 11 7.2 | open allowlisted links, reveal in Explorer, about data, pickers | 11 | per 11 7.3 |
 | `INoticeService`, `IConfirmService` | `ShotAI.App.Chrome` | global notices and confirm dialogs | 06 | UI thread only |
 | `IUiDispatcher`, `IAppLifetime` | `ShotAI.Core.Threading` | marshaling and the shutdown token | 11 | any thread |
@@ -803,7 +804,7 @@ Electron contained the risky parts of the app in a sandboxed renderer: it decode
 | S18 | **The master switch really switches off.** With AI generation off, no Claude entry point looks up a credential, reads files for egress or touches the network. | 07 `ClaudeService` | settings gate first | INV-SOP-4 | 07 tests |
 | S19 | **Only one unprompted network request.** The throttled startup update check is the only request without a user action, and it does not run when disabled. | 10 `UpdateService` | lazy auth (INV-AUTH-10) | INV-INFRA-23 | `UpdateServiceTests` |
 | S20 | **Logs carry no secrets or content.** | 10 sink, every logger | the never-log list (8.5) | INV-IPC-18, INV-INFRA-21, INV-SOP-5, INV-EDIT-18 | `Logging.BoundaryLogTests`, `OcrLoggingTests` |
-| S21 | **The process and its install are hardened.** DLL search restricted before any native load; apphost finds .NET only in global locations; startup hooks off; CET kept on; install directory admin-only and never written; `asInvoker`; every first-party PE and MSI signed and timestamped; native dependency built from pinned, hashed sources; locked NuGet restore from nuget.org; least-privilege release workflow with SHA-pinned actions; public releases carry no tenant data. | 12 | build properties, `Program.Main`, CI | INV-PKG-7, INV-PKG-13 to INV-PKG-20, INV-PKG-28, INV-PKG-32, INV-PKG-33 | `PayloadVerifierTests`, install smoke, `verify-payload --public` |
+| S21 | **The process and its install are hardened.** DLL search restricted before any native load; apphost finds .NET only in global locations; startup hooks off; CET kept on; install directory never written by the app, and admin-only for the per-machine copy (a personal copy's folder is writable only by its owner, INV-PKG-15); `asInvoker`; every first-party PE and MSI signed and timestamped; native dependency built from pinned, hashed sources; locked NuGet restore from nuget.org; least-privilege release workflow with SHA-pinned actions; public releases carry no tenant data. | 12 | build properties, `Program.Main`, CI | INV-PKG-7, INV-PKG-13 to INV-PKG-20, INV-PKG-28, INV-PKG-32, INV-PKG-33 | `PayloadVerifierTests`, install smoke, `verify-payload --public` |
 
 ### 9.3 Trust boundaries
 
@@ -1235,7 +1236,7 @@ Banned symbols (`BannedSymbols.txt`, 11 7.12, plus this document's additions). T
 |---|---|---|
 | App | `Dispatcher.Invoke`, `Dispatcher.BeginInvoke`, `Dispatcher.InvokeAsync` | `WpfUiDispatcher.cs`; `StaRenderThread.cs` (it drives its own dispatcher, 04 7.10.6); `UiDeferral.cs` (focus and layout deferrals at a named priority, R-ARCH-18) |
 | App | `Task.Wait`, `Task.WaitAll`, `Task<T>.Result`, `TaskAwaiter.GetResult`, `ValueTask<T>.Result` | `ShutdownFlush.cs` |
-| all | `Process.Start` | `ShellUrlLauncher.cs`, `ShellReveal.cs` |
+| all | `Process.Start` | `ShellUrlLauncher.cs`, `ShellReveal.cs`, `ProcessStarter.cs` (the personal-copy hand-off, 12 7.10.4) |
 | all | `Microsoft.Web.WebView2.Wpf.WebView2`, `Microsoft.Web.WebView2.WinForms.WebView2` | nowhere (INV-ARCH-5) |
 | Core | `SynchronizationContext.Current`, `SynchronizationContext.SetSynchronizationContext` | `ProjectSessionFactory.cs` |
 | Core | `Math.Round` (every overload) | `JsMath.cs` (Q-ARCH-5 default) |
@@ -1378,7 +1379,6 @@ Each has a default to take if nobody decides before the PR that needs it. Owners
 | Q-MODEL-18 | Electron-side golden generator | env-gated vitest writing into `dotnet/` | add it with the native codec PR |
 | Q-IPC-10 | Exit flush as a bounded blocking wait | blocking wait; cancel `Closing` and close again | bounded blocking wait (DL4) |
 | Q-IPC-21 | `VSTHRD200` against `Apply` and `ApplyDurable` | keep names and suppress; rename | keep and suppress |
-| Q-INFRA-5 | Update notice on managed devices | resolved 2026-09-23: the notice follows the install scope (06 INV-HOME-45, 12 7.10.4) | per-machine installs show who installs updates and no download page |
 
 Closed in the 2026-09-23 consolidation (kept so the IDs still resolve; each closure is stated in the owning spec or in this document):
 
@@ -1391,6 +1391,7 @@ Closed in the 2026-09-23 consolidation (kept so the IDs still resolve; each clos
 | Q-IPC-16 | Image decoding in the privileged process | resolved by R-ARCH-21: accepted with the magic-byte check and explicit PNG and JPEG decoders (11 Q-IPC-16) |
 | Q-INFRA-1, Q-INFRA-2, Q-INFRA-3, Q-INFRA-12 | Settings file changes (preserve unknown enum strings and nested `sop` keys, default a non-absolute `projectsDir`, back up a corrupt file) | adopted: 10 7.4.2 and 7.4.3 specify all four; 01 agreed to Q-INFRA-3 as 01 Q-MODEL-24 |
 | Q-HOME-15 | STA test harness | adopted: the in-repo helper of 2.1 and 12.1 (06 Q-HOME-15) |
+| Q-INFRA-5 | Update notice on managed devices | resolved 2026-09-23: the notice follows the install scope; per-machine installs show who installs updates and no download page (06 INV-HOME-45, 12 7.10.4) |
 
 ### 15.5 Architecture-level divergences from Electron
 

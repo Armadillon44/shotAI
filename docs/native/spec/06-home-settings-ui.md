@@ -1933,7 +1933,7 @@ Purpose: asserts from source the seams no typecheck notices: both theme attribut
 
 **AC-HOME-28.** `UpdateNoticeTests.OpensThroughLauncher` and `.LauncherThrowShowsNothing` pass and every URL this subsystem opens (`https://console.anthropic.com/settings/keys`, a GitHub release page, the configured support URL) is accepted by 11's `Links.ExternalLinkPolicyTests` (the allowlist 10 registers); a `http://` or `https://example.com` link is refused (`OpenAsync` returns `false`), and a launcher exception shows nothing to the user (R-ARCH-25).
 
-**AC-HOME-29.** Manual: run a build whose version is lower than the latest GitHub release: `shotAI <v> is available. Open the download page` appears once; `×` hides it until the next launch; `Open the download page` opens the release in the browser.
+**AC-HOME-29.** Manual: run a per-user or unpackaged build whose version is lower than the latest GitHub release (AC-HOME-41 covers a per-machine install): `shotAI <v> is available. Open the download page` appears once; `×` hides it until the next launch; `Open the download page` opens the release in the browser.
 
 **AC-HOME-30.** Manual: Settings, About, `↻ Check now` on a current build shows `You're up to date.`; offline shows `Couldn't check: <reason>`; the button reads `Checking…` while running.
 

@@ -1526,7 +1526,7 @@ Target: `Updates.UpdateCheckTests`.
 
 **AC-INFRA-17.** `UpdateCheckTests` (all 25 ported cases plus the new ones) and `UpdateServiceTests` pass on Linux.
 
-**AC-INFRA-18.** Manual, on a build whose version is set below the latest release: first launch shows `shotAI <latest> is available.` with `Open the download page` on Home even when the window was slow to appear; `settings.json` then holds a `lastUpdateCheckAt` within a second of the check; a second launch the same day makes no request (verified with a network trace) and shows no notice.
+**AC-INFRA-18.** Manual, on a per-user or unpackaged build whose version is set below the latest release (a per-machine install shows no download action, 06 INV-HOME-45): first launch shows `shotAI <latest> is available.` with `Open the download page` on Home even when the window was slow to appear; `settings.json` then holds a `lastUpdateCheckAt` within a second of the check; a second launch the same day makes no request (verified with a network trace) and shows no notice.
 
 **AC-INFRA-19.** Manual: turn "Check for updates" off, restart: no request is made at startup (network trace); the log has `update check skipped (disabled)` at debug level only when debug logging is on; `↻ Check now` still checks and reports.
 
@@ -1536,7 +1536,7 @@ Target: `Updates.UpdateCheckTests`.
 
 **AC-INFRA-22.** Manual: a pilot build versioned `2.0.0-alpha.3` checking a feed whose latest is `2.0.0` shows `shotAI 2.0.0 is available.`; a build versioned `2.0.0` checking a latest `2.0.0` shows `You're up to date.`
 
-**AC-INFRA-23.** `ExternalLinkPolicyTests` pass; manually, `Open the download page` opens the GitHub release page in the default browser, and a crafted `http://github.com/` link is refused with `refused openExternal for non-allowlisted URL: http://github.com` in the log.
+**AC-INFRA-23.** `ExternalLinkPolicyTests` pass; manually, on a per-user or unpackaged build, `Open the download page` opens the GitHub release page in the default browser, and a crafted `http://github.com/` link is refused with `refused openExternal for non-allowlisted URL: http://github.com` in the log.
 
 **AC-INFRA-24.** A network trace of a native launch with default settings and no user action shows requests only to `api.github.com` (the update check) and none when the toggle is off.
 

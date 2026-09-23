@@ -600,6 +600,7 @@ Types owned by other specs appear in the catalog by reference; their members are
 | `IAppInfo` | App, `ShotAI.App.Services` | `AppInfoProvider` (this spec) | singleton | any thread (immutable) | I1 |
 | `ISettingsService` | Core, `ShotAI.Core.Settings` | `SettingsService` (10) | singleton | any thread; `Changed` on the writer's thread | G1 to G20, P2's persistence |
 | `IUpdateService` | Core, `ShotAI.Core.Updates` | `UpdateService` (10) | singleton | any thread | U1, U2, E4 |
+| `IInstallInfo` | Core, `ShotAI.Core.Install` | the Platform object `InstallInfoReader.Read` returns (12 7.10.4), registered as that instance | singleton instance | any thread (immutable) | no channel: the install scope is new (06 INV-HOME-45) |
 | `IAuthService` | Core, `ShotAI.Core.Auth` | `AuthService` (08) | singleton | any thread; interactive sign-in dispatched to the UI thread internally | C1 to C7 |
 | `IClaudeService` | Core, `ShotAI.Core.Sop` | `ClaudeService` (07) | singleton | any thread; progress through the caller's `IProgress<T>` | C8 to C10, E3 |
 | `ISensitiveRegionScanner` | Core, `ShotAI.Core.Redaction` | `SensitiveRegionScanner` (04) | singleton | any thread | S7 |
@@ -1188,7 +1189,7 @@ var services = new ServiceCollection()
     .AddShotAILogging(loggerFactory)      // 10: the bootstrap LoggerFactory of startup step 1 as ILoggerFactory, plus ILogger<T>
     .AddShotAICore()                      // Core: store, sessions, capture engine and shield, SOP, auth, settings forwarders, updates, links, editor services
     .AddShotAIPlatform()                  // Platform: Win32, UIA, WinRT, DPAPI, registry, WebView2 PDF, libavif, shell
-    .AddShotAIApp(Dispatcher.CurrentDispatcher, settings);   // App: dispatcher, the SettingsService loaded at step 5b, dialogs, windows' services, view models
+    .AddShotAIApp(Dispatcher.CurrentDispatcher, settings, installInfo);   // App: dispatcher, the SettingsService loaded at step 5b, the IInstallInfo read at step 1b, dialogs, windows' services, view models
 var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 ```
 
@@ -1213,6 +1214,7 @@ ARCHITECTURE 4.3 is the consolidated registration table (with the resolutions of
 | `IUiDispatcher` | `WpfUiDispatcher` | singleton instance | App |
 | `IAppLifetime` | `AppLifetime` | singleton | App |
 | `IAppInfo`, `IFileDialogs` | this spec | singleton | App |
+| `IInstallInfo` | the object `InstallInfoReader.Read` returned at startup step 1b (12 7.10.4) | singleton instance | App (the instance) |
 | `IAppPaths` | `AppPaths` (10 7.4.4, ARCHITECTURE 10.2) | singleton | App |
 | `IExportService`, `IExportDialogs`, `ExportEngine` | 09 | singleton | App (service, dialogs), Core (engine) |
 | `IAreaSelectionService`, `IMainWindowLayout`, `AppMenuViewModel`, `RecordingVisibilityController`, `CapturePillViewModel`, `PopupExclusion` | 03 | singleton | App |
@@ -1277,7 +1279,7 @@ Packages (versions only in `dotnet/Directory.Packages.props`; `PrivateAssets="al
 |---|---|---|
 | App | `M:System.Windows.Threading.Dispatcher.Invoke`, `M:System.Windows.Threading.Dispatcher.BeginInvoke`, `M:System.Windows.Threading.Dispatcher.InvokeAsync` | `WpfUiDispatcher.cs`; `StaRenderThread.cs` (it drives its own dispatcher, 04 7.10.6); `UiDeferral.cs` (focus and layout deferrals at a named priority, 04 7.10.5, R-ARCH-18). Service-event marshaling stays `IUiDispatcher.Post` only (T6) |
 | App | `M:System.Threading.Tasks.Task.Wait`, `M:System.Threading.Tasks.Task.WaitAll`, ``P:System.Threading.Tasks.Task`1.Result``, `M:System.Runtime.CompilerServices.TaskAwaiter.GetResult`, ``M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult``, ``P:System.Threading.Tasks.ValueTask`1.Result`` | `ShutdownFlush.cs` |
-| all | `M:System.Diagnostics.Process.Start` (every overload) | `ShellUrlLauncher.cs`, `ShellReveal.cs` |
+| all | `M:System.Diagnostics.Process.Start` (every overload) | `ShellUrlLauncher.cs`, `ShellReveal.cs`, `ProcessStarter.cs` (12 7.10.4) |
 | all | `T:Microsoft.Web.WebView2.Wpf.WebView2`, `T:Microsoft.Web.WebView2.WinForms.WebView2` | nowhere (09 uses the Core controller, INV-IPC-20); the App project additionally has no package reference to WebView2 at all |
 | Core | `P:System.Threading.SynchronizationContext.Current`, `M:System.Threading.SynchronizationContext.SetSynchronizationContext(System.Threading.SynchronizationContext)` | `ProjectSessionFactory.cs` (captures the UI context at creation) |
 | Core | `M:System.Math.Round` (every overload) | `JsMath.cs` (JS rounding goes through `JsMath.Round`; .NET `Math.Round` rounds half to even, ARCHITECTURE Q-ARCH-5) |
@@ -1376,7 +1378,7 @@ No Electron test file is assigned to this subsystem: `src/main/ipc.ts`, `src/sha
 | `ServiceBoundary.ExportReadsBrandAtCallTimeTests` | change `ISettingsService.Current.Brand` between two exports; each export receives the brand current at its call |
 | `Shell.ShellRevealTests` | `RevealProjectRejectsUnknownProject` (gate message); `RevealRunsOnStaThread` (the fake shell records `Thread.CurrentThread.GetApartmentState() == STA` and not the UI thread); `OpenFolderUsesShellExecute` |
 | `Architecture.SingleWebViewTests` | only `WebView2PdfRenderer` and `WebView2RuntimeInfo` (both `ShotAI.Platform.Export`) reference `Microsoft.Web.WebView2.Core`; `ShotAI.App` references no `Microsoft.Web.WebView2.*` assembly; no BAML resource contains a WebView2 element |
-| `Architecture.SingleUrlLauncherTests` | IL scan: only `ShellUrlLauncher` and `ShellReveal` call `Process.Start` |
+| `Architecture.SingleUrlLauncherTests` | IL scan: only `ShellUrlLauncher`, `ShellReveal` and `ProcessStarter` (12 7.10.4, which starts an exe with `UseShellExecute = false` and never a URL) call `Process.Start` |
 
 The `channel-map.json` format (one object per channel, in 2.4 order):
 
@@ -1396,7 +1398,7 @@ The `channel-map.json` format (one object per channel, in 2.4 order):
 
 **AC-IPC-3.** `AuthSurfaceTests` passes: `AuthStatus` has exactly the seven members of INV-IPC-1, and no member reachable from `IAuthService` is token-shaped; no catalog method returns the API key.
 
-**AC-IPC-4.** `ExternalLinkPolicyTests` passes with the full table of 8.2; manual: in the running app, the update notice's `Open the download page` opens the GitHub release page, and a test build that calls `OpenAsync("https://raw.github.com/x")` opens nothing and writes `refused openExternal for non-allowlisted URL: https://raw.github.com` to the log.
+**AC-IPC-4.** `ExternalLinkPolicyTests` passes with the full table of 8.2; manual: in the running app (a per-user or unpackaged build; a per-machine install shows no download action, 06 INV-HOME-45), the update notice's `Open the download page` opens the GitHub release page, and a test build that calls `OpenAsync("https://raw.github.com/x")` opens nothing and writes `refused openExternal for non-allowlisted URL: https://raw.github.com` to the log.
 
 **AC-IPC-5.** `EventOrderTests` and `WpfUiDispatcherTests` pass: two subscribers see capture events in raise order, and a `Post` from the UI thread runs after previously queued work.
 
