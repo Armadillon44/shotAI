@@ -434,7 +434,7 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | Every HWND shotAI shows is excluded from capture before it is visible; a second launch surfaces the first instance and exits |
 | Spec inputs | 03 2.2, 2.7, 7.4.7, 7.4.8, D15, D20, INV-SHELL-1 to INV-SHELL-5, risk R1; 02 7.9; ARCHITECTURE 4.2 steps 2, 7, 8, 11, 5.4, 9.2 S6; Q-SHELL-1, Q-SHELL-3, Q-SHELL-19 |
-| Deliverables | App `ShotAIWindow` (registers and applies `WDA_EXCLUDEFROMCAPTURE` in `OnSourceInitialized`, before the first show), `ShotAIPopup`, `PopupExclusion` (class handlers; the `WH_CALLWNDPROC` catch-all of Q-SHELL-3 if the tests show a late registration), `WindowRegistration`, `ActivationListener`; `MainWindow` derives from `ShotAIWindow`; Platform `ShotAI.Platform.Shell`: `SingleInstanceLock` (`Local\shotAI.SingleInstance.<SID>`), `ExistingInstance`, `WindowStyles`, `Foreground`, `ProcessMachine`, and the registration surface of `OwnWindowRegistry` (its query side is completed in WP-B5); Platform `ShotAI.Platform.Imaging.WicFactory` (the shared MTA `IWICImagingFactory`, here because both WP-A17 and WP-B5 depend on this WP and run in parallel lanes); Core `SingleInstanceIdentity`, `ShellStrings` (first constants); startup steps 2, 7, 8 and 11 |
+| Deliverables | App `ShotAIWindow` (registers and applies `WDA_EXCLUDEFROMCAPTURE` in `OnSourceInitialized`, before the first show), `ShotAIPopup`, `PopupExclusion` (class handlers; the `WH_CALLWNDPROC` catch-all of Q-SHELL-3 if the tests show a late registration), `WindowRegistration`, `ActivationListener`; `MainWindow` derives from `ShotAIWindow`, and in the same change the scaffold's `src/ShotAI.App/MainWindow.xaml` and `MainWindow.xaml.cs` (namespace `ShotAI.App`, `dotnet/src/ShotAI.App/MainWindow.xaml:1`, `dotnet/src/ShotAI.App/MainWindow.xaml.cs:5`) move to `src/ShotAI.App/Shell/` with namespace `ShotAI.App.Shell` and `x:Class="ShotAI.App.Shell.MainWindow"` (03 7.1); Platform `ShotAI.Platform.Shell`: `SingleInstanceLock` (`Local\shotAI.SingleInstance.<SID>`), `ExistingInstance`, `WindowStyles`, `Foreground`, `ProcessMachine`, and the registration surface of `OwnWindowRegistry` (its query side is completed in WP-B5); Platform `ShotAI.Platform.Imaging.WicFactory` (the shared MTA `IWICImagingFactory`, here because both WP-A17 and WP-B5 depend on this WP and run in parallel lanes); Core `SingleInstanceIdentity`, `ShellStrings` (first constants); startup steps 2, 7, 8 and 11 |
 | Tests | No Electron file. New: Core `Shell/SingleInstanceIdentityTests` (made-up SID `S-1-5-21-1-2-3-1001`), `ShellStringsTests`; Platform `SingleInstanceTests`; App `AllWindowsRegisteredTests` (main window, a tooltip, a context menu, a `ComboBox` drop-down, and `NoWin32MessageBoxInSource` with the WP-E5 allowlist), `StartupOrderTests.SecondInstanceCreatesNoWindow`, `LifecycleTests.ClosingMainWindowShutsDown` |
 | Acceptance criteria | AC-SHELL-4 |
 | Depends on | WP-A12 |
@@ -826,7 +826,7 @@ Goal (feasibility): the report becomes editable (optimistic, with rollback), the
 |---|---|
 | Goal | The WPF editor overlay: canvas, tools, selection handles, crop, zoom and pan, the inline text box, keyboard |
 | Spec inputs | 04 2.4 to 2.13, 7.10.1 to 7.10.5, D-EDIT-8, D-EDIT-17, D-EDIT-20, D-EDIT-21; 02 INV-CAP-7; ARCHITECTURE 5.4, 9.2 S6, R-ARCH-18; Q-EDIT-18, Q-EDIT-21 |
-| Deliverables | App `ShotAI.App.Editor`: `EditorOverlayView` (in the main window's overlay layer), `EditorViewModel`, `EditorCanvas` (pointer mapping at every zoom, `WM_MOUSEHWHEEL`, Ctrl+wheel zoom), `AnnotationPainter` (the preview painter), `SelectionAdorner`, `InlineTextBox`, `BlurPreviewCache`, `EditorFactory`, `IColorPicker` and `Win32ColorPicker` (the App wrapper over the Platform dialog, 04 7.10.1), `EditorRegistration`; the report card's Edit entry (it passes the view's `IProjectSession` to `EditorFactory.Create`, R-ARCH-5); App `UiDeferral` (the one allowlisted helper for focus and layout deferrals); Platform `ShotAI.Platform.Dialogs.Win32ColorDialog`, opened with `CC_ENABLEHOOK` and a hook that registers the dialog's HWND with `OwnWindowRegistry` on `WM_INITDIALOG`, before it is first shown (Q-EDIT-21) |
+| Deliverables | App `ShotAI.App.Editor`: `EditorOverlayView` (in the main window's overlay layer), `EditorViewModel`, `EditorCanvas` (pointer mapping at every zoom, `WM_MOUSEHWHEEL`, Ctrl+wheel zoom), `AnnotationPainter` (the preview painter), `SelectionAdorner`, `InlineTextBox`, `BlurPreviewCache`, `EditorFactory`, `IColorPicker` and `Win32ColorPicker` (the App wrapper over the Platform dialog, 04 7.10.1), `EditorRegistration`; the report card's Edit entry (it passes the view's `IProjectSession` to `EditorFactory.Create`, R-ARCH-5); App `ShotAI.App.Threading.UiDeferral` (`src/ShotAI.App/Threading/UiDeferral.cs`, beside `WpfUiDispatcher`, the one allowlisted helper for focus and layout deferrals, ARCHITECTURE 2.4 and 14.9, 04 7.1, R-ARCH-18); Platform `ShotAI.Platform.Dialogs.Win32ColorDialog`, opened with `CC_ENABLEHOOK` and a hook that registers the dialog's HWND with `OwnWindowRegistry` on `WM_INITDIALOG`, before it is first shown (Q-EDIT-21) |
 | Tests | No Electron file. New: App `Editor/EditorPointerMappingTests`, `ViewportStabilityTests`, `InlineTextBoxTests`, `EditorKeyboardFocusTests`, and a color-dialog case in `AllWindowsRegisteredTests` (Q-EDIT-21) |
 | Acceptance criteria | AC-EDIT-12, AC-EDIT-13, AC-EDIT-14, AC-EDIT-15, AC-EDIT-16, AC-EDIT-17, AC-EDIT-34 |
 | Depends on | WP-C8, WP-C2 |
@@ -841,7 +841,7 @@ Goal (feasibility): the report becomes editable (optimistic, with rollback), the
 | Goal | Save is durable and synchronous: flatten from the original, write render then manifest, report success only after both, one painter for preview and bake |
 | Spec inputs | 04 2.15, 7.4 (rasterizer seam), 7.10.6, 7.10.7, 7.12, 7.13, INV-EDIT-10, INV-EDIT-32, D-EDIT-12, D-EDIT-25, D-EDIT-27; 05 7.11 (cache key); ARCHITECTURE 7.6, R-ARCH-18, R-ARCH-21; Q-EDIT-1, Q-EDIT-4, Q-EDIT-16 |
 | Deliverables | App `WpfOverlayRasterizer : IOverlayRasterizer` (banded for wide scenes), `StaRenderThread` (its own dispatcher, allowlisted), the save pipeline in `EditorViewModel` (prepare, flatten on the pool, `ApplyDurable(s => s.UpdateStepAsync(path, id, patch, png))`, close on success, stay open with the message on failure, canvas read-only while saving), the marker colour default `AnnotationStyle.MarkerColorFor(step)` (Q-EDIT-1, noted for the release notes); Platform `WicImageCodec : IRenderCodec` (magic bytes first, then only the built-in PNG or JPEG decoder, never `CreateDecoderFromStream`, R-ARCH-21, D-EDIT-27; EXIF orientation, premultiplied, sRGB through `IWICColorTransform`) |
-| Tests | No Electron file. New: Core `Editor/EditorSaveTests`; Platform `Imaging/RenderCodecTests` (including `RejectsNonPngJpegMagic` and `UsesBuiltInDecoder`); App `Editor/WpfOverlayRasterizerTests`, `PainterParityTests`, `Report/ReportImageLoaderTests.ReloadsOnRenderRevOnly`, and the render-level half of 04's end-to-end test as `Editor/RenderRedactionProofTests` (no 4 by 4 block of original region pixels in the saved render) |
+| Tests | No Electron file. New: Core `Editor/EditorSaveTests`; Platform `Capture/RenderCodecTests` (it tests `WicImageCodec`, so it mirrors `ShotAI.Platform.Capture`, 04 8.2, ARCHITECTURE 2.4; including `RejectsNonPngJpegMagic` and `UsesBuiltInDecoder`); App `Editor/WpfOverlayRasterizerTests`, `PainterParityTests`, `Report/ReportImageLoaderTests.ReloadsOnRenderRevOnly`, and the render-level half of 04's end-to-end test as `Editor/RenderRedactionProofTests` (no 4 by 4 block of original region pixels in the saved render) |
 | Acceptance criteria | AC-EDIT-7, AC-EDIT-18, AC-EDIT-19, AC-EDIT-20, AC-EDIT-27, AC-EDIT-31, AC-EDIT-32, AC-EDIT-33, AC-EDIT-35, AC-REP-10, AC-REP-27, AC-REP-38 |
 | Depends on | WP-C9, WP-C7, WP-B5 |
 | Size | M |
@@ -1620,7 +1620,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-HOME-12 | high contrast | WP-A14, WP-E6 | the `SystemColors` mapping after design sign-off; not a pilot blocker |
 | Q-HOME-13 | emoji in labels | WP-A16 | accept monochrome |
 | Q-HOME-14 | row shadows | WP-A16 | keep; replace if AC-HOME-35 fails |
-| Q-HOME-15 | STA test harness | WP-A12 | in-repo helper |
+| Q-HOME-15 | STA test harness | WP-A12 | closed (ARCHITECTURE 15.4): the in-repo helper of ARCHITECTURE 2.1 and 12.1; WP-A12 builds it |
 | Q-HOME-16 | unexpected-exception wording | WP-A12 | `Something went wrong. See the log for details.` |
 | Q-HOME-17 | update notice outside Home | WP-E1 | parity (any view) |
 | R-HOME-1 | restated values go stale | WP-A14, WP-A16 | tests compare against Core and the generated table |
@@ -1760,7 +1760,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-13 | recents on a folder change | WP-B10 | parity |
 | Q-IPC-14 | where `IExternalLinks` lives | WP-A19 | 11's algorithm, 10's registration |
 | Q-IPC-15 | Pause and Resume off the UI thread | WP-B7 | `Task.Run` |
-| Q-IPC-16 | image decoding in-process | WP-A17 | explicit decoders after magic bytes (R-ARCH-21) |
+| Q-IPC-16 | image decoding in-process | WP-A17 | closed by R-ARCH-21 (ARCHITECTURE 15.4): explicit decoders after magic bytes; WP-A17 implements it |
 | Q-IPC-17 | subscriber that forgets to marshal | WP-A12 | `VerifyAccess` in Debug, affinity tests |
 | Q-IPC-18 | singleton keeping a view alive | WP-A12 | `SubscriberDisposalTests` |
 | Q-IPC-19 | channel map maintenance | WP-A1 | `MatchesElectronWhileItExists` |
@@ -1813,8 +1813,8 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-ARCH-1 | reference machines | WP-A20 | named in 4.0 before M-A |
 | Q-ARCH-2 | budgets as targets or gates | WP-A20 | targets; revised once after M-B |
 | Q-ARCH-3 | proxy environment variables | WP-D2 | option (a), remove at startup |
-| Q-ARCH-4 | `ANTHROPIC_CUSTOM_HEADERS` | WP-D2 | remove at startup, keep the host guard |
-| Q-ARCH-5 | ban `Math.Round` in Core | WP-A1 | ban Core-wide, `JsMath.cs` allowlisted |
+| Q-ARCH-4 | `ANTHROPIC_CUSTOM_HEADERS` | WP-D2 | closed (ARCHITECTURE 15.4): default adopted, removed at startup step 5 with the per-client host guard kept (R-ARCH-15, 08 Q-AUTH-17); WP-D2 implements it |
+| Q-ARCH-5 | ban `Math.Round` in Core | WP-A1 | closed (ARCHITECTURE 15.4): default adopted, banned Core-wide with only `JsMath.cs` allowlisted (14.9); WP-A1 implements it |
 | Q-ARCH-6 | affinity from worker threads | WP-B5 | the probe decides; DL2 if needed |
 | Q-ARCH-7 | watch the open project folder | WP-A17 | none in 2.0.0 |
 
