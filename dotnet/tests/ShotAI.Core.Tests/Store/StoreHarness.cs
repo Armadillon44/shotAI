@@ -19,6 +19,9 @@ internal sealed class StoreHarness : IAsyncDisposable
     /// <summary>The fixed "now" of every harness clock.</summary>
     public static readonly DateTimeOffset Now = new(2026, 9, 23, 12, 34, 56, 789, TimeSpan.Zero);
 
+    /// <summary>The 8-byte PNG signature: the smallest buffer the importer accepts as a PNG.</summary>
+    public static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
     /// <param name="brand">The app brand the settings report.</param>
     /// <param name="newId">The source of new project ids; a fresh UUID each time when null.</param>
     public StoreHarness(string brand = "shotAI", Func<string>? newId = null)
@@ -53,6 +56,25 @@ internal sealed class StoreHarness : IAsyncDisposable
         File.WriteAllText(Path.Combine(dir, "project.json"), json);
         return dir;
     }
+
+    /// <summary><see cref="BaseJson"/> with <paramref name="steps"/>, a JSON array, as its steps.</summary>
+    public static string WithSteps(string steps) => BaseJson.Replace("\"steps\":[]", "\"steps\":" + steps, StringComparison.Ordinal);
+
+    /// <summary>Writes <paramref name="bytes"/> (a PNG signature by default) at <paramref name="rel"/> inside <paramref name="dir"/>.</summary>
+    public static string WriteFile(string dir, string rel, byte[]? bytes = null)
+    {
+        var path = Path.Join(dir, rel);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, bytes ?? Png);
+        return path;
+    }
+
+    /// <summary>The ids of the steps on disk, in order; "" for a step whose id is not a string.</summary>
+    public static string[] StepIds(string dir) =>
+        OnDisk(dir)["steps"]!.AsArray().Select(s => JsValue.TryGetString(s!["id"], out var id) ? id : "").ToArray();
+
+    /// <summary>The <c>order</c> of each step on disk.</summary>
+    public static double[] StepOrders(string dir) => OnDisk(dir)["steps"]!.AsArray().Select(s => s!["order"]!.GetValue<double>()).ToArray();
 
     /// <summary>The manifest exactly as it sits on disk.</summary>
     public static string Bytes(string dir) => File.ReadAllText(Path.Combine(dir, "project.json"));

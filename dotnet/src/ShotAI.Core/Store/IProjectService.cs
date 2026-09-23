@@ -8,8 +8,8 @@ namespace ShotAI.Core.Store;
 /// (R-ARCH-4); the container does.
 /// </summary>
 /// <remarks>
-/// The members that exist so far. WP-A7 adds the step operations and package import, WP-A8
-/// archiving and <c>ProjectsChanged</c>, and WP-C5 the render-writing step updates.
+/// The members that exist so far. WP-A8 adds archiving and <c>ProjectsChanged</c>, and WP-C5
+/// the render-writing step updates.
 /// </remarks>
 public interface IProjectService
 {
@@ -38,6 +38,10 @@ public interface IProjectService
     /// <summary>A new project folder named by a fresh UUID (P5).</summary>
     Task<ProjectSummary> CreateProjectAsync(string? title);
 
+    /// <summary>A new project from a package's manifest and files, as 09's reader decoded them (spec 01 2.9.9).</summary>
+    /// <exception cref="ImportRejectedException">A file outside <c>shots/</c> and <c>export/.render/</c>, or outside the folder.</exception>
+    Task<ProjectSummary> CreateProjectFromImportAsync(ProjectManifest manifest, IReadOnlyList<ImportFile> files);
+
     /// <summary>Renames the title only; the folder never moves (P6).</summary>
     Task<ProjectSummary> RenameProjectAsync(string projectPath, string title);
 
@@ -57,6 +61,32 @@ public interface IProjectService
     /// returns <see cref="MutateResult.Unchanged"/>. It runs on the queue, off the UI thread.
     /// </summary>
     Task<ProjectManifest> MutateAsync(string projectPath, Func<ProjectManifest, ValueTask<MutateResult>> fn);
+
+    /// <summary>Appends a captured step (02).</summary>
+    Task AddStepAsync(string projectPath, ProjectStep step);
+
+    /// <summary>Inserts a built step at <paramref name="atIndex"/>, clamped; null appends (02).</summary>
+    Task InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex);
+
+    /// <summary>Removes one step; its files stay on disk (S3).</summary>
+    /// <exception cref="StepNotFoundException">No step has the id.</exception>
+    Task<ProjectManifest> DeleteStepAsync(string projectPath, string stepId);
+
+    /// <summary>Removes every step with one of the ids, then deletes their files; unknown ids are ignored (02 discard).</summary>
+    Task<ProjectManifest> DeleteStepsAsync(string projectPath, IReadOnlyCollection<string> stepIds);
+
+    /// <summary>Puts the named steps first, in that order, and the rest after them; never drops a step (S4).</summary>
+    Task<ProjectManifest> ReorderStepsAsync(string projectPath, IReadOnlyList<string> orderedIds);
+
+    /// <summary>Inserts an empty text step, with a callout when one is given, at <paramref name="atIndex"/>, clamped (S6).</summary>
+    /// <exception cref="ArgumentException">A callout that is not null or a known kind.</exception>
+    Task<ProjectManifest> AddTextStepAsync(string projectPath, double atIndex, string? callout);
+
+    /// <summary>Imports a PNG or JPEG into <c>shots/</c> as a new step at <paramref name="atIndex"/>, clamped; null appends (S2).</summary>
+    /// <exception cref="Errors.ShotAIException">No bytes, or more than <see cref="ImportLimits.MaxBytes"/>.</exception>
+    /// <exception cref="UnsupportedImageException">Neither a PNG nor a JPEG by its magic bytes.</exception>
+    /// <exception cref="ImportRejectedException"><c>shots/</c> is a link.</exception>
+    Task<ProjectManifest> ImportStepAsync(string projectPath, ReadOnlyMemory<byte> bytes, double? atIndex);
 
     /// <summary>Sets or, with null or empty text, clears the intro, and marks it as the author's (S8).</summary>
     Task<ProjectManifest> SetProjectIntroAsync(string projectPath, SopIntro? intro);

@@ -1,3 +1,6 @@
+using System.Text.Json.Nodes;
+using ShotAI.Core.Codec;
+using ShotAI.Core.Json;
 using ShotAI.Core.Model;
 using ShotAI.Core.Store;
 using Xunit;
@@ -5,8 +8,9 @@ using Xunit;
 namespace ShotAI.Core.Tests.Store;
 
 /// <summary>
-/// The rows of spec 01 2.9.4 whose operations exist after WP-A6: which operations re-date a
-/// project. The archive rows land with WP-A8 (AC-MODEL-15) and the step rows with WP-A7.
+/// The rows of spec 01 2.9.4 whose operations exist after WP-A7: which operations re-date a
+/// project. The archive rows land with WP-A8 (AC-MODEL-15), and the render-writing step
+/// updates with WP-C5.
 /// </summary>
 public sealed class UpdatedAtSemanticsTests : IAsyncLifetime
 {
@@ -116,6 +120,42 @@ public sealed class UpdatedAtSemanticsTests : IAsyncLifetime
     {
         await _h.Store.SetProjectDisplayScaleAsync(_project, 0.9);
         Assert.Equal("2026-09-23T12:34:56.789Z", UpdatedAt());
+    }
+
+    public static TheoryData<string> StepOperations =>
+        ["add", "insert", "delete", "deleteSome", "deleteNone", "reorderUnchanged", "text", "import"];
+
+    /// <summary>Every step operation re-dates, including a reorder that changes nothing and a delete of unknown ids.</summary>
+    [Theory]
+    [MemberData(nameof(StepOperations))]
+    public async Task EveryStepOperationReDates(string operation)
+    {
+        _h.Project("proj1", StoreHarness.WithSteps("""[{"id":"a","annotations":[]},{"id":"b","annotations":[]}]"""));
+        _h.Time.Advance(TimeSpan.FromMinutes(1));
+        var step = new ProjectStep(new JsonObject { ["id"] = "c" });
+
+        await (operation switch
+        {
+            "add" => _h.Store.AddStepAsync(_project, step),
+            "insert" => _h.Store.InsertStepAtAsync(_project, step, 0),
+            "delete" => _h.Store.DeleteStepAsync(_project, "a"),
+            "deleteSome" => _h.Store.DeleteStepsAsync(_project, ["a", "b"]),
+            "deleteNone" => _h.Store.DeleteStepsAsync(_project, ["zz"]),
+            "reorderUnchanged" => _h.Store.ReorderStepsAsync(_project, ["a", "b"]),
+            "text" => _h.Store.AddTextStepAsync(_project, 0, null),
+            "import" => _h.Store.ImportStepAsync(_project, StoreHarness.Png, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        });
+
+        Assert.Equal("2026-09-23T12:35:56.789Z", UpdatedAt());
+    }
+
+    [Fact]
+    public async Task ImportingAPackageStampsNowAndKeepsItsCreatedAt()
+    {
+        var manifest = ManifestCodec.Decode(JsJson.Parse(StoreHarness.BaseJson), "Imported project");
+        var summary = await _h.Store.CreateProjectFromImportAsync(manifest, []);
+        Assert.Equal((Original, "2026-09-23T12:34:56.789Z"), (summary.CreatedAt, summary.UpdatedAt));
     }
 
     /// <summary>D-11: the same scale again is Unchanged, as on macOS; Electron re-dated the project.</summary>

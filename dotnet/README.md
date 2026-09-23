@@ -10,7 +10,7 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 
 **Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), the model
 and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5)
-and the project store's project operations (WP-A6): analyzers, supply-chain
+and the project store's project and step operations and imports (WP-A6, WP-A7): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -21,7 +21,8 @@ contract stamp as the Electron and macOS tables. `AtomicFile`, `SerialWriteQueue
 `PathConfine` are the primitives every writer uses; the junction and reparse-tag cases run
 in `tests/ShotAI.Platform.Tests` on the Windows jobs, x64 and arm64. `ProjectStore` gates,
 lists, creates, opens, renames, deletes and changes projects with Electron's persistence
-rules, behind `IProjectService`; the step operations and imports are next (WP-A7).
+rules, behind `IProjectService`, and adds, moves, deletes and imports steps and packages without
+losing a step to a duplicate id or writing through a link; the archive engine is next (WP-A8).
 
 ## Layout
 

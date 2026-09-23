@@ -7,7 +7,7 @@ namespace ShotAI.Core.Tests.Store;
 /// <summary>
 /// The store's exceptions (spec 01 7.13, spec 11 X2): each derives from
 /// <see cref="ShotAIException"/>, so <see cref="UserMessage.From"/> shows its text verbatim.
-/// Each exception WP-A7 and WP-A8 add joins the first test without a change here.
+/// Each exception a later WP adds joins the first test without a change here.
 /// </summary>
 public sealed class StoreExceptionTests
 {
@@ -25,6 +25,22 @@ public sealed class StoreExceptionTests
     [Fact]
     public void TheGateRefusalShowsElectronsText() =>
         Assert.Equal("Project path is not within the projects directory", UserMessage.From(new ProjectNotKnownException()));
+
+    [Fact]
+    public void TheStepAndImportFailuresShowElectronsText()
+    {
+        Assert.Equal("step s9 not found", UserMessage.From(new StepNotFoundException("s9")));
+        Assert.Equal("Unsupported file " + (char)0x2014 + " please choose a PNG or JPEG image.", UserMessage.From(new UnsupportedImageException()));
+        Assert.Equal("Package contains an unexpected file path: x/y", UserMessage.From(ImportRejectedException.UnexpectedPath("x/y")));
+        Assert.Equal("Refusing to extract a path outside the project: x/y", UserMessage.From(ImportRejectedException.OutsideProject("x/y")));
+    }
+
+    /// <summary>New native text, for a refusal Electron could not make (D-22).</summary>
+    [Fact]
+    public void TheImportedImageRefusalNamesTheFile() =>
+        Assert.Equal(
+            "Refusing to write outside the project: shots/step-0001.png",
+            UserMessage.From(ImportRejectedException.OutsideShots("step-0001.png")));
 
     /// <summary>The reason is for the log only (Q-MODEL-11).</summary>
     [Fact]
