@@ -13,6 +13,7 @@
 # byte-for-byte against freshly generated LF output.
 contract/**                        text eol=lf
 src/shared/brand-colors.generated.ts text eol=lf
+dotnet/src/ShotAI.Core/Brand/BrandPalette.Generated.cs text eol=lf
 
 # Shell scripts must stay LF or they will not execute.
 *.sh text eol=lf

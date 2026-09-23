@@ -8,13 +8,15 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 - How, in order: [docs/native/PLAN.md](../docs/native/PLAN.md)
 - Behavior to reproduce, subsystem by subsystem: [docs/native/spec/](../docs/native/spec/)
 
-**Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), and the model
-and `project.json` codec (WP-A3): analyzers, supply-chain rules, Core's error, threading
-and composition types, `JsJson` (reads what `JSON.parse` reads, writes the bytes
-`JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron for
-every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite runs
-its round trips: every `agreed` case passes, and the one `open` case is reported (see
-`dotnet test ... --output Detailed` below).
+**Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), the model
+and `project.json` codec (WP-A3), and the brand palette (WP-A4): analyzers, supply-chain
+rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
+reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
+same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
+shared conformance suite runs its round trips: every `agreed` case passes, and the one
+`open` case is reported (see `dotnet test ... --output Detailed` below). `BrandPalette` is
+generated from `contract/brand.json` by `tools/ShotAI.GenBrand` and carries the same
+contract stamp as the Electron and macOS tables.
 
 ## Layout
 
@@ -24,6 +26,7 @@ its round trips: every `agreed` case passes, and the one `open` case is reported
 | `src/ShotAI.Platform` | `net10.0-windows10.0.19041.0` | Windows services: hooks, capture, UI Automation, display affinity, DPAPI, policy registry, OCR, WebView2 PDF host, libavif. |
 | `src/ShotAI.App` | `net10.0-windows10.0.19041.0` | The WPF app (`shotAI.exe`): windows, views, view models, composition root. |
 | `tests/ShotAI.Core.Tests` | `net10.0` | xunit.v3 tests for Core, including the shared `contract/conformance` suite. Runs on Linux and Windows. |
+| `tools/ShotAI.GenBrand` | `net10.0` | The brand generator: writes `src/ShotAI.Core/Brand/BrandPalette.Generated.cs` from `contract/brand.json`; `--check` fails when it is stale. BCL only, so it builds when the table does not. |
 
 Windows 10 2004 (10.0.19041) is the minimum because it is the first build with
 `WDA_EXCLUDEFROMCAPTURE`, which keeps shotAI's windows out of its own screenshots.
@@ -38,6 +41,7 @@ dotnet build ShotAI.slnx -c Release
 dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release   # any OS
 dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release --output Detailed \
   --filter-class ShotAI.Core.Tests.Conformance.ConformanceTests                       # shows the open cases
+dotnet run --project tools/ShotAI.GenBrand -- --check                                 # is the brand table current?
 dotnet test --solution ShotAI.slnx -c Release                                         # Windows: every test project
 dotnet run --project src/ShotAI.App                                                   # Windows only
 ```
@@ -68,5 +72,8 @@ set it in a workflow; CI's online check is the one that gates merges (12 7.8).
   Don't hand-write `DllImport` signatures.
 - **`contract/` is read in place, never copied.** It is byte-identical with the macOS repo,
   and a change to it must land there too (see the root README).
+- **Never hand-edit `src/ShotAI.Core/Brand/BrandPalette.Generated.cs`.** After a change to
+  `contract/brand.json`, run `dotnet run --project tools/ShotAI.GenBrand` here and
+  `npm run gen:brand` from the repo root, and commit both tables with the contract.
 - **Keep behavior identical to the Electron app** unless the spec marks an item as an
   improvement. The Electron source under `src/` is the reference until cutover.

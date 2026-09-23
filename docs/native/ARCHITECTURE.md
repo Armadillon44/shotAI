@@ -97,17 +97,17 @@ In priority order (section 9 has the owner, mechanism and tests of each):
 | `src/ShotAI.Core` | `net10.0` | library | BCL plus the Core package allowlist (3.2) | Linux, Windows | exists (scaffold) |
 | `src/ShotAI.Platform` | `net10.0-windows10.0.19041.0` (`$(ShotAIWindowsTfm)`) | library, `AllowUnsafeBlocks` | Core | Windows (builds on Linux) | exists |
 | `src/ShotAI.App` | `$(ShotAIWindowsTfm)`, `UseWPF`, `AssemblyName` `shotAI` | `WinExe` `shotAI.exe` | Core, Platform | Windows | exists |
-| `tests/ShotAI.Core.Tests` | `net10.0`, xunit.v3 on Microsoft.Testing.Platform | test exe | Core, `tools/ShotAI.GenBrand`, `tools/ShotAI.Release` | Linux, Windows | exists; gains the tool references (10 7.3, 12 7.15) |
+| `tests/ShotAI.Core.Tests` | `net10.0`, xunit.v3 on Microsoft.Testing.Platform | test exe | Core, `tools/ShotAI.GenBrand`, `tools/ShotAI.Release` | Linux, Windows | exists; references `tools/ShotAI.GenBrand` since WP-A4 (10 7.3) and gains `tools/ShotAI.Release` (12 7.15) |
 | `tests/ShotAI.Platform.Tests` | `$(ShotAIWindowsTfm)`, xunit.v3 | test exe | Platform, Core | Windows only | added by the first Platform PR (01 8.2, 02 8.4, 03 8.3) |
 | `tests/ShotAI.App.Tests` | `$(ShotAIWindowsTfm)`, `UseWPF`, xunit.v3 with an in-repo STA harness (Q-HOME-15) | test exe | App, Platform, Core | Windows only | added by the first App PR (03, 05, 06, 11 8.2) |
-| `tools/ShotAI.GenBrand` | `net10.0` | console | none (BCL only, EDGE-INFRA-48) | Linux, Windows | 10 7.3 |
+| `tools/ShotAI.GenBrand` | `net10.0` | console | none (BCL only, EDGE-INFRA-48) | Linux, Windows | exists (WP-A4), 10 7.3 |
 | `tools/ShotAI.Release` | `net10.0` | console | Core | Linux, Windows | 12 7.15 |
 | `tools/ShotAI.ProtectionProbe` | `$(ShotAIWindowsTfm)` | console, not shipped | Platform | Windows, interactive desktop | 02 8.4 |
 | `tools/ShotAI.WifProbe` | `$(ShotAIWindowsTfm)` | console, not shipped | Core, Platform | Windows | 08 7.19 |
 | `installer/ShotAI.Installer.wixproj` | WiX MSBuild SDK | MSI | the published payload | Windows | 12 7.4; NOT in `ShotAI.slnx` (INV-PKG-22) |
 | `native/avif/` | C shim plus `pins.json` | `shotai_avif.dll` per architecture | libavif, libaom (pinned sources) | built by CI on Windows | 09 7.6, 12 7.7 |
 
-`ShotAI.Core.Tests` references the two tool projects so their logic is tested on Linux; if referencing an executable project from the Microsoft.Testing.Platform test executable causes friction, the shared logic moves into a small `net10.0` library that both reference (10 verifier note). `ShotAI.slnx` gains `/tests/` entries for the two Windows test projects and a `/tools/` folder for the four tools. `dotnet test --solution ShotAI.slnx` is a Windows-runner command only; the Linux job runs `tests/ShotAI.Core.Tests` by project (`.github/workflows/dotnet.yml`).
+`ShotAI.Core.Tests` references the two tool projects so their logic is tested on Linux; if referencing an executable project from the Microsoft.Testing.Platform test executable causes friction, the shared logic moves into a small `net10.0` library that both reference (10 verifier note). WP-A4 showed the reference works for `ShotAI.GenBrand`, whose tests call its public `Program.Run` in-process, so no such library exists. `ShotAI.slnx` gains `/tests/` entries for the two Windows test projects and a `/tools/` folder for the four tools. `dotnet test --solution ShotAI.slnx` is a Windows-runner command only; the Linux job runs `tests/ShotAI.Core.Tests` by project (`.github/workflows/dotnet.yml`).
 
 ### 2.2 Dependency rules
 

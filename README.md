@@ -376,10 +376,14 @@ docs/                        product plan, phase notes, security-hardening plan
 there, and both exist because the same fact used to be written twice and drift:
 
 - **`brand.json`** — every brand colour, radius and font. Each platform GENERATES its table
-  from it (`npm run gen:brand` here, `swift Scripts/gen-brand.swift` there), and the
-  generated file stamps the contract's sha256 so a mismatch between the repos shows up in a
-  diff. `npm run gen:brand:check` fails if the checked-in table is stale, and CI runs it.
-  **Never hand-edit `src/shared/brand-colors.generated.ts`.**
+  from it (here `npm run gen:brand` for Electron and
+  `dotnet run --project dotnet/tools/ShotAI.GenBrand` for the native app; there
+  `swift Scripts/gen-brand.swift`), and the generated file stamps the contract's sha256 so a
+  mismatch between the repos shows up in a diff. `npm run gen:brand:check` and
+  `dotnet run --project dotnet/tools/ShotAI.GenBrand -- --check` fail if a checked-in table
+  is stale, and CI runs both. **Never hand-edit `src/shared/brand-colors.generated.ts` or
+  `dotnet/src/ShotAI.Core/Brand/BrandPalette.Generated.cs`;** a contract change regenerates
+  and commits both.
 - **`conformance/`** — cases both apps run against their own `project.json` codec, so the
   rules for what a malformed or unrecognised value degrades to cannot diverge silently. A
   case is `agreed` (both must pass) or `open` (a known divergence, reported with the issue
