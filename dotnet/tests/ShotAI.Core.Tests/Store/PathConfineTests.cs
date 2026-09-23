@@ -32,10 +32,17 @@ public sealed class PathConfineTests
     public void RejectsAnAbsolutePath() =>
         Assert.Null(PathConfine.Confine(Dir, OperatingSystem.IsWindows() ? @"C:\Windows\system32\x.png" : "/etc/passwd"));
 
-    /// <summary>The S5 vector: a hand-edited step id used as a render file name.</summary>
+    /// <summary>
+    /// The S5 vector: a hand-edited step id used as a render file name. The TS test builds the
+    /// name with <c>path.posix.join('export', '.render', id + '.png')</c>, which is
+    /// <c>../evil.png</c> (checked with Node 22.22); the raw join is refused as well.
+    /// </summary>
     [Fact]
-    public void RejectsATraversalIdUsedAsARenderFileName() =>
+    public void RejectsATraversalIdUsedAsARenderFileName()
+    {
+        Assert.Null(PathConfine.Confine(Dir, "../evil.png"));
         Assert.Null(PathConfine.Confine(Dir, "export/.render/" + "../../../evil" + ".png"));
+    }
 
     [Theory]
     [InlineData(null)]
