@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "id": "",
+  "title": "Backup",
+  "createdWith": "shotAI",
+  "createdAt": "",
+  "updatedAt": "",
+  "captureSettings": null,
+  "steps": [],
+  "intro": null,
+  "sopBackup": {
+    "steps": [
+      {
+        "id": "b1",
+        "annotations": []
+      },
+      {
+        "id": "b2",
+        "annotations": []
+      }
+    ],
+    "title": "Before",
+    "intro": {
+      "heading": "H",
+      "body": "B"
+    },
+    "introEditedByUser": true,
+    "model": "",
+    "tone": "professional",
+    "at": "2026-01-01T00:00:00.000Z"
+  },
+  "archived": false,
+  "archivedAt": null
+}

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "",
+  "title": "Backup two",
+  "createdWith": "shotAI",
+  "createdAt": "",
+  "updatedAt": "",
+  "captureSettings": null,
+  "steps": [],
+  "intro": null,
+  "sopBackup": {
+    "steps": [],
+    "title": "",
+    "intro": null,
+    "model": "claude-sonnet-5",
+    "tone": "concise",
+    "at": ""
+  },
+  "archived": false,
+  "archivedAt": null
+}

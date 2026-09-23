@@ -252,12 +252,15 @@ public static class JsJson
         switch (value.GetValueKind())
         {
             case JsonValueKind.String:
-                if (value.TryGetValue<string>(out var s)) JsQuote.Append(sb, s);
-                else if (value.TryGetValue<char>(out var c)) JsQuote.Append(sb, c.ToString());
-                else throw new NotSupportedException("JsJson.Stringify writes only string and char text values.");
+                if (!JsValue.TryGetString(value, out var s))
+                    throw new NotSupportedException("JsJson.Stringify writes only string and char text values.");
+                JsQuote.Append(sb, s);
                 return;
             case JsonValueKind.Number:
-                var d = ToDouble(value);
+                // A tree built in code may hold any CLR number; each is written as the double
+                // JavaScript would hold.
+                if (!JsValue.TryReadDouble(value, out var d))
+                    throw new NotSupportedException("JsJson.Stringify cannot read this number value as a double.");
                 sb.Append(double.IsFinite(d) ? JsNumber.ToJsString(d) : "null");
                 return;
             case JsonValueKind.True:
@@ -272,30 +275,6 @@ public static class JsJson
             default:
                 throw new NotSupportedException($"JsJson.Stringify cannot write a {value.GetValueKind()} value.");
         }
-    }
-
-    // A parsed tree holds doubles; a tree built in code may hold any CLR number. Each becomes
-    // a double, as JavaScript would hold it.
-    private static double ToDouble(JsonValue value)
-    {
-        if (value.TryGetValue<double>(out var d)) return d;
-        if (value.TryGetValue<int>(out var i)) return i;
-        if (value.TryGetValue<long>(out var l)) return l;
-        if (value.TryGetValue<float>(out var f)) return f;
-        if (value.TryGetValue<decimal>(out var m)) return (double)m;
-        if (value.TryGetValue<uint>(out var ui)) return ui;
-        if (value.TryGetValue<ulong>(out var ul)) return ul;
-        if (value.TryGetValue<short>(out var sh)) return sh;
-        if (value.TryGetValue<ushort>(out var us)) return us;
-        if (value.TryGetValue<byte>(out var b)) return b;
-        if (value.TryGetValue<sbyte>(out var sbv)) return sbv;
-        if (value.TryGetValue<JsonElement>(out var e))
-        {
-            return e.TryGetDouble(out var ed)
-                ? ed
-                : double.Parse(e.GetRawText(), NumberStyles.Float, CultureInfo.InvariantCulture);
-        }
-        throw new NotSupportedException("JsJson.Stringify cannot read this number value as a double.");
     }
 
     private static void CheckDepth(int depth)

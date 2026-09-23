@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using ShotAI.Core.Json;
 using Xunit;
 
 namespace ShotAI.Core.Tests.Conformance;
@@ -53,4 +54,20 @@ public sealed class ExpectPathTests
         Assert.Equal(
             ExpectPath.Canonical(JsonNode.Parse("""{"n":1.0}""")),
             ExpectPath.Canonical(JsonNode.Parse("""{"n":1}""")));
+
+    /// <summary>JSON.stringify prints -0 as 0; the scaffold's "R" formatting made them differ.</summary>
+    [Fact]
+    public void Negative_zero_compares_equal_to_zero()
+    {
+        Assert.Equal("0", ExpectPath.Canonical(JsJson.Parse("-0")));
+        Assert.Equal(ExpectPath.Canonical(JsJson.Parse("""{"n":-0}""")), ExpectPath.Canonical(JsJson.Parse("""{"n":0}""")));
+    }
+
+    /// <summary>Numbers compare by their JavaScript text: 1e21 is 1e+21, and 1e400 is null.</summary>
+    [Fact]
+    public void Numbers_are_written_as_JavaScript_writes_them()
+    {
+        Assert.Equal("[1e+21,100000000000000000000,null,0.1]", ExpectPath.Canonical(JsJson.Parse("[1e21,1e20,1e400,0.1]")));
+        Assert.Equal("\"\\ud800\"", ExpectPath.Canonical(JsJson.Parse("\"\\ud800\"")));
+    }
 }

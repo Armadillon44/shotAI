@@ -16,3 +16,21 @@ src/shared/brand-colors.generated.ts text eol=lf
 
 # Shell scripts must stay LF or they will not execute.
 *.sh text eol=lf
+
+# Native test goldens (docs/native/PLAN.md WP-A3). The tests compare these files byte for
+# byte, so text goldens stay LF on every checkout, including a Windows runner's.
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.json text eol=lf
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.css  text eol=lf
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.html text eol=lf
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.md   text eol=lf
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.txt  text eol=lf
+# Binary goldens are never converted. Marked explicitly, because a pattern that says
+# `text` would switch off binary detection and rewrite bytes inside them.
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.png  binary
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.jpg  binary
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.jpeg binary
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.avif binary
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.pdf  binary
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.docx binary
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.pptx binary
+dotnet/tests/ShotAI.Core.Tests/Golden/**/*.zip  binary

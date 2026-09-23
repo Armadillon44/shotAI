@@ -1,0 +1,46 @@
+{
+  "controls": "\u0000\u0001\u0007\b\t\n\u000b\f\r\u000e\u001b\u001f",
+  "shortEscapes": "\b\f\n\r\t",
+  "del": " and ",
+  "separators": "    raw:   ",
+  "slash": "/ and /",
+  "quotes": "\" \\ '",
+  "html": "<b>&amp;</b> <script>",
+  "lone": [
+    "\ud800",
+    "\udc00",
+    "a\ud800b",
+    "􏿿",
+    "😀",
+    "\udc00\ud800"
+  ],
+  "raw": "😀 é 中 ‽ ́e",
+  "escapedUnicode": "é中 ﻿",
+  "key\nwith\tcontrols": 1,
+  "\ud800": "a key that is a lone surrogate",
+  "\u0000": "a key that is NUL",
+  "version": 1,
+  "id": "",
+  "title": "Strings — with an escaped em dash",
+  "createdWith": "shotAI",
+  "createdAt": "",
+  "updatedAt": "",
+  "captureSettings": null,
+  "steps": [
+    {
+      "id": "s\ud83d",
+      "caption": "😀 \"quoted\"",
+      "annotations": [
+        {
+          "id": "t1",
+          "type": "text",
+          "text": "line1\nline2"
+        }
+      ]
+    }
+  ],
+  "intro": null,
+  "sopBackup": null,
+  "archived": false,
+  "archivedAt": null
+}

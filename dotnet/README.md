@@ -8,11 +8,13 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 - How, in order: [docs/native/PLAN.md](../docs/native/PLAN.md)
 - Behavior to reproduce, subsystem by subsystem: [docs/native/spec/](../docs/native/spec/)
 
-**Status:** foundations (WP-A1) and JSON with JavaScript semantics (WP-A2): analyzers,
-supply-chain rules, Core's error, threading and composition types, and `JsJson`, which
-reads what `JSON.parse` reads and writes the bytes `JSON.stringify` writes. The shared
-conformance suite is wired in with its round-trip cases skipped until the `project.json`
-codec lands (WP-A3).
+**Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), and the model
+and `project.json` codec (WP-A3): analyzers, supply-chain rules, Core's error, threading
+and composition types, `JsJson` (reads what `JSON.parse` reads, writes the bytes
+`JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron for
+every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite runs
+its round trips: every `agreed` case passes, and the one `open` case is reported (see
+`dotnet test ... --output Detailed` below).
 
 ## Layout
 
@@ -34,6 +36,8 @@ Microsoft.Testing.Platform, and `dotnet` only finds it when started here or belo
 ```sh
 dotnet build ShotAI.slnx -c Release
 dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release   # any OS
+dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release --output Detailed \
+  --filter-class ShotAI.Core.Tests.Conformance.ConformanceTests                       # shows the open cases
 dotnet test --solution ShotAI.slnx -c Release                                         # Windows: every test project
 dotnet run --project src/ShotAI.App                                                   # Windows only
 ```

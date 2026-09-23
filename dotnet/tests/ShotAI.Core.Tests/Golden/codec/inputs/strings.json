@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "title": "Strings \u2014 with an escaped em dash",
+  "controls": "\u0000\u0001\u0007\u0008\u0009\u000a\u000b\u000c\u000d\u000e\u001b\u001f",
+  "shortEscapes": "\b\f\n\r\t",
+  "del": " and \u007f",
+  "separators": "\u2028 \u2029 raw:   ",
+  "slash": "\/ and /",
+  "quotes": "\" \\ '",
+  "html": "<b>&amp;</b> <script>",
+  "lone": ["\ud800", "\udc00", "a\ud800b", "\udbff\udfff", "\ud83d\ude00", "\udc00\ud800"],
+  "raw": "😀 é 中 ‽ ́e",
+  "escapedUnicode": "\u00e9\u4e2d\u00A0\uFEFF",
+  "key\nwith\tcontrols": 1,
+  "\ud800": "a key that is a lone surrogate",
+  "\u0000": "a key that is NUL",
+  "steps": [{"id": "s\ud83d", "caption": "\ud83d\ude00 \"quoted\"", "annotations": [{"id": "t1", "type": "text", "text": "line1\nline2"}]}]
+}

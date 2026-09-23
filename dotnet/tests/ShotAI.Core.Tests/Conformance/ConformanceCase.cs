@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using ShotAI.Core.Json;
 
 namespace ShotAI.Core.Tests.Conformance;
 
@@ -31,10 +32,15 @@ internal sealed record ConformanceCase(
                 .ToList()
             : [];
 
+    /// <summary>
+    /// Reads a case through <see cref="JsJson.Parse(ReadOnlySpan{byte})"/>, the parser the store
+    /// uses, as the TypeScript harness reads it through <c>JSON.parse</c>: every number is a
+    /// double before the codec sees it (AC-MODEL-36).
+    /// </summary>
     public static ConformanceCase Load(string fileName)
     {
         var path = Path.Combine(ManifestCasesDir, fileName);
-        var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
+        var root = JsJson.Parse(File.ReadAllBytes(path)) as JsonObject
             ?? throw new InvalidDataException($"{fileName}: the case is not a JSON object");
 
         string? Str(string key) => root[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;

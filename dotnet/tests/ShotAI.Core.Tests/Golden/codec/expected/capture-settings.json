@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "id": "",
+  "title": "Capture settings",
+  "createdWith": "shotAI",
+  "createdAt": "",
+  "updatedAt": "",
+  "captureSettings": {
+    "mode": "window",
+    "window": {
+      "title": "T",
+      "pid": 1,
+      "id": 2
+    },
+    "extra": [
+      1,
+      2
+    ],
+    "area": null,
+    "__proto__": 1
+  },
+  "steps": [],
+  "intro": null,
+  "sopBackup": null,
+  "archived": false,
+  "archivedAt": null
+}

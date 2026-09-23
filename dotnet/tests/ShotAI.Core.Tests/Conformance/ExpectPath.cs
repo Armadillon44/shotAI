@@ -1,7 +1,7 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ShotAI.Core.Json;
 
 namespace ShotAI.Core.Tests.Conformance;
 
@@ -62,52 +62,10 @@ internal static class ExpectPath
         && flag.GetValueKind() == JsonValueKind.True;
 
     /// <summary>
-    /// The comparison form: compact JSON with keys in document order, which is what
-    /// JSON.stringify produces. Key order is significant, exactly as it is in the
-    /// TypeScript harness. Numbers are normalized through double so <c>1.0</c> and
-    /// <c>1</c> compare equal, as they do after a JSON.parse round trip.
+    /// The comparison form: <c>JSON.stringify(node)</c>, compact, through the same writer the
+    /// codec uses. Key order is significant, exactly as it is in the TypeScript harness, and
+    /// numbers compare by their JavaScript text, so <c>1.0</c> and <c>1</c> are equal and so
+    /// are <c>-0</c> and <c>0</c> (spec 01 7.11).
     /// </summary>
-    public static string Canonical(JsonNode? node)
-    {
-        var sb = new StringBuilder();
-        Write(node, sb);
-        return sb.ToString();
-    }
-
-    private static void Write(JsonNode? node, StringBuilder sb)
-    {
-        switch (node)
-        {
-            case null:
-                sb.Append("null");
-                break;
-            case JsonObject obj:
-                sb.Append('{');
-                var firstProp = true;
-                foreach (var (key, child) in obj)
-                {
-                    if (!firstProp) sb.Append(',');
-                    firstProp = false;
-                    sb.Append(JsonSerializer.Serialize(key)).Append(':');
-                    Write(child, sb);
-                }
-                sb.Append('}');
-                break;
-            case JsonArray array:
-                sb.Append('[');
-                for (var i = 0; i < array.Count; i++)
-                {
-                    if (i > 0) sb.Append(',');
-                    Write(array[i], sb);
-                }
-                sb.Append(']');
-                break;
-            case JsonValue value when value.GetValueKind() == JsonValueKind.Number:
-                sb.Append(value.GetValue<double>().ToString("R", CultureInfo.InvariantCulture));
-                break;
-            default:
-                sb.Append(node.ToJsonString());
-                break;
-        }
-    }
+    public static string Canonical(JsonNode? node) => JsJson.Stringify(node, indent: 0);
 }

@@ -60,6 +60,12 @@ jobs:
         run: dotnet build ShotAI.slnx -c Release --no-restore
       - name: Test (core)
         run: dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release --no-build
+      # The conformance harness reports each OPEN case (a known divergence) in the test's
+      # output and passes it. Microsoft.Testing.Platform prints a passing test's output only
+      # with --output Detailed, so this re-runs that one class to put the report in the log
+      # (docs/native/spec/01-model-store.md 7.11).
+      - name: Conformance report (open cases)
+        run: dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release --no-build --output Detailed --filter-class ShotAI.Core.Tests.Conformance.ConformanceTests
 
   windows:
     name: build + test (Windows)

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "p",
+  "title": "T",
+  "createdWith": "shotAI",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z",
+  "captureSettings": null,
+  "steps": [
+    {
+      "id": "s1",
+      "order": 1e+21,
+      "kind": "shot",
+      "screenshot": "shots/a.png",
+      "trigger": "click",
+      "annotations": []
+    }
+  ],
+  "intro": null,
+  "sopBackup": null,
+  "archived": false,
+  "archivedAt": null
+}

@@ -1,0 +1,17 @@
+{
+  "version": "1",
+  "id": 5,
+  "title": "",
+  "createdWith": "macOS",
+  "createdAt": 5,
+  "updatedAt": null,
+  "captureSettings": false,
+  "steps": "x",
+  "displayScale": "banana",
+  "theme": 42,
+  "intro": [],
+  "introEditedByUser": "true",
+  "sopBackup": {"steps": "x", "title": "t"},
+  "archived": "true",
+  "archivedAt": 5
+}
