@@ -1,0 +1,27 @@
+{
+  "bad": [
+    "�",
+    "��",
+    "�",
+    "��",
+    "���",
+    "���",
+    "�",
+    "����",
+    "�",
+    "a�b€c"
+  ],
+  "key �": 1,
+  "version": 1,
+  "id": "",
+  "title": "Invalid UTF-8 �",
+  "createdWith": "shotAI",
+  "createdAt": "",
+  "updatedAt": "",
+  "captureSettings": null,
+  "steps": [],
+  "intro": null,
+  "sopBackup": null,
+  "archived": false,
+  "archivedAt": null
+}

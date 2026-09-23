@@ -1,0 +1,18 @@
+{
+  "zeta": 1,
+  "10": "ten",
+  "version": 1,
+  "9": "nine",
+  "07": "leading zero, not an index",
+  "-1": "negative, not an index",
+  "4294967294": "the largest index",
+  "4294967295": "one past the largest index",
+  "0": "zero",
+  "__proto__": {"polluted": true},
+  "": "the empty key",
+  "title": "first title",
+  "alpha": {"nested": [1, {"b": 2, "a": 1, "1": "x", "0": "y"}]},
+  "zeta": 2,
+  "title": "second title wins at the first position",
+  "steps": [{"id": "s1", "10": "index key in a step", "b": 1, "2": "two", "__proto__": "data"}]
+}

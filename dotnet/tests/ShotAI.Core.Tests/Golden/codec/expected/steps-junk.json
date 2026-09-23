@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "",
+  "title": "Junk steps",
+  "createdWith": "shotAI",
+  "createdAt": "",
+  "updatedAt": "",
+  "captureSettings": null,
+  "steps": [
+    {
+      "id": "good",
+      "order": 1,
+      "kind": "shot",
+      "screenshot": "shots/a.png",
+      "trigger": "click",
+      "annotations": []
+    },
+    {
+      "annotations": []
+    },
+    {
+      "id": "s3",
+      "annotations": [],
+      "caption": "after annotations"
+    },
+    {
+      "id": "s4",
+      "annotations": []
+    },
+    {
+      "id": "s5",
+      "annotations": []
+    },
+    {
+      "annotations": [],
+      "id": "s6"
+    }
+  ],
+  "intro": null,
+  "sopBackup": null,
+  "archived": false,
+  "archivedAt": null
+}

@@ -1,0 +1,46 @@
+{
+  "0": "zero",
+  "9": "nine",
+  "10": "ten",
+  "4294967294": "the largest index",
+  "zeta": 2,
+  "07": "leading zero, not an index",
+  "-1": "negative, not an index",
+  "4294967295": "one past the largest index",
+  "__proto__": {
+    "polluted": true
+  },
+  "": "the empty key",
+  "alpha": {
+    "nested": [
+      1,
+      {
+        "0": "y",
+        "1": "x",
+        "b": 2,
+        "a": 1
+      }
+    ]
+  },
+  "version": 1,
+  "id": "",
+  "title": "second title wins at the first position",
+  "createdWith": "shotAI",
+  "createdAt": "",
+  "updatedAt": "",
+  "captureSettings": null,
+  "steps": [
+    {
+      "2": "two",
+      "10": "index key in a step",
+      "id": "s1",
+      "b": 1,
+      "__proto__": "data",
+      "annotations": []
+    }
+  ],
+  "intro": null,
+  "sopBackup": null,
+  "archived": false,
+  "archivedAt": null
+}

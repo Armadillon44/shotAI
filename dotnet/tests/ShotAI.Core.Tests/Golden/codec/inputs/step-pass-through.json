@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "title": "Pass-through",
+  "steps": [
+    {
+      "annotations": [null, 42, {"type": "future", "id": "f1", "extra": [1]}, {"id": "r1", "type": "rect", "x": 1, "y": 2, "width": 3, "height": 4, "cornerRadius": 10, "stroke": "#e11d48", "strokeWidth": 4, "fill": null}],
+      "futureField": {"nested": {"deeper": [true, false, null]}},
+      "note": "macOS writes a note on every step",
+      "order": 1e21,
+      "id": "p1",
+      "kind": "text",
+      "callout": "futurekind",
+      "captionEditedByUser": false,
+      "markerBaked": "yes",
+      "crop": "bad",
+      "click": {"global": {"x": 1, "y": 2}, "image": {"x": 3}, "button": "wheel", "extra": true},
+      "heading": 5,
+      "body": ["not", "a", "string"]
+    },
+    {"id": "p2", "kind": "text", "callout": "section", "heading": "Phase 2", "body": "Next part", "annotations": [], "aiInserted": true, "markerColor": "#123"},
+    {"id": "p3", "flattened": "export/.render/p3.png", "renderRev": 7, "markerBaked": true, "reportZoom": 2, "reportPanX": 0, "reportPanY": 1, "annotations": [{"id": "m1", "type": "marker", "x": 5, "y": 6, "color": "#ff0000"}]}
+  ]
+}

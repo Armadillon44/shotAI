@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "title": "Backup",
+  "sopBackup": {
+    "extra": 1,
+    "steps": [null, {"id": "b1"}, 5, {"id": "b2", "annotations": "x"}],
+    "title": "Before",
+    "intro": {"heading": "H", "body": "B", "x": 1},
+    "introEditedByUser": true,
+    "model": 5,
+    "tone": "Friendly",
+    "at": "2026-01-01T00:00:00.000Z"
+  }
+}

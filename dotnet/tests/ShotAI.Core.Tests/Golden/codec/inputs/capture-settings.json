@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "title": "Capture settings",
+  "captureSettings": {"mode": "window", "window": {"title": "T", "pid": 1, "id": 2}, "extra": [1, 2], "area": null, "__proto__": 1},
+  "steps": []
+}

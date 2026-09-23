@@ -1,0 +1,15 @@
+{
+  "version": -1.5,
+  "id": "UPPER-CASE-ID-KEPT",
+  "title": "   ",
+  "createdAt": "not a date, kept",
+  "captureSettings": "x",
+  "steps": {"0": {"id": "not in an array"}},
+  "displayScale": 1.02,
+  "theme": "",
+  "intro": {"heading": 5, "body": ""},
+  "introEditedByUser": false,
+  "sopBackup": {"steps": [], "title": 5},
+  "archived": 1,
+  "archivedAt": null
+}

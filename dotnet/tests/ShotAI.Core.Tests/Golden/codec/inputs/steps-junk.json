@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "title": "Junk steps",
+  "steps": [
+    {"id": "good", "order": 1, "kind": "shot", "screenshot": "shots/a.png", "trigger": "click"},
+    null,
+    42,
+    "x",
+    [],
+    true,
+    {},
+    {"id": "s3", "annotations": "nope", "caption": "after annotations"},
+    {"id": "s4", "annotations": null},
+    {"id": "s5"},
+    {"annotations": {"not": "an array"}, "id": "s6"}
+  ]
+}

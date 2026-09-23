@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "id": "",
+  "title": "Backup three",
+  "createdWith": "shotAI",
+  "createdAt": "",
+  "updatedAt": "",
+  "captureSettings": null,
+  "steps": [],
+  "intro": null,
+  "sopBackup": {
+    "steps": [
+      {
+        "id": "x",
+        "note": "kept",
+        "annotations": []
+      }
+    ],
+    "title": "T",
+    "intro": {
+      "heading": "Only heading",
+      "body": ""
+    },
+    "model": "",
+    "tone": "professional",
+    "at": ""
+  },
+  "archived": false,
+  "archivedAt": null
+}
