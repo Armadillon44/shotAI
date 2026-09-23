@@ -1091,6 +1091,8 @@ public interface IAppPaths
 
 `AppPaths` (App): `Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)` (FOLDERID_RoamingAppData, the same folder Electron's `appData` resolves to) + `shotAI`; `Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)` (FOLDERID_LocalAppData) + `LFI\shotAI`; `Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)` + `shotAI Projects`. An empty result from `GetFolderPath` is a fatal startup error logged and shown by 03 (it cannot happen on a normal profile). No code composes these paths itself; Core receives them through `IAppPaths`, and tests pass a temp-folder implementation (ARCHITECTURE 10.2). REQUIRED.
 
+`AppPaths` also exposes 03's `BrandFontPath()` (03 2.10.10): `Path.Combine(FontsDirectory, "Archivo.ttf")`, returning `""` when the file is missing so an export degrades to the fallback stack (parity with `src/main/paths.ts:29-36`). It is not an `IAppPaths` member: `AppPaths` implements 09's `IBrandFontSource` (`string BrandFontPath()`) as well as `IAppPaths`, and 09 consumes it through that interface only. The production paths are pinned by `Shell.AppPathsTests` (8.5): `SettingsFileIsRoamingAppData`, `LogsDirectoryIsRoamingAppData`, `LocalDataDirectoryIsUnderLfi` (`LocalDataDirectory` equals `%LOCALAPPDATA%\LFI\shotAI`, the test 08's `MsalCachePersistenceTests.CacheLivesUnderLocalDataDirectory` defers to) and `NoPathUnderSquirrelRoot` (AC-INFRA-35).
+
 Where each kind of data lives (ARCHITECTURE 10.1):
 
 | Data | Directory | Why |
@@ -1624,6 +1626,6 @@ Target: `Updates.UpdateCheckTests`.
 
 **Q-INFRA-21. Refuse user info in links?** macOS refuses `https://user@github.com/` and custom ports for the release page (`macOS:Packages/UpdateKit/Sources/UpdateKit/UpdateFeed.swift:203-209`); Electron and 11 7.3.4 allow both on an allowed host. Recommended default: parity for 2.0.0 (11 owns the algorithm); the release URL itself is already constrained by `PickRelease`'s `https://github.com/` prefix, which excludes user info and ports.
 
-**Q-INFRA-22. Does `IExternalLinks.OpenAsync` throw?** Resolved by R-ARCH-25: 11's contract (it returns `false` when refused and throws only if the launcher throws, parity with Electron's awaited `shell.openExternal`); 06's callers wrap the call and show nothing (an update nudge is never worth an error, `App.tsx:70`). 06 INV-HOME-31's "never throws" wording is aligned by 06.
+**Q-INFRA-22. Does `IExternalLinks.OpenAsync` throw?** Resolved by R-ARCH-25: 11's contract (it returns `false` when refused and throws only if the launcher throws, parity with Electron's awaited `shell.openExternal`); 06's callers wrap the call and show nothing (an update nudge is never worth an error, `App.tsx:70`). 06 INV-HOME-31 now states 11's contract and says every caller wraps the call.
 
 **Risks.** (1) The byte layout of `settings.json` depends on 01's `JsJson` matching `JSON.stringify` exactly; its tests are the gate. (2) Three generators must agree; `BrandParityWithElectronTests` covers Windows and TypeScript, and the macOS side stays a manual stamp comparison. (3) The update check is the one feature whose behavior depends on GitHub's live API; the self-test switch is the field check. (4) A pilot user switching between Electron and native builds exercises EDGE-INFRA-40 continuously; no coordination exists by design.
