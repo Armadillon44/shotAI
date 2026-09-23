@@ -1,6 +1,6 @@
 # 12 Packaging, signing, deployment, CI and release
 
-> Spec for the native rewrite. Sources read: `forge.config.ts` (201 lines), `package.json` (84), `vite.main.config.ts` (82), `vite.preload.config.ts` (4), `vite.renderer.config.ts` (20), `vitest.config.ts` (13), `scripts/postinstall.mjs` (157), `scripts/build-element-locator.mjs` (35), `scripts/make-loading-gif.cjs` (203), `scripts/report-strut-probe.cjs` (121), `scripts/report-width-probe.cjs` (66), `scripts/ts-register.mjs` (4), `scripts/ts-resolve.mjs` (20), `.github/workflows/ci.yml` (68), `.github/workflows/dotnet.yml` (71), `README.md` (401), `Intune/Windows/README.md` (117), `docs/HARDENING-PLAN.md` (296), `docs/PLAN.md` (280), `.npmrc` (11), `src/vite-env.d.ts` (1), `assets/` (`shotAI_icon.ico` 67646 bytes, `shotAI_icon.png` 77792 bytes, `shotAI_icon_v3.svg` 1784 bytes, `shotAI-install.gif` 238861 bytes), `dotnet/` (`README.md` 53, `Directory.Build.props` 33, `Directory.Packages.props` 10, `ShotAI.slnx` 10, `global.json` 9, `src/ShotAI.App/ShotAI.App.csproj` 20, `src/ShotAI.App/app.manifest` 19, `src/ShotAI.App/MainWindow.xaml.cs` 27, `src/ShotAI.Core/ShotAI.Core.csproj` 15, `src/ShotAI.Platform/ShotAI.Platform.csproj` 20, `src/ShotAI.Platform/CaptureExclusion.cs` 23, `src/ShotAI.Platform/NativeMethods.txt` 1, `tests/ShotAI.Core.Tests/*` 4 files). Supporting reads (runtime behavior this subsystem packages or replaces): `src/main/main.ts` (595), `src/main/arp-icon.ts` (102), `src/main/gpu-policy.ts` (58), `src/main/update-check.ts` (163), `src/main/update-state.ts` (25), `src/main/settings.ts` (434, `:1-260`), `src/main/logger.ts` (49), `src/main/secrets.ts` (112), `src/main/atomic-write.ts` (51), `src/main/paths.ts` (44), `Intune/Windows/shotAI.admx` (68), `.gitattributes` (18), tests `src/main/arp-icon.test.ts` (119), `src/main/gpu-policy.test.ts` (65), `src/main/update-check.test.ts` (189, `:1-80`), `src/shared/export-theme.test.ts` (261, `:100-175`, the packaging assertions). Context: `docs/NATIVE-WINDOWS-FEASIBILITY.md` (274) and specs 01 to 10 in this folder (their sections that name spec 12). Commits read (`git show`): `c070095` (#104, #93 OFL shipped, packaged font path measured), `66d7376` (#58, AVIF and the asar unpack rule), `ac5e101` (#51, `--silent` and deployment notes), `e32bb8f` (#110, v1.3.0 release commit), `9da70df` (#34, the history root; everything earlier is squashed into it), `dcb4196` (native scaffold and `dotnet.yml`), plus the `git log` of every listed source. macOS (`/home/user/armadillon44/shotai_macos`, read-only): `docs/DISTRIBUTION.md` (201), `Intune/README.md` (88), `Scripts/dist.sh` (154), `.github/workflows/ci.yml` (79). Microsoft Learn pages verified: Intune Win32 app management, detection rules, dependencies and supersedence; Intune Windows LOB apps; MSIX "behind the scenes" file system virtualization, `desktop6:FileSystemWriteVirtualization`, `virtualization:FileSystemWriteVirtualization`, flexible virtualization and the `unvirtualizedResources` restricted capability; WebView2 distribution; Install .NET on Windows (silent switches, Microsoft Update, Arm64 paths); .NET publishing overview, `AppHostDotNetSearch`, runtime roll forward; Azure Artifact Signing (MSIX signing guide, code signing options, trust models, FAQ); Windows Installer `VersionNT` on Windows 10, 64-bit packages, Version data type. Verifier pass (second reading of every listed source end to end, plus Microsoft Learn): Artifact Signing signing integrations (SignTool dlib, timestamp authority, the `Artifact Signing Certificate Profile Signer` role, the `azure/artifact-signing-action` action), Artifact Signing quickstart (Public Trust eligibility), MSIX signing guide, MSBuild reference `AppHostDotNetSearch` (publish only), trimming options (`StartupHookSupport`), .NET 9 "CET supported by default" and the `/CETCOMPAT` linker page (x64 only), Install .NET on Windows (`BlockMU`, `RemovePreviousVersion`), Windows Installer "Conditional Statement Syntax", "Using 64-Bit Windows Installer Packages" and "Template Summary", `virtualization:ExcludedDirectories` (build 20348) and flexible virtualization, Intune "Add a Win32 app" (Program step: no environment variable expansion in the uninstall command; 32-bit PowerShell) and "Add apps" (uninstall assignment rules). Status: extracted and verified. Consolidated with ARCHITECTURE.md R-ARCH-1 to R-ARCH-26 on 2026-09-23.
+> Spec for the native rewrite. Sources read: `forge.config.ts` (201 lines), `package.json` (84), `vite.main.config.ts` (82), `vite.preload.config.ts` (4), `vite.renderer.config.ts` (20), `vitest.config.ts` (13), `scripts/postinstall.mjs` (157), `scripts/build-element-locator.mjs` (35), `scripts/make-loading-gif.cjs` (203), `scripts/report-strut-probe.cjs` (121), `scripts/report-width-probe.cjs` (66), `scripts/ts-register.mjs` (4), `scripts/ts-resolve.mjs` (20), `.github/workflows/ci.yml` (68), `.github/workflows/dotnet.yml` (71), `README.md` (401), `Intune/Windows/README.md` (117), `docs/HARDENING-PLAN.md` (296), `docs/PLAN.md` (280), `.npmrc` (11), `src/vite-env.d.ts` (1), `assets/` (`shotAI_icon.ico` 67646 bytes, `shotAI_icon.png` 77792 bytes, `shotAI_icon_v3.svg` 1784 bytes, `shotAI-install.gif` 238861 bytes), `dotnet/` (`README.md` 53, `Directory.Build.props` 33, `Directory.Packages.props` 10, `ShotAI.slnx` 10, `global.json` 9, `src/ShotAI.App/ShotAI.App.csproj` 20, `src/ShotAI.App/app.manifest` 19, `src/ShotAI.App/MainWindow.xaml.cs` 27, `src/ShotAI.Core/ShotAI.Core.csproj` 15, `src/ShotAI.Platform/ShotAI.Platform.csproj` 20, `src/ShotAI.Platform/CaptureExclusion.cs` 23, `src/ShotAI.Platform/NativeMethods.txt` 1, `tests/ShotAI.Core.Tests/*` 4 files). Supporting reads (runtime behavior this subsystem packages or replaces): `src/main/main.ts` (595), `src/main/arp-icon.ts` (102), `src/main/gpu-policy.ts` (58), `src/main/update-check.ts` (163), `src/main/update-state.ts` (25), `src/main/settings.ts` (434, `:1-260`), `src/main/logger.ts` (49), `src/main/secrets.ts` (112), `src/main/atomic-write.ts` (51), `src/main/paths.ts` (44), `Intune/Windows/shotAI.admx` (68), `.gitattributes` (18), tests `src/main/arp-icon.test.ts` (119), `src/main/gpu-policy.test.ts` (65), `src/main/update-check.test.ts` (189, `:1-80`), `src/shared/export-theme.test.ts` (261, `:100-175`, the packaging assertions). Context: `docs/NATIVE-WINDOWS-FEASIBILITY.md` (274) and specs 01 to 10 in this folder (their sections that name spec 12). Commits read (`git show`): `c070095` (#104, #93 OFL shipped, packaged font path measured), `66d7376` (#58, AVIF and the asar unpack rule), `ac5e101` (#51, `--silent` and deployment notes), `e32bb8f` (#110, v1.3.0 release commit), `9da70df` (#34, the history root; everything earlier is squashed into it), `dcb4196` (native scaffold and `dotnet.yml`), plus the `git log` of every listed source. macOS (`/home/user/armadillon44/shotai_macos`, read-only): `docs/DISTRIBUTION.md` (201), `Intune/README.md` (88), `Scripts/dist.sh` (154), `.github/workflows/ci.yml` (79). Microsoft Learn pages verified: Intune Win32 app management, detection rules, dependencies and supersedence; Intune Windows LOB apps; MSIX "behind the scenes" file system virtualization, `desktop6:FileSystemWriteVirtualization`, `virtualization:FileSystemWriteVirtualization`, flexible virtualization and the `unvirtualizedResources` restricted capability; WebView2 distribution; Install .NET on Windows (silent switches, Microsoft Update, Arm64 paths); .NET publishing overview, `AppHostDotNetSearch`, runtime roll forward; Azure Artifact Signing (MSIX signing guide, code signing options, trust models, FAQ); Windows Installer `VersionNT` on Windows 10, 64-bit packages, Version data type. Verifier pass (second reading of every listed source end to end, plus Microsoft Learn): Artifact Signing signing integrations (SignTool dlib, timestamp authority, the `Artifact Signing Certificate Profile Signer` role, the `azure/artifact-signing-action` action), Artifact Signing quickstart (Public Trust eligibility), MSIX signing guide, MSBuild reference `AppHostDotNetSearch` (publish only), trimming options (`StartupHookSupport`), .NET 9 "CET supported by default" and the `/CETCOMPAT` linker page (x64 only), Install .NET on Windows (`BlockMU`, `RemovePreviousVersion`), Windows Installer "Conditional Statement Syntax", "Using 64-Bit Windows Installer Packages" and "Template Summary", `virtualization:ExcludedDirectories` (build 20348) and flexible virtualization, Intune "Add a Win32 app" (Program step: no environment variable expansion in the uninstall command; 32-bit PowerShell) and "Add apps" (uninstall assignment rules). Status: extracted and verified. Consolidated with ARCHITECTURE.md R-ARCH-1 to R-ARCH-26 on 2026-09-23. Install scope revised on 2026-09-23 at the maintainer's decision: one dual-purpose MSI, per-user when a person installs it, per-machine when Intune does (7.4.5). Read for that revision: Microsoft Learn "Installation Context", "Single Package Authoring", "Single Package Authoring Example", `ALLUSERS`, `MSIINSTALLPERUSER`, ICE105, "Installing Multiple Instances of Products and Patches", `MsiGetProductInfo` (`INSTALLPROPERTY_ASSIGNMENTTYPE`), `Installer.RelatedProducts`, "Machine Policies" (`DisableUserInstalls`), Intune "Windows app deployment" (dual-mode Win32 apps) and "Add a Win32 app" (dependencies, install behavior), AppLocker executable rules, App Control for Business managed installer; WiX Toolset sources (`src/wix/WixToolset.Core/Compiler_Package.cs` for the `Scope` values, `src/ext/UI/wixlib/WixUI_Advanced.wxs` and `InstallScopeDlg.wxs`, `src/ext/NetFx/ca/netfxca.cpp` and `src/ext/NetFx/wixlib/NetFxExtension_Platform.wxi` for `DotNetCompatibilityCheck`).
 
 **Notation used in this document.**
 
@@ -16,13 +16,13 @@
 
 | Area | What this spec decides and specifies |
 |---|---|
-| Installer format | The per-machine MSI (the decision against MSIX and against the Intune LOB MSI app type), its authoring, product identity, upgrade codes, version mapping, launch conditions, shortcut, "Installed apps" entry and icon, upgrade, downgrade and uninstall behavior |
+| Installer format | The dual-purpose MSI, installed per-machine by Intune and per-user by a person (the decision against MSIX and against the Intune LOB MSI app type), its authoring, install scope, product identity, upgrade codes, version mapping, launch conditions, shortcut, "Installed apps" entry and icon, upgrade, downgrade and uninstall behavior |
 | Build and publish | `dotnet publish` settings for `win-x64` and `win-arm64`, framework-dependent deployment, runtime roll forward, the published payload layout and its verification |
 | Prerequisites | The .NET 10 Desktop Runtime (hard), the WebView2 Evergreen Runtime (soft, PDF only), the Windows OCR language Feature on Demand (soft, auto-redact only), how each is detected and deployed |
 | Signing | Azure Artifact Signing for every first-party PE and the MSI, the signing order, timestamping, verification in CI |
 | Native dependency provenance | How `shotai_avif.dll` (libavif plus libaom, spec 09 7.6) is built from pinned sources, attested and shipped; the NuGet supply chain |
 | Runtime hardening that is a packaging concern | DLL search order, apphost runtime search, startup hooks, the execution level in the manifest, install directory permissions |
-| User data placement and coexistence | Where every per-user file lives, which ones are shared with the Electron build during the pilot, the collision rules, the running-Electron guard |
+| User data placement and coexistence | Where every per-user file lives, which ones are shared with the Electron build during the pilot, the collision rules, the running-Electron guard, how the app learns its install scope and the hand-off from a personal copy to the copy for all users |
 | Versioning and releases | The version source, tag grammar, prerelease flags, "latest" handling on GitHub, release assets, the release checklist |
 | CI | `ci.yml` (kept for Electron), `dotnet.yml` (extended), a new `release.yml`, the native dependency build job |
 | Pilot, cutover and rollback | The state machine from Electron-only to native-only and back, Intune configuration, removal of the per-user Squirrel install, the Electron code removal PR |
@@ -42,7 +42,7 @@
 
 ### 1.3 Touches
 
-01 (Linux and Windows test jobs, junction permission on the runner), 02 (ARM64 build, removal of the Rust DLL and native npm modules), 03 (installer never launches the app, ARP icon, Start menu shortcut, `app.manifest`, running-Electron guard placement in startup), 04 (OCR Feature on Demand deployment note, Windows test runner with a recognizer), 05 and 06 (Windows test projects), 07 (`Anthropic` NuGet notice), 08 (release secret for baked federation, `msalruntime` per RID, MSAL cache under `IAppPaths.LocalDataDirectory` per R-ARCH-13), 09 (`shotai_avif.dll`, fonts, WebView2 prerequisite, WebView2 user data folder under `IAppPaths.LocalDataDirectory` per R-ARCH-13, Q-EXP-20 answered in 7.10), 10 (brand check CI step, self-test smoke step, fonts and `OFL.txt`, third-party notices, prerelease flags, `IAppPaths.LocalDataDirectory` = `%LOCALAPPDATA%\LFI\shotAI\` per R-ARCH-13, Q-INFRA-8 answered in 7.1).
+01 (Linux and Windows test jobs, junction permission on the runner), 02 (ARM64 build, removal of the Rust DLL and native npm modules), 03 (installer never launches the app, ARP icon, Start menu shortcut, `app.manifest`, running-Electron guard placement in startup, the personal-copy hand-off before the mutex, 7.10.4), 04 (OCR Feature on Demand deployment note, Windows test runner with a recognizer), 05 and 06 (Windows test projects; 06's update notice reads the install scope, 7.10.4), 07 (`Anthropic` NuGet notice), 08 (release secret for baked federation, `msalruntime` per RID, MSAL cache under `IAppPaths.LocalDataDirectory` per R-ARCH-13), 09 (`shotai_avif.dll`, fonts, WebView2 prerequisite, WebView2 user data folder under `IAppPaths.LocalDataDirectory` per R-ARCH-13, Q-EXP-20 answered in 7.10), 10 (brand check CI step, self-test smoke step, fonts and `OFL.txt`, third-party notices, prerelease flags, `IAppPaths.LocalDataDirectory` = `%LOCALAPPDATA%\LFI\shotAI\` per R-ARCH-13, Q-INFRA-8 answered in 7.1).
 
 ## 2. Reference behavior (Electron)
 
@@ -90,9 +90,9 @@ Log strings (verbatim, prefix `[postinstall] `): `ensuring x64 Electron binary..
 |---|---|---|---|
 | 2.4.1 | Maker: `MakerSquirrel` with `setupIcon: './assets/shotAI_icon.ico'`, `setupExe: \`shotAI-${APP_VERSION}-Setup.exe\`` (Squirrel's default `shotAI-<version> Setup.exe` has a space, "awkward in URLs/downloads"), `loadingGif: './assets/shotAI-install.gif'`, `authors: 'LFI'`. `iconUrl` is intentionally NOT set because it would "bake a personal GitHub URL into the installed package". | `forge.config.ts:136-155` | ELECTRON-ONLY maker. REQUIRED intents: a hyphenated, versioned, space-free installer name (INV-PKG-34); publisher `LFI`; no personal data in installer metadata (INV-PKG-13). |
 | 2.4.2 | Other makers: `MakerZIP({}, ['darwin'])`, `MakerRpm({})`, `MakerDeb({})`. | `forge.config.ts:156-158` | ELECTRON-ONLY (macOS is a separate app; Linux is not a target). |
-| 2.4.3 | Double-click install is per-user into `%LocalAppData%\shotAI` (the folder is the nuspec id `shotai`; NTFS is case-insensitive), no admin, shows the looping animation, then launches the app. There is no wizard. | `README.md:263-268`; `src/main/arp-icon.ts:25-27`, `:42-47` | ELECTRON-ONLY. Native: per-machine, admin, silent via Intune (7.4, 7.5). |
+| 2.4.3 | Double-click install is per-user into `%LocalAppData%\shotAI` (the folder is the nuspec id `shotai`; NTFS is case-insensitive), no admin, shows the looping animation, then launches the app. There is no wizard. | `README.md:263-268`; `src/main/arp-icon.ts:25-27`, `:42-47` | ELECTRON-ONLY mechanism. REQUIRED intent: a double-click still installs per-user with no admin rights, into `%LOCALAPPDATA%\Programs\shotAI` (7.4.5); Intune installs per-machine and silently (7.5). No animation and no launch after install (D-PKG-8). |
 | 2.4.4 | Silent install: `shotAI-<version>-Setup.exe --silent` suppresses the animation and does not auto-launch. "use `--silent` (not `/S`, `/quiet`, or `/qn` \u2014 those belong to NSIS/MSI installers; shotAI isn't one)". | `README.md:270-276`; `ac5e101` | ELECTRON-ONLY. Native uses the standard `msiexec /i <msi> /qn /norestart`. |
-| 2.4.5 | Deployment notes: "Deploy in user context" because a device-context push has no profile to install into; uninstall via Settings, Apps or the per-user Squirrel uninstaller; "Not code-signed yet" so SmartScreen or Defender may need an allow rule. | `README.md:278-286` | IMPROVEMENT natively: device context, signed. |
+| 2.4.5 | Deployment notes: "Deploy in user context" because a device-context push has no profile to install into; uninstall via Settings, Apps or the per-user Squirrel uninstaller; "Not code-signed yet" so SmartScreen or Defender may need an allow rule. | `README.md:278-286` | IMPROVEMENT natively: device context (per-machine, `ALLUSERS=1`, INV-PKG-36), signed. |
 | 2.4.6 | Install animation `assets/shotAI-install.gif` is generated by `scripts/make-loading-gif.cjs` (2.12.1). Squirrel "can't be driven by real %", so the bar is indeterminate. | `forge.config.ts:142-145` | ELECTRON-ONLY (an Intune MSI install shows no UI; a manual MSI install shows the standard Windows Installer progress). |
 | 2.4.7 | Squirrel layout: `<InstallRoot>\app-<version>\shotAI.exe`, `<InstallRoot>\app.ico`, `<InstallRoot>\Update.exe`; ARP key `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\shotai`. | `src/main/arp-icon.ts:25-27`, `:42-47`; `src/main/arp-icon.test.ts:23-29` | ELECTRON-ONLY. The layout matters natively only for coexistence and removal (7.10, 7.13). |
 | 2.4.8 | User and admin documentation that describes the Squirrel install lives outside the tree too: README points to the wiki page `Installation` ("the end-user walkthrough and the same deployment notes"), and README's licence section says the OFL "ships with the font in the installed app (`resources/OFL.txt`)". | `README.md:288-289`, `:395-401` | REQUIRED at cutover: the README deployment section, the licence section (native path `Fonts\OFL.txt`) and the wiki `Installation` page are rewritten for the MSI in the 2.0.0 release PR (7.12.2 item 7). |
@@ -217,7 +217,11 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 | CsWin32 | `0.3.335` | | | `Directory.Packages.props` |
 | xunit.v3 | `4.0.1` | | | `Directory.Packages.props` |
 | Policy key | `HKLM\SOFTWARE\Policies\shotAI\Federation` | registry | | `Intune/Windows/README.md:8-10` |
-| Native install dir (new) | `%ProgramFiles%\shotAI` (`ProgramFiles64Folder\shotAI`) | path | both architectures | 7.4 |
+| Native install dir, per-machine (new) | `%ProgramFiles%\shotAI` (`ProgramFiles64Folder\shotAI` with `ALLUSERS=1`) | path | both architectures | 7.4.5 |
+| Native install dir, per-user (new) | `%LOCALAPPDATA%\Programs\shotAI` (`ProgramFiles64Folder\shotAI` in the per-user context: `FOLDERID_UserProgramFiles`) | path | both architectures | 7.4.5; Microsoft Learn, Installation Context |
+| Install scope properties (new) | Property table `ALLUSERS=2`, `MSIINSTALLPERUSER=1` (WiX `Scope="perUserOrMachine"`): default per-user; `ALLUSERS=1` on the command line selects per-machine | | | 7.4.5; WiX `Compiler_Package.cs` |
+| Install marker (new) | `SOFTWARE\LFI\shotAI` value `InstallFolder` (`REG_SZ`, `[INSTALLFOLDER]`), written under `HKMU`: `HKLM` (64-bit view) per-machine, `HKCU` per-user | registry | read by the per-user launch condition (7.4.4) and by `IInstallInfo` (7.10.4); never written by the app | 7.4.2 |
+| Runtime check (new) | WiX NetFx `DotNetCompatibilityCheck`, `RuntimeType="desktop"`, `Version="10.0.0"`, `RollForward="Minor"`, property `SHOTAI_DESKTOPRUNTIME` (NetCoreCheck exit code, `0` means found) | | per-user installs only (INV-PKG-37) | 7.4.4 |
 | MSI file name (new) | `shotAI-<semver>-<arch>.msi`, arch `x64` or `arm64` | | release asset | 7.3 |
 | MSI stage base (new) | alpha 0, beta 300, rc 600, final 999 | | MSI build field formula | 7.3 |
 | MSI prerelease number limit (new) | 0 to 299 | | `N` in `-stage.N` | 7.3 |
@@ -244,9 +248,9 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 
 ## 4. Invariants
 
-**INV-PKG-1. The native app ships as a per-machine MSI per architecture, deployed by Intune as a Win32 app; there is no MSIX and no Intune "line-of-business" MSI app.** Why: MSIX virtualizes new files under `AppData` to a private per-package location, which would stop sharing `settings.json` and the logs with the Electron build during the pilot and break rollback (10 EDGE-INFRA-39); the per-directory exclusion needs build 20348 or later and a restricted capability documented as "not intended for other scenarios"; the Win32 app type is the only one with dependencies (the Desktop Runtime), architecture requirement rules, supersedence and return-code handling. Citation: 7.1. Test: `PackageSourceTests.ScopeIsPerMachine` (Linux, reads `Package.wxs`), AC-PKG-1.
+**INV-PKG-1. The native app ships as one dual-purpose MSI per architecture (per-user by default, per-machine with `ALLUSERS=1`, INV-PKG-35), deployed by Intune as a Win32 app in its per-machine scope (INV-PKG-36); there is no MSIX and no Intune "line-of-business" MSI app.** Why: MSIX virtualizes new files under `AppData` to a private per-package location, which would stop sharing `settings.json` and the logs with the Electron build during the pilot and break rollback (10 EDGE-INFRA-39); the per-directory exclusion needs build 20348 or later and a restricted capability documented as "not intended for other scenarios"; the Win32 app type is the only one with dependencies (the Desktop Runtime), architecture requirement rules, supersedence and return-code handling. Revised 2026-09-23: the MSI was per-machine only; the maintainer chose one package for both scopes so that a person without administrator rights can still install shotAI, as with Squirrel (Q-PKG-23). Citation: 7.1, 7.4.5. Test: `PackageSourceTests.ScopeIsDualPurpose` (Linux, reads `Package.wxs`), AC-PKG-1.
 
-**INV-PKG-2. The installer never creates, modifies or deletes per-user data: `%APPDATA%\shotAI\` (settings, logs, Electron files), the projects folder, and the native local data folder `%LOCALAPPDATA%\LFI\shotAI\` (`IAppPaths.LocalDataDirectory`: MSAL cache, WebView2 data; R-ARCH-13) survive install, upgrade, repair and uninstall.** Why: the Electron and native builds share the `%APPDATA%\shotAI\` files and the projects folder (`src/main/settings.ts:125-131`); uninstall must never cost a user their projects or sign them out. Citation: 2.6, 7.10. Test: `PackageSourceTests.NoUserProfileLocations` (no `AppDataFolder`, `LocalAppDataFolder`, `PersonalFolder`, `RemoveFolderEx` or `util:RemoveFolderEx` in `Package.wxs`), AC-PKG-9.
+**INV-PKG-2. The installer never creates, modifies or deletes per-user data: `%APPDATA%\shotAI\` (settings, logs, Electron files), the projects folder, and the native local data folder `%LOCALAPPDATA%\LFI\shotAI\` (`IAppPaths.LocalDataDirectory`: MSAL cache, WebView2 data; R-ARCH-13) survive install, upgrade, repair and uninstall.** Why: the Electron and native builds share the `%APPDATA%\shotAI\` files and the projects folder (`src/main/settings.ts:125-131`); uninstall must never cost a user their projects or sign them out. A per-user install puts the install folder itself under the profile (`%LOCALAPPDATA%\Programs\shotAI`) through Windows Installer's redirection of `ProgramFiles64Folder` (7.4.5); that folder is the install, not user data, and the package still names no profile folder. Citation: 2.6, 7.10. Test: `PackageSourceTests.NoUserProfileLocations` (no `AppDataFolder`, `LocalAppDataFolder`, `PersonalFolder`, `RemoveFolderEx` or `util:RemoveFolderEx` in `Package.wxs`), AC-PKG-9.
 
 **INV-PKG-3. [SECURITY] The installer writes nothing under `HKLM\SOFTWARE\Policies`.** Why: the policy key is the administrator's (Intune or Group Policy) channel; an installer value would be indistinguishable from policy and would outrank baked values (`Intune/Windows/README.md:12-16`, `:23-24`; 08 interface). Citation: 2.10. Test: `PackageSourceTests.NoPolicyRegistryWrites`.
 
@@ -272,7 +276,7 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 
 **INV-PKG-14. [SECURITY] A public GitHub release asset is always a bring-your-own-key build with no baked federation; a build with baked federation is produced only as a restricted workflow artifact for Intune.** Why: the values "identify your tenant and your Anthropic organization, so treat them as internal rather than published" (`Intune/Windows/README.md:85-90`); a public MSI would publish them. Citation: 7.11.3. Test: `verify-payload --public` asserts the `shotAI.dll` manifest resources contain no `ShotAI.Federation.Baked.json`; `WorkflowContractTests.FederationSecretOnlyInInternalJob`.
 
-**INV-PKG-15. [SECURITY] The install directory inherits the `Program Files` ACL (only administrators and SYSTEM can write), and the app never writes to its install directory.** Why: an app directory writable by a standard user lets that user plant a DLL that every later launch loads. Citation: 7.9. Test: `PackageSourceTests.NoPermissionElements` (no `Permission`, `PermissionEx` or `util:PermissionEx` in `Package.wxs`); AC-PKG-6 (`icacls` of the installed folder shows no write for `Users` or `Authenticated Users`).
+**INV-PKG-15. [SECURITY] A per-machine install directory inherits the `Program Files` ACL (only administrators and SYSTEM can write); a per-user install directory keeps the ACL Windows Installer gives `%LOCALAPPDATA%\Programs` (writable by its user, "accessed only by the user that installed" it); the package sets no permissions in either scope, and the app never writes to its install directory.** Why: an app directory writable by a standard user lets that user plant a DLL that every later launch loads. In the per-machine scope that user is anyone; in the per-user scope it is only the user the copy belongs to, who can already run any code as themselves, so the planted DLL gains no privilege: the same exposure as the Squirrel install it replaces (2.4.3, D-PKG-1). Managed PCs get the per-machine scope (INV-PKG-36); where application control is enforced, a per-user copy also meets EDGE-PKG-66. Revised 2026-09-23 with the dual-purpose MSI. Citation: 7.9, 7.4.5. Test: `PackageSourceTests.NoPermissionElements` (no `Permission`, `PermissionEx` or `util:PermissionEx` in `Package.wxs`); AC-PKG-6 (`icacls` of the per-machine folder shows no write for `Users` or `Authenticated Users`).
 
 **INV-PKG-16. [SECURITY] The process restricts native library search before loading any native library: `SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)` is the first statement of `Main`, and every assembly with P/Invoke declares `[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32 | DllImportSearchPath.AssemblyDirectory)]`.** Why: the current directory and `PATH` must never supply a DLL (a document opened from a share would otherwise become a planting vector). Citation: 7.9. Test: `DllSearchTests.CurrentDirectoryNotSearched` (Platform.Tests: a DLL named like a delay-loaded dependency placed in the working directory is not loaded), `SourceScanTests.DllImportSearchPathsDeclared` (Linux, scans `AssemblyInfo` of Platform and App).
 
@@ -288,7 +292,7 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 
 **INV-PKG-22. `dotnet build ShotAI.slnx` stays buildable on Linux; the WiX installer project is not in `ShotAI.slnx` and is built only on Windows.** Why: the Linux job builds the whole solution (`dotnet.yml:6-7`, `:56`) and WiX needs Windows Installer APIs. Citation: 7.4. Test: the Linux job itself; `RepoHygieneTests.InstallerNotInSolution`.
 
-**INV-PKG-23. Every CI run on Windows and every release installs the built MSI on the runner, launches the installed `shotAI.exe --selftest` (exit 0, `[selftest] PASS`), uninstalls, and checks the result.** Why: S11 (a package nobody launched was dead on arrival, `docs/HARDENING-PLAN.md:129-136`) and #93 (a packaged path nobody exercised, `c070095`). Citation: 7.11.2. Test: the `package` job; AC-PKG-3.
+**INV-PKG-23. Every CI run on Windows and every release installs the built MSI on the runner in both scopes (per-machine with `ALLUSERS=1`, then per-user with no scope property), launches the installed `shotAI.exe --selftest` each time (exit 0, `[selftest] PASS`), uninstalls, and checks the result.** Why: S11 (a package nobody launched was dead on arrival, `docs/HARDENING-PLAN.md:129-136`) and #93 (a packaged path nobody exercised, `c070095`). Citation: 7.11.2. Test: the `package` job; AC-PKG-3.
 
 **INV-PKG-24. The native app never reads, writes or deletes Electron-owned files (`secrets.json`, `entra-cache.bin`, `tessdata\`, the Chromium profile entries in `%APPDATA%\shotAI`) or anything under the Squirrel root `%LocalAppData%\shotai\`, and keeps none of its own data under that root: native-only local data lives under `IAppPaths.LocalDataDirectory` = `%LOCALAPPDATA%\LFI\shotAI\` (MSAL cache `entra\msal-cache.bin`, WebView2 data `WebView2\`), while `settings.json`, the logs and the projects folder stay where the Electron build keeps them (R-ARCH-13).** Why: rollback needs Electron's files intact (08 EDGE-AUTH-33); Squirrel's uninstall deletes its whole root, which is the same folder as `%LOCALAPPDATA%\shotAI` on a case-insensitive file system (EDGE-PKG-22, R-ARCH-13). Citation: 2.6, 7.10; ARCHITECTURE 10.1, 10.2. Test: `Shell.AppPathsTests.NoPathUnderSquirrelRoot` and `.LocalDataDirectoryIsUnderLfi` (App.Tests, owned with 10: every `IAppPaths` member is outside `%LOCALAPPDATA%\shotai`, compared `OrdinalIgnoreCase` after `Path.GetFullPath`, and `LocalDataDirectory` equals `%LOCALAPPDATA%\LFI\shotAI`); AC-PKG-24; ARCHITECTURE AC-ARCH-7.
 
@@ -302,15 +306,23 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 
 **INV-PKG-29. `THIRD-PARTY-NOTICES.txt` is installed next to `shotAI.exe` and attached to each release; it names every shipped NuGet package and native library with its licence, including the SIL OFL 1.1 for Archivo (pointing at `Fonts\OFL.txt`), BSD-2-Clause for libavif and libaom, and the Alliance for Open Media Patent License 1.0 for libaom.** Why: OFL condition 2 (10 INV-INFRA-31); libaom's licence and patent grant must accompany binaries. Citation: 7.7.4. Test: `ThirdPartyNoticesTests.CoversShippedPackages` (every `PackageVersion` not marked build-only appears), `.CoversNativeLibraries`.
 
-**INV-PKG-30. The MSI creates exactly one per-machine Start menu shortcut to `[INSTALLFOLDER]shotAI.exe` named per the shortcut rule, sets `ARPPRODUCTICON` from `assets/shotAI_icon.ico`, sets DisplayName `shotAI` and Manufacturer `LFI`, and creates no desktop shortcut unless `DESKTOPSHORTCUT=1` is passed.** Why: parity with Squirrel's Start menu entry and the ARP icon intent (2.5); a per-machine desktop shortcut lands on every user's desktop (Q-PKG-9). Citation: 7.4. Test: `PackageSourceTests.ShortcutAndArp`; AC-PKG-2 (03 AC-SHELL-30).
+**INV-PKG-30. The MSI creates exactly one Start menu shortcut to `[INSTALLFOLDER]shotAI.exe`, in the Start menu of its scope (all users' per-machine, the installing user's per-user), named per the shortcut rule, sets `ARPPRODUCTICON` from `assets/shotAI_icon.ico`, sets DisplayName `shotAI` and Manufacturer `LFI`, and creates no desktop shortcut unless `DESKTOPSHORTCUT=1` is passed.** Why: parity with Squirrel's Start menu entry and the ARP icon intent (2.5); a per-machine desktop shortcut lands on every user's desktop (Q-PKG-9). Windows Installer redirects `ProgramMenuFolder` and `DesktopFolder` by scope (Microsoft Learn, Installation Context). Citation: 7.4. Test: `PackageSourceTests.ShortcutAndArp`; AC-PKG-2 (03 AC-SHELL-30).
 
-**INV-PKG-31. The MSI neither bundles nor chains the .NET Desktop Runtime, the WebView2 Runtime or the OCR language: the Desktop Runtime is an Intune dependency (hard: the app cannot start without it), WebView2 and OCR are soft (only PDF export or auto-redact degrade, with their own notices from 09 and 04).** Why: prerequisites are serviced by Microsoft and deployed once per device; a chained runtime installer inside an MSI is not supported by Windows Installer and would freeze a runtime version. Citation: 7.5. Test: `PackageSourceTests.NoChainedInstallers`; AC-PKG-10, AC-PKG-11.
+**INV-PKG-31. The MSI neither bundles nor chains the .NET Desktop Runtime, the WebView2 Runtime or the OCR language: the Desktop Runtime is an Intune dependency (hard: the app cannot start without it), WebView2 and OCR are soft (only PDF export or auto-redact degrade, with their own notices from 09 and 04).** Why: prerequisites are serviced by Microsoft and deployed once per device; a chained runtime installer inside an MSI is not supported by Windows Installer and would freeze a runtime version. A per-user install only CHECKS for the Desktop Runtime (INV-PKG-37), with WiX's `DotNetCompatibilityCheck`, which runs its embedded `NetCoreCheck.exe` and installs nothing. Citation: 7.5. Test: `PackageSourceTests.NoChainedInstallers`; AC-PKG-10, AC-PKG-11.
 
 **INV-PKG-32. [SECURITY] Every signature is RFC 3161 timestamped.** Why: Artifact Signing certificates live about three days; an untimestamped signature becomes invalid days after release. Citation: Microsoft Learn (Artifact Signing). Test: CI step asserts `TimeStamperCertificate` is not null for every signed file; AC-PKG-5.
 
-**INV-PKG-33. The app manifest requests `asInvoker` and `uiAccess="false"`; the app never needs elevation after install.** Why: all state is per user; the installer is the only elevated component. Citation: 7.9. Test: `ManifestTests.AsInvoker` (Linux, parses `app.manifest`).
+**INV-PKG-33. The app manifest requests `asInvoker` and `uiAccess="false"`; the app never needs elevation after install.** Why: all state is per user; the per-machine install is the only elevated step, and a per-user install has none. Citation: 7.9. Test: `ManifestTests.AsInvoker` (Linux, parses `app.manifest`).
 
 **INV-PKG-34. Release assets are named `shotAI-<semver>-x64.msi` and `shotAI-<semver>-arm64.msi` (no spaces), and every release carries `SHA256SUMS.txt` with one `<sha256>  <file>` line per asset.** Why: 2.4.1 (the space in Squirrel's default name) and the macOS rule that the notice shows the asset name (`macOS:docs/DISTRIBUTION.md:112-113`). Test: `ReleaseVersionTests.AssetNames`; `release.yml` verification step.
+
+**INV-PKG-35. One MSI installs in either scope: `Package Scope="perUserOrMachine"` puts `ALLUSERS=2` and `MSIINSTALLPERUSER=1` in the Property table, so an install with no scope property (a double-click, or `msiexec /i` alone) is per-user with no UAC prompt, and `ALLUSERS=1` makes it per-machine; the package passes ICE105.** Why: Microsoft Learn, Single Package Authoring: "Use **ALLUSERS** value of 2 and a **MSIINSTALLPERUSER** value of 1 as the initial values. This specifies per-user installation as the default", and "The package must be able to pass validation by ICE105 to be a valid dual-purpose package". ICE105 rejects a Registry row under `HKEY_LOCAL_MACHINE`, a custom action marked to run elevated, a service, a GAC assembly, an ODBC data source and the system folder properties, so every `RegistryValue` uses `Root="HKMU"` (EDGE-PKG-64). Per-user is the default because the person who double-clicks is the one who may lack admin rights; IT always passes the flag (INV-PKG-36). IMPROVEMENT, new 2026-09-23. Citation: 7.4.2, 7.4.5; WiX `Compiler_Package.cs` (`perUserOrMachine` writes exactly those two properties). Test: `PackageSourceTests.ScopeIsDualPurpose`, `.RegistryUsesHkmuOnly`, `.NoScopeDialog`; ICE validation in the `package` job; AC-PKG-35, AC-PKG-36.
+
+**INV-PKG-36. Every managed deployment is per-machine: the Intune Win32 app's install command passes `ALLUSERS=1`, its install behavior is System, and there is exactly one shotAI Intune app per architecture (no User-context app).** Why: without the flag, a System-context install of this package is a per-user install for the SYSTEM account, into that account's own profile, where no signed-in user sees it (EDGE-PKG-61); and Intune fixes a dual-mode Win32 app's context for every assignment of that app ("the admin must choose if the app will install as a User Mode or Machine Mode app for all assignments associated with that instance. The deployment context can't be changed per assignment", Microsoft Learn, Windows app deployment), so a second context would mean a second app entry per architecture to keep in step. Company Portal "Available" installs also run as SYSTEM, so standard users on managed PCs still install without admin rights. New 2026-09-23. Citation: 7.5.2. Test: `WorkflowContractTests.SmokePerMachineLegPassesAllUsers1` and `.IntuneNotesInstallCommandPassesAllUsers1`; AC-PKG-25.
+
+**INV-PKG-37. A per-user install is refused, with an exact message and before anything is written, when (a) a per-machine copy is installed (`HKLM\SOFTWARE\LFI\shotAI` value `InstallFolder` exists) or (b) the .NET 10 Desktop Runtime for the package's architecture is missing (`SHOTAI_DESKTOPRUNTIME` is not `0`); a per-machine install is refused by neither.** Why: (a) the two scopes can coexist and are upgraded separately (EDGE-PKG-62), so a personal copy beside IT's copy would be a second shotAI that IT never updates; (b) a per-user install succeeds without the runtime and then cannot start, and installing the runtime needs an administrator (7.5.1), so the message tells the user what to ask IT for. A per-machine install stays unblocked on the runtime so that an Intune dependency retry cannot wedge it (EDGE-PKG-42), and a personal copy never blocks it, because IT must always be able to deploy (INV-PKG-38 covers that order). New 2026-09-23. Citation: 7.4.4. Test: `PackageSourceTests.PerUserLaunchConditionsExact` (both conditions and messages exact, the `SHOTAI_PERUSER` rule exact, the `DotNetCompatibilityCheck` attributes exact); AC-PKG-35 (guard leg), AC-PKG-37.
+
+**INV-PKG-38. A personal copy hands off to the copy for all users: when `IInstallInfo.Scope` is `PerUser` and the per-machine copy's `shotAI.exe` exists, the process starts that exe with its own arguments and exits 0 before it takes the single-instance mutex, reads settings or shows a window; in a self-test mode it logs one line and runs itself.** Why: IT's per-machine deployment does not remove the personal copies users installed earlier, and a personal copy never receives IT's updates (EDGE-PKG-62), so its Start menu entry would keep opening an old version. It runs before the mutex because a process holding the mutex would make the started copy activate it and quit, so nothing would open. IMPROVEMENT, new 2026-09-23 (D-PKG-13). Citation: 7.10.4; 03 7.4.1; ARCHITECTURE 4.2 step 1b. Test: `Startup.PersonalCopyGuardTests` (App.Tests), `Install.InstallScopeRulesTests` (Core); AC-PKG-38.
 
 ## 5. Edge cases and hard-won fixes
 
@@ -330,9 +342,9 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 
 **EDGE-PKG-8. Squirrel's default installer name `shotAI-<version> Setup.exe` has a space.** Required: INV-PKG-34 names. `forge.config.ts:137-141`.
 
-**EDGE-PKG-9. Admins tried `/S`, `/quiet` and `/qn` on a Squirrel installer.** Required: native is a real MSI; the documented command is `msiexec /i "shotAI-<semver>-<arch>.msi" /qn /norestart` and uninstall `msiexec /x {ProductCode} /qn /norestart`. From `ac5e101`. `README.md:274-276`.
+**EDGE-PKG-9. Admins tried `/S`, `/quiet` and `/qn` on a Squirrel installer.** Required: native is a real MSI; the documented command is `msiexec /i "shotAI-<semver>-<arch>.msi" ALLUSERS=1 /qn /norestart` (per-machine, INV-PKG-36; without `ALLUSERS=1` the install is per-user, 7.4.5) and uninstall `msiexec /x {ProductCode} /qn /norestart`. From `ac5e101`. `README.md:274-276`.
 
-**EDGE-PKG-10. A device-context push could not install the per-user Squirrel app.** Required: per-machine MSI installed in System context. `README.md:280-281`.
+**EDGE-PKG-10. A device-context push could not install the per-user Squirrel app.** Required: the MSI's per-machine scope (`ALLUSERS=1`) installed in System context (INV-PKG-36). `README.md:280-281`.
 
 **EDGE-PKG-11. The unsigned installer met SmartScreen and Defender prompts.** Required: signing (INV-PKG-7). Note that Intune-installed files carry no Mark of the Web, so SmartScreen does not prompt for them; a manually downloaded signed MSI can still show a SmartScreen warning until the publisher identity has reputation (Microsoft Learn, Artifact Signing). `README.md:284-286`.
 
@@ -392,11 +404,11 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 
 **EDGE-PKG-39. A test that cannot fail proves nothing.** The probes carry a control, and the #93 packaging test was strengthened after "matching two literals SEPARATELY" passed against a stale name. Required: packaging tests read one side from the other (for example the font name from the WiX source and from `AppPaths`) and each new packaging test is mutation-checked once when written. `scripts/report-width-probe.cjs:13-15`; `src/shared/export-theme.test.ts:127-152`; `c070095`.
 
-**EDGE-PKG-40. Electron users who follow the 2.0.0 update notice land on a release page whose MSI needs administrator rights and the .NET Desktop Runtime.** Required: the 2.0.0 release notes open with the managed-device instruction (7.12.3); unmanaged users may stay on 1.3.x. New.
+**EDGE-PKG-40. Electron users who follow the 2.0.0 update notice land on the release page and its MSI.** Revised 2026-09-23: a double-click installs it per-user with no administrator rights (INV-PKG-35), as Squirrel did, provided the .NET 10 Desktop Runtime is installed; without it the MSI stops with the runtime message (INV-PKG-37), and an administrator installs the runtime once. Required: the 2.0.0 release notes open with the 7.12.3 text; unmanaged users may also stay on 1.3.x. New.
 
 **EDGE-PKG-41. .NET's informational version can carry `+<sha>`.** Required: `IncludeSourceRevisionInInformationalVersion=false` so About, the User-Agent and logs show exactly the tag version (10 EDGE-INFRA-29 strips it defensively). New.
 
-**EDGE-PKG-42. If the Desktop Runtime is missing, the apphost shows a .NET "install the runtime" dialog (exact wording UNVERIFIED; it names the missing framework and offers a download link) and exits.** Required: Intune dependency ordering (the runtime installs first); the MSI does not block installation on the runtime (so a dependency retry cannot wedge the app install). Microsoft Q&A. New.
+**EDGE-PKG-42. If the Desktop Runtime is missing, the apphost shows a .NET "install the runtime" dialog (exact wording UNVERIFIED; it names the missing framework and offers a download link) and exits.** Required: Intune dependency ordering (the runtime installs first); the MSI does not block a per-machine installation on the runtime (so a dependency retry cannot wedge the app install). A per-user installation is refused instead (INV-PKG-37), so this dialog appears only after a per-machine install without the runtime, or after the runtime is removed. Microsoft Q&A. New.
 
 **EDGE-PKG-43. On an Arm64 PC the x64 runtime lives under `%ProgramFiles%\dotnet\x64\`.** An x64 shotAI on an Arm64 PC needs the x64 Desktop Runtime there; the ARM64 build needs the Arm64 runtime in `%ProgramFiles%\dotnet\`. Required: the Intune dependency matches the MSI architecture. Microsoft Learn. New.
 
@@ -434,6 +446,18 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 
 **EDGE-PKG-60. The macOS release preflight checks all seven federation keys; Windows has five required.** `macOS:Scripts/dist.sh:79-87` fails when any of seven plist keys (including the client id and the workspace id) is missing. On Windows `ClientAppId` and `WorkspaceId` are optional but fail closed when present and malformed (`Intune/Windows/README.md:40-47`). Required: the internal-variant preflight (7.11.3) runs 08's validator over the secret, so a present but malformed optional value fails the release build instead of shipping a fleet-wide fail-closed configuration. New.
 
+**EDGE-PKG-61. A System-context install without `ALLUSERS=1` goes into the SYSTEM account's profile.** The package's default scope is per-user (INV-PKG-35), and Windows Installer applies it to whichever account runs the install; per-user folders are "the Programs folder for the current user" (Microsoft Learn, Installation Context). Under Intune's System install behavior that account is SYSTEM, so the files would land under the SYSTEM profile (`%WINDIR%\System32\config\systemprofile`) with the shortcut in SYSTEM's own Start menu, and no signed-in user would see shotAI. This follows from the documented redirection and has not been measured (AC-PKG-25 runs the negative control once in a lab). Required: `ALLUSERS=1` in the Intune install command and in the smoke's per-machine leg (INV-PKG-36); the Intune notes say why. New.
+
+**EDGE-PKG-62. The two scopes coexist, and each upgrades only itself.** Windows Installer permits "one instance of a product code to be installed per context", "only one instance ... in the machine context and only one instance ... in each user context" (Microsoft Learn, "Installing Multiple Instances of Products and Patches"), and "Applications that have been installed per-user therefore receive all updates or repairs on a per-user basis and applications installed per-machine receive updates or repairs on a per-machine basis" (`MSIINSTALLPERUSER`). That a newer MSI's major upgrade removes only the related product in its own scope is UNVERIFIED against a reference page (AC-PKG-35 measures it). A user who installed a personal copy and later receives IT's per-machine copy then has two Start menu entries named `shotAI`, two Installed apps entries, and a personal copy that IT's updates never reach. Required: INV-PKG-37 (a) stops a new personal copy beside a per-machine one; INV-PKG-38 makes an existing personal copy open the per-machine one; 7.13.5 lets IT remove personal copies. Both copies use the same settings, logs, projects and single-instance mutex, so none of this can lose data or run two instances for one user. New.
+
+**EDGE-PKG-63. WiX's stock scope dialog uses the method from before Windows 7.** `WixUI_Advanced` with its `InstallScopeDlg` sets `ALLUSERS` to empty or `1` instead of using `MSIINSTALLPERUSER`, puts a per-user install in `[LocalAppDataFolder]Apps\<name>` instead of `%LOCALAPPDATA%\Programs`, and shows the "just me or everyone" radio buttons only when `Privileged` is set, so a standard user never sees the choice (WiX `src/ext/UI/wixlib/WixUI_Advanced.wxs`, `InstallScopeDlg.wxs`). A standard user who picked "everyone" in a custom dialog would only meet a UAC prompt they cannot pass. Required: no scope dialog; the scope comes from the command line (7.4.5). New.
+
+**EDGE-PKG-64. HKLM registry values fail ICE105.** The per-machine-only draft of `Package.wxs` wrote its two shortcut keypaths under `HKLM\SOFTWARE\LFI\shotAI`; ICE105 "checks that the Registry table writes no entries under the **HKEY_LOCAL_MACHINE** key", and a per-user shortcut component needs a per-user keypath. Required: `Root="HKMU"` (Registry table root `-1`, which Windows Installer writes "under HKEY_CURRENT_USER" per-user and "under HKEY_LOCAL_MACHINE" per-machine, Microsoft Learn, Installation Context) for every value (INV-PKG-35). Whether ICE38, ICE43 and ICE57 accept an `HKMU` keypath for the shortcut components under `ALLUSERS=2` is UNVERIFIED; the `package` job runs full ICE validation (AC-PKG-35), and a failure is fixed in the authoring, never by suppressing ICE105. The launch condition's `RegistrySearch` of `HKLM` is a read (the `RegLocator` table) and is not an ICE105 finding. New.
+
+**EDGE-PKG-65. The update notice on a per-machine install would send a standard user to an MSI that installs per-user.** Following `Open the download page` from IT's copy and double-clicking the new MSI would create a personal copy beside IT's; INV-PKG-37 (a) now refuses that, so the user would download an installer only to be told no. Required: a per-machine install shows the notice without the download action, and `Check now` does not open the release page there (06 INV-HOME-45; 10 Q-INFRA-5, resolved). New.
+
+**EDGE-PKG-66. Application control can block a personal copy.** AppLocker's default executable rules allow `BUILTIN\Administrators` every path and `Everyone` only `%windir%\*` and `%programfiles%\*` (Microsoft Learn, "Executable rules in AppLocker"), so `%LOCALAPPDATA%\Programs\shotAI\shotAI.exe` is blocked for a standard user; the per-user runtime check also runs `NetCoreCheck.exe` from the user's temporary folder (WiX `netfxca.cpp`), which the same rules block, and a failed check fails the install. App Control for Business with Intune as the managed installer trusts files that Intune installed; a user's own install carries no managed-installer tag (Microsoft Learn, "Automatically allow apps deployed by a managed installer"). IT can also forbid every per-user MSI on a device with the Windows Installer machine policy `DisableUserInstalls` = 1, after which "An attempt to perform a per-user installation causes the installer to display an error message and stops the installation" (Microsoft Learn, Machine Policies). Required: the Intune notes state these facts; where application control is enforced, personal copies need a publisher rule for the signing identity (INV-PKG-7, Q-PKG-2), or those PCs stay per-machine only; Q-PKG-34 records which applies at LFI. New.
+
 ## 6. macOS port notes
 
 | Topic | macOS implementation | Divergence and lesson for Windows |
@@ -454,9 +478,9 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 
 ## 7. Native design (C#)
 
-### 7.1 Decision: per-machine MSI, deployed as an Intune Win32 app
+### 7.1 Decision: one dual-purpose MSI, deployed per-machine as an Intune Win32 app
 
-| Criterion | Per-machine MSI (Win32 app) | MSIX | Intune LOB MSI app |
+| Criterion | MSI (Win32 app) | MSIX | Intune LOB MSI app |
 |---|---|---|---|
 | Shares `%APPDATA%\shotAI\settings.json` and logs with Electron | Yes, real paths | No by default: new `AppData` files are virtualized per package (EDGE-PKG-21); opt-out needs `unvirtualizedResources` (restricted, "not intended for other scenarios") and either the all-or-nothing `desktop6:FileSystemWriteVirtualization` (1903+) or per-folder `virtualization:ExcludedDirectories` (build 20348+, not available on Windows 10 client builds 19041 to 19045) | Yes |
 | Uninstall keeps user data | Yes | Virtualized data is deleted on uninstall | Yes |
@@ -468,13 +492,14 @@ The ADMX (with its `en-US/shotAI.adml`, uploaded after the ADMX) writes eight `R
 | Autopilot guidance | Microsoft recommends Win32 apps exclusively | | Mixing LOB and Win32 during Autopilot can fail on the Trusted Installer |
 | HKLM policy read | Unaffected | Reads of HKLM are unaffected | Unaffected |
 
-Decision: **MSI, authored with the WiX Toolset MSBuild SDK, wrapped as an Intune Win32 app.** IMPROVEMENT over Squirrel (device context, signed, standard detection). This closes 10 Q-INFRA-8 and 03's installer items. Licensing of the WiX Toolset version used is an open decision (Q-PKG-1).
+Decision: **MSI, authored with the WiX Toolset MSBuild SDK, wrapped as an Intune Win32 app.** IMPROVEMENT over Squirrel (device context, signed, standard detection). This closes 10 Q-INFRA-8 and 03's installer items. Licensing of the WiX Toolset version used is an open decision (Q-PKG-1). The one MSI installs in either scope (7.4.5, decided 2026-09-23): per-user when a person double-clicks it, with no administrator rights, as Squirrel did; per-machine with `ALLUSERS=1`, which is how Intune always installs it (INV-PKG-36).
 
 Consequences:
 
 | Topic | Consequence |
 |---|---|
-| Intune detection | MSI rule: product code plus "MSI product version check: Yes" (greater than or equal to the packaged version). Alternative file rule `%ProgramFiles%\shotAI\shotAI.exe` version at least `X.Y.B.0`. |
+| Scope | Intune: per-machine only (`ALLUSERS=1`, install behavior System, one app per architecture; INV-PKG-36). By hand: per-user by default, per-machine with `ALLUSERS=1` (7.4.5). An install keeps its scope through upgrades, repairs and removal. |
+| Intune detection | MSI rule: product code plus "MSI product version check: Yes" (greater than or equal to the packaged version). Alternative file rule `%ProgramFiles%\shotAI\shotAI.exe` version at least `X.Y.B.0`. Unchanged by the dual-purpose package, because Intune uses one scope. |
 | Upgrade | New Win32 app per version that supersedes the previous one with "Uninstall previous version" off; the MSI MajorUpgrade removes the old files. |
 | Uninstall | `msiexec /x {ProductCode} /qn /norestart` (Intune fills the product code). Removes `%ProgramFiles%\shotAI`, the Start menu shortcut and the ARP entry; keeps all per-user data. |
 | Rollback between native versions | A downgrade is refused by the MSI; Intune uninstalls the newer version first, then installs the older (7.13). |
@@ -539,7 +564,7 @@ dotnet publish src/ShotAI.App/ShotAI.App.csproj -c Release -r <rid> --self-conta
 
 The internal variant adds `-p:ShotAIFederationFile=<path>` (08 7.4); the public variant passes `-p:ShotAIFederationFile=` (an explicitly EMPTY global property). 08's `ShotAI.App.csproj` fragment picks up `dotnet/federation.local.json` or `src/main/entra/federation.local.json` automatically when the property is empty and a file exists; a global property set on the command line cannot be reassigned by the project ("Global properties cannot" be reset in a project, Microsoft Learn, MSBuild properties), so the empty value disables that fallback even on a maintainer's machine that has the file (INV-PKG-14). `verify-payload --public` remains the backstop. Both architectures publish on an x64 Windows runner (ReadyToRun cross-compiles for arm64); the ARM64 payload is then tested on an ARM64 runner (7.11.2).
 
-#### 7.2.3 Payload layout (`%ProgramFiles%\shotAI\`)
+#### 7.2.3 Payload layout (the install folder: `%ProgramFiles%\shotAI\` per-machine, `%LOCALAPPDATA%\Programs\shotAI\` per-user)
 
 | Path | Source | Notes |
 |---|---|---|
@@ -608,7 +633,7 @@ Monotonicity proof sketch: within one `X.Y`, `B` orders first by `Z` (the stage 
 
 #### 7.4.1 Project
 
-`dotnet/installer/ShotAI.Installer.wixproj` using the `WixToolset.Sdk` MSBuild SDK and `WixToolset.UI.wixext` only if a UI is kept (default: minimal UI, `WixUI_Minimal` is not required because Intune installs are silent; a manual double-click shows the standard Windows Installer progress dialog). Not part of `ShotAI.slnx` (INV-PKG-22). Built with:
+`dotnet/installer/ShotAI.Installer.wixproj` using the `WixToolset.Sdk` MSBuild SDK and `WixToolset.Netfx.wixext` (the per-user runtime check, 7.4.4). No `WixToolset.UI.wixext` and no dialog set: there is no scope dialog (EDGE-PKG-63), Intune installs are silent, and a manual double-click shows the standard Windows Installer progress dialog, with a launch condition's message in a message box. Not part of `ShotAI.slnx` (INV-PKG-22). Built with:
 
 ```
 dotnet build installer/ShotAI.Installer.wixproj -c Release -p:Platform=<x64|arm64> \
@@ -618,14 +643,15 @@ dotnet build installer/ShotAI.Installer.wixproj -c Release -p:Platform=<x64|arm6
 
 WiX package versions go in `Directory.Packages.props` (SDK version in `global.json` `msbuild-sdks` or the project `Sdk` attribute, per the WiX version chosen; Q-PKG-1).
 
-MSBuild properties do not reach the WiX preprocessor on their own. The `.wixproj` maps each one explicitly: `<DefineConstants>ProductVersion=$(ProductVersion);SemVer=$(SemVer);ShortcutName=$(ShortcutName);PayloadDir=$(PayloadDir);RepoRoot=$(RepoRoot)</DefineConstants>`, and `Package.wxs` references them as `$(var.Name)` (the shorter `$(Name)` form used below is accepted by WiX v4 and later, UNVERIFIED; use `$(var.Name)` if the build rejects it). `$(RepoRoot)` comes from `dotnet/Directory.Build.props:10` and ends with a separator. A value containing `;` (none here) would need escaping. `ShortcutName` contains a space for prereleases (`shotAI Preview`) and must be quoted on the command line as shown.
+MSBuild properties do not reach the WiX preprocessor on their own. The `.wixproj` maps each one explicitly: `<DefineConstants>ProductVersion=$(ProductVersion);SemVer=$(SemVer);ShortcutName=$(ShortcutName);PayloadDir=$(PayloadDir);RepoRoot=$(RepoRoot);RuntimePlatform=$(Platform)</DefineConstants>` (`RuntimePlatform` is `x64` or `arm64`, lowercase as WiX's NetFx `Platform` attribute accepts them), and `Package.wxs` references them as `$(var.Name)` (the shorter `$(Name)` form used below is accepted by WiX v4 and later, UNVERIFIED; use `$(var.Name)` if the build rejects it). `$(RepoRoot)` comes from `dotnet/Directory.Build.props:10` and ends with a separator. A value containing `;` (none here) would need escaping. `ShortcutName` contains a space for prereleases (`shotAI Preview`) and must be quoted on the command line as shown.
 
 #### 7.4.2 `Package.wxs` (normative content, WiX v5 or later syntax; the `Files` harvesting element does not exist in WiX v4, UNVERIFIED which minor version introduced it)
 
 ```xml
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:netfx="http://wixtoolset.org/schemas/v4/wxs/netfx">
   <Package Name="shotAI" Manufacturer="LFI" Version="$(ProductVersion)"
-           UpgradeCode="{PINNED-UPPERCASE-GUID}" Scope="perMachine"
+           UpgradeCode="{PINNED-UPPERCASE-GUID}" Scope="perUserOrMachine"
            InstallerVersion="500" Compressed="yes" Language="1033">
     <SummaryInformation Description="shotAI $(SemVer)" Manufacturer="LFI" />
     <MajorUpgrade Schedule="afterInstallValidate" AllowSameVersionUpgrades="yes"
@@ -638,6 +664,20 @@ MSBuild properties do not reach the WiX preprocessor on their own. The `.wixproj
     </Property>
     <Launch Condition="Installed OR (SHOTAI_OSBUILD AND SHOTAI_OSBUILD &gt;= 19041)"
             Message="shotAI requires Windows 10 version 2004 (build 19041) or later." />
+
+    <!-- Install scope (7.4.5): per-user unless ALLUSERS=1 (or ALLUSERS=2 with MSIINSTALLPERUSER=""). -->
+    <SetProperty Id="SHOTAI_PERUSER" Value="1" Before="LaunchConditions" Sequence="both"
+                 Condition="(NOT ALLUSERS) OR (ALLUSERS = 2 AND MSIINSTALLPERUSER = 1)" />
+    <Property Id="SHOTAI_MACHINECOPY">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\LFI\shotAI" Name="InstallFolder"
+                      Type="raw" Bitness="always64" />
+    </Property>
+    <netfx:DotNetCompatibilityCheck Property="SHOTAI_DESKTOPRUNTIME" RuntimeType="desktop"
+                                    Platform="$(RuntimePlatform)" Version="10.0.0" RollForward="Minor" />
+    <Launch Condition="Installed OR NOT SHOTAI_PERUSER OR NOT SHOTAI_MACHINECOPY"
+            Message="shotAI is already installed for all users of this PC, so you don't need your own copy. IT or an administrator keeps it up to date." />
+    <Launch Condition="Installed OR NOT SHOTAI_PERUSER OR SHOTAI_DESKTOPRUNTIME = 0"
+            Message="shotAI needs the .NET 10 Desktop Runtime, and installing it needs an administrator. Ask IT to install it, then run this installer again." />
 
     <Icon Id="shotAI.ico" SourceFile="$(RepoRoot)assets\shotAI_icon.ico" />
     <Property Id="ARPPRODUCTICON" Value="shotAI.ico" />
@@ -657,15 +697,15 @@ MSBuild properties do not reach the WiX preprocessor on their own. The `.wixproj
       <Component Id="StartMenuShortcut">
         <Shortcut Id="StartMenu" Name="$(ShortcutName)" Target="[INSTALLFOLDER]shotAI.exe"
                   WorkingDirectory="INSTALLFOLDER" Icon="shotAI.ico" />
-        <RegistryValue Root="HKLM" Key="SOFTWARE\LFI\shotAI" Name="StartMenuShortcut"
-                       Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKMU" Key="SOFTWARE\LFI\shotAI" Name="InstallFolder"
+                       Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
       </Component>
     </StandardDirectory>
     <StandardDirectory Id="DesktopFolder">
       <Component Id="DesktopShortcut" Condition="DESKTOPSHORTCUT = 1">
         <Shortcut Id="Desktop" Name="$(ShortcutName)" Target="[INSTALLFOLDER]shotAI.exe"
                   WorkingDirectory="INSTALLFOLDER" Icon="shotAI.ico" />
-        <RegistryValue Root="HKLM" Key="SOFTWARE\LFI\shotAI" Name="DesktopShortcut"
+        <RegistryValue Root="HKMU" Key="SOFTWARE\LFI\shotAI" Name="DesktopShortcut"
                        Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </StandardDirectory>
@@ -683,7 +723,7 @@ Rules pinned by `PackageSourceTests` (Linux, text and XML parse of `Package.wxs`
 
 | Rule | Class |
 |---|---|
-| `Scope="perMachine"`, `ProgramFiles64Folder`, directory name `shotAI` | IMPROVEMENT (per-user Squirrel before) |
+| `Scope="perUserOrMachine"` (the Property table then holds `ALLUSERS=2` and `MSIINSTALLPERUSER=1`), `ProgramFiles64Folder`, directory name `shotAI` | IMPROVEMENT (INV-PKG-35; per-user Squirrel before, per-machine for Intune) |
 | `UpgradeCode` equals the pinned constant in the test | REQUIRED stability (INV-PKG-12) |
 | `MajorUpgrade` present with the exact downgrade message, `Schedule="afterInstallValidate"` and `AllowSameVersionUpgrades="yes"` | IMPROVEMENT (EDGE-PKG-46). `afterInstallValidate` removes the old product completely before the new files are copied, so Windows Installer's file-version replacement rules never keep an old file (dev builds have `FileVersion` `0.0.0.0`) |
 | No `CustomAction` that runs `shotAI.exe`; no `util:QtExecCmdLine`, no `WixShellExec` | REQUIRED (INV-PKG-4) |
@@ -692,17 +732,53 @@ Rules pinned by `PackageSourceTests` (Linux, text and XML parse of `Package.wxs`
 | No `AppDataFolder`, `LocalAppDataFolder`, `PersonalFolder`, `util:RemoveFolderEx` | REQUIRED (INV-PKG-2) |
 | No `ExePackage`, no `Chain` (this is not a bundle) | REQUIRED (INV-PKG-31) |
 | `ARPPRODUCTICON` references `assets\shotAI_icon.ico` | REQUIRED intent (EDGE-PKG-5) |
-| The only HKLM registry writes are the two keypath values under `SOFTWARE\LFI\shotAI` | IMPROVEMENT |
+| Every `RegistryValue` has `Root="HKMU"` and the key `SOFTWARE\LFI\shotAI`; the values are exactly `InstallFolder` (`[INSTALLFOLDER]`, the keypath of `StartMenuShortcut`) and `DesktopShortcut` (the keypath of `DesktopShortcut`); no `HKLM`, `HKCU` or `HKCR` root anywhere in a write | IMPROVEMENT (INV-PKG-35, EDGE-PKG-64) |
+| `SetProperty` `SHOTAI_PERUSER` with exactly the condition above, `Before="LaunchConditions"`, `Sequence="both"`; the two per-user `Launch` elements with exactly the conditions and messages above; `netfx:DotNetCompatibilityCheck` with `Property="SHOTAI_DESKTOPRUNTIME"`, `RuntimeType="desktop"`, `Platform="$(RuntimePlatform)"`, `Version="10.0.0"`, `RollForward="Minor"` | IMPROVEMENT (INV-PKG-37) |
+| No `UIRef`, `UI`, `Dialog` or `WixUI` reference | REQUIRED (EDGE-PKG-63) |
 
-The two `HKLM\SOFTWARE\LFI\shotAI` values exist only because a per-machine shortcut component needs a keypath; the app never reads them.
+The `SOFTWARE\LFI\shotAI` values under `HKMU` are the shortcut components' keypaths (a component that installs a shortcut needs a registry keypath). `InstallFolder` also marks the install: the per-user launch condition reads its `HKLM` copy (7.4.4), and the app reads both copies to learn its scope (7.10.4). The app never writes them.
 
 #### 7.4.3 Architecture
 
-Built twice: `-p:Platform=x64` (template summary `x64`) and `-p:Platform=arm64` (template summary `Arm64`, which requires a database schema of 500 or higher, satisfied by `InstallerVersion="500"`). Same `UpgradeCode` for both, so an ARM64 MSI upgrades an x64 install on the same ARM64 device (a device moved from the x64 to the ARM64 assignment converges). The ARM64 MSI never installs on an x64 PC: Windows Installer does not process a package whose Template Summary platform does not match (EDGE-PKG-55). Whether the x64 MSI should refuse to install on ARM64 Windows is Q-PKG-20 (default: allow on Windows 11 on Arm; Intune requirement rules keep ARM64 devices on the ARM64 MSI).
+Built twice: `-p:Platform=x64` (template summary `x64`) and `-p:Platform=arm64` (template summary `Arm64`, which requires a database schema of 500 or higher, satisfied by `InstallerVersion="500"`). Same `UpgradeCode` for both, so an ARM64 MSI upgrades an x64 install of the same scope on the same ARM64 device (a device moved from the x64 to the ARM64 assignment converges; scopes, EDGE-PKG-62). The ARM64 MSI never installs on an x64 PC: Windows Installer does not process a package whose Template Summary platform does not match (EDGE-PKG-55). Whether the x64 MSI should refuse to install on ARM64 Windows is Q-PKG-20 (default: allow on Windows 11 on Arm; Intune requirement rules keep ARM64 devices on the ARM64 MSI).
 
 #### 7.4.4 Launch condition
 
 `VersionNT` is 603 on Windows 10 (EDGE-PKG-27), so the condition reads `CurrentBuildNumber` (a `REG_SZ` such as `19045`; a `raw` search returns a `REG_SZ` unprefixed). Windows Installer "Conditional Statement Syntax" (Microsoft Learn): "Comparison of an integer with a string or property value that cannot be converted to an integer is always msiEvaluateConditionFalse, except for the comparison operator "<>"", so a property that CAN be converted is compared as an integer, and a missing property ("Nonexistent property values are treated as empty strings") makes `>=` false, which blocks the install (fail closed); the `SHOTAI_OSBUILD AND` term only makes that explicit. Still measured on a Windows 10 1909 VM and a 2004 VM (AC-PKG-12, Q-PKG-6). `Installed OR` keeps uninstall and repair possible after an OS change. Message (user-visible, exact): `shotAI requires Windows 10 version 2004 (build 19041) or later.`
+
+Two more launch conditions apply to a per-user install only (INV-PKG-37). A `SetProperty` action sets `SHOTAI_PERUSER` to `1`, before `LaunchConditions` in both sequences, when `(NOT ALLUSERS) OR (ALLUSERS = 2 AND MSIINSTALLPERUSER = 1)`. With `ALLUSERS=2`, "the Windows Installer always resets the value of the **ALLUSERS** property to 1 and performs a per-machine installation or it resets the value of the **ALLUSERS** property to an empty string ("") and performs a per-user installation" (Microsoft Learn, `ALLUSERS`); the page does not say at which action the reset happens, so the expression is written to be true for a per-user install and false for a per-machine one (`ALLUSERS=1`, or `ALLUSERS=2` with `MSIINSTALLPERUSER=""`) both before and after the reset.
+
+1. **A per-machine copy is present.** `SHOTAI_MACHINECOPY` is the `HKLM` (64-bit view) `InstallFolder` value, found by `AppSearch`. Message (user-visible, exact): `shotAI is already installed for all users of this PC, so you don't need your own copy. IT or an administrator keeps it up to date.`
+2. **The Desktop Runtime is missing.** WiX's `DotNetCompatibilityCheck` is an immediate custom action scheduled before `LaunchConditions` in both sequences (`NetFxExtension_Platform.wxi`, `Return="check"`); it extracts `NetCoreCheck.exe` for the package platform to a temporary folder, runs it with `-n <runtime type> -v 10.0.0 -r Minor`, stores the exit code in `SHOTAI_DESKTOPRUNTIME` and deletes the file (`netfxca.cpp`). `0` means a compatible runtime is installed. A missing property is an empty string, which never equals `0` (the "Conditional Statement Syntax" rule above), so a check that did not run blocks a per-user install (fail closed), and a check that fails to run fails the install through `Return="check"`. Message (user-visible, exact): `shotAI needs the .NET 10 Desktop Runtime, and installing it needs an administrator. Ask IT to install it, then run this installer again.`
+
+A double-click install shows a failed condition's message in a message box; with `/qn` it goes to the log and `msiexec` exits 1603 (AC-PKG-35). Both conditions start with `Installed OR`, so repair and removal of an existing copy always work. A per-machine install passes both, because `SHOTAI_PERUSER` is not set (EDGE-PKG-42 still applies to it).
+
+#### 7.4.5 Install scope (per-user or per-machine)
+
+One MSI per architecture installs in either scope, Windows Installer's "single package authoring" (Microsoft Learn, Single Package Authoring; Installation Context). `Scope="perUserOrMachine"` makes WiX write `ALLUSERS=2` and `MSIINSTALLPERUSER=1` into the Property table (WiX `Compiler_Package.cs`), so an install with no scope property is per-user. Decided 2026-09-23 (Q-PKG-23). REQUIRED intent from Squirrel (a person without administrator rights can install shotAI, 2.4.3); IMPROVEMENT in keeping one package for both scopes (INV-PKG-35).
+
+| | Per-user (default) | Per-machine |
+|---|---|---|
+| How | double-click, or `msiexec /i "shotAI-<Version>-<arch>.msi"` with no scope property | `msiexec /i "shotAI-<Version>-<arch>.msi" ALLUSERS=1` (Intune always, INV-PKG-36; an administrator by hand). `ALLUSERS=2` with `MSIINSTALLPERUSER=""` also selects it; these docs use `ALLUSERS=1` only |
+| Elevation | none: "the installer ... does not display UAC prompts for credentials" in the per-user context (Single Package Authoring) | UAC credentials when run by hand ("performs a per-machine installation only if Admin credentials are provided to the UAC dialog box", `ALLUSERS`); none under Intune, which runs as SYSTEM |
+| Install folder (`ProgramFiles64Folder\shotAI`) | `%LOCALAPPDATA%\Programs\shotAI` (`FOLDERID_UserProgramFiles`; "Files in this folder can be accessed only by the user that installed this folder") | `%ProgramFiles%\shotAI` |
+| Start menu and optional desktop shortcut | the installing user's (`FOLDERID_Programs`, `FOLDERID_Desktop`) | all users' (`FOLDERID_CommonPrograms`, `FOLDERID_PublicDesktop`) |
+| Installed apps entry | only for the user who installed it | for every user |
+| `SOFTWARE\LFI\shotAI` values (`HKMU`) | `HKCU` | `HKLM`, 64-bit view |
+| .NET 10 Desktop Runtime | must already be installed; the MSI checks (INV-PKG-37) | an Intune dependency; the MSI does not check (EDGE-PKG-42) |
+| Install folder ACL | writable by its user (INV-PKG-15) | administrators and SYSTEM only (INV-PKG-15) |
+| Refused when | a per-machine copy is installed, or the runtime is missing (INV-PKG-37) | never because of a personal copy |
+
+Rules:
+
+1. **An install keeps its scope.** "Once Windows Installer 5.0 installs an application, it uses the same installation context for all subsequent updates, repairs, or removal of the application" (Single Package Authoring). A newer MSI upgrades the copy in the scope it is run in; nothing converts a copy from one scope to the other (uninstall, then install in the other scope).
+2. **The scopes can coexist on one PC** (EDGE-PKG-62). A per-user install refuses when a per-machine copy exists (INV-PKG-37). A per-machine install never refuses, because IT must be able to deploy over whatever users installed; an existing personal copy then hands off to it at launch (INV-PKG-38, 7.10.4), and IT removes personal copies with 7.13.5.
+3. **No scope dialog** (EDGE-PKG-63). The scope comes from the command line; a person who double-clicks gets the scope that needs no administrator.
+4. **Intune installs per-machine only** (INV-PKG-36). Company Portal "Available" installs run as SYSTEM too, so they need no administrator rights either.
+5. **Both scopes are framework-dependent** (INV-PKG-5). A personal copy therefore needs the Desktop Runtime installed once by an administrator; after that, the user installs shotAI and its updates alone. An MSI that carries its own runtime for PCs outside Intune is not built in 2.0 (Q-PKG-33).
+6. **The update notice reads the scope** (7.10.4; 06 INV-HOME-45): on a per-machine install it never offers the download page (EDGE-PKG-65), because the person seeing it may not be able to install the update.
+7. **Application control.** Where AppLocker's default rules or App Control for Business are enforced, a personal copy is blocked unless a publisher rule allows it, and IT can forbid per-user MSIs outright with `DisableUserInstalls` (EDGE-PKG-66, Q-PKG-34).
+8. **The app does not change.** It keeps all state in the user profile (7.10.1), never writes its install folder (INV-PKG-15), runs `asInvoker` (INV-PKG-33) and only reads the policy key (08), so the same payload runs in both scopes. The only scope-aware code is 7.10.4. `%LOCALAPPDATA%\Programs\shotAI` is not the Squirrel root `%LOCALAPPDATA%\shotai` (EDGE-PKG-22) and does not match `LegacyInstanceGuard`'s `%LOCALAPPDATA%\shotai\app-` prefix (7.10.3).
 
 ### 7.5 Prerequisites and Intune configuration
 
@@ -710,7 +786,7 @@ Built twice: `-p:Platform=x64` (template summary `x64`) and `-p:Platform=arm64` 
 
 | Prerequisite | Needed by | Kind | Deployment | Detection |
 |---|---|---|---|---|
-| .NET 10 Desktop Runtime, matching architecture | the app to start | hard | Intune Win32 app per architecture: `windowsdesktop-runtime-10.0.<patch>-win-<x64\|arm64>.exe /install /quiet /norestart`; return codes 0 and 3010 success | script: exits 0 and writes `found` when a folder `%ProgramFiles%\dotnet\shared\Microsoft.WindowsDesktop.App\10.*` exists (Arm64 runtime on Arm64, x64 runtime on x64; for x64 on Arm64 the root is `%ProgramFiles%\dotnet\x64\`); or registry `HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\<arch>\sharedfx\Microsoft.WindowsDesktop.App` has a value name starting `10.` (verify, Q-PKG-26) |
+| .NET 10 Desktop Runtime, matching architecture | the app to start | hard | Intune Win32 app per architecture: `windowsdesktop-runtime-10.0.<patch>-win-<x64\|arm64>.exe /install /quiet /norestart`; return codes 0 and 3010 success. The installer needs administrator rights, so a PC where people install personal copies needs it installed once by IT or an administrator; a per-user shotAI install checks for it and refuses without it (INV-PKG-37) | script: exits 0 and writes `found` when a folder `%ProgramFiles%\dotnet\shared\Microsoft.WindowsDesktop.App\10.*` exists (Arm64 runtime on Arm64, x64 runtime on x64; for x64 on Arm64 the root is `%ProgramFiles%\dotnet\x64\`); or registry `HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\<arch>\sharedfx\Microsoft.WindowsDesktop.App` has a value name starting `10.` (verify, Q-PKG-26) |
 | Servicing of the runtime | security patches | | Microsoft Update (not Windows Update): Windows Update for Business must allow "updates for other Microsoft products"; the value `BlockMU` (`REG_DWORD` `1`) must not be set under `HKLM\SOFTWARE\Microsoft\.NET` or `HKLM\SOFTWARE\Microsoft\.NET\10.0`. A serviced runtime removes the previous patch after installing the new one, which can interrupt a running shotAI (EDGE-PKG-49; `RemovePreviousVersion` `nextSession` defers it) | Microsoft Learn, Install .NET on Windows |
 | WebView2 Evergreen Runtime | PDF export only (09) | soft | normally present (Windows 11, Microsoft 365 Apps installs it); otherwise Intune Win32 app `MicrosoftEdgeWebView2RuntimeInstaller<X64\|ARM64>.exe /silent /install` (standalone) or the bootstrapper `MicrosoftEdgeWebview2Setup.exe /silent /install`, run elevated for a per-machine install | registry value `pv` greater than `0.0.0.0` under the client key (section 3) |
 | Windows OCR recognizer | auto-redact only (04) | soft | present on en-US installs; otherwise the capability `Language.OCR~~~en-US~0.0.1.0` via Intune (script `Add-WindowsCapability -Online -Name 'Language.OCR~~~en-US~0.0.1.0'`) or Features on Demand policy | `Get-WindowsCapability -Online -Name 'Language.OCR*'` state `Installed` |
@@ -723,10 +799,10 @@ Built twice: `-p:Platform=x64` (template summary `x64`) and `-p:Platform=arm64` 
 | Publisher | `LFI` |
 | App version | `Version` (semver) |
 | Content | `shotAI-<Version>-<arch>.msi` wrapped with the Microsoft Win32 Content Prep Tool |
-| Install command | `msiexec /i "shotAI-<Version>-<arch>.msi" /qn /norestart` |
+| Install command | `msiexec /i "shotAI-<Version>-<arch>.msi" ALLUSERS=1 /qn /norestart` (`ALLUSERS=1` is mandatory: without it this package installs per-user for the SYSTEM account, EDGE-PKG-61; INV-PKG-36) |
 | Uninstall command | `msiexec /x {<ProductCode>} /qn /norestart` (filled by Intune from the MSI) |
 | Allow available uninstall | No (a Win32 app with dependencies shows no Company Portal uninstall anyway) |
-| Install behavior | System |
+| Install behavior | System, never User: Intune keeps a dual-mode Win32 app in one context for all its assignments, and the managed scope is per-machine (INV-PKG-36) |
 | Device restart behavior | Determine behavior based on return codes |
 | Return codes | 0 success, 1707 success, 3010 soft reboot, 1641 hard reboot, 1618 retry |
 | Requirements | OS architecture x64 (or ARM64); minimum OS Windows 10 2004 |
@@ -735,7 +811,7 @@ Built twice: `-p:Platform=x64` (template summary `x64`) and `-p:Platform=arm64` 
 | Supersedence | supersedes the previous `shotAI (<arch>)` version, Uninstall previous version: No. "Superseding apps don't get automatic targeting": each new version needs its own assignment. At most 10 nodes per supersedence relationship, so old versions are pruned from the chain (Microsoft Learn, Win32 app supersedence) |
 | Assignment | pilot group Required during the pilot; all users or devices at GA |
 
-The ADMX and the federation policy profile are unchanged (`Intune/Windows/README.md`). Nothing in the Intune app configures policy (INV-PKG-3). Dependencies apply only to installation: uninstalling shotAI leaves the Desktop Runtime in place (Microsoft Q&A; intended, other apps may share it). The Intune notes also carry EDGE-PKG-49 (runtime servicing) and EDGE-PKG-51 (no ACG rule for `shotAI.exe`).
+The ADMX and the federation policy profile are unchanged (`Intune/Windows/README.md`). Nothing in the Intune app configures policy (INV-PKG-3). Dependencies apply only to installation: uninstalling shotAI leaves the Desktop Runtime in place (Microsoft Q&A; intended, other apps may share it). The Intune notes also carry EDGE-PKG-49 (runtime servicing), EDGE-PKG-51 (no ACG rule for `shotAI.exe`), INV-PKG-36 with EDGE-PKG-61 (why the command needs `ALLUSERS=1`), EDGE-PKG-66 (application control and `DisableUserInstalls`) and 7.13.5 (removing personal copies).
 
 ### 7.6 Signing (Azure Artifact Signing)
 
@@ -834,7 +910,7 @@ The existing `supportedOS` (Windows 10 and 11 GUID), `dpiAware true/pm`, `dpiAwa
 
 #### 7.9.4 Install directory
 
-Inherited `Program Files` ACL; the app writes only to `IAppPaths` locations (10 7.4.4, ARCHITECTURE 10.2: `UserDataDirectory`, `SettingsFile`, `LogsDirectory`, `LocalDataDirectory`, the projects folder, `TempDirectory`) and never to `AppContext.BaseDirectory` (INV-PKG-15). The installed fonts are read-only and reached only through `IAppPaths.FontsDirectory` (`AppContext.BaseDirectory\Fonts`); `AppPaths.BrandFontPath()` is `Path.Combine(IAppPaths.FontsDirectory, "Archivo.ttf")` (03 2.10.10, 09 `IBrandFontSource`).
+Per-machine: the inherited `Program Files` ACL. Per-user: the ACL of `%LOCALAPPDATA%\Programs`, writable by its user (INV-PKG-15, 7.4.5). In both scopes the app writes only to `IAppPaths` locations (10 7.4.4, ARCHITECTURE 10.2: `UserDataDirectory`, `SettingsFile`, `LogsDirectory`, `LocalDataDirectory`, the projects folder, `TempDirectory`) and never to `AppContext.BaseDirectory` (INV-PKG-15). The installed fonts are read-only and reached only through `IAppPaths.FontsDirectory` (`AppContext.BaseDirectory\Fonts`); `AppPaths.BrandFontPath()` is `Path.Combine(IAppPaths.FontsDirectory, "Archivo.ttf")` (03 2.10.10, 09 `IBrandFontSource`).
 
 ### 7.10 User data and coexistence
 
@@ -850,7 +926,7 @@ Inherited `Program Files` ACL; the app writes only to `IAppPaths` locations (10 
 | MSAL cache | `%LOCALAPPDATA%\LFI\shotAI\entra\msal-cache.bin` plus the MSAL extension's lock file (`IAppPaths.LocalDataDirectory` + `entra`) | no | 08 | IMPROVEMENT (R-ARCH-13) |
 | WebView2 user data | `%LOCALAPPDATA%\LFI\shotAI\WebView2` (`IAppPaths.LocalDataDirectory` + `WebView2`) | no | 09 | IMPROVEMENT (R-ARCH-13) |
 | Projects | `settings.projectsDir`, default `%USERPROFILE%\shotAI Projects` | yes | 01, 10 | REQUIRED |
-| Install | `%ProgramFiles%\shotAI` | no | 12 | IMPROVEMENT |
+| Install | `%ProgramFiles%\shotAI` (per-machine) or `%LOCALAPPDATA%\Programs\shotAI` (per-user), 7.4.5 | no | 12 | IMPROVEMENT |
 | Electron-only | `secrets.json`, `entra-cache.bin`, `tessdata\`, Chromium entries in `%APPDATA%\shotAI`, `%LocalAppData%\shotai\` | never touched (INV-PKG-24) | | ELECTRON-ONLY |
 
 Rule (R-ARCH-13): new native-only local data goes under `IAppPaths.LocalDataDirectory` (`%LOCALAPPDATA%\LFI\shotAI\`), never under `%LOCALAPPDATA%\shotAI\` (the Squirrel root, EDGE-PKG-22); `settings.json`, the logs and the projects folder stay where the Electron build keeps them. No code composes any of these paths itself; each comes from `IAppPaths` (ARCHITECTURE 10.2). This table matches ARCHITECTURE 10.1.
@@ -890,6 +966,71 @@ public sealed class LegacyInstanceGuard(IProcessSnapshot processes, string local
 The original draft declared `IProcessSnapshot` in `ShotAI.App.Startup` with a Platform implementation, which is a circular project reference (Platform references only Core); it now lives in Platform. The guard runs at 03 step 2a, before the DI container is built (03 EDGE-SHELL-45: early exits happen "before any service, window, timer or background task exists"), so `OnStartup` constructs it directly with `new ProcessSnapshot()`, `Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)` and the bootstrap logger of 10; it is not resolved from the container and needs no `IAppPaths`. `ProcessSnapshot` opens each process with `PROCESS_QUERY_LIMITED_INFORMATION` (CsWin32 `OpenProcess`, `QueryFullProcessImageName`, `CloseHandle`; `Process.MainModule` is not used because it throws for inaccessible processes) and disposes every `System.Diagnostics.Process` it received. Electron runs several `shotAI.exe` processes (main, renderers, GPU) from the same `app-<version>` folder, so any one hit is enough; the Squirrel stub `<root>\shotAI.exe` (outside `app-`) exits within seconds and is deliberately not matched.
 
 `FindRunningElectron`: for each process named `shotAI` with `SessionId == CurrentSessionId` and `Pid != CurrentPid`, take `ImagePath` (`QueryFullProcessImageName`, access denied yields `null`, skipped); if `Path.GetFullPath(ImagePath)` starts with `Path.Combine(localAppData, "shotai", "app-")` (`OrdinalIgnoreCase`), return it. On a hit: log info `legacy shotAI 1.x is running (pid <pid>, <path>); exiting.`, show a `MessageBox` (owner none, icon Information) with caption `shotAI` and text `The previous version of shotAI is still running. Close it first, so the two versions don't edit the same projects at the same time.` and button OK, then exit with code 0. In a self-test mode the notice is replaced by the stderr line `legacy shotAI 1.x is running (pid <pid>, <path>); self-test refused.` and exit code 2 (EDGE-PKG-50). Nothing is written. IMPROVEMENT (INV-PKG-26; Q-PKG-8 for warn-only). The guard (and its `MessageBox.Show` allowlist entry, ARCHITECTURE 14.9) stays through the S4 cutover cleanup PR and is removed at stage S5, 90 days after GA, once IT reports no Electron installs remain (7.13, Q-PKG-22, ARCHITECTURE 13.4).
+
+#### 7.10.4 Install scope at run time (`IInstallInfo`, `PersonalCopyGuard`)
+
+The app learns which copy it is from the MSI's `InstallFolder` value (7.4.2): `HKLM\SOFTWARE\LFI\shotAI` (64-bit view) belongs to the per-machine copy, `HKCU\SOFTWARE\LFI\shotAI` to the current user's per-user copy. The app reads both and writes neither. New 2026-09-23 (7.4.5).
+
+```csharp
+// File dotnet/src/ShotAI.Core/Install/InstallScope.cs (Core: no Windows API)
+namespace ShotAI.Core.Install;
+
+public enum InstallScope { Unpackaged, PerUser, PerMachine }
+
+public interface IInstallInfo
+{
+    InstallScope Scope { get; }
+    string? MachineCopyExe { get; }   // set only when Scope is PerUser and the per-machine shotAI.exe exists
+}
+
+public static class InstallScopeRules
+{
+    // Pure and Linux-testable. The folders are the two InstallFolder values (null when absent).
+    public static (InstallScope Scope, string? MachineCopyExe) Resolve(
+        string baseDirectory, string? machineInstallFolder, string? userInstallFolder, Func<string, bool> fileExists);
+}
+
+// File dotnet/src/ShotAI.Platform/Install/InstallInfoReader.cs
+namespace ShotAI.Platform.Install;
+
+public static class InstallInfoReader
+{
+    // Reads the REG_SZ value InstallFolder under keyPath from HKLM (RegistryView.Registry64) and from HKCU, once;
+    // a missing key, a missing value or another value kind reads as null; resolves with Core's InstallScopeRules.
+    // keyPath is a parameter only so tests can use a scratch key under HKCU. The object it returns is an
+    // internal sealed InstallInfo, reachable only as the Core interface (ARCHITECTURE INV-ARCH-4).
+    public static IInstallInfo Read(string baseDirectory, string keyPath = @"SOFTWARE\LFI\shotAI");
+}
+
+// File dotnet/src/ShotAI.Platform/Processes/IProcessStarter.cs
+namespace ShotAI.Platform.Processes;
+
+public interface IProcessStarter { void Start(string exePath, IReadOnlyList<string> arguments); }
+
+public sealed class ProcessStarter : IProcessStarter
+{ /* new ProcessStartInfo(exePath) { UseShellExecute = false, WorkingDirectory = the exe's folder },
+     each argument added to ArgumentList (no string concatenation), the returned Process disposed */ }
+
+// File dotnet/src/ShotAI.App/Startup/PersonalCopyGuard.cs
+namespace ShotAI.App.Startup;
+
+public sealed class PersonalCopyGuard(IInstallInfo install, IProcessStarter starter, ILogger log)
+{
+    // true: this process started the per-machine copy and must Shutdown(0) at once.
+    public bool TryHandOff(IReadOnlyList<string> args, bool selfTestMode);
+}
+```
+
+`InstallScopeRules.Resolve`: normalize each path by replacing `/` with `\` and trimming trailing `\` (no `Path.GetFullPath`: the inputs are absolute Windows paths and the tests run on Linux), compare `OrdinalIgnoreCase`. The scope is `PerUser` when `userInstallFolder` equals `baseDirectory`, else `PerMachine` when `machineInstallFolder` equals it, else `Unpackaged` (a developer build, a CI run from `bin\`, a copied folder). `MachineCopyExe` is `machineInstallFolder` joined with `shotAI.exe` when the scope is `PerUser` and `fileExists` returns true for it, else null; checking the file keeps a value left behind by a damaged install from redirecting anywhere. Detection runs once per process, because the values change only when an install runs.
+
+`PersonalCopyGuard` runs at ARCHITECTURE 4.2 step 1b: after the bootstrap logger and BEFORE the single-instance mutex (03 7.4.1 step 2). `OnStartup` constructs it directly, like `LegacyInstanceGuard`, with `InstallInfoReader.Read(AppContext.BaseDirectory)`, `new ProcessStarter()` and the bootstrap logger; the returned `IInstallInfo` is registered in the container at step 6 as an instance (`AddShotAIApp`, as the loaded settings are), so 06 reads the scope without a second registry read. `TryHandOff`:
+
+1. `install.Scope` is not `PerUser`, or `install.MachineCopyExe` is null: return false.
+2. In a self-test mode (the modes listed in INV-PKG-26: `StartupModeParser.Parse(args, env).Kind` is not `Normal`, 10 7.8): log info `personal copy of shotAI; a copy for all users exists (<path>); the self-test runs this copy.` and return false, so a script tests the copy it launched.
+3. Otherwise log info `personal copy of shotAI; opening the copy installed for all users (<path>).`, call `starter.Start(path, args)` and return true. `OnStartup` then calls `Shutdown(0)` and returns; no mutex, settings, store or window has been touched.
+4. If `Start` throws: log warning `personal copy of shotAI; could not open the copy for all users (<path>): <exception message>. Continuing with this copy.` and return false. Continuing is safe: both copies share the single-instance mutex (`Local\shotAI.SingleInstance.<user SID>`, 03 7.4.1), the settings file and the projects, so one user never runs two instances at once.
+
+There is no dialog: apart from a second process start, the hand-off is invisible. It runs before the mutex because a process holding the mutex would make the started copy find it held, activate this exiting process and quit, so nothing would open. When the per-machine copy is already running, the started copy finds the mutex held and activates that window, the normal second-launch path (03 7.4.8). IMPROVEMENT (INV-PKG-38, D-PKG-13).
 
 ### 7.11 CI workflows
 
@@ -958,8 +1099,8 @@ jobs:
     steps:
       - publish per 7.2.2 (public variant, unsigned)
       - run: dotnet run --project tools/ShotAI.Release -- verify-payload artifacts/publish/win-${{ matrix.arch }} --arch ${{ matrix.arch }} --public
-      - build the MSI per 7.4.1
-      - smoke (PowerShell, 7.11.4)
+      - build the MSI per 7.4.1 (ICE validation runs; any ICE error fails the job, and the log must show ICE105 ran, AC-PKG-35)
+      - smoke (PowerShell, 7.11.4: per-machine leg, per-user guard leg, per-user leg)
       - upload artifact msi-${{ matrix.arch }} (retention 7 days)
 ```
 
@@ -983,38 +1124,67 @@ Trigger: `push: tags: ['v2.*']` and `workflow_dispatch` with input `tag`. Top-le
 
 Third-party actions pinned by full commit SHA with the version in a comment (INV-PKG-28). `release-notes/<v>.md` is committed in the release PR; for `2.0.0` it begins with the 7.12.3 text.
 
-#### 7.11.4 Install smoke (PowerShell, both architectures)
+#### 7.11.4 Install smoke (PowerShell, both architectures, both scopes)
 
 ```
 $ErrorActionPreference = 'Stop'
 function Assert($ok, $msg) { if (-not $ok) { throw "smoke: $msg" } }      # EDGE-PKG-54
-$msi = <path>; $log = "$env:RUNNER_TEMP\install.log"
+function Msi($argLine) { (Start-Process msiexec -ArgumentList $argLine -Wait -PassThru).ExitCode }
+function Arp($hive) {
+  @(Get-ChildItem "${hive}:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" | Get-ItemProperty | Where-Object DisplayName -eq 'shotAI')
+}
+function SelfTest($exe) {
+  $r = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\st.txt"
+  Assert ($r.ExitCode -eq 0) "selftest exit $($r.ExitCode)"
+  Assert ((Get-Content "$env:RUNNER_TEMP\st.txt")[-1] -eq '[selftest] PASS') 'selftest last line'
+}
+$msi = <path>
 # Production-faithful runtime (EDGE-PKG-56): the official Desktop Runtime installer for the runner arch.
 $rt = Start-Process <windowsdesktop-runtime-10.0.x-win-<arch>.exe> -ArgumentList '/install /quiet /norestart' -Wait -PassThru
 Assert ($rt.ExitCode -in 0, 3010) "runtime install exit $($rt.ExitCode)"
 $settings = "$env:APPDATA\shotAI\settings.json"
 $before = if (Test-Path $settings) { (Get-FileHash $settings).Hash } else { $null }
-$p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
-Assert ($p.ExitCode -eq 0) "install exit $($p.ExitCode)"
-Assert (Test-Path "$env:ProgramFiles\shotAI\shotAI.exe") 'shotAI.exe missing'
-$arp = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' | Get-ItemProperty | Where-Object DisplayName -eq 'shotAI'
-Assert (@($arp).Count -eq 1) 'expected exactly one shotAI ARP entry'
-Assert ($arp.Publisher -eq 'LFI' -and $arp.DisplayVersion -eq '<X.Y.B>') 'ARP publisher or version'
-Assert (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\<ShortcutName>.lnk") 'Start menu shortcut'
+$machineDir = "$env:ProgramFiles\shotAI"; $userDir = "$env:LOCALAPPDATA\Programs\shotAI"
+
+# Leg 1: per-machine, with the exact 7.5.2 command (INV-PKG-36)
+Assert ((Msi "/i `"$msi`" ALLUSERS=1 /qn /norestart /l*v `"$env:RUNNER_TEMP\machine.log`"") -eq 0) 'per-machine install exit'
+Assert (Test-Path "$machineDir\shotAI.exe") 'per-machine shotAI.exe missing'
+$arp = @(Arp 'HKLM')                     # @() because PowerShell unrolls a returned array
+Assert ($arp.Count -eq 1) 'expected exactly one per-machine shotAI ARP entry'
+Assert ($arp[0].Publisher -eq 'LFI' -and $arp[0].DisplayVersion -eq '<X.Y.B>') 'ARP publisher or version'
+Assert ((Get-ItemProperty 'HKLM:\SOFTWARE\LFI\shotAI').InstallFolder -eq "$machineDir\") 'HKLM InstallFolder'
+Assert (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\<ShortcutName>.lnk") 'all-users Start menu shortcut'
 Assert (-not (Test-Path "$env:PUBLIC\Desktop\<ShortcutName>.lnk")) 'unexpected desktop shortcut'
-$r = Start-Process "$env:ProgramFiles\shotAI\shotAI.exe" -ArgumentList '--selftest' -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\st.txt"
-Assert ($r.ExitCode -eq 0) "selftest exit $($r.ExitCode)"
-Assert ((Get-Content "$env:RUNNER_TEMP\st.txt")[-1] -eq '[selftest] PASS') 'selftest last line'
+SelfTest "$machineDir\shotAI.exe"
+
+# Leg 2: a per-user install beside the per-machine copy is refused (INV-PKG-37 a)
+Assert ((Msi "/i `"$msi`" /qn /norestart /l*v `"$env:RUNNER_TEMP\guard.log`"") -eq 1603) 'per-user install beside a per-machine copy was not refused'
+Assert (Select-String -Path "$env:RUNNER_TEMP\guard.log" -SimpleMatch -Quiet -Pattern "shotAI is already installed for all users of this PC, so you don't need your own copy. IT or an administrator keeps it up to date.") 'guard message missing from the log'
+Assert (-not (Test-Path $userDir)) 'the refused per-user install left a folder'
+
+Assert ((Msi "/x `"$msi`" /qn /norestart") -eq 0) 'per-machine uninstall exit'
+Assert (-not (Test-Path $machineDir)) 'per-machine install folder left behind'
+Assert (-not (Test-Path 'HKLM:\SOFTWARE\LFI\shotAI')) 'HKLM marker left behind'
+
+# Leg 3: per-user, the double-click default (INV-PKG-35)
+Assert ((Msi "/i `"$msi`" /qn /norestart /l*v `"$env:RUNNER_TEMP\user.log`"") -eq 0) 'per-user install exit'
+Assert (Test-Path "$userDir\shotAI.exe") 'per-user shotAI.exe missing'
+Assert (-not (Test-Path $machineDir)) 'per-user install wrote to Program Files'
+Assert (@(Arp 'HKCU').Count -eq 1) 'expected exactly one per-user shotAI ARP entry'
+Assert (@(Arp 'HKLM').Count -eq 0) 'per-user install created a per-machine ARP entry'
+Assert ((Get-ItemProperty 'HKCU:\SOFTWARE\LFI\shotAI').InstallFolder -eq "$userDir\") 'HKCU InstallFolder'
+Assert (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\<ShortcutName>.lnk") 'per-user Start menu shortcut'
+SelfTest "$userDir\shotAI.exe"
+Assert ((Msi "/x `"$msi`" /qn /norestart") -eq 0) 'per-user uninstall exit'
+Assert (-not (Test-Path $userDir)) 'per-user install folder left behind'
+
 $after = if (Test-Path $settings) { (Get-FileHash $settings).Hash } else { $null }
 Assert ($before -eq $after) 'settings.json changed'                        # 10 AC-INFRA-27
-$u = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn /norestart" -Wait -PassThru
-Assert ($u.ExitCode -eq 0) "uninstall exit $($u.ExitCode)"
-Assert (-not (Test-Path "$env:ProgramFiles\shotAI")) 'install folder left behind'
 ```
 
-The runtime installer is downloaded from the official .NET release metadata with its published SHA-512 checked before it runs (the same rule as INV-PKG-19 for any fetched binary).
+The runtime installer is downloaded from the official .NET release metadata with its published SHA-512 checked before it runs (the same rule as INV-PKG-19 for any fetched binary). The runner account is an administrator, so leg 3 proves the per-user layout, not the absence of a UAC prompt for a standard user (AC-PKG-36 does that by hand). Where Windows Installer registers a per-user product's Installed apps entry is UNVERIFIED (`HKCU` Uninstall is assumed above); if the first run shows otherwise, the leg asserts through the Windows Installer API (`WindowsInstaller.Installer` `ProductsEx` with the per-user context) instead, and the check is never dropped.
 
-The release smoke also runs the upgrade check: install the previous `v2.*` release MSI of the same architecture (downloaded with `gh release download`), then the new one; exactly one `shotAI` ARP entry remains with the new DisplayVersion; then attempt the old MSI again and expect exit code 1603 with the downgrade message in the log.
+The release smoke also runs the upgrade checks, per-machine (`ALLUSERS=1` on every command) and per-user (no scope property): install the previous `v2.*` release MSI of the same architecture (downloaded with `gh release download`), then the new one; exactly one `shotAI` Installed apps entry remains in that scope with the new DisplayVersion; then attempt the old MSI again and expect exit code 1603 with the downgrade message in the log. Last, the scope check of EDGE-PKG-62: install the previous release per-user, then the new release per-machine; both entries remain (a major upgrade stays in its scope), and both are removed afterwards.
 
 ### 7.12 Release process
 
@@ -1040,11 +1210,13 @@ The release smoke also runs the upgrade check: install the previous `v2.*` relea
 5. Any Electron release after 2.0.0: `gh release create v1.3.N --latest=false` (EDGE-PKG-18).
 6. Never delete or edit the assets of `v1.3.*` releases (INV-PKG-27).
 7. For `2.0.0`: the README deployment and licence sections and the wiki `Installation` page describe the MSI (2.4.8); the README's Privacy section names the MSAL cache location `%LOCALAPPDATA%\LFI\shotAI\entra\` (R-ARCH-13); the links to `docs/native/PLAN.md` still resolve (Q-PKG-31, resolved: the file exists).
-8. The Intune notes shipped to IT include the prerequisites of 7.5.1, EDGE-PKG-49 and EDGE-PKG-51.
+8. The Intune notes shipped to IT include the prerequisites of 7.5.1, EDGE-PKG-49, EDGE-PKG-51, the `ALLUSERS=1` rule (INV-PKG-36, EDGE-PKG-61), application control and `DisableUserInstalls` (EDGE-PKG-66), and the personal-copy removal (7.13.5).
 
 #### 7.12.3 2.0.0 release notes opening (exact text)
 
-`shotAI 2.0.0 is the native Windows version of shotAI. On a company-managed PC, you don't need to do anything: IT installs it for you. It installs for all users and needs an administrator and the .NET 10 Desktop Runtime. Your projects and settings carry over; you will need to sign in or enter your API key again.`
+`shotAI 2.0.0 is the native Windows version of shotAI. On a company-managed PC, you don't need to do anything: IT installs it for you. On another PC, download shotAI-2.0.0-x64.msi (shotAI-2.0.0-arm64.msi on a Windows on Arm PC) and open it to install shotAI for yourself: you don't need administrator rights, but the PC needs the .NET 10 Desktop Runtime, which an administrator installs once. If you're not sure, ask your IT department. Your projects and settings carry over; you will need to sign in or enter your API key again.`
+
+Revised 2026-09-23 for the dual-purpose MSI (7.4.5); the earlier text said the MSI "installs for all users and needs an administrator".
 
 ### 7.13 Pilot, cutover and rollback
 
@@ -1096,6 +1268,24 @@ Its detection rule: file `%LOCALAPPDATA%\shotai\Update.exe` exists. The script m
 | R2 after GA (fleet) | Uninstall assignment for the native apps; reassign the retained Electron 1.3.x Intune app (User context, Required); optionally edit the `2.0.0` GitHub release to prerelease so `/releases/latest` returns `v1.3.x` and Electron stops offering 2.0.0 (Q-PKG-21) | as R1; requires the rollback target to be 1.3.x (INV-PKG-25); `project.json` written natively stays readable by 1.3.x through the shared conformance suite (01) |
 | Native to older native | Uninstall the newer MSI, install the older (MajorUpgrade refuses downgrades) | settings and projects unaffected |
 
+#### 7.13.5 Removing personal copies where IT deploys per-machine
+
+A personal (per-user) copy left beside IT's per-machine copy does no harm, because it hands off at launch (7.10.4), but it keeps a second Start menu entry, a second Installed apps entry and its files (EDGE-PKG-62). Where IT deploys per-machine, IT removes personal copies with `dotnet/installer/remove-shotai-personal-copy.ps1` (shipped with `INTUNE.md`), run in user context: as an Intune platform script with "Run this script using the logged on credentials" set to Yes, or as the uninstall command of a User-context Win32 app assigned as Uninstall (the 7.13.3 pattern, with the script inside the package content, EDGE-PKG-32).
+
+```powershell
+# remove-shotai-personal-copy.ps1 (user context)
+$upgradeCode = '{PINNED-UPPERCASE-GUID}'   # the Package.wxs UpgradeCode (INV-PKG-12); public, not a secret
+$installer = New-Object -ComObject WindowsInstaller.Installer
+foreach ($code in @($installer.RelatedProducts($upgradeCode))) {
+  if ($installer.ProductInfo($code, 'AssignmentType') -eq '0') {   # 0 = per-user, 1 = per-machine
+    Start-Process msiexec.exe -ArgumentList "/x $code /qn /norestart" -Wait
+  }
+}
+exit 0
+```
+
+`RelatedProducts` enumerates "the set of all products installed or advertised for the current user and machine" with that UpgradeCode (Microsoft Learn, `Installer.RelatedProducts`), and `AssignmentType` "Equals 0 (zero) if the product is advertised or installed per-user" (`MsiGetProductInfo`, `INSTALLPROPERTY_ASSIGNMENTTYPE`), so the script never touches the per-machine copy. That PowerShell accepts both parameterized COM properties in this call form is UNVERIFIED (AC-PKG-38 runs the script). The Win32-app form's detection rule: file `%LOCALAPPDATA%\Programs\shotAI\shotAI.exe` exists. Removing a personal copy never touches user data (INV-PKG-2). `PackageSourceTests.UpgradeCodePinned` also asserts that the script's `$upgradeCode` equals the pinned UpgradeCode.
+
 ### 7.14 Hardening plan carry-over
 
 | Item | Native status | Replacement or note |
@@ -1118,7 +1308,7 @@ Its detection rule: file `%LOCALAPPDATA%\shotai\Update.exe` exists. The script m
 | NEW N3 startup hooks off | NEW | INV-PKG-18 |
 | NEW N4 native library provenance | NEW | INV-PKG-19 |
 | NEW N5 release pipeline least privilege | NEW | INV-PKG-28 |
-| NEW N6 install directory ACL | NEW | INV-PKG-15 |
+| NEW N6 install directory ACL | NEW | INV-PKG-15 (per-machine scope; a personal copy's folder belongs to its user, 7.4.5) |
 | NEW N7 public artifacts carry no tenant data | NEW | INV-PKG-14 |
 | NEW N8 concurrent Electron guard | NEW | INV-PKG-26 |
 | NEW N9 CET kept on, no ACG policy | NEW | 7.9.2, EDGE-PKG-51 |
@@ -1176,7 +1366,7 @@ Threading, cancellation, disposal: synchronous console tool, files opened with `
 
 | ID | Divergence | Class | Justification |
 |---|---|---|---|
-| D-PKG-1 | per-machine MSI instead of per-user Squirrel | IMPROVEMENT | device-context Intune, standard detection, admin-only install directory |
+| D-PKG-1 | one dual-purpose MSI instead of per-user Squirrel: per-machine through Intune, per-user when a person installs it (revised 2026-09-23; first drafted per-machine only) | IMPROVEMENT | device-context Intune, standard detection and an admin-only install directory on managed PCs; a person without administrator rights can still install, as with Squirrel (7.4.5) |
 | D-PKG-2 | x64 and ARM64 instead of x64 only | IMPROVEMENT | native speed and GPU on Windows on ARM |
 | D-PKG-3 | framework-dependent runtime instead of a bundled Chromium and Node | IMPROVEMENT | Microsoft services patches |
 | D-PKG-4 | signed binaries and MSI | IMPROVEMENT | SmartScreen, application control |
@@ -1188,6 +1378,8 @@ Threading, cancellation, disposal: synchronous console tool, files opened with `
 | D-PKG-10 | ARP icon by `ARPPRODUCTICON` instead of a registry write at first run | IMPROVEMENT | deterministic, no runtime registry writes |
 | D-PKG-11 | `LegacyInstanceGuard` | IMPROVEMENT | coexistence did not exist before |
 | D-PKG-12 | GPU policy, sandbox switches, fuses, asar, extraResource, postinstall, rebuild config, Vite configs, loading GIF generator, Rust DLL build | ELECTRON-ONLY | replacements named in section 2 |
+| D-PKG-13 | a personal copy hands off to the copy for all users (`PersonalCopyGuard`) | IMPROVEMENT | the two scopes can coexist, and a personal copy never gets IT's updates (INV-PKG-38) |
+| D-PKG-14 | no download action in the update notice on a per-machine install (06 D-HOME-35) | IMPROVEMENT | the person who sees it may not be able to install the update (EDGE-PKG-65) |
 
 ## 8. Tests
 
@@ -1216,8 +1408,9 @@ None are listed, and none exist: Electron's packaging was never under automated 
 | `Release.PayloadVerifierTests` | `MissingFileReported`; `FontHasOfl`; `ForbiddenFilesReported` (each forbidden pattern); `ArchPure` (an x64 DLL in an arm64 payload is reported); `RuntimeConfigNamesDesktopRuntime10`; `StartupHooksDisabled`; `PublicBuildHasNoBakedFederation` (a synthetic assembly with the resource is reported); negative control: a complete synthetic payload passes |
 | `Release.NoticesTests` | `CoversShippedPackages`; `CoversNativeLibraries` (libavif, libaom `LICENSE` and `PATENTS`, Archivo OFL pointer); `CheckReportsStale` |
 | `Release.AvifPinsTests` | `pins.json` parses; `commit` is 40 lowercase hex; `archiveSha256` is 64 lowercase hex; tags non-empty |
-| `Packaging.PackageSourceTests` | parses `dotnet/installer/Package.wxs`: `ScopeIsPerMachine`, `UpgradeCodePinned`, `MajorUpgradeWithDowngradeMessage`, `NoCustomActionRunsTheApp`, `NoPolicyRegistryWrites`, `NoPermissionElements`, `NoUserProfileLocations`, `NoChainedInstallers`, `ShortcutAndArp`, `LaunchConditionMessageExact`, `NoPersonalOrTenantData`, `AllowsSameVersionUpgrade` (EDGE-PKG-46), `DefinesMapEveryPreprocessorVariable` (every `$(var.X)` or `$(X)` used in `Package.wxs` is in the `.wixproj` `DefineConstants`); each asserted once against a mutated copy of the file to prove it can fail (EDGE-PKG-39) |
-| `Packaging.WorkflowContractTests` | text checks of `.github/workflows/dotnet.yml` and `release.yml`: `LinuxJobRunsBrandCheckBeforeBuild`, `NativeJobsRunFromDotnetDirectory`, `ReleaseTriggersOnlyOnV2Tags`, `ReleasePermissionsMinimal`, `ReleaseSignsBeforePackaging` (job `needs` graph), `FederationSecretOnlyInInternalJob`, `InternalMsiNeverUploadedToRelease`, `ActionsPinnedBySha` (release.yml), `DraftReleaseOnly`, `CheckTagExcludesItself` (EDGE-PKG-53), `PublicPublishEmptiesFederationFile` (every public-variant publish passes `-p:ShotAIFederationFile=`), `SmokeAssertionsThrow` (no bare `Test-Path` or `-eq` line in the smoke script, EDGE-PKG-54), `InternalPreflightUsesValidator` |
+| `Install.InstallScopeRulesTests` | `PerUserWhenBaseIsUserFolder`; `PerMachineWhenBaseIsMachineFolder`; `UnpackagedOtherwise` (no values, or neither matches); `CaseAndTrailingSeparatorIgnored`; `ForwardSlashesNormalized`; `MachineCopyOnlyForPerUser` (a per-machine or unpackaged process gets null); `MachineCopyNullWhenExeMissing` (7.10.4) |
+| `Packaging.PackageSourceTests` | parses `dotnet/installer/Package.wxs`: `ScopeIsDualPurpose` (INV-PKG-35), `RegistryUsesHkmuOnly` (every `RegistryValue` root is `HKMU`, only the two named values, EDGE-PKG-64), `PerUserLaunchConditionsExact` (INV-PKG-37), `NoScopeDialog` (EDGE-PKG-63), `UpgradeCodePinned` (also equals `$upgradeCode` in `remove-shotai-personal-copy.ps1`, 7.13.5), `MajorUpgradeWithDowngradeMessage`, `NoCustomActionRunsTheApp`, `NoPolicyRegistryWrites`, `NoPermissionElements`, `NoUserProfileLocations`, `NoChainedInstallers`, `ShortcutAndArp`, `LaunchConditionMessageExact`, `NoPersonalOrTenantData`, `AllowsSameVersionUpgrade` (EDGE-PKG-46), `DefinesMapEveryPreprocessorVariable` (every `$(var.X)` or `$(X)` used in `Package.wxs` is in the `.wixproj` `DefineConstants`); each asserted once against a mutated copy of the file to prove it can fail (EDGE-PKG-39) |
+| `Packaging.WorkflowContractTests` | text checks of `.github/workflows/dotnet.yml` and `release.yml`: `LinuxJobRunsBrandCheckBeforeBuild`, `NativeJobsRunFromDotnetDirectory`, `ReleaseTriggersOnlyOnV2Tags`, `ReleasePermissionsMinimal`, `ReleaseSignsBeforePackaging` (job `needs` graph), `FederationSecretOnlyInInternalJob`, `InternalMsiNeverUploadedToRelease`, `ActionsPinnedBySha` (release.yml), `DraftReleaseOnly`, `CheckTagExcludesItself` (EDGE-PKG-53), `PublicPublishEmptiesFederationFile` (every public-variant publish passes `-p:ShotAIFederationFile=`), `SmokeAssertionsThrow` (no bare `Test-Path` or `-eq` line in the smoke script, EDGE-PKG-54), `InternalPreflightUsesValidator`, `SmokeRunsBothScopes` (the smoke script has the per-machine, guard and per-user legs of 7.11.4), `SmokePerMachineLegPassesAllUsers1`, `IntuneNotesInstallCommandPassesAllUsers1` (`dotnet/installer/INTUNE.md` states the 7.5.2 install command verbatim, INV-PKG-36) |
 | `Packaging.RepoHygieneTests` | `NoCommittedBinaries` (no tracked `*.dll`, `*.exe`, `*.msi` under `dotnet/`); `LockFilesPresent`; `NuGetConfigMapsOnlyNuGetOrg`; `InstallerNotInSolution`; `GitattributesPinsGeneratedTables`; `EveryTestProjectInSolution` (EDGE-PKG-52); `GitignoreCoversNativeArtifacts` (`dotnet/artifacts/`, `dotnet/federation.local.json`); `PlatformAndAppDeclareRuntimeIdentifiers` (EDGE-PKG-57) |
 | `Packaging.ManifestTests` | `AsInvoker`; existing PMv2, `longPathAware` and `supportedOS` entries still present |
 | `Release.FederationCheckTests` | complete synthetic config passes; each of the five required keys missing gives the exact `missing:` message; a malformed `WorkspaceId` or `ClientAppId` is rejected; a leading UTF-8 BOM is accepted; no message contains any input value (all fixtures use obviously fake GUIDs) |
@@ -1229,23 +1422,26 @@ None are listed, and none exist: Electron's packaging was never under automated 
 |---|---|
 | `Startup.DllSearchTests` | `CurrentDirectoryNotSearched`: after `SetDefaultDllDirectories`, `LoadLibraryEx("shotai_test_probe.dll")` with the DLL only in the current directory fails with `ERROR_MOD_NOT_FOUND` |
 | `Startup.ProcessSnapshotTests` | returns the current process with its session and image path; access denied yields a null path |
+| `Install.InstallInfoReaderTests` | `InstallInfoReader.Read(baseDirectory, scratchKey)` with a scratch key `SOFTWARE\LFI\shotAI.Tests.<guid>` under `HKCU` (deleted afterwards): a `REG_SZ` `InstallFolder` equal to the base directory gives `PerUser`; a `REG_DWORD` value, a missing value and a missing key read as null (`Unpackaged`); the real `SOFTWARE\LFI\shotAI` key is never opened for writing (the `HKLM` half is proved by AC-PKG-38) |
+| `Processes.ProcessStarterTests` | starts a probe exe with arguments that contain spaces and quotes; the probe receives them unchanged; the working directory is the exe's folder |
 
 **ShotAI.App.Tests (Windows):**
 
 | Class | Cases |
 |---|---|
-| `Startup.LegacyInstanceGuardTests` | hit in the same session under `%LOCALAPPDATA%\shotai\app-1.3.0\shotAI.exe` (case variants `ShotAI`, `SHOTAI`); miss for another session; miss for the native install path; miss for the Squirrel stub `%LOCALAPPDATA%\shotai\shotAI.exe`; miss for a null path; miss for the current pid; message text exact; nothing written to settings on a hit; in a self-test mode no dialog is shown, the exact stderr line is written and the exit code is 2 (EDGE-PKG-50) |
+| `Startup.PersonalCopyGuardTests` | with fakes: `PerUser` plus a `MachineCopyExe` starts that exe with the process arguments unchanged and returns true; `PerMachine`, `Unpackaged`, or a null `MachineCopyExe` start nothing and return false; a self-test mode starts nothing, logs the exact line and returns false; a throwing starter logs the exact warning and returns false; a hand-off returns before the single-instance lock is requested (a fake lock factory records no call) |
+| `Startup.LegacyInstanceGuardTests` | hit in the same session under `%LOCALAPPDATA%\shotai\app-1.3.0\shotAI.exe` (case variants `ShotAI`, `SHOTAI`); miss for another session; miss for the native install paths (`%ProgramFiles%\shotAI\shotAI.exe` and the per-user `%LOCALAPPDATA%\Programs\shotAI\shotAI.exe`); miss for the Squirrel stub `%LOCALAPPDATA%\shotai\shotAI.exe`; miss for a null path; miss for the current pid; message text exact; nothing written to settings on a hit; in a self-test mode no dialog is shown, the exact stderr line is written and the exit code is 2 (EDGE-PKG-50) |
 | `Shell.AppPathsTests` (shared with 10, which lists the full class) | `NoPathUnderSquirrelRoot` and `LocalDataDirectoryIsUnderLfi` (INV-PKG-24, R-ARCH-13) |
 
-**CI-only checks (PowerShell, Windows):** Authenticode verification (7.6), install smoke and upgrade/downgrade (7.11.4), `dumpbin` export and dependency checks for `shotai_avif.dll` (7.7.2).
+**CI-only checks (PowerShell, Windows):** Authenticode verification (7.6), ICE validation including ICE105, install smoke in both scopes with the per-user guard, and the upgrade, downgrade and scope checks (7.11.4), `dumpbin` export and dependency checks for `shotai_avif.dll` (7.7.2).
 
 ## 9. Acceptance criteria
 
-**AC-PKG-1.** `PackageSourceTests`, `ReleaseVersionTests`, `MsiVersionTests`, `TagCheckTests`, `PayloadVerifierTests`, `WorkflowContractTests`, `RepoHygieneTests`, `ManifestTests`, `SourceScanTests`, `NoticesTests` and `AvifPinsTests` pass on the Linux job.
+**AC-PKG-1.** `PackageSourceTests`, `ReleaseVersionTests`, `MsiVersionTests`, `TagCheckTests`, `PayloadVerifierTests`, `WorkflowContractTests`, `RepoHygieneTests`, `ManifestTests`, `SourceScanTests`, `NoticesTests`, `AvifPinsTests` and `InstallScopeRulesTests` pass on the Linux job.
 
-**AC-PKG-2.** Manual: after installing the MSI offline on a clean Windows 11 x64 VM, Settings, Apps, Installed apps shows `shotAI` with the shotAI icon and publisher `LFI`; the Start menu has one `shotAI` (or `shotAI Preview` for a prerelease) shortcut that launches `C:\Program Files\shotAI\shotAI.exe`; there is no desktop shortcut. (03 AC-SHELL-30.)
+**AC-PKG-2.** Manual: after installing the MSI per-machine (`ALLUSERS=1`) offline on a clean Windows 11 x64 VM, Settings, Apps, Installed apps shows `shotAI` with the shotAI icon and publisher `LFI`; the Start menu has one `shotAI` (or `shotAI Preview` for a prerelease) shortcut that launches `C:\Program Files\shotAI\shotAI.exe`; there is no desktop shortcut. (03 AC-SHELL-30.)
 
-**AC-PKG-3.** The `package` job passes on x64 and ARM64: install exit 0, `--selftest` exit 0 with last line `[selftest] PASS`, uninstall exit 0, install folder gone, `settings.json` hash unchanged.
+**AC-PKG-3.** The `package` job passes on x64 and ARM64, in each scope (7.11.4 legs 1 and 3): install exit 0, `--selftest` exit 0 with last line `[selftest] PASS`, uninstall exit 0, install folder gone, `settings.json` hash unchanged.
 
 **AC-PKG-4.** `verify-payload --public` passes for both payloads, and fails (non-zero, one `release: ` line each) when, separately: `Fonts\OFL.txt` is deleted, an x64 `shotai_avif.dll` is copied into the arm64 payload, a `.pdb` is added, or the federation resource is embedded.
 
@@ -1253,13 +1449,13 @@ None are listed, and none exist: Electron's packaging was never under automated 
 
 **AC-PKG-6.** `icacls "C:\Program Files\shotAI"` shows no write, modify or full-control entry for `BUILTIN\Users`, `NT AUTHORITY\Authenticated Users` or `Everyone`.
 
-**AC-PKG-7.** Upgrade: installing `2.0.0-beta.1` then `2.0.0` leaves one ARP entry with DisplayVersion `2.0.999` and one Start menu shortcut named `shotAI` (the `shotAI Preview` shortcut is gone).
+**AC-PKG-7.** Upgrade, in each scope (the release smoke runs both, 7.11.4): installing `2.0.0-beta.1` then `2.0.0` leaves one ARP entry with DisplayVersion `2.0.999` and one Start menu shortcut named `shotAI` (the `shotAI Preview` shortcut is gone).
 
 **AC-PKG-8.** Downgrade: installing `2.0.0-beta.1` over `2.0.0` fails with exit code 1603 and the log contains `A newer version of shotAI is already installed.`; upgrading while shotAI is running either closes it (Restart Manager) or returns 3010, and in both cases the next launch runs the new version with no lost project edits.
 
 **AC-PKG-9.** After uninstall, `%APPDATA%\shotAI\settings.json`, `%APPDATA%\shotAI\logs\`, the projects folder and the native local data folder `%LOCALAPPDATA%\LFI\shotAI\` (R-ARCH-13) are byte-identical to before (hash comparison).
 
-**AC-PKG-10.** Manual: on a VM without the .NET 10 Desktop Runtime, an Intune Required assignment installs the runtime dependency first, then shotAI; shotAI launches. Launching `shotAI.exe` on a VM without the runtime (manual MSI install) shows the .NET runtime-missing dialog (record its exact text here on first run, EDGE-PKG-42) and does not crash.
+**AC-PKG-10.** Manual: on a VM without the .NET 10 Desktop Runtime, an Intune Required assignment installs the runtime dependency first, then shotAI; shotAI launches. Launching `shotAI.exe` on a VM without the runtime (manual per-machine install, `ALLUSERS=1`) shows the .NET runtime-missing dialog (record its exact text here on first run, EDGE-PKG-42) and does not crash. (A manual per-user install on such a VM is refused instead, AC-PKG-37.)
 
 **AC-PKG-11.** Manual: with the WebView2 runtime uninstalled, the app launches, all exports except PDF succeed, and PDF export shows 09's notice; on a VM without the OCR capability, auto-redact shows 04's notice.
 
@@ -1289,7 +1485,7 @@ None are listed, and none exist: Electron's packaging was never under automated 
 
 **AC-PKG-24.** Manual, before the pilot: on a PC with Electron 1.3.0 and native installed and signed in, running the 7.13.3 script removes `%LOCALAPPDATA%\shotai`, the Electron shortcuts and the HKCU ARP key; `%APPDATA%\shotAI\settings.json`, logs, projects and `%LOCALAPPDATA%\LFI\shotAI\` (the MSAL cache `entra\msal-cache.bin` and the `WebView2\` folder, R-ARCH-13) are intact; native still shows the user as signed in and a PDF export still works (ARCHITECTURE AC-ARCH-7).
 
-**AC-PKG-25.** Intune detection: after install the Win32 app reports Installed (MSI product code and version rule); after a manual uninstall it reports Not installed and reinstalls within the Intune evaluation cycle.
+**AC-PKG-25.** Intune detection: after install with the 7.5.2 command (`ALLUSERS=1`, System) the files are under `C:\Program Files\shotAI` and the Win32 app reports Installed (MSI product code and version rule); after a manual uninstall it reports Not installed and reinstalls within the Intune evaluation cycle. Once, in a lab tenant, the negative control of EDGE-PKG-61: the same app with `ALLUSERS=1` removed from the install command puts no files under `C:\Program Files\shotAI` and no shotAI entry in a signed-in user's Start menu (record where the files went).
 
 **AC-PKG-26.** The ARM64 MSI on a Windows 11 ARM64 device runs natively (Task Manager architecture column `ARM64`) and the x64 MSI on an x64 device runs as x64.
 
@@ -1309,20 +1505,28 @@ None are listed, and none exist: Electron's packaging was never under automated 
 
 **AC-PKG-34.** With Electron 1.3.0 running, `shotAI.exe --selftest` exits 2 within 2 s with the EDGE-PKG-50 stderr line and shows no dialog.
 
+**AC-PKG-35.** The `package` job on x64 and ARM64: the MSI build's ICE validation shows ICE105 ran with no error (EDGE-PKG-64), and the smoke passes all three legs of 7.11.4: the per-machine leg with `ALLUSERS=1`; the refused per-user install beside it (exit 1603, the exact INV-PKG-37 (a) message in the log, no folder left); and the per-user leg (files under `%LOCALAPPDATA%\Programs\shotAI`, one Installed apps entry for the user and none for the machine, `HKCU` `InstallFolder`, the user's Start menu shortcut, `--selftest` PASS, clean uninstall). The release smoke's scope check leaves an older per-user copy in place after a newer per-machine install (EDGE-PKG-62).
+
+**AC-PKG-36.** Manual: on a clean Windows 11 x64 VM with the .NET 10 Desktop Runtime installed, a standard user (not an administrator) double-clicks the MSI: no UAC prompt appears; shotAI installs to `%LOCALAPPDATA%\Programs\shotAI`; its Start menu entry and Installed apps entry appear for that user and not for a second standard user on the same VM; shotAI starts. Uninstalling it from Settings, Apps, Installed apps removes the folder and the shortcut and leaves `%APPDATA%\shotAI\settings.json`, the logs, the projects folder and `%LOCALAPPDATA%\LFI\shotAI\` byte-identical (as AC-PKG-9).
+
+**AC-PKG-37.** Manual: on a clean Windows 11 x64 VM without the .NET 10 Desktop Runtime, a standard user's double-click install stops with a message box showing exactly `shotAI needs the .NET 10 Desktop Runtime, and installing it needs an administrator. Ask IT to install it, then run this installer again.` and leaves no folder, shortcut or Installed apps entry; on the same VM an administrator's `msiexec /i <msi> ALLUSERS=1 /qn /norestart` still installs (EDGE-PKG-42); after the runtime is installed, the standard user's double-click install succeeds. With an administrator's per-machine copy installed, the standard user's double-click install stops with exactly `shotAI is already installed for all users of this PC, so you don't need your own copy. IT or an administrator keeps it up to date.`
+
+**AC-PKG-38.** Manual: as a standard user, install a personal copy; then, as an administrator, install the same or a newer MSI with `ALLUSERS=1`. Opening the personal copy's Start menu entry starts `C:\Program Files\shotAI\shotAI.exe` (Task Manager, command line column) within 2 s, and the log has the exact 7.10.4 hand-off line; with the per-machine copy already running, the same click brings its window to the front and no second instance appears; `shotAI.exe --selftest` run from the personal folder tests that copy and logs the exact self-test line. Running `remove-shotai-personal-copy.ps1` in the user's context (7.13.5) removes the personal copy, leaves the per-machine copy and its Installed apps entry, and leaves user data byte-identical. After the per-machine copy is uninstalled, a new personal copy starts with no hand-off.
+
 ## 10. Interfaces with other subsystems
 
 | Spec | Consumes from it | Provides to it |
 |---|---|---|
 | 01 Model and store | the conformance suite (rollback safety of `project.json`); Windows junction permission requirement for Platform tests | Linux and Windows test jobs |
 | 02 Capture | nothing at build time | ARM64 and x64 builds; Windows ARM64 runner for capture tests; removal of the Rust and npm native modules |
-| 03 Shell | the startup order slot for `LegacyInstanceGuard` (after the mutex, before settings); session end flush (EDGE-PKG-29); `app.manifest` ownership of DPI entries | installer never launches the app (INV-PKG-4); Start menu shortcut and ARP icon (AC-SHELL-30 via AC-PKG-2); the `asInvoker` manifest block; `SetDefaultDllDirectories` as the first statement of `Main` |
+| 03 Shell | the startup order slots for `PersonalCopyGuard` (ARCHITECTURE step 1b, before the mutex, 7.10.4) and `LegacyInstanceGuard` (after the mutex, before settings); session end flush (EDGE-PKG-29); `app.manifest` ownership of DPI entries | installer never launches the app (INV-PKG-4); Start menu shortcut and ARP icon (AC-SHELL-30 via AC-PKG-2); the `asInvoker` manifest block; `SetDefaultDllDirectories` as the first statement of `Main` |
 | 04 Editor and OCR | OCR language notice | OCR Feature on Demand deployment note (7.5.1); Windows runner with a recognizer |
-| 05, 06 UI | test projects | Windows test jobs; fonts in the payload |
+| 05, 06 UI | test projects; 06's per-machine variant of the update notice and of `Check now` (06 INV-HOME-45) | Windows test jobs; fonts in the payload; `IInstallInfo.Scope` (7.10.4) |
 | 07 SOP | `Anthropic` package licence | notices entry |
 | 08 Auth | `ShotAIFederationFile` property, the five required keys, `BakedFederationParser` and `FederationConfigValidator` (reused by `ShotAI.Release federation-check`), `msalruntime` per RID, MSAL cache path `%LOCALAPPDATA%\LFI\shotAI\entra\msal-cache.bin` from `IAppPaths.LocalDataDirectory` (R-ARCH-13) | release secret wiring and preflight (7.11.3); public build is bring-your-own-key (INV-PKG-14); installer never writes the policy key (INV-PKG-3); the Squirrel-root constraint behind R-ARCH-13 (EDGE-PKG-22, Q-PKG-4 resolved) |
 | 09 Exports | `shotai_avif.dll` ABI, WebView2 prerequisite, WebView2 user data folder `%LOCALAPPDATA%\LFI\shotAI\WebView2` from `IAppPaths.LocalDataDirectory` (R-ARCH-13), fonts | the pinned AVIF build (7.7), payload layout (7.2.3), WebView2 deployment (7.5.1), answer to Q-EXP-20 (no deletion on uninstall), the Squirrel-root constraint behind R-ARCH-13 (EDGE-PKG-22, EDGE-PKG-28) |
-| 10 Infra | `ShotAI.GenBrand --check`, `--selftest` exit codes, `IAppPaths` (including `LocalDataDirectory` = `%LOCALAPPDATA%\LFI\shotAI\` and `FontsDirectory`, R-ARCH-13, ARCHITECTURE 10.2), settings unknown-key preservation, prerelease-aware `IsNewer`, log sink sharing, the bootstrap logger used by `LegacyInstanceGuard` | the self-test behavior of the guard (EDGE-PKG-50: stderr line, exit code 2, no dialog), CI steps (7.11.2), release flags (INV-PKG-9), answer to Q-INFRA-8 (MSI), notices file, `IncludeSourceRevisionInInformationalVersion=false` |
-| 11 Services | DI composition root | nothing at startup (`ProcessSnapshot` and `DllSearchHardening` are public Platform helpers with no Core counterpart, ARCHITECTURE INV-ARCH-4): `ProcessSnapshot` (Platform) and `LegacyInstanceGuard` (App) are constructed directly in 03 step 2a, before the container exists (7.10.3); `IProcessSnapshot` may also be registered later for diagnostics |
+| 10 Infra | `ShotAI.GenBrand --check`, `--selftest` exit codes, `IAppPaths` (including `LocalDataDirectory` = `%LOCALAPPDATA%\LFI\shotAI\` and `FontsDirectory`, R-ARCH-13, ARCHITECTURE 10.2), settings unknown-key preservation, prerelease-aware `IsNewer`, log sink sharing, the bootstrap logger used by `LegacyInstanceGuard` and `PersonalCopyGuard` | the self-test behavior of the guards (EDGE-PKG-50: stderr line, exit code 2, no dialog; `PersonalCopyGuard` only logs, 7.10.4), CI steps (7.11.2), release flags (INV-PKG-9), answer to Q-INFRA-8 (MSI), answer to Q-INFRA-5 (the notice follows the install scope, 7.10.4 with 06 INV-HOME-45), notices file, `IncludeSourceRevisionInInformationalVersion=false` |
+| 11 Services | DI composition root | nothing at startup (`ProcessSnapshot` and `DllSearchHardening` are public Platform helpers with no Core counterpart, ARCHITECTURE INV-ARCH-4): `ProcessSnapshot` (Platform) and `LegacyInstanceGuard` (App) are constructed directly in 03 step 2a, before the container exists (7.10.3); `IProcessSnapshot` may also be registered later for diagnostics. `InstallInfoReader.Read`, `ProcessStarter` (Platform) and `PersonalCopyGuard` (App) are used the same way at ARCHITECTURE step 1b, and the returned `IInstallInfo` is registered as an instance by `AddShotAIApp` at step 6 (7.10.4; INV-ARCH-4 keeps the implementing type internal) |
 
 ## 11. Open questions and risks
 
@@ -1342,7 +1546,7 @@ None are listed, and none exist: Electron's packaging was never under automated 
 
 **Q-PKG-8. Legacy guard: block or warn?** Recommended default: block (INV-PKG-26), because concurrent writes can lose edits; revisit if pilot users need both open to compare output (then offer "Open anyway" with a second confirmation).
 
-**Q-PKG-9. Desktop shortcut.** Squirrel created one per user. Recommended default: none (`DESKTOPSHORTCUT=0`); IT can pass `DESKTOPSHORTCUT=1` in the install command. `DESKTOPSHORTCUT` is not remembered across a major upgrade (the new product evaluates the component condition afresh), so IT must pass it in EVERY version's install command or the upgrade removes the shortcut; alternatively persist it (WiX "remember property" pattern under `HKLM\SOFTWARE\LFI\shotAI`), decided in the installer PR.
+**Q-PKG-9. Desktop shortcut.** Squirrel created one per user. Recommended default: none (`DESKTOPSHORTCUT=0`); IT can pass `DESKTOPSHORTCUT=1` in the install command. `DESKTOPSHORTCUT` is not remembered across a major upgrade (the new product evaluates the component condition afresh), so IT must pass it in EVERY version's install command or the upgrade removes the shortcut; alternatively persist it (WiX "remember property" pattern under `SOFTWARE\LFI\shotAI` with `Root="HKMU"`, EDGE-PKG-64), decided in the installer PR.
 
 **Q-PKG-10. ReadyToRun.** Recommended default: on for first-party assemblies only, with every third-party assembly listed in `PublishReadyToRunExclude` so it keeps its publisher's signature (EDGE-PKG-47); measure cold start with and without on both architectures during the pilot and keep it only if it saves at least 100 ms.
 
@@ -1370,7 +1574,7 @@ None are listed, and none exist: Electron's packaging was never under automated 
 
 **Q-PKG-22. Retention window.** Recommended default: 90 days after GA for Electron artifacts and the Intune app object; extend if any rollback happened.
 
-**Q-PKG-23. Unmanaged users following the 2.0.0 notice.** They need admin rights and the runtime. Recommended default: the 7.12.3 text; no per-user MSI variant in 2.0 (a dual-purpose MSI would complicate detection).
+**Q-PKG-23. Unmanaged users following the 2.0.0 notice.** Resolved 2026-09-23 by the maintainer: the MSI is dual-purpose (7.4.5, INV-PKG-35). A double-click installs a personal copy with no administrator rights; the runtime still needs an administrator once (INV-PKG-37, Q-PKG-33). Intune detection stays as it was because Intune uses the per-machine scope only (INV-PKG-36); the added complexity sits in the unmanaged path and is handled by INV-PKG-37, INV-PKG-38 and 7.13.5. The 7.12.3 text is revised to match. Original text, kept for the record: They need admin rights and the runtime. Recommended default: the 7.12.3 text; no per-user MSI variant in 2.0 (a dual-purpose MSI would complicate detection).
 
 **Q-PKG-24. Pin actions by SHA in `dotnet.yml` and `ci.yml` too.** Recommended default: `release.yml` only now (it holds signing rights); Dependabot keeps the others current.
 
@@ -1389,3 +1593,7 @@ None are listed, and none exist: Electron's packaging was never under automated 
 **Q-PKG-31. `docs/native/PLAN.md` does not exist.** Resolved: `docs/native/PLAN.md` exists (the ordered implementation plan, ARCHITECTURE header and 15.6), so the links below resolve and nothing further is needed. Original text, kept for the record: `dotnet/README.md:8`, `dotnet/Directory.Build.props:22-23` and `.github/workflows/dotnet.yml:1` link it. Recommended default: the ordered implementation plan is written there (it is the natural home of the PR sequence that this spec's 7.11 to 7.13 assume); until then the links are dead and a reader lands on nothing.
 
 **Q-PKG-32. Squirrel stub and AppUserModelID.** Electron's Squirrel shortcuts carry an AppUserModelID set by Squirrel (value UNVERIFIED); the native WPF app sets none unless 03 does. A taskbar pin made on the Electron build therefore does not become a pin of the native app (EDGE-PKG-30). Recommended default: no AUMID compatibility attempt; the cutover message tells users to re-pin (03 owns any AUMID decision).
+
+**Q-PKG-33. An MSI that carries its own runtime, for PCs outside Intune?** A personal copy needs the .NET 10 Desktop Runtime, which only an administrator can install (INV-PKG-37). A self-contained per-user MSI (`shotAI-<Version>-<arch>-user.msi`, runtime inside) would install anywhere with no administrator, but Microsoft Update never services a bundled runtime, so every .NET security fix would need a shotAI release (or those users run an unpatched runtime), and it breaks INV-PKG-5 for that artifact; it is also a second MSI per architecture to sign, smoke and publish, and a much larger download (WPF cannot be trimmed, 7.2.1). Recommended default: not in 2.0; IT estimates how many PCs would install shotAI outside Intune, and the decision is taken before 2.0.0 GA (WP-E8). If adopted: a separate artifact with its own `UpgradeCode` and per-user scope only, never deployed by Intune, and a release checklist item to re-release it for every .NET 10 servicing update.
+
+**Q-PKG-34. Is application control enforced where users would install personal copies?** AppLocker's default rules and App Control for Business with Intune as the managed installer both block a personal copy, and IT may prefer `DisableUserInstalls` to forbid per-user MSIs outright (EDGE-PKG-66). Recommended default: IT answers before the pilot (WP-E7). If enforced, either add a publisher rule for the signing identity (depends on Q-PKG-2) or keep those PCs per-machine only and say so in `INTUNE.md`; record which here.

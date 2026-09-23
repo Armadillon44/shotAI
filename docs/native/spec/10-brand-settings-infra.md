@@ -713,7 +713,7 @@ OFL 1.1 conditions that bind the native package (`OFL.txt:47-78`): (1) the font 
 
 **EDGE-INFRA-38. The OFL was in the tree but not in the installed app.** Required: the installer places `OFL.txt` beside the fonts, verified on the built package, not on the source tree. From #93, `c070095`.
 
-**EDGE-INFRA-39. MSIX virtualizes writes to `%APPDATA%`.** A packaged app's writes to `AppData\Roaming` go to a per-package private copy, so the native app would stop sharing `settings.json` and the logs with the Electron build and the real path, breaking rollback and support instructions. Required: MSI. Decided by 12 (INV-PKG-1, EDGE-PKG-21: a per-machine MSI, no MSIX); Q-INFRA-8 is closed. AC-INFRA-31 stays as the regression gate. New.
+**EDGE-INFRA-39. MSIX virtualizes writes to `%APPDATA%`.** A packaged app's writes to `AppData\Roaming` go to a per-package private copy, so the native app would stop sharing `settings.json` and the logs with the Electron build and the real path, breaking rollback and support instructions. Required: MSI. Decided by 12 (INV-PKG-1, EDGE-PKG-21: an MSI, no MSIX; dual-purpose since 2026-09-23, 12 7.4.5); Q-INFRA-8 is closed. AC-INFRA-31 stays as the regression gate. New.
 
 **EDGE-INFRA-40. Two builds running at once** (the Electron rollback build and the native app hold different single-instance locks) share `settings.json` and `shotai.log`. The native app refuses to START while an Electron 1.x instance runs (12 `LegacyInstanceGuard`, 03 7.4.1 step 2a), but Electron can still be started while the native app runs, and nothing stops it. Atomic replace keeps the file whole; the last writer wins per known key; unknown keys survive both ways; the log sink opens per batch with `FileShare.ReadWrite | FileShare.Delete`. Electron's rotation check counts only its own bytes (2.7), so it may rotate late or rename the file under the native sink; the native sink re-opens by path per batch and tolerates that. Required: tolerate, do not coordinate. New.
 
@@ -1099,7 +1099,7 @@ Where each kind of data lives (ARCHITECTURE 10.1):
 |---|---|---|
 | `settings.json`, `settings.json.bad`, `logs\shotai.log`, `logs\shotai.old.log` | `UserDataDirectory` (`%APPDATA%\shotAI`, roaming) | REQUIRED: the same files the Electron build reads and writes, so the pilot and a rollback share them (ARCHITECTURE 10.5, INV-INFRA-14, Q-INFRA-7) |
 | Projects | `settings.projectsDir`, default `DefaultProjectsDir` | REQUIRED: unchanged from Electron (01) |
-| New native-only per-machine-local data: 08's MSAL cache (`entra\msal-cache.bin`), 09's WebView2 user data folder (`WebView2\`), and anything added later | `LocalDataDirectory` (`%LOCALAPPDATA%\LFI\shotAI`) | IMPROVEMENT (D-ARCH-2, R-ARCH-13, 12 Q-PKG-4 default adopted): the obvious `%LOCALAPPDATA%\shotAI` is the Squirrel install root `%LocalAppData%\shotai\` under a case-insensitive file system, so removing Electron at cutover would delete it (EDGE-PKG-22) |
+| New native-only machine-local (non-roaming) data: 08's MSAL cache (`entra\msal-cache.bin`), 09's WebView2 user data folder (`WebView2\`), and anything added later | `LocalDataDirectory` (`%LOCALAPPDATA%\LFI\shotAI`) | IMPROVEMENT (D-ARCH-2, R-ARCH-13, 12 Q-PKG-4 default adopted): the obvious `%LOCALAPPDATA%\shotAI` is the Squirrel install root `%LocalAppData%\shotai\` under a case-insensitive file system, so removing Electron at cutover would delete it (EDGE-PKG-22) |
 
 `AppPaths` never returns a path under `%LOCALAPPDATA%\shotAI`, and no native code ever writes there. `LocalDataDirectory` is not created by `AppPaths`; each consumer creates its own subfolder on first use (`Directory.CreateDirectory`). The roaming folder is shared with the Electron build and its Chromium data, which the native app never deletes (12 decides any cleanup, INV-PKG-24). REQUIRED.
 
@@ -1319,7 +1319,7 @@ public enum SelfTestOutcome { Pass = 0, Fail = 1, Error = 2 }   // = process exi
 | CaptureSelfTest | `--capture-selftest` | `SHOTAI_CAPTURE_TEST` exactly `1` |
 | UpdateSelfTest (IMPROVEMENT) | `--update-selftest` or `--update-selftest=<version>` | none |
 
-Switches are matched ordinally and case-insensitively; unknown arguments are ignored. 03 runs the mode at its startup step 3 (after logging, the single-instance lock and 12's `LegacyInstanceGuard` of step 2a, so, as in Electron, a self-test exits early when shotAI is already running, and it also refuses while an Electron 1.x instance runs; before settings are loaded for the real app, before any window): the self-test builds what it needs, runs, writes its lines, and calls `Shutdown((int)outcome)`.
+Switches are matched ordinally and case-insensitively; unknown arguments are ignored. 03 runs the mode at its startup step 3 (after logging, 12's `PersonalCopyGuard` of ARCHITECTURE step 1b, which in a self-test mode only logs, the single-instance lock and 12's `LegacyInstanceGuard` of step 2a, so, as in Electron, a self-test exits early when shotAI is already running, and it also refuses while an Electron 1.x instance runs; before settings are loaded for the real app, before any window): the self-test builds what it needs, runs, writes its lines, and calls `Shutdown((int)outcome)`.
 
 Console: the app is a `WinExe`. `ConsoleAttach.Ensure()` (Platform): if `GetStdHandle(STD_OUTPUT_HANDLE)` is a valid handle (output redirected to a file or pipe) use it; else `AttachConsole(ATTACH_PARENT_PROCESS)`; if that fails there is no console and output goes to the log only. After attaching: `Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true })`, same for `Error`. Every self-test line is ALSO logged at info under `main`. Documented invocation for scripts: `Start-Process .\shotAI.exe -ArgumentList '--selftest' -Wait -PassThru -RedirectStandardOutput out.txt` and read `.ExitCode` (a GUI-subsystem exe does not block the shell otherwise).
 
@@ -1401,7 +1401,7 @@ An instance registration is not disposed by the container, but each forwarding F
 | Settings in memory, optimistic, rollback | IMPROVEMENT | fixed decision |
 | BOM tolerance, corrupt backup, load warnings | IMPROVEMENT | hand edits are prescribed (06 AC-HOME-22); silent data loss today |
 | Preserve unknown enum strings and nested `sop` keys | IMPROVEMENT | #92's principle one level down |
-| Invalid `projectsDir` loads as default | IMPROVEMENT | cwd of a per-machine install is not a projects folder |
+| Invalid `projectsDir` loads as default | IMPROVEMENT | the working directory of an installed app (either install scope, 12 7.4.5) is not a projects folder |
 | Drain settings on exit | IMPROVEMENT | a last write is not lost |
 | Native-only local data under `%LOCALAPPDATA%\LFI\shotAI` (`IAppPaths.LocalDataDirectory`) | IMPROVEMENT (D-ARCH-2) | the Squirrel root `%LOCALAPPDATA%\shotAI` would be deleted with Electron (R-ARCH-13) |
 | Log sink: batched, non-blocking, crop on line boundary | IMPROVEMENT | UI and hook threads never wait on disk |
@@ -1552,7 +1552,7 @@ Target: `Updates.UpdateCheckTests`.
 
 **AC-INFRA-30.** Manual: with the LFI brand, body text renders at regular weight and uppercase micro-labels render condensed (compare against the Electron build side by side).
 
-**AC-INFRA-31.** Manual: from the installed package (the per-machine MSI, 12 INV-PKG-1), changing a setting modifies the real `%APPDATA%\shotAI\settings.json` (check its timestamp from a non-packaged process).
+**AC-INFRA-31.** Manual: from the installed package (the MSI, in each install scope, 12 INV-PKG-1 and 7.4.5), changing a setting modifies the real `%APPDATA%\shotAI\settings.json` (check its timestamp from a non-packaged process).
 
 **AC-INFRA-32.** Manual: while the app runs, open `settings.json` in a program that holds it with no sharing (for example `[System.IO.File]::Open($p, 'Open', 'Read', 'None')` in PowerShell) and toggle a setting: the app shows an error notice, the switch returns, and after releasing the handle the file still holds every previous value (EDGE-INFRA-46); nothing is reset to defaults.
 
@@ -1578,7 +1578,7 @@ Target: `Updates.UpdateCheckTests`.
 | 08 Auth, secrets, policy | `ISharedHttp.Handler` (with no update-specific handler added, R-ARCH-15), `ISupportUrlAllowlist.IsAllowedAsync` | the file sink and the `claude` category; the base allowlist and launcher; the never-log rule; `IAppPaths.LocalDataDirectory` for the MSAL cache at `entra\msal-cache.bin` (R-ARCH-13) |
 | 09 Exports | | `BrandPalette.Get`/`For` (LIGHT palette for documents), `CoerceBrand`, `PinnedBrand`, `IsBrandId` with string brand ids (replacing 09's `Brands.*` and `BrandId`, R-ARCH-14), `CssFontStack`, `HexNoHash`, `CardRadiusPx`, `ImageRadiusPx`, `RetiredGreys` (guard), `Current.ReportByline`, the variable `Fonts\Archivo.ttf` path via 03; `IAppPaths.LocalDataDirectory` for the WebView2 user data folder `WebView2\` (R-ARCH-13) |
 | 11 Service boundary | `IUiDispatcher.Post` as the only marshal (T6), `EventRaiser` (T5), `IAppLifetime.Stopping`, `ShutdownFlush.Run` (R-ARCH-10), `UserMessage`, the DI rules (ARCHITECTURE 4.1), `RemoteVisibilityApplier` (calling the shield through `Task.Run`, DL1) | the singletons of 7.11; the `ISettingsService` and `IUpdateService` members of 11 7.3.6 (11 wins on names) |
-| 12 Packaging and CI | the installer format decision (Q-INFRA-8), third-party notices, release checklist | the generator CI step, `.gitattributes` line, fonts and `OFL.txt` layout, the self-test smoke step for the Windows CI job, the "prerelease flag on every `-` version" checklist item |
+| 12 Packaging and CI | the installer format decision (Q-INFRA-8), the install scope behind Q-INFRA-5 (12 7.4.5, 7.10.4), third-party notices, release checklist | the generator CI step, `.gitattributes` line, fonts and `OFL.txt` layout, the self-test smoke step for the Windows CI job, the "prerelease flag on every `-` version" checklist item |
 
 ---
 
@@ -1592,13 +1592,13 @@ Target: `Updates.UpdateCheckTests`.
 
 **Q-INFRA-4. A policy to disable the update check fleet-wide.** macOS honors an MDM key; Windows has only the user toggle, and the ADMX is fixed. Recommended default: no new policy at 2.0.0; if IT asks during the pilot, add an `UpdateCheckDisabled` value under a new `HKLM\SOFTWARE\Policies\shotAI` subkey with an ADMX revision (08 and 12), never under `Federation`.
 
-**Q-INFRA-5. The notice under per-machine deployment.** A per-machine MSI needs admin rights, so "Open the download page" sends a standard user to an installer they cannot run. Recommended default: keep the notice (parity) for the pilot; decide with IT whether the Intune package sets `updateCheckEnabled: false` for managed devices or whether the release page explains that IT deploys updates.
+**Q-INFRA-5. The notice under per-machine deployment.** Resolved 2026-09-23 with 12's dual-purpose MSI (12 7.4.5): the notice follows the install scope (12 7.10.4, 06 INV-HOME-45). A per-user or unpackaged build keeps the parity notice with `Open the download page`, which a standard user can now act on because the MSI installs per-user with no administrator rights; a per-machine install shows `shotAI <version> is available. On this PC, IT or an administrator installs updates.` with no download action, and `Check now` opens no release page there (12 EDGE-PKG-65). This spec's check logic does not change: it reports the same result in both scopes, and only 06's presentation differs. A user can still turn the startup check off (`updateCheckEnabled`); a fleet-wide switch stays Q-INFRA-4. Original text, kept for the record: A per-machine MSI needs admin rights, so "Open the download page" sends a standard user to an installer they cannot run. Recommended default: keep the notice (parity) for the pilot; decide with IT whether the Intune package sets `updateCheckEnabled: false` for managed devices or whether the release page explains that IT deploys updates.
 
 **Q-INFRA-6. Prerelease ordering.** Recommended default: adopt 7.6.2 (`2.0.0-alpha.N` is older than `2.0.0`). Risk: none for stable users, who never run a prerelease.
 
 **Q-INFRA-7. Same log file for Electron and native?** Recommended default: yes, same path and names, so support instructions and rollback keep working; both formats are identical by design.
 
-**Q-INFRA-8. MSIX file-system virtualization.** CLOSED: 12 decided a per-machine MSI and no MSIX (INV-PKG-1, EDGE-PKG-21, citing this spec's EDGE-INFRA-39; ARCHITECTURE I-2). AC-INFRA-31 stays as the regression gate.
+**Q-INFRA-8. MSIX file-system virtualization.** CLOSED: 12 decided an MSI and no MSIX (INV-PKG-1, EDGE-PKG-21, citing this spec's EDGE-INFRA-39; ARCHITECTURE I-2); since 2026-09-23 the MSI is dual-purpose, per-machine through Intune and per-user by hand (12 7.4.5), and neither scope virtualizes `AppData`. AC-INFRA-31 stays as the regression gate.
 
 **Q-INFRA-9. WPF and the variable Archivo file.** Recommended default: 06's Q-HOME-2 (upstream static instances for WPF), verified by `ArchivoRenderingTests`; the variable file stays for the PDF path. Verify on Windows whether WPF exposes any named instances of the variable font before committing to the static set. Known from the file itself (2.10): its 9 named instances are weights only at `wdth` 100, so even if WPF exposes them as faces, no condensed (62) face exists without static condensed instances.
 

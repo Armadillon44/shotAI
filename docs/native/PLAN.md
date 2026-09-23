@@ -18,7 +18,7 @@
 
 | # | Outcome | Evidence |
 |---|---|---|
-| O1 | shotAI 2.0.0 ships as a signed, per-machine MSI for x64 and ARM64, framework-dependent on the .NET 10 Desktop Runtime, deployed by Intune as a Win32 app | WP-E3, WP-E4, WP-E8; 12 7.1 to 7.6 |
+| O1 | shotAI 2.0.0 ships as one signed, dual-purpose MSI for x64 and ARM64 (per-user with no administrator rights when a person installs it, per-machine when Intune does), framework-dependent on the .NET 10 Desktop Runtime, deployed by Intune as a Win32 app | WP-E3, WP-E4, WP-E8; 12 7.1 to 7.6 |
 | O2 | The native app has behavioral parity with Electron 1.3.0 (G1 of ARCHITECTURE 1.1), except the IMPROVEMENT and ELECTRON-ONLY items the specs list | section 7 (every AC met or waived), WP-E6 parity walk (AC-IPC-22) |
 | O3 | Every shared file stays compatible: `project.json` through `contract/conformance`, `settings.json` layout and unknown keys, the log format, the brand stamp; rollback to Electron 1.3.x keeps working | AC-MODEL-1, AC-MODEL-3, AC-INFRA-3, AC-INFRA-8, AC-PKG-21 to AC-PKG-23 |
 | O4 | No security invariant of ARCHITECTURE 1.4 and 9.2 (S1 to S21) is weaker than in Electron | the `[SECURITY]` ACs of every spec, WP-D17 end-to-end redaction, WP-E6 audit |
@@ -28,7 +28,7 @@
 
 Parity is reached when all of these hold:
 
-1. **Every acceptance criterion** in `docs/native/spec/*.md` section 9 and `docs/native/ARCHITECTURE.md` 12.10 (419 in total) is met, or is waived in 1.5 with a reason. Section 7 maps each AC to exactly one work package (AC-MODEL-36, whose own text splits its two clauses between WP-A3 and WP-A12, is the one exception); the AC is met when that WP's PR is merged and, for a manual AC, the result is recorded in the phase tracking issue (2.6).
+1. **Every acceptance criterion** in `docs/native/spec/*.md` section 9 and `docs/native/ARCHITECTURE.md` 12.10 (424 in total) is met, or is waived in 1.5 with a reason. Section 7 maps each AC to exactly one work package (AC-MODEL-36, whose own text splits its two clauses between WP-A3 and WP-A12, is the one exception); the AC is met when that WP's PR is merged and, for a manual AC, the result is recorded in the phase tracking issue (2.6).
 2. **Every Electron test file** under `src/` (49) is ported, or is ELECTRON-ONLY with the reason and the native test that carries its intent (section 8).
 3. **Every divergence** (`D-*` in each spec's section 7, `D-ARCH-*`) is implemented as specified, or recorded as changed in the owning spec with the reason.
 4. **Every open question** (`Q-*`) is decided: either its recommended default was applied (the default is the decision unless someone decides otherwise before the PR that needs it, ARCHITECTURE 15.4) or a different decision is recorded in the owning spec's section 11. Section 6 names the WP that owns each one.
@@ -1145,14 +1145,14 @@ Goal (feasibility): the signed MSI with the Desktop Runtime dependency, the same
 | Field | Content |
 |---|---|
 | Goal | The throttled startup check and `Check now`, over the system proxy, prerelease-aware, with the Home notice |
-| Spec inputs | 10 2.8 (2.8.1 to 2.8.9), 7.6 (7.6.1 to 7.6.4), INV-INFRA-22 to INV-INFRA-29; 06 2.22, 7.10 (update slot); 11 2.6, 7.3.6, D-IPC-17, INV-IPC-26; ARCHITECTURE 9.2 S19; Q-INFRA-4, Q-INFRA-6, Q-INFRA-13, Q-INFRA-14, Q-INFRA-15, Q-INFRA-18, Q-HOME-8, Q-HOME-17, Q-IPC-7, Q-PKG-15 |
-| Deliverables | Core `ShotAI.Core.Updates`: `UpdateCheckResult`, `UpdateSkipReason`, `UpdateDecision`, `UpdateCheck`, `ReleaseFeed` (over `ISharedHttp`, `X-GitHub-Api-Version`, final-host check, 10 s timeout), `IUpdateService`, `UpdateService` (stash before raise, in-flight join, `CheckNowAsync` updating `Pending` without raising), `AppVersion`; Core `UpdateSelfTest` and `--update-selftest`; startup step 13's update check; App the update slot of `NoticeCenter` and `Check now` in About |
-| Tests | Port `src/main/update-check.test.ts` (`Updates/UpdateCheckTests`, with the native additions). New: `UpdateServiceTests`, `ServiceBoundary/UpdateCheckNowTests`; App `Chrome/UpdateNoticeTests` |
+| Spec inputs | 10 2.8 (2.8.1 to 2.8.9), 7.6 (7.6.1 to 7.6.4), INV-INFRA-22 to INV-INFRA-29; 06 2.22, 7.10 (update slot), INV-HOME-45, D-HOME-35; 11 2.6, 7.3.6, D-IPC-17, INV-IPC-26; 12 7.10.4 (`IInstallInfo`), EDGE-PKG-65; ARCHITECTURE 4.3 (`IInstallInfo`), 9.2 S19; Q-INFRA-4, Q-INFRA-5 (resolved), Q-INFRA-6, Q-INFRA-13, Q-INFRA-14, Q-INFRA-15, Q-INFRA-18, Q-HOME-8, Q-HOME-17, Q-IPC-7, Q-PKG-15 |
+| Deliverables | Core `ShotAI.Core.Updates`: `UpdateCheckResult`, `UpdateSkipReason`, `UpdateDecision`, `UpdateCheck`, `ReleaseFeed` (over `ISharedHttp`, `X-GitHub-Api-Version`, final-host check, 10 s timeout), `IUpdateService`, `UpdateService` (stash before raise, in-flight join, `CheckNowAsync` updating `Pending` without raising), `AppVersion`; Core `UpdateSelfTest` and `--update-selftest`; startup step 13's update check; App the update slot of `NoticeCenter` and `Check now` in About; Core `ShotAI.Core.Install` (`InstallScope`, `IInstallInfo`, `InstallScopeRules`) and Platform `ShotAI.Platform.Install.InstallInfoReader` (12 7.10.4), read at startup step 1b and registered by `AddShotAIApp` at step 6; the per-machine variant of the notice and of `Check now` (`SettingsText.UpdateAvailable`, 06 INV-HOME-45) |
+| Tests | Port `src/main/update-check.test.ts` (`Updates/UpdateCheckTests`, with the native additions). New: `UpdateServiceTests`, `ServiceBoundary/UpdateCheckNowTests`, `Install/InstallScopeRulesTests`; Platform `Install/InstallInfoReaderTests`; App `Chrome/UpdateNoticeTests` (with `PerMachineHasNoDownloadAction`, `PerUserKeepsDownloadAction`), `Settings/SettingsViewModelTests.CheckNowPerMachineOpensNothing` |
 | Acceptance criteria | AC-HOME-28, AC-HOME-29, AC-HOME-30, AC-INFRA-17, AC-INFRA-18, AC-INFRA-19, AC-INFRA-20, AC-INFRA-21, AC-INFRA-22, AC-INFRA-23, AC-INFRA-24, AC-INFRA-28, AC-INFRA-34, AC-IPC-4, AC-IPC-25 |
 | Depends on | WP-D2, WP-A19, WP-B10 |
 | Size | M |
 | Risks and de-risking | A native prerelease published without the prerelease flag would be offered to every Electron user (10 risk, INV-PKG-9): the release workflow's flags and `verify-published` (WP-E4) |
-| Demo | a build versioned below the latest release shows `shotAI <v> is available.` once |
+| Demo | a build versioned below the latest release shows `shotAI <v> is available.` once (AC-HOME-41, the per-machine form, is recorded in WP-E6, once the MSI of WP-E3 exists) |
 
 #### WP-E2. Release tool and payload verification
 
@@ -1172,15 +1172,15 @@ Goal (feasibility): the signed MSI with the Desktop Runtime dependency, the same
 
 | Field | Content |
 |---|---|
-| Goal | A per-machine MSI per architecture that installs, runs its self-test, upgrades, refuses downgrades and uninstalls cleanly in CI |
-| Spec inputs | 12 7.1, 7.2.2, 7.4 (7.4.1 to 7.4.4), 7.5, 7.9, 7.11.2 (package job), 7.11.4, INV-PKG-1 to INV-PKG-6, INV-PKG-13, INV-PKG-15 to INV-PKG-18, INV-PKG-22, INV-PKG-30, INV-PKG-33; 03 8.2 (the ARP icon intent); 10 AC-INFRA-29, AC-INFRA-31; Q-PKG-1, Q-PKG-6, Q-PKG-9, Q-PKG-10, Q-PKG-20, Q-PKG-25, Q-PKG-26, Q-PKG-30 |
-| Deliverables | `dotnet/installer/ShotAI.Installer.wixproj` (not in `ShotAI.slnx`) and `Package.wxs` (per-machine, pinned UpgradeCode, MajorUpgrade with `A newer version of shotAI is already installed.`, the build 19041 launch condition message, Start menu shortcut `shotAI` or `shotAI Preview`, `ARPPRODUCTICON`, `DESKTOPSHORTCUT` default 0, no custom action that runs the app, no policy writes, no per-user locations); `dotnet/installer/smoke.ps1` (7.11.4, every assertion throws); `dotnet/installer/INTUNE.md` for IT (runtime dependency and detection by folder, requirement rules, MSI detection, WebView2, OCR Feature on Demand `Language.OCR~~~en-US~0.0.1.0`, the WAM redirect URI, the Restart Manager note); `dotnet.yml` job `package` (public publish, `verify-payload --public`, MSI, smoke, 7-day artifact) on x64 and arm64; the WiX licence decision recorded in 12 section 11 (Q-PKG-1) |
+| Goal | One dual-purpose MSI per architecture (per-user by default, per-machine with `ALLUSERS=1`) that installs in both scopes, runs its self-test, upgrades, refuses downgrades, refuses a personal copy beside a per-machine one or without the runtime, and uninstalls cleanly in CI |
+| Spec inputs | 12 7.1, 7.2.2, 7.4 (7.4.1 to 7.4.5), 7.5, 7.9, 7.11.2 (package job), 7.11.4, 7.13.5 (the script), INV-PKG-1 to INV-PKG-6, INV-PKG-13, INV-PKG-15 to INV-PKG-18, INV-PKG-22, INV-PKG-30, INV-PKG-33, INV-PKG-35 to INV-PKG-37, EDGE-PKG-61 to EDGE-PKG-66; 03 8.2 (the ARP icon intent); 10 AC-INFRA-29, AC-INFRA-31; Q-PKG-1, Q-PKG-6, Q-PKG-9, Q-PKG-10, Q-PKG-20, Q-PKG-25, Q-PKG-26, Q-PKG-30 |
+| Deliverables | `dotnet/installer/ShotAI.Installer.wixproj` (not in `ShotAI.slnx`) and `Package.wxs` (dual-purpose `Scope="perUserOrMachine"`, `HKMU` values `InstallFolder` and `DesktopShortcut`, the two per-user launch conditions with WiX NetFx `DotNetCompatibilityCheck` and their exact messages, no dialog set, pinned UpgradeCode, MajorUpgrade with `A newer version of shotAI is already installed.`, the build 19041 launch condition message, Start menu shortcut `shotAI` or `shotAI Preview`, `ARPPRODUCTICON`, `DESKTOPSHORTCUT` default 0, no custom action that runs the app, no policy writes, no per-user locations); `dotnet/installer/smoke.ps1` (7.11.4: the per-machine, guard and per-user legs; every assertion throws); `dotnet/installer/remove-shotai-personal-copy.ps1` (7.13.5); `dotnet/installer/INTUNE.md` for IT (the install command with `ALLUSERS=1` and System install behavior only, with the reason, INV-PKG-36 and EDGE-PKG-61; application control and `DisableUserInstalls`, EDGE-PKG-66; removing personal copies, 7.13.5; runtime dependency and detection by folder, requirement rules, MSI detection, WebView2, OCR Feature on Demand `Language.OCR~~~en-US~0.0.1.0`, the WAM redirect URI, the Restart Manager note); `dotnet.yml` job `package` (public publish, `verify-payload --public`, MSI, smoke, 7-day artifact) on x64 and arm64; the WiX licence decision recorded in 12 section 11 (Q-PKG-1) |
 | Tests | No Electron file (`src/main/arp-icon.test.ts` is ELECTRON-ONLY; its intent is `PackageSourceTests.ShortcutAndArp` here). New: Core `Packaging/PackageSourceTests` (each rule also asserted against a mutated copy); the CI smoke |
-| Acceptance criteria | AC-SHELL-30, AC-INFRA-29, AC-INFRA-31, AC-PKG-2, AC-PKG-3, AC-PKG-6, AC-PKG-7, AC-PKG-8, AC-PKG-9, AC-PKG-10, AC-PKG-12, AC-PKG-18, AC-PKG-19, AC-PKG-26, AC-PKG-31, AC-PKG-32 |
+| Acceptance criteria | AC-SHELL-30, AC-INFRA-29, AC-INFRA-31, AC-PKG-2, AC-PKG-3, AC-PKG-6, AC-PKG-7, AC-PKG-8, AC-PKG-9, AC-PKG-10, AC-PKG-12, AC-PKG-18, AC-PKG-19, AC-PKG-26, AC-PKG-31, AC-PKG-32, AC-PKG-35, AC-PKG-36, AC-PKG-37 |
 | Depends on | WP-E2 |
 | Size | M |
-| Risks and de-risking | WiX licensing (Q-PKG-1) must be decided before this PR: read the current terms; if the fee is not approved, pin the last release without it and generate explicit `File` elements from `ShotAI.Release` if that release lacks `Files`. The launch-condition integer comparison (Q-PKG-6): test on 1909 and 2004 VMs |
-| Demo | the `package` job artifact installs on a clean Windows 11 VM; Installed apps shows shotAI with its icon and publisher LFI |
+| Risks and de-risking | WiX licensing (Q-PKG-1) must be decided before this PR: read the current terms; if the fee is not approved, pin the last release without it and generate explicit `File` elements from `ShotAI.Release` if that release lacks `Files`. The launch-condition integer comparison (Q-PKG-6): test on 1909 and 2004 VMs. ICE38, ICE43 and ICE57 with `HKMU` keypaths under `ALLUSERS=2` are UNVERIFIED (EDGE-PKG-64): fix any finding in the authoring, never by suppressing ICE105. Where Windows Installer registers a per-user product's Installed apps entry is UNVERIFIED (7.11.4): the first run decides the assertion |
+| Demo | the `package` job artifact installs on a clean Windows 11 VM per-machine (`ALLUSERS=1`) and, for a standard user, per-user with no UAC prompt; Installed apps shows shotAI with its icon and publisher LFI |
 
 #### WP-E4. Signing and the release workflow
 
@@ -1189,7 +1189,7 @@ Goal (feasibility): the signed MSI with the Desktop Runtime dependency, the same
 | Goal | A tag produces a signed, attested, smoke-tested draft release with the right prerelease and latest flags; a human publishes it |
 | Spec inputs | 12 7.6, 7.11.3, 7.12 (7.12.1 to 7.12.3), INV-PKG-7, INV-PKG-9, INV-PKG-14, INV-PKG-19, INV-PKG-28; 08 Q-AUTH-11; Q-PKG-2, Q-PKG-3, Q-PKG-5, Q-PKG-11, Q-PKG-18, Q-PKG-24 |
 | Deliverables | `.github/workflows/release.yml` (jobs `check`, `test` (which passes `-p:ShotAIStrictAudit=true`, so low and moderate NuGet advisories fail the release workflow, ARCHITECTURE 3.1 V5, 12 7.2.1 and 7.11.3), `native-avif` with attestation, `build`, optional `build-internal`, `sign` in two passes with Azure Artifact Signing over OIDC in the protected `release` environment, `smoke-arm64`, `draft-release`, `verify-published`; `permissions: {}` at the top; actions pinned by SHA); `dotnet/installer/release-notes/2.0.0-alpha.1.md`; the repository `release` environment with required reviewers and the signing identifiers (set by the maintainer; IT owns the Azure side, Q-PKG-2); the internal-build decision recorded with IT (Q-PKG-5) |
-| Tests | No Electron file. New: Core `Packaging/WorkflowContractTests` (13 cases of 12 8.2); a dry run with `workflow_dispatch` on a throwaway tag producing a draft, then deleted |
+| Tests | No Electron file. New: Core `Packaging/WorkflowContractTests` (16 cases of 12 8.2, including the three that read `smoke.ps1` and `INTUNE.md` from WP-E3); a dry run with `workflow_dispatch` on a throwaway tag producing a draft, then deleted |
 | Acceptance criteria | AC-PKG-1, AC-PKG-5, AC-PKG-15, AC-PKG-16, AC-PKG-17, AC-PKG-30, AC-PKG-33 |
 | Depends on | WP-E3, WP-D11 |
 | Size | M |
@@ -1200,12 +1200,12 @@ Goal (feasibility): the signed MSI with the Desktop Runtime dependency, the same
 
 | Field | Content |
 |---|---|
-| Goal | Native refuses to start while Electron runs in the same session, never stores data under the Squirrel root, and both builds share settings and projects safely |
-| Spec inputs | 12 7.10 (7.10.1 to 7.10.3), INV-PKG-23 to INV-PKG-27, EDGE-PKG-22, EDGE-PKG-23, EDGE-PKG-50; 03 Q-SHELL-19; ARCHITECTURE 4.2 step 2a, 10.5, R-ARCH-13, AC-ARCH-7; Q-PKG-4, Q-PKG-8 |
-| Deliverables | Platform `ShotAI.Platform.Processes.ProcessSnapshot`; App `ShotAI.App.Startup.LegacyInstanceGuard` at startup step 2a (the one allowlisted `MessageBox`, caption `shotAI`; in a self-test mode the exact stderr line and exit code 2, no dialog) |
-| Tests | No Electron file. New: Platform `Startup/ProcessSnapshotTests`; App `Startup/LegacyInstanceGuardTests`; `Shell/AppPathsTests` (`NoPathUnderSquirrelRoot`, `SettingsFileIsRoamingAppData`, `LocalDataDirectoryIsUnderLfi`) exist from WP-A12 (AC-INFRA-35) and are not repeated here |
-| Acceptance criteria | AC-AUTH-17, AC-PKG-20, AC-PKG-21, AC-PKG-22, AC-PKG-23, AC-PKG-24, AC-PKG-34, AC-ARCH-7 |
-| Depends on | WP-A12, WP-D3, WP-D12, WP-E3 |
+| Goal | Native refuses to start while Electron runs in the same session, never stores data under the Squirrel root, both builds share settings and projects safely, and a personal copy hands off to the copy installed for all users |
+| Spec inputs | 12 7.10 (7.10.1 to 7.10.4), 7.13.5, INV-PKG-23 to INV-PKG-27, INV-PKG-38, EDGE-PKG-22, EDGE-PKG-23, EDGE-PKG-50, EDGE-PKG-62; 03 7.4.1 steps 1 and 2, Q-SHELL-19; ARCHITECTURE 4.2 steps 1b and 2a, 10.5, R-ARCH-13, AC-ARCH-7; Q-PKG-4, Q-PKG-8 |
+| Deliverables | Platform `ShotAI.Platform.Processes.ProcessSnapshot` and `ProcessStarter`; App `ShotAI.App.Startup.LegacyInstanceGuard` at startup step 2a (the one allowlisted `MessageBox`, caption `shotAI`; in a self-test mode the exact stderr line and exit code 2, no dialog); App `ShotAI.App.Startup.PersonalCopyGuard` at startup step 1b, before the mutex (no dialog; in a self-test mode it only logs; 12 7.10.4) |
+| Tests | No Electron file. New: Platform `Startup/ProcessSnapshotTests`, `Processes/ProcessStarterTests`; App `Startup/LegacyInstanceGuardTests` (with the per-user native path as a miss), `Startup/PersonalCopyGuardTests`; `Shell/AppPathsTests` (`NoPathUnderSquirrelRoot`, `SettingsFileIsRoamingAppData`, `LocalDataDirectoryIsUnderLfi`) exist from WP-A12 (AC-INFRA-35) and are not repeated here |
+| Acceptance criteria | AC-AUTH-17, AC-PKG-20, AC-PKG-21, AC-PKG-22, AC-PKG-23, AC-PKG-24, AC-PKG-34, AC-PKG-38, AC-ARCH-7 |
+| Depends on | WP-A12, WP-D3, WP-D12, WP-E1, WP-E3 |
 | Size | S |
 | Risks and de-risking | An Electron launch while native runs cannot be prevented (EDGE-PKG-23): the pilot notes tell users to use one build at a time; the Squirrel uninstall switches are unverified (AC-PKG-24 runs before the pilot) |
 | Demo | with Electron 1.3.0 running, launching native shows the legacy notice and exits within 2 s |
@@ -1215,10 +1215,10 @@ Goal (feasibility): the signed MSI with the Desktop Runtime dependency, the same
 | Field | Content |
 |---|---|
 | Goal | The parity walk, the code-review criteria, accessibility and the budgets, before any user sees the native app |
-| Spec inputs | 11 AC-IPC-22 and `channel-map.json`; every spec's D register; 06 7.13; ARCHITECTURE 11, 12.7 (phase E set), 9.5; Q-AUTH-14, Q-HOME-12 |
+| Spec inputs | 11 AC-IPC-22 and `channel-map.json`; every spec's D register; 06 7.13, INV-HOME-45 (AC-HOME-41 on the installed MSI); ARCHITECTURE 11, 12.7 (phase E set), 9.5; Q-AUTH-14, Q-HOME-12 |
 | Deliverables | the parity-walk record (every channel-map row with a UI caller exercised against the same project in Electron, differences only where a D item says so); the code-review record (no `MessageBox.Show` outside the guard, no sync waits, every window a `ShotAIWindow`, no never-log value in any `Log*` call, the GUID grep of AC-AUTH-31); the Narrator and Accessibility Insights passes and keyboard-only pass; the budget table for PB-1 to PB-17 on both machines; `App.Tests ServiceBoundary/ChannelMapResolutionTests`; the `docs/MANAGED-CONFIG.md` fix in its own small PR (Q-AUTH-14); the draft README deployment and licence sections for 2.0.0 (12 7.12.2 item 7); the high-contrast design sign-off or its deferral (Q-HOME-12) |
 | Tests | `ServiceBoundary/ChannelMapResolutionTests` (App.Tests) |
-| Acceptance criteria | AC-SHELL-28, AC-HOME-32, AC-HOME-33, AC-AUTH-31, AC-INFRA-16, AC-IPC-2, AC-IPC-22, AC-PKG-11, AC-ARCH-8 |
+| Acceptance criteria | AC-SHELL-28, AC-HOME-32, AC-HOME-33, AC-HOME-41, AC-AUTH-31, AC-INFRA-16, AC-IPC-2, AC-IPC-22, AC-PKG-11, AC-ARCH-8 |
 | Depends on | WP-A20, WP-B11, WP-C13, WP-D17, WP-E1, WP-E3, WP-E5 |
 | Size | M |
 | Risks and de-risking | The D items make a side-by-side review look like regressions (06 R-HOME-2): the walk lists the D id for every intended difference |
@@ -1229,7 +1229,7 @@ Goal (feasibility): the signed MSI with the Desktop Runtime dependency, the same
 | Field | Content |
 |---|---|
 | Goal | Run the pilot of 5.1 to its exit criteria, then the release candidate for the wider group |
-| Spec inputs | 12 7.12, 7.13.1, 7.13.2, 7.13.4 (R1), AC-PKG-29; section 5.1 |
+| Spec inputs | 12 7.12, 7.13.1, 7.13.2, 7.13.4 (R1), AC-PKG-29, Q-PKG-34; section 5.1 |
 | Deliverables | release `2.0.0-alpha.1` through `release.yml` (then `alpha.N`, `beta.N` as needed); the pilot issue template `.github/ISSUE_TEMPLATE/native-pilot.md`; the Intune Win32 apps for x64 and ARM64 with the runtime dependency (IT); the pilot record; release `2.0.0-rc.1` to the wider group when the exit criteria hold |
 | Tests | none new; every fix during the pilot is its own PR on the WP it touches |
 | Acceptance criteria | AC-PKG-13, AC-PKG-25, AC-PKG-29 |
@@ -1243,7 +1243,7 @@ Goal (feasibility): the signed MSI with the Desktop Runtime dependency, the same
 | Field | Content |
 |---|---|
 | Goal | Release 2.0.0 as latest, assign it fleet-wide and remove Electron per user |
-| Spec inputs | 12 7.12, 7.13.2, 7.13.3; section 1.4 and 5.2; Q-PKG-7, Q-PKG-21, Q-PKG-23, Q-PKG-32 |
+| Spec inputs | 12 7.12, 7.13.2, 7.13.3, 7.13.5; section 1.4 and 5.2; Q-PKG-7, Q-PKG-21, Q-PKG-23 (resolved), Q-PKG-32, Q-PKG-33 |
 | Deliverables | the release PR (`<Version>2.0.0</Version>`, `release-notes/2.0.0.md` opening with the 7.12.3 text), the published and verified release, the Intune changes of 5.2, the Electron uninstall assignment with the 7.13.3 wrapper |
 | Tests | the release workflow; `verify-published` |
 | Acceptance criteria | AC-PKG-14 |
@@ -1721,7 +1721,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-INFRA-2 | preserve unknown `sop` keys | WP-A10 | adopt |
 | Q-INFRA-3 | non-absolute `projectsDir` | WP-A10 | load as the default and warn; 01 agreed (Q-MODEL-24) |
 | Q-INFRA-4 | fleet update-check policy | WP-E1 | none in 2.0.0 |
-| Q-INFRA-5 | the notice on managed devices | WP-E7 | keep for the pilot; decide with IT |
+| Q-INFRA-5 | the notice on managed devices | closed | resolved 2026-09-23: the notice follows the install scope (06 INV-HOME-45, built in WP-E1) |
 | Q-INFRA-6 | prerelease ordering | WP-E1 | adopt (`2.0.0-alpha.N` is older than `2.0.0`) |
 | Q-INFRA-7 | same log file as Electron | WP-A11 | yes |
 | Q-INFRA-8 | MSIX virtualization | closed | MSI (I-2); AC-INFRA-31 stays the gate (WP-E3) |
@@ -1795,7 +1795,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-PKG-20 | x64 MSI on ARM64 | WP-E3 | allowed on Windows 11 on Arm; requirement rules route |
 | Q-PKG-21 | Electron's nag after a rollback | WP-E8 | flip 2.0.0 to prerelease only for a rollback longer than a week |
 | Q-PKG-22 | retention window | WP-E9 | 90 days after GA |
-| Q-PKG-23 | unmanaged users | WP-E8 | the 7.12.3 text; no per-user MSI |
+| Q-PKG-23 | unmanaged users | closed | resolved 2026-09-23: one dual-purpose MSI (12 7.4.5, WP-E3); the 7.12.3 text revised |
 | Q-PKG-24 | SHA pins in other workflows | WP-E4 | `release.yml` only |
 | Q-PKG-25 | Restart Manager on upgrade | WP-E3 | default; AC-PKG-8 |
 | Q-PKG-26 | runtime detection | WP-E3 | by folder |
@@ -1805,6 +1805,8 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-PKG-30 | restricted DLL search and WPF | WP-A12 | measure; `AddDllDirectory` if needed |
 | Q-PKG-31 | `docs/native/PLAN.md` missing | closed | this document |
 | Q-PKG-32 | AppUserModelID and taskbar pins | WP-E8 | no compatibility attempt; release notes say re-pin |
+| Q-PKG-33 | a per-user MSI that carries its own runtime, for PCs outside Intune | WP-E8 | not in 2.0; IT estimates how many PCs install outside Intune, decided before GA |
+| Q-PKG-34 | application control where users install personal copies | WP-E7 | IT answers before the pilot; publisher rule or per-machine only |
 
 #### ARCHITECTURE
 
@@ -1832,7 +1834,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 
 ## 7. Traceability matrix
 
-Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, mapped to exactly one work package: the WP whose merged PR meets it (for a manual AC, whose recorded result meets it). 419 criteria; none unmapped. The one split is AC-MODEL-36, whose own text assigns its first clause to WP-A3 and its second to WP-A12 (1.5). Criteria added to the specs after the first pass are appended at the end of their table. The criterion text is abridged for orientation only; the spec text is normative. Waivers and corrections are in 1.5.
+Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, mapped to exactly one work package: the WP whose merged PR meets it (for a manual AC, whose recorded result meets it). 424 criteria; none unmapped. The one split is AC-MODEL-36, whose own text assigns its first clause to WP-A3 and its second to WP-A12 (1.5). Criteria added to the specs after the first pass are appended at the end of their table. The criterion text is abridged for orientation only; the spec text is normative. Waivers and corrections are in 1.5.
 
 
 ### 01 Model and store (MODEL)
@@ -2081,6 +2083,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-HOME-38 | WP-B10 | Manual: open Settings from Home, then create a project folder in the projects folder from ... |
 | AC-HOME-39 | WP-A19 | Manual (archiving from Home): Archive moves the row at once and leaves project.json plus archive.zip; bulk Archive counts; Restore; Open on an archived row; rollback ... |
 | AC-HOME-40 | WP-D16 | Manual (bulk export to each project's own folder): 3 projects to Word, no dialog, Exporting 1 of 3... to 3 of 3, <title>.docx then <title> (1).docx ... |
+| AC-HOME-41 | WP-E6 | Manual (INV-HOME-45): install a build versioned below the latest GitHub release per-machine (ALLUSERS=1, 12 AC-PKG-2) ... |
 
 ### 07 SOP generation (SOP)
 
@@ -2231,7 +2234,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-INFRA-28 | WP-E1 | --update-selftest on a corporate network prints the endpoint, the result, and [update-test] ... |
 | AC-INFRA-29 | WP-E3 | The installed app contains Fonts\Archivo.ttf (sha256 0e094a7d…) and Fonts\OFL.txt ... |
 | AC-INFRA-30 | WP-A14 | Manual: with the LFI brand, body text renders at regular weight and uppercase micro-labels ... |
-| AC-INFRA-31 | WP-E3 | Manual: from the installed package (the per-machine MSI, 12 INV-PKG-1), changing a setting ... |
+| AC-INFRA-31 | WP-E3 | Manual: from the installed package (the MSI, in each install scope, 12 INV-PKG-1 and 7.4.5), changing ... |
 | AC-INFRA-32 | WP-B10 | Manual: while the app runs, open settings.json in a program that holds it with no sharing (for ... |
 | AC-INFRA-33 | WP-A4 | BrandPaletteTests.AllIsFullyInitialized and HexNoHashRejectsTrailingNewline pass, and dotnet ... |
 | AC-INFRA-34 | WP-E1 | With a Settings Check now clicked while the startup check is still in flight (a slow proxy) ... |
@@ -2305,6 +2308,10 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-PKG-32 | WP-E3 | Installing the public MSI and then the internal MSI of the same version (and the reverse) ... |
 | AC-PKG-33 | WP-E4 | PayloadVerifier on the first package job run lists every NotSigned PE; with the chosen ... |
 | AC-PKG-34 | WP-E5 | With Electron 1.3.0 running, shotAI.exe --selftest exits 2 within 2 s with the EDGE-PKG-50 ... |
+| AC-PKG-35 | WP-E3 | The package job on x64 and ARM64: the MSI build's ICE validation shows ICE105 ran with no error ... |
+| AC-PKG-36 | WP-E3 | Manual: on a clean Windows 11 x64 VM with the .NET 10 Desktop Runtime installed, a standard user ... |
+| AC-PKG-37 | WP-E3 | Manual: on a clean Windows 11 x64 VM without the .NET 10 Desktop Runtime, a standard user's ... |
+| AC-PKG-38 | WP-E5 | Manual: as a standard user, install a personal copy; then, as an administrator, install the same ... |
 
 ### ARCHITECTURE.md (ARCH)
 

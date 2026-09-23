@@ -28,7 +28,7 @@ is the short version.
 | [spec/09-export.md](spec/09-export.md) | HTML, HTML for Word, PDF, Markdown, Word, PowerPoint, the shareable package |
 | [spec/10-brand-settings-infra.md](spec/10-brand-settings-infra.md) | Brand contract and generator, `settings.json`, logging, update check, self-tests |
 | [spec/11-service-boundary.md](spec/11-service-boundary.md) | Every Electron IPC channel mapped to the C# service interface that replaces it |
-| [spec/12-packaging-deploy-ci.md](spec/12-packaging-deploy-ci.md) | MSI, signing, prerequisites, x64 and ARM64, Intune deployment, pilot coexistence, CI, releases |
+| [spec/12-packaging-deploy-ci.md](spec/12-packaging-deploy-ci.md) | MSI (per-user by hand, per-machine through Intune), signing, prerequisites, x64 and ARM64, Intune deployment, pilot coexistence, CI, releases |
 
 Every spec has the same sections: scope, the Electron reference behavior, constants,
 invariants (`INV-`), edge cases and hard-won fixes (`EDGE-`), macOS port notes, the native
@@ -87,5 +87,6 @@ to IT or the maintainer rather than a coding session:
 | WiX Toolset licence and fee terms for commercial use | spec 12 Q-PKG-1 | WP-E3 |
 | How internal builds with baked federation values reach IT, or policy-only configuration | spec 12 Q-PKG-5 | before the pilot |
 | The reference x64 laptop and ARM64 machine for performance budgets | ARCHITECTURE Q-ARCH-1 | milestone M-A |
-| Whether the update notice stays on for managed, per-machine installs | spec 10 Q-INFRA-5 | WP-E7 |
+| Whether PCs outside Intune need a second, per-user MSI that carries its own .NET runtime (Microsoft Update would not patch it) | spec 12 Q-PKG-33 | before 2.0.0 (WP-E8) |
+| Whether AppLocker or App Control for Business is enforced on PCs where users would install their own copy | spec 12 Q-PKG-34 | before the pilot (WP-E7) |
 | Who runs manual acceptance tests, and where results are recorded | PLAN Q-PLAN-2 | WP-A1 |

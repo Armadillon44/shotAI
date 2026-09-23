@@ -29,7 +29,8 @@ deployed and supported:
 - **Patching.** Electron bundles its own Chromium and Node, so every Chromium security fix means
   an Electron upgrade, a rebuild and an Intune redeploy. A native build is patched by Microsoft
   (the .NET runtime through Microsoft Update, WebView2 through Edge's updater).
-- **Deployment.** A per-machine MSI or MSIX replaces the per-user Squirrel installer.
+- **Deployment.** An MSI replaces the per-user Squirrel installer: per-machine when Intune
+  deploys it, per-user with no administrator rights when a person installs it (spec 12 7.4.5).
 - **ARM64.** The app can run natively on ARM64 instead of emulated with the GPU turned off.
 - **Fewer moving parts.** No IPC bridge, preload, renderer sandbox, `shot://` protocol handler,
   asar unpack rules or native-module packaging workarounds.
@@ -73,7 +74,8 @@ The macOS port also proved the three things a Windows port depends on:
 - **Framework-dependent deployment.** Deploy the .NET Desktop Runtime through Intune and let
   Microsoft Update service it on Patch Tuesday. A self-contained build would freeze the runtime
   until the next shotAI release.
-- **Installer:** MSI (WiX) for a per-machine, device-context Intune Win32 app, or MSIX.
+- **Installer:** one MSI (WiX), deployed per-machine in device context as an Intune Win32 app
+  and installable per-user by hand. The plan chose it over MSIX (spec 12 7.1, 7.4.5).
 - **Architectures:** x64 and native ARM64.
 - **Win32 interop:** [CsWin32](https://github.com/microsoft/CsWin32) (Microsoft's P/Invoke source
   generator) for hooks, capture, window info, display affinity and DPI.
@@ -107,7 +109,7 @@ The macOS port also proved the three things a Windows port depends on:
 | Settings, logs, update check | `settings.json`, `electron-log`, `fetch` | Same JSON in `%APPDATA%\shotAI`, `Microsoft.Extensions.Logging` with a rotating file sink, `HttpClient` | Direct |
 | IPC / preload / sandbox / CSP / `shot://` | `src/main/ipc.ts` (74 handlers), `src/shared/ipc.ts`, `src/preload/preload.ts`: ~1.8k lines plus hardening | **Deleted.** One process, direct calls. | ~1.8k lines and a security surface removed |
 | Packaging workarounds | `forge.config.ts` node_modules copy, asar unpack, `scripts/postinstall.mjs`, `gpu-policy.ts`, `arp-icon.ts` | Deleted | Gone |
-| Installer | Squirrel, per-user, user-context only, unsigned | MSI or MSIX, per-machine, signed | See [Alternatives](#alternatives-to-a-full-rewrite) |
+| Installer | Squirrel, per-user, user-context only, unsigned | MSI, signed: per-machine through Intune, per-user by hand | See [Alternatives](#alternatives-to-a-full-rewrite) |
 
 ## What gets better
 
@@ -119,8 +121,9 @@ The macOS port also proved the three things a Windows port depends on:
 2. **Footprint.** One process instead of Electron's main, GPU and renderer processes. Tens of MB
    installed instead of a bundled Chromium and Node (the macOS feasibility study put the Electron
    build at about 250 MB).
-3. **Deployment.** A per-machine MSI installs in device context with standard detection rules.
-   This removes the user-context-only restriction, the `--silent` Squirrel quirks and the
+3. **Deployment.** The MSI installs per-machine in device context with standard detection rules,
+   and a person can still install it per-user without administrator rights. This removes the
+   user-context-only restriction, the `--silent` Squirrel quirks and the
    "Installed apps" icon workaround.
 4. **Native ARM64.** The dev machine is Windows on ARM. It runs shotAI as x64 under emulation
    with the GPU forced off (`gpu-policy.ts`), and `get-windows` has no ARM64 prebuild, which is
