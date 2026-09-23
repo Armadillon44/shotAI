@@ -2402,7 +2402,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 **Phase A: model and viewer**
 
 - [x] WP-A1. Guardrails and Core foundations (#119)
-- [ ] WP-A2. ECMAScript JSON semantics
+- [x] WP-A2. ECMAScript JSON semantics (#121)
 - [ ] WP-A3. Model, codec and conformance
 - [ ] WP-A4. Brand generator and palette
 - [ ] WP-A5. Atomic file, write queue and path confinement
