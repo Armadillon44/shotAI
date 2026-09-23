@@ -1470,11 +1470,11 @@ The `channel-map.json` format (one object per channel, in 2.4 order):
 
 **Q-IPC-2. Who owns `claude:test-connection`.** 07 puts `TestConnectionAsync` on `IClaudeService`; 08 on `IAuthService` (through `ConnectionTester`). Resolved by R-ARCH-3: `IAuthService.TestConnectionAsync` (08) is the one public entry point; leg 3 (the models retrieve call) is implemented by 07's client code behind an internal seam; `IClaudeService.TestConnectionAsync` is removed. Applied: 07 2.5, 7.6 (`SopModelProbe`), 7.8 and 7.11 now say so; closed.
 
-**Q-IPC-3. `IProjectStore` versus `IProjectService`.** 09 7.3 names the store interface `IProjectStore`; 01's section 10 says "the ProjectStore method set as the IProjectService surface". Resolved by R-ARCH-4: `IProjectService`, one interface, implemented by `ProjectStore`; every consumer outside the store (05, 07's `SopRequestAssembler`, 09) depends on it, never on the concrete `ProjectStore`.
+**Q-IPC-3. `IProjectStore` versus `IProjectService`.** 09 7.3 names the store interface `IProjectStore`; 01's section 10 says "the ProjectStore method set as the IProjectService surface". Resolved by R-ARCH-4: `IProjectService`, one interface, implemented by `ProjectStore`; every consumer outside the store (05, 07's `SopRequestAssembler`, 09) depends on it, never on the concrete `ProjectStore`. Implemented in WP-A6, which registers the store only as `IProjectService` (01 7.14).
 
 **Q-IPC-4. Drop `capture:single`?** Recommended default: yes (02 Q-CAP-1); the map records `CaptureScreenshotAsync` as its successor so the inventory stays complete.
 
-**Q-IPC-5. Keep `ListRecentProjectsAsync` with no UI caller?** Recommended default: keep; the self-test (10) uses it and it is a few lines.
+**Q-IPC-5. Keep `ListRecentProjectsAsync` with no UI caller?** Recommended default: keep; the self-test (10) uses it and it is a few lines. Decided in WP-A6: keep, the default.
 
 **Q-IPC-6. `ProjectsChanged` on the store, or a startup-only signal?** 03 describes the startup code raising it. Resolved by R-ARCH-24: an event on `IProjectService`, raised by `AutoArchiveStaleAsync` when at least one project moved, so any future caller (for example a scheduled archive) gets it for free; the startup code just calls the method (ARCHITECTURE 4.2 step 13), and 01 7.14's direct `homeViewModel.RequestRefresh()` call is superseded.
 

@@ -12,12 +12,16 @@ public static class CoreServiceCollectionExtensions
     /// <remarks>
     /// <see cref="AtomicFile"/> needs an <see cref="IRenameRetryClassifier"/>, which
     /// <c>AddShotAIPlatform</c> registers, as it does <see cref="IPathProbe"/> (spec 01 7.14).
+    /// <see cref="ProjectStore"/> also needs <see cref="IProjectStoreSettings"/>, the settings
+    /// service loaded at startup (spec 10 7.11).
     /// </remarks>
     public static IServiceCollection AddShotAICore(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<AtomicFile>();
+        // The only registration of the store (R-ARCH-4); the container disposes it (7.12).
+        services.AddSingleton<IProjectService, ProjectStore>();
         return services;
     }
 }

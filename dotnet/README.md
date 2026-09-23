@@ -9,7 +9,8 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 - Behavior to reproduce, subsystem by subsystem: [docs/native/spec/](../docs/native/spec/)
 
 **Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), the model
-and `project.json` codec (WP-A3), the brand palette (WP-A4), and the store's file primitives (WP-A5): analyzers, supply-chain
+and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5)
+and the project store's project operations (WP-A6): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -18,7 +19,9 @@ shared conformance suite runs its round trips: every `agreed` case passes, and t
 generated from `contract/brand.json` by `tools/ShotAI.GenBrand` and carries the same
 contract stamp as the Electron and macOS tables. `AtomicFile`, `SerialWriteQueue` and
 `PathConfine` are the primitives every writer uses; the junction and reparse-tag cases run
-in `tests/ShotAI.Platform.Tests` on the Windows jobs, x64 and arm64.
+in `tests/ShotAI.Platform.Tests` on the Windows jobs, x64 and arm64. `ProjectStore` gates,
+lists, creates, opens, renames, deletes and changes projects with Electron's persistence
+rules, behind `IProjectService`; the step operations and imports are next (WP-A7).
 
 ## Layout
 

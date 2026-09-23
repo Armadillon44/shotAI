@@ -1300,7 +1300,7 @@ mediaType = ext is ".jpg" or ".jpeg" ? "image/jpeg" : "image/png"
 return new(abs, mediaType, ext == "" ? ".png" : ext)
 ```
 
-`JsPath.ExtName` implements Node `path.extname` on the last `/`- or `\`-separated segment: the substring from the last `.` when that `.` is not the segment's first character, else `""` (so `.hidden` gives `""`, `a.` gives `"."`). The gate is the ONLY function 07 and 09 may use to pick an image file for egress.
+`JsPath.ExtName` implements Node `path.extname` on the last `/`- or `\`-separated segment: the substring from the last `.` when that `.` is not the segment's first character, else `""` (so `.hidden` gives `""`, `a.` gives `"."`). Corrected in WP-A6, which landed it (01's `ResolveImage` uses it): it is a port of Node 22's `path.win32.extname`, so trailing separators are skipped (`a.png/` gives `".png"`), a drive prefix is not part of the segment (`C:.png` gives `""`), and `..` gives `""`; `Json/JsPathTests` pins 26 values printed by Node. The gate is the ONLY function 07 and 09 may use to pick an image file for egress.
 
 ### 7.7 Pre-egress preparation (Core)
 

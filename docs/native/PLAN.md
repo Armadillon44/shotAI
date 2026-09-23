@@ -338,13 +338,13 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | `ProjectStore` gates, lists, searches, creates, opens, renames, deletes, mutates and sets per-project values with Electron's persistence semantics (01 2.9.3) |
 | Spec inputs | 01 2.9.1 to 2.9.8, 2.9.10, 2.9.11, 2.13, 7.8, 7.12 to 7.14, INV-MODEL-17 to INV-MODEL-32, D-3, D-7, D-8, D-11, D-16, D-18, D-20, D-24; 11 7.3.2 (`IProjectService`, `ProjectsChanged`); ARCHITECTURE 7.3, R-ARCH-4, R-ARCH-10; Q-MODEL-9, Q-MODEL-15, Q-MODEL-16, Q-MODEL-19, Q-MODEL-20, Q-IPC-3, Q-IPC-5 |
-| Deliverables | Core `ShotAI.Core.Store`: `IProjectService` (the members that exist after this WP; later WPs add theirs), `ProjectStore : IProjectService, IDisposable, IAsyncDisposable` (the 01 7.8 constructor without its `IStepRenderWriter renderWriter` parameter, which WP-C5 adds together with `UpdateStepAsync` and `MergeStepsAsync`, its only users, so no WP depends on a later one; known-project gate, `ListProjectsAsync`, `ListRecentProjectsAsync`, `CreateProjectAsync`, `OpenProjectAsync` with id back-fill in the queue, `RenameProjectAsync`, `DeleteProjectAsync` in the queue, `MutateAsync` with the `Unchanged` no-op, `SetProjectDisplayScaleAsync`, `SetProjectThemeAsync` (null or a known brand, else `ArgumentException`), `SetProjectIntroAsync`, `GetProjectForReadAsync`, `SetProjectsDirAsync`, `GetProjectsDirAsync`, `ResolveImage`, `FlushAsync`, stale-tmp sweep of Q-MODEL-20), `IProjectStoreSettings`, `ProjectSearch`, `ProjectSummary`, `OpenedProject`, `MutateResult`, `ProjectNotKnownException` (`ManifestCorruptException` comes from WP-A3); registrations in `AddShotAICore` |
-| Tests | Port `src/main/mutate-serialize.test.ts` (`Store/MutateSerializeTests`), the store cases of `src/main/manifest-extras.test.ts` (`Store/ManifestExtrasStoreTests`) and `src/main/project-theme-key.test.ts` (`Store/ProjectThemeKeyTests`). New: `Store/KnownProjectGateTests`, `ListProjectsTests`, `ProjectSearchTests`, `ProjectSearchComparerTests`, `CreateProjectTests`, `OpenProjectTests`, `UpdatedAtSemanticsTests` (the rows whose operations exist), `Platform.Tests/FileSystem/ReparsePointTraversalTests` (list and delete cases) |
+| Deliverables | Core `ShotAI.Core.Store`: `IProjectService` (the members that exist after this WP; later WPs add theirs), `ProjectStore : IProjectService, IDisposable, IAsyncDisposable` (the 01 7.8 constructor without its `IStepRenderWriter renderWriter` parameter, which WP-C5 adds together with `UpdateStepAsync` and `MergeStepsAsync`, its only users, so no WP depends on a later one; corrected in WP-A6: also without `ArchiveEngine archive`, which WP-A8 adds with the archive members, and without the `ProjectsChanged` event, which lands in WP-A8 with its only raiser; known-project gate, `ListProjectsAsync`, `ListRecentProjectsAsync`, `CreateProjectAsync`, `OpenProjectAsync` with id back-fill in the queue, `RenameProjectAsync`, `DeleteProjectAsync` in the queue, `MutateAsync` with the `Unchanged` no-op, `SetProjectDisplayScaleAsync`, `SetProjectThemeAsync` (null or a known brand, else `ArgumentException`), `SetProjectIntroAsync`, `GetProjectForReadAsync`, `SetProjectsDirAsync`, `GetProjectsDirAsync`, `ResolveImage`, `FlushAsync`, stale-tmp sweep of Q-MODEL-20), `IProjectStoreSettings`, `ProjectSearch`, `ProjectSummary`, `OpenedProject`, `MutateResult`, `ProjectNotKnownException` (`ManifestCorruptException` comes from WP-A3); registrations in `AddShotAICore`; added in WP-A6: an internal `ProjectStore` constructor overload taking the source of new ids (`Func<string>`), for the D-24 test, which the container never selects, and `ShotAI.Core.Json.JsPath.ExtName` (04 7.6, ahead of WP-C5), because `ResolveImage` must read the type as Node's `path.extname` does |
+| Tests | Port `src/main/mutate-serialize.test.ts` (`Store/MutateSerializeTests`), the store cases of `src/main/manifest-extras.test.ts` (`Store/ManifestExtrasStoreTests`) and `src/main/project-theme-key.test.ts` (`Store/ProjectThemeKeyTests`). New: `Store/KnownProjectGateTests`, `ListProjectsTests`, `ProjectSearchTests`, `ProjectSearchComparerTests`, `CreateProjectTests`, `OpenProjectTests`, `UpdatedAtSemanticsTests` (the rows whose operations exist), `Platform.Tests/FileSystem/ReparsePointTraversalTests` (list and delete cases); added in WP-A6: `Store/RenameProjectTests`, `DeleteProjectTests`, `ProjectSettersTests`, `ProjectStoreDisposalTests` and `StoreExceptionTests` (both 01 8.2 rows had no WP), `ResolveImageTests`, `Json/JsPathTests`, the `Store/StoreHarness` they share, and two `Composition/AddShotAICoreTests` cases |
 | Acceptance criteria | AC-MODEL-8, AC-MODEL-9, AC-MODEL-12, AC-MODEL-16, AC-MODEL-17, AC-MODEL-28, AC-MODEL-29 |
 | Depends on | WP-A3, WP-A4, WP-A5 |
 | Size | M |
-| Risks and de-risking | .NET ICU `CompareInfo` against V8 `localeCompare` base sensitivity (01 verifier doubt): `ProjectSearchComparerTests` pins the cases; the Linux runner must have ICU (never `InvariantGlobalization`) |
-| Demo | a Core test lists a temp root that holds an Electron-authored project and the macOS fixture |
+| Risks and de-risking | .NET ICU `CompareInfo` against V8 `localeCompare` base sensitivity (01 verifier doubt): `ProjectSearchComparerTests` pins the cases; the Linux runner must have ICU (never `InvariantGlobalization`). Outcome in WP-A6: the expected values were produced by Node 22.22 with ICU 78.2, and the invariant and `en-US` comparers match them on Linux; 43 mutations of the store, the search and `JsPath` were each caught by a test |
+| Demo | a Core test lists a temp root that holds an Electron-authored project and the macOS fixture (WP-A6: `ListProjectsTests.ListsAnElectronAuthoredProjectAndTheMacOsFixture`) |
 
 #### WP-A7. Project store: steps and imports
 
@@ -366,7 +366,7 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | Archive, unarchive and auto-archive, streaming and CRC-verified, restoring zips written by Electron and writing zips Electron restores |
 | Spec inputs | 01 2.9.13, 7.9, INV-MODEL-16, D-12, D-13, D-14, D-15, D-25, EDGE-MODEL-13 to EDGE-MODEL-15, EDGE-MODEL-48; 11 Q-IPC-6; ARCHITECTURE R-ARCH-24; Q-MODEL-6, Q-MODEL-7, Q-MODEL-13, Q-MODEL-21, Q-MODEL-23 |
-| Deliverables | `ArchiveEngine` (`System.IO.Compression`, `System.IO.Hashing` CRC-32, size and CRC verification before the originals are removed, `..` and sanitized-name refusal, pack rename through the retry schedule); `ProjectStore.ArchiveProjectAsync`, `UnarchiveProjectAsync`, `AutoArchiveStaleAsync` (raises `ProjectsChanged` when at least one project moved), auto-unarchive on open; `ArchiveException`; `System.IO.Hashing` in `Directory.Packages.props` |
+| Deliverables | `ArchiveEngine` (`System.IO.Compression`, `System.IO.Hashing` CRC-32, size and CRC verification before the originals are removed, `..` and sanitized-name refusal, pack rename through the retry schedule); `ProjectStore.ArchiveProjectAsync`, `UnarchiveProjectAsync`, `AutoArchiveStaleAsync` (raises `ProjectsChanged` when at least one project moved), auto-unarchive on open, the `ArchiveEngine archive` parameter of the 01 7.8 `ProjectStore` constructor and the `ProjectsChanged` event on `IProjectService`, both of which WP-A6 left out; `ArchiveException`; `System.IO.Hashing` in `Directory.Packages.props` |
 | Tests | Port `src/main/archive.test.ts` (`Store/ArchiveTests`). New: `Store/ArchiveVerifyTests`, `ArchiveNameRulesTests`, `AutoArchiveTests` (including `ProjectsChanged` raised exactly once when at least one project moved, not at all when none did, and a throwing handler not stopping a second one, R-ARCH-24, AC-MODEL-22), the archive case of `ReparsePointTraversalTests`, a 300-character-root create and archive test on Windows (Q-MODEL-13); `UpdatedAtSemanticsTests` completed with every row of 2.9.4 |
 | Acceptance criteria | AC-MODEL-2 (the checklist over every 01 8.1 file, ported in WP-A3, WP-A5, WP-A6 and here), AC-MODEL-13, AC-MODEL-15, AC-MODEL-22, AC-MODEL-33 |
 | Depends on | WP-A6, WP-A7 |
@@ -772,7 +772,7 @@ Goal (feasibility): the report becomes editable (optimistic, with rollback), the
 |---|---|
 | Goal | The one applier that invalidates stale renders, the atomic render writer with rollback, and the store's `UpdateStepAsync` and `MergeStepsAsync` |
 | Spec inputs | 04 2.17, 2.18, 7.5, INV-EDIT-7, INV-EDIT-8, INV-EDIT-9, INV-EDIT-27, INV-EDIT-32, D-EDIT-5, D-EDIT-22; 01 7.8 (update and merge), EDGE-MODEL-47, EDGE-MODEL-51; ARCHITECTURE 7.6, 9.2 S2; Q-MODEL-22, Q-EDIT-8 |
-| Deliverables | Core `ShotAI.Core.Rendering`: `StepPatch`, `Optional<T>`, `StepPatchValidator` (`parseStepPatch` and `parseClick` rules, `\z` anchors), `StepPatchApplier.ApplyAndInvalidate`, `IStepRenderWriter`, `StepRenderWriter` (through `AtomicFile`, receipt with rollback, refusal of any id that is not one safe path segment), `RenderWriteReceipt`, `RefusedRenderPathException`; `ProjectStore.UpdateStepAsync` and `MergeStepsAsync` (render first, manifest second, previous render restored if the manifest write fails), the `IStepRenderWriter renderWriter` parameter of the 01 7.8 `ProjectStore` constructor that WP-A6 left out, and `MergeIntoItselfException` (`cannot merge a step into itself`, thrown when `keepId == dropId` before the gate and before queuing, 01 7.8, 7.13; `StepNotFoundException` is WP-A7's); Core `ShotAI.Core.Json.JsValue` (`Truthy`, `ToNumber`, with 04 7.1's signatures; this WP owns the type, WP-D4 only uses it) and `JsPath.ExtName`; 01 Q-MODEL-22 marked decided by D-EDIT-22 |
+| Deliverables | Core `ShotAI.Core.Rendering`: `StepPatch`, `Optional<T>`, `StepPatchValidator` (`parseStepPatch` and `parseClick` rules, `\z` anchors), `StepPatchApplier.ApplyAndInvalidate`, `IStepRenderWriter`, `StepRenderWriter` (through `AtomicFile`, receipt with rollback, refusal of any id that is not one safe path segment), `RenderWriteReceipt`, `RefusedRenderPathException`; `ProjectStore.UpdateStepAsync` and `MergeStepsAsync` (render first, manifest second, previous render restored if the manifest write fails), the `IStepRenderWriter renderWriter` parameter of the 01 7.8 `ProjectStore` constructor that WP-A6 left out, and `MergeIntoItselfException` (`cannot merge a step into itself`, thrown when `keepId == dropId` before the gate and before queuing, 01 7.8, 7.13; `StepNotFoundException` is WP-A7's); Core `ShotAI.Core.Json.JsValue` (`Truthy`, `ToNumber`, with 04 7.1's signatures; this WP owns the type, WP-D4 only uses it) and `JsPath.ExtName` (landed in WP-A6 for `ResolveImage`; this WP uses it); 01 Q-MODEL-22 marked decided by D-EDIT-22 |
 | Tests | Port `src/main/step-render.test.ts` (`Rendering/StepPatchApplierTests`). New: `Rendering/StepPatchValidatorTests`, `StepRenderWriterTests`, `Store/StoreRenderTests` (including the merge-into-itself refusal); Platform `Rendering/RenderWriteJunctionTests` |
 | Acceptance criteria | none owned (the non-segment id refusal is verified through the editor save in WP-C10) |
 | Depends on | WP-A7 |
@@ -1483,18 +1483,18 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-MODEL-6 | cloud placeholders as links | WP-A8 | implement D-15; verify on P5 in M-A; Electron issue if confirmed |
 | Q-MODEL-7 | restore size caps | WP-A8 | no caps (streaming) |
 | Q-MODEL-8 | hostile-segment rejection | WP-A5 | reject (decided in WP-A5) |
-| Q-MODEL-9 | queued delete waits | WP-A6 | accept |
+| Q-MODEL-9 | queued delete waits | WP-A6 | accept (decided in WP-A6) |
 | Q-MODEL-10 | import cleanup scope | WP-A7 | exact new folder only, through `ReparseSafeDelete` |
 | Q-MODEL-11 | unreadable-manifest text | WP-A17 | the recommended sentence; parser message in the log only |
 | Q-MODEL-12 | rollback notice text | WP-C2 | `Your last change couldn't be saved and was undone. ` plus the message |
 | Q-MODEL-13 | paths over 260 characters | WP-A8 | `longPathAware` already in the manifest; 300-character-root test on Windows |
 | Q-MODEL-14 | macOS fixture location | WP-A3 | copy to `Golden/macos-fixture/` with its README |
-| Q-MODEL-15 | unknown brand in `SetProjectThemeAsync` | WP-A6 | `ArgumentException` (D-IPC-9) |
+| Q-MODEL-15 | unknown brand in `SetProjectThemeAsync` | WP-A6 | `ArgumentException` (D-IPC-9) (decided in WP-A6) |
 | Q-MODEL-16 | no-op guard for reorder and intro | WP-C1 | yes, value-equal results are `Unchanged` |
 | Q-MODEL-17 | listing cost | WP-A16 | parity; cache summaries only if PB-8 fails |
 | Q-MODEL-18 | Electron golden generator | WP-A3 | `src/main/codec-golden.test.ts`, env-gated |
-| Q-MODEL-19 | `toLowerCase` full mapping | WP-A6 | `ToLowerInvariant` for text and query |
-| Q-MODEL-20 | stale tmp files | WP-A6 | delete `project.json.*.tmp` older than 24 hours on open |
+| Q-MODEL-19 | `toLowerCase` full mapping | WP-A6 | `ToLowerInvariant` for text and query (decided in WP-A6) |
+| Q-MODEL-20 | stale tmp files | WP-A6 | delete `project.json.<pid>.tmp` files older than 24 hours on open (decided in WP-A6) |
 | Q-MODEL-21 | archive name rules | WP-A8 | reject `.`, `..` and empty segments |
 | Q-MODEL-22 | step ids as file names | WP-C5 | decided by D-EDIT-22: refuse non-segment ids |
 | Q-MODEL-23 | `CompressionLevel.Optimal` mapping | WP-A8 | do not assert compressed sizes |
@@ -1752,9 +1752,9 @@ Every open question of every spec, with the WP that owns its decision and the de
 |---|---|---|---|
 | Q-IPC-1 | two `IAuthService` shapes | WP-D4 | 08 canonical (R-ARCH-2) |
 | Q-IPC-2 | owner of the connection test | WP-D4 | `IAuthService.TestConnectionAsync` (R-ARCH-3) |
-| Q-IPC-3 | `IProjectStore` versus `IProjectService` | WP-A6 | `IProjectService` (R-ARCH-4); 09 already uses it (2026-09-23 consolidation) |
+| Q-IPC-3 | `IProjectStore` versus `IProjectService` | WP-A6 | `IProjectService` (R-ARCH-4); 09 already uses it (2026-09-23 consolidation) (decided in WP-A6) |
 | Q-IPC-4 | drop `capture:single` | WP-B2 | yes |
-| Q-IPC-5 | keep `ListRecentProjectsAsync` | WP-A6 | keep |
+| Q-IPC-5 | keep `ListRecentProjectsAsync` | WP-A6 | keep (decided in WP-A6) |
 | Q-IPC-6 | `ProjectsChanged` | WP-A8 | event on `IProjectService` raised by auto-archive |
 | Q-IPC-7 | a manual update find and the notice | WP-E1 | parity (no push) |
 | Q-IPC-8 | unknown `settings.json` keys | WP-A10 | preserve |
@@ -2409,7 +2409,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-A3. Model, codec and conformance (#125)
 - [x] WP-A4. Brand generator and palette (#126)
 - [x] WP-A5. Atomic file, write queue and path confinement (#127)
-- [ ] WP-A6. Project store: projects
+- [x] WP-A6. Project store: projects (#128)
 - [ ] WP-A7. Project store: steps and imports
 - [ ] WP-A8. Archive engine
 - [ ] WP-A9. Project session

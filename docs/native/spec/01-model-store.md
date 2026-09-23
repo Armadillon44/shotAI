@@ -330,6 +330,7 @@ throw new Error('Project path is not within the projects directory')
 - `rel.startsWith('..')` also rejects a child literally named like `..foo` (safe false negative).
 - The root itself is rejected (`rel === ''`).
 - Rationale: stop a compromised renderer from reading arbitrary files. REQUIRED as defense in depth; its original threat (an untrusted renderer) is ELECTRON-ONLY (spec 11).
+- Native `path.resolve` (corrected in WP-A6): `Path.TrimEndingDirectorySeparator(Path.GetFullPath(p))` on the candidate, the root and each recents entry. `path.resolve` drops a trailing separator and `Path.GetFullPath` keeps it, so without the trim `<root>/proj1/` would be returned, and added to recents, as a second spelling of `<root>/proj1`. An empty path, or one `Path.GetFullPath` rejects (a NUL character), is never known; Node resolves `''` to the working directory, which is not under the projects folder in practice.
 
 #### 2.9.2 The write queue
 
@@ -397,7 +398,7 @@ REQUIRED. Home sorts and groups by `updatedAt` (06), and auto-archive ages by it
 
 1. `root = path.resolve(settings.projectsDir)`.
 2. `readdir(root, {withFileTypes: true})`, keep entries where `isDirectory()`. A missing root is not an error. Node reports a symlink or junction entry as a link, not a directory, so linked folders under the root are skipped (see EDGE-MODEL-36 and EDGE-MODEL-13 for reparse points in general).
-3. For each, `summarize(readManifest(dir), dir)`; any error (no manifest, bad JSON, null root) skips the folder silently.
+3. For each, `summarize(readManifest(dir), dir)`; any error (no manifest, bad JSON, null root) skips the folder silently. Natively the skip is logged at Debug as `list: skipped {folder}, not a readable project` (2.13, added in WP-A6), so a support log can say why a folder is missing from Home.
 4. Then every recents entry not already seen (by `path.resolve`) is read and appended; unreadable ones are skipped (not pruned here).
 5. Returned unsorted: root entries in `readdir` order, then recents in MRU order. The UI sorts.
 
@@ -450,6 +451,29 @@ Native comparers (the pure function lives in Core, `ProjectSearch`):
 | `p.title.toLowerCase().includes(q)`, `searchText.includes(q)` | `ToLowerInvariant()` then `Contains(q, StringComparison.Ordinal)` | see Q-MODEL-19 |
 | stable `Array.prototype.sort`, `-cmp` for descending | LINQ `OrderBy` / `OrderByDescending` (stable; ties keep input order in both directions, as `-cmp` does) | EDGE-MODEL-45 |
 
+The native surface (added in WP-A6; 06 7.2's list pipeline builds on it):
+
+```csharp
+public sealed record ProjectTier(string Label, IReadOnlyList<ProjectSummary> Items);
+public sealed record ProjectSearchResult(bool Searching, IReadOnlyList<ProjectSummary> Sorted, IReadOnlyList<ProjectTier> Tiers);
+
+public static class ProjectSearch
+{
+    public const string ContentTierLabel = "Matches in content";
+    public static readonly Comparison<ProjectSummary> ByCreated;                   // string.CompareOrdinal on CreatedAt
+    public static readonly Comparison<ProjectSummary> ByUpdated;                   // string.CompareOrdinal on UpdatedAt
+    public static Comparison<ProjectSummary> ByTitle(CultureInfo? culture = null); // base sensitivity; CurrentCulture by default
+    public static string NormalizeQuery(string? query);                            // JsString.Trim, then ToLowerInvariant; "" is no search
+    public static bool IsTitleHit(ProjectSummary project, string normalizedQuery);
+    public static bool Matches(ProjectSummary project, string normalizedQuery);     // title hit, or a hit in SearchText
+    public static IReadOnlyList<ProjectSummary> Sort(IEnumerable<ProjectSummary> projects, Comparison<ProjectSummary> by, bool descending);
+    public static ProjectSearchResult Run(IEnumerable<ProjectSummary> projects, bool archiveTab,
+                                          string? query, Comparison<ProjectSummary> by, bool descending);
+}
+```
+
+`Run` is the pseudocode above up to the groups: `Sorted` is the tab's matching projects in sort order; while searching, `Tiers` holds the non-empty tiers in order, and otherwise it is empty and 06 groups `Sorted` itself (date groups, or one flat group for the name sort). The sort key is a comparison, so 06's sort enum stays 06's.
+
 #### 2.9.7 Recents
 
 Stored in `settings.json` as `recents: string[]` (10). `addRecent(path)`: move to front, dedupe by exact string, cap at `MAX_RECENTS = 20`; best-effort, failures logged as `'addRecent failed (non-fatal):'` and swallowed (`src/main/settings.ts:123,241-252`). `setRecents` replaces the list. Called by: `createProject` (the unresolved `path.join(root, id)`), `createProjectFromImport`, `loadProject` (the resolved path). Pruned only by `listRecentProjects` and `deleteProject`. REQUIRED.
@@ -488,6 +512,8 @@ Notes: the package reader (`src/main/export-package.ts:178-199`) already applies
 3. `manifest = readManifest(resolved)`.
 4. If `manifest.id === ''`: `manifest.id = randomUUID()` and `writeManifest(...)` OUTSIDE the queue, errors swallowed, no `updatedAt` bump.
 5. `addRecent(resolved)`; return `{resolved, manifest}`.
+
+Natively (WP-A6): step 4 is a queued job that re-reads the file before it assigns the id (D-7), and a failed write is logged at Warning as `open: id back-fill failed for {folder} (non-fatal):` (2.13) where Electron swallowed it silently; the open still returns the new id. Between steps 4 and 5 the stale-tmp sweep of Q-MODEL-20 runs. Step 2 lands with the archive engine (WP-A8).
 
 `openProjectWithId` additionally registers `resolved` in a session map `idToDir` / `dirToId` and returns an opaque random `projectId`, stable per folder for the session (`:414-435`). `resolveProjectFile(projectId, rel)` maps the id back and returns `confinePath(dir, rel)` or null (`:442-449`); the `shot://<projectId>/<rel>` protocol serves only `.png`, `.jpg`, `.jpeg` (case-insensitive extension), with `403 'Unsupported type'`, `404 'Not found'`, `500 'Error'` responses (`src/main/main.ts:52-86`). The registry and the protocol are ELECTRON-ONLY; their intent (images load only from inside the project, only image types) is REQUIRED natively (7.8).
 
@@ -697,6 +723,8 @@ REQUIRED (with the IMPROVEMENTs in 7.6).
 | `` `archive: packed ${files.length} file(s) \u2192 ${zipPath}` `` (U+2192 arrow) | info | `archive.ts:101` |
 | `` `archive: restored ${written.length} file(s) from ${zipPath}` `` | info | `archive.ts:133` |
 | `'startup auto-archive failed (non-fatal):'` + error | warn (main log) | `main.ts:513` |
+| `list: skipped {folder}, not a readable project` + error (native, added in WP-A6; Electron skips silently) | debug | 2.9.5 |
+| `open: id back-fill failed for {folder} (non-fatal):` + error (native, added in WP-A6; Electron swallows it) | warn | 2.9.10 |
 
 ## 3. Constants
 
@@ -1441,26 +1469,30 @@ public sealed class ProjectStore : IProjectService, IDisposable, IAsyncDisposabl
 }
 ```
 
+Staging (added in WP-A6): the constructor gains `ArchiveEngine archive` in WP-A8 and `IStepRenderWriter renderWriter` in WP-C5, each with the members that use it, so the WP-A6 constructor is `(settings, probe, atomic, time, log)`. An internal overload also takes a `Func<string>` source of new ids, for a test that must know a new folder's name before it exists (the D-24 test); the container activates public constructors only.
+
 Behavior per method: exactly section 2.9, with these mechanics:
 
-- **Gate** (`ResolveKnownProjectAsync`): `resolved = Path.GetFullPath(projectPath)`, `root = Path.GetFullPath(projectsDir)`, `rel = Path.GetRelativePath(root, resolved)`; accept when `rel != "." && !rel.StartsWith("..", Ordinal) && !Path.IsPathRooted(rel)`; else accept when any recents entry `r` has `Path.GetFullPath(r) == resolved` with `StringComparison.Ordinal`; else throw `ProjectNotKnownException("Project path is not within the projects directory")`.
-- **Read** inside every job: `ManifestCodec.Read(await File.ReadAllBytesAsync(Path.Join(resolved, "project.json")), Path.GetFileName(resolved))`. `Path.GetFileName` of a path with a trailing separator is empty; the gate's `GetFullPath` output never ends in one except at a drive root, which the gate rejects.
+- **Full path** (corrected in WP-A6): `FullPath(p) = Path.TrimEndingDirectorySeparator(Path.GetFullPath(p))`, null for an empty or invalid path, is this spec's `path.resolve`. `Path.GetFullPath` alone keeps a trailing separator, which `path.resolve` drops (2.9.1).
+- **Gate** (`ResolveKnownProjectAsync`): `resolved = FullPath(projectPath)`, `root = FullPath(projectsDir)`, `rel = Path.GetRelativePath(root, resolved)`; accept when `rel != "." && !rel.StartsWith("..", Ordinal) && !Path.IsPathRooted(rel)`; else accept when any recents entry `r` has `FullPath(r) == resolved` with `StringComparison.Ordinal`; else throw `ProjectNotKnownException("Project path is not within the projects directory")`. A null `resolved` throws the same.
+- **Read** inside every job: `ManifestCodec.Read(await File.ReadAllBytesAsync(Path.Join(dir, "project.json")), basename)`, where `basename = Path.GetFileName(Path.TrimEndingDirectorySeparator(dir))` is `path.basename`, which ignores a trailing separator where `Path.GetFileName` returns `""` (corrected in WP-A6: this line said the gate's output never ends in a separator, which is true only after the trim, and `listRecentProjects` reads the stored strings as they are). A `FileNotFoundException` or `DirectoryNotFoundException` becomes `ManifestCorruptException("project.json is missing", inner)` (7.13).
 - **Write**: `atomic.WriteAsync(Path.Join(resolved, "project.json"), ManifestCodec.Serialize(m))`.
 - **updatedAt**: `IsoTime.ToIsoString(time.GetUtcNow())`, taken inside the job just before the write.
-- **ListProjectsAsync**: enumerate `Directory.EnumerateFileSystemEntries(root)` (catch a missing or unreadable root and continue with recents); keep entries that `probe.Probe` classifies as `Directory` (not `Link`); read each (skip on any exception; IMPROVEMENT: log at Debug with the folder name); then recents as in 2.9.5; dedupe on `Path.GetFullPath` with Ordinal comparison. `ct` is checked between folders. Output order: root entries in enumeration order, then recents; callers sort.
+- **ListProjectsAsync**: list `Directory.GetFileSystemEntries(root)` (catch a missing or unreadable root and continue with recents; corrected in WP-A6 from the lazy `EnumerateFileSystemEntries`, whose errors would surface inside the loop, outside that catch); keep entries that `probe.Probe` classifies as `Directory` (not `Link`); read each (skip on any exception but cancellation; IMPROVEMENT: log at Debug with the folder name, 2.13); then recents as in 2.9.5; dedupe on `FullPath` with Ordinal comparison. `ct` is checked between folders. Output order: root entries in enumeration order, then recents; callers sort.
 - **CreateProjectAsync**: 2.9.8, writing canonical key order (so `theme` sits after `steps`, IMPROVEMENT D-3).
 - **CreateProjectFromImportAsync**: 2.9.9. Whitelist test with the two regexes (`^shots/[^/]+\z`, `^export/\.render/[^/]+\z`, `RegexOptions.CultureInvariant`; `\z`, not `$`, EDGE-MODEL-55) on the `\`-to-`/` normalized name; `ConfineNoLinks`; write with `FileMode.CreateNew` (the `wx` flag). IMPROVEMENT D-9: on any exception after the folder was created, `ReparseSafeDelete.DeleteTree(dir)` and rethrow.
-- **OpenProjectAsync**: 2.9.10; the id back-fill runs as a queued job (IMPROVEMENT D-7), still without an `updatedAt` bump and with failures logged and swallowed. After the read, `project.json.*.tmp` siblings whose last write is older than 24 hours are deleted, failures ignored, never a younger one (Q-MODEL-20, ARCHITECTURE 7.10).
-- **DeleteProjectAsync**: queued (IMPROVEMENT D-8); `ReparseSafeDelete.DeleteTree(resolved)`; prune recents (`Path.GetFullPath(r) == resolved`, Ordinal).
+- **OpenProjectAsync**: 2.9.10; the id back-fill runs as a queued job (IMPROVEMENT D-7) that re-reads the file and writes only if the id is still empty, still without an `updatedAt` bump; an `IOException` or `UnauthorizedAccessException` from the write is logged (2.13) and swallowed. After the read, files in the project folder itself whose names match `^project\.json\.[0-9]+\.tmp\z` (the `<file>.<pid>.tmp` name that Electron's `writeFileAtomic` and `AtomicFile` both write) and whose last write is more than 24 hours before `time.GetUtcNow()` are deleted, failures ignored, never a younger one (Q-MODEL-20, ARCHITECTURE 7.10).
+- **GetProjectForReadAsync**: the gate and the read; no back-fill, no sweep, no recents entry.
+- **DeleteProjectAsync**: queued (IMPROVEMENT D-8); `ReparseSafeDelete.DeleteTree(resolved)`; prune recents (`FullPath(r) == resolved`, Ordinal), calling `SetRecentsAsync` only when an entry was dropped.
 - **MutateAsync**: 2.9.3. The function runs on the queue's thread; it must not touch UI objects.
-- **SetProjectDisplayScaleAsync**: `clean = DocScale.Clamp(scale)`; returns `Unchanged` when `(m.DisplayScale ?? 1) == clean` (IMPROVEMENT D-11, the #77 re-dating class, matching macOS); else sets or clears.
+- **SetProjectDisplayScaleAsync**: `clean = DocScale.Clamp(scale)`, with null as 1; returns `Unchanged` when `(m.DisplayScale ?? 1) == clean` (IMPROVEMENT D-11, the #77 re-dating class, matching macOS); else sets or clears.
 - **SetProjectThemeAsync**: a non-null `brand` for which `BrandPalette.IsBrandId` (10, R-ARCH-14) is false throws `ArgumentException` before the job is queued (Q-MODEL-15, IMPROVEMENT D-IPC-9); the menu only produces null or a known id; body per 2.9.3 with the raw compare `m.Theme == brand` (Ordinal, null equals null). The View, Brand menu reaches the same write rule through `IProjectSession.Apply(new SetProjectThemeOperation(brand))` (ARCHITECTURE 7.5, 05 P8, 03 7.4.5), whose `Apply` returns `Unchanged` on the same raw compare; 01's tests of the rule are `Store/ProjectThemeKeyTests` (AC-MODEL-9) and the `SetProjectThemeAsync` row of `Store/StepOperationTests`.
 - **SetProjectIntroAsync**: `clean` = null when both strings are empty; per 2.9.3.
 - **AutoArchiveStaleAsync**: 2.9.13 (INV-MODEL-32); `ct` is checked between projects; after the sweep, when the count is above 0, raise `ProjectsChanged` through `EventRaiser.Raise` (a throwing handler is logged and the rest still run, 11 T5), then return the count. It is the only member that raises the event (R-ARCH-24, Q-IPC-6); the startup code only calls the method (7.14).
 - **Step ops**: 2.9.12. `ReorderStepsAsync` uses the no-drop algorithm (IMPROVEMENT D-10). `MergeStepsAsync` throws `MergeIntoItselfException` (`cannot merge a step into itself`, 7.13) when `keepId == dropId` (Ordinal) before the gate and before queuing, as Electron does (EDGE-IPC-46). A missing step throws `StepNotFoundException` (`step {id} not found`) inside the job. `UpdateStepAsync` and `MergeStepsAsync` call `StepPatchApplier.ApplyAndInvalidate(step, patch, hasFreshPng)` and `IStepRenderWriter.WriteAsync(resolved, step, id, png)` from 04 (injected into the constructor) inside the same job, render first, then manifest; if the manifest write fails, the job awaits the render's `RenderWriteReceipt.RollbackAsync()` before rethrowing (INV-EDIT-27, ARCHITECTURE 7.6).
 - **DeleteStepsAsync**: after the manifest write, for each removed step's raw `screenshot` and `flattened` values, skip anything that is not a non-empty JSON string (IMPROVEMENT D-23, EDGE-MODEL-50), then `ConfineNoLinks`, then `File.Delete` with exceptions ignored. Removed-step identification uses the raw `id` compared as a JSON string with Ordinal equality (a non-string id never matches, as in JS `Set.has`).
 - **ImportStepAsync**: checks in this order (EDGE-IPC-46): `ImportLimits.Check(bytes.Length)` (11 7.3.2; `No image data received` for 0 bytes, `Image too large (max 60 MB)` above 62914560, the checks Electron made in `ipc.ts:450-451`), then the magic-byte check (throw `UnsupportedImageException("Unsupported file \u2014 please choose a PNG or JPEG image.")`), then the job, whose first step is the gate; counter regex `^step-([0-9]+)\.` with `RegexOptions.IgnoreCase | RegexOptions.CultureInvariant`, enumerating `shots/` with any enumeration error falling back to the step count (parity with the `catch`); `Number(m[1])` parsed as a double with `double.Parse(..., NumberStyles.None, CultureInfo.InvariantCulture)` (a 400-digit counter must not throw; it yields Infinity); `maxFile = Math.Max(maxFile, n)`; the file name is `"step-" + JsNumber.ToJsString(maxFile + 1).PadLeft(4, '0') + "." + ext` (JS `String(n).padStart(4, '0')`; `ToJsString` must return `"Infinity"` for Infinity, 7.2.2); `rel = "shots/" + filename`; `abs = ConfineNoLinks(resolved, rel)` else throw `ImportRejectedException` (IMPROVEMENT [SECURITY] D-22, EDGE-MODEL-49); write with `FileMode.CreateNew`.
-- **ResolveImage**: `Confine(projectDir, rel)` then the extension allowlist. The UI (05, 06) loads bytes off the UI thread and decodes them with the explicit PNG or JPEG decoder per EDGE-MODEL-39 (R-ARCH-21).
+- **ResolveImage**: the extension allowlist on `JsPath.ExtName(rel)` (04 7.6, Node's `path.extname`, read from `rel` as given, as `main.ts:66` did), compared case-insensitively, then `Confine(projectDir, rel)` (corrected in WP-A6: this line put the confinement first and left the extension function open; `Path.GetExtension` would call `shots/.png` a PNG where Electron answered 403). The UI (05, 06) loads bytes off the UI thread and decodes them with the explicit PNG or JPEG decoder per EDGE-MODEL-39 (R-ARCH-21).
 
 ### 7.9 Archive engine
 
@@ -1798,6 +1830,7 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 | Windows-only `Platform.Tests/FileSystem/WindowsPathProbeTests` | junction and symlink are `Link`; a regular file and directory are classified; a missing path is `Missing`; an access-denied path is `Unknown` |
 | Windows-only `Platform.Tests/FileSystem/RenameRetryClassifierTests` | a file opened with `FileShare.None` makes `File.Move(overwrite: true)` onto it fail and classify as `EBUSY` or `EPERM`; release after 30 ms and `RenameWithRetryAsync` succeeds; added in WP-A5: every row of the 7.6 table, `ERROR_NOACCESS` null |
 | Added in WP-A5 | `Store/ManagedPathProbeTests` (every kind, dangling symlinks included); `Store/ReparseSafeDeleteTests` (Linux symlinks, read-only files, an `Unknown` entry kept, `OnLinuxFileDeleteRemovesADirectorySymlink`); `Store/ManagedRenameRetryClassifierTests`; `Composition/AddShotAICoreTests`; Windows-only `Platform.Tests/FileSystem/ReparseSafeDeleteJunctionTests` (junctions, directory symlinks, read-only files and folders) and `Composition/AddShotAIPlatformTests`; `WindowsPathProbeTests` also checks an invalid name (`Unknown`), an app execution alias (`File`, skipped where none exists) and a path longer than `MAX_PATH` |
+| Added in WP-A6 | `Store/RenameProjectTests` (title only, trim, default, id back-fill, the folder never moves); `Store/DeleteProjectTests` (every recents spelling pruned, a missing folder, a link not followed, and a write queued before and after the delete: no ghost folder, EDGE-MODEL-24); `Store/ProjectSettersTests` (display-scale detents and the D-11 no-op, intro set, heading only, clear and empty); `Store/ResolveImageTests` (the three types in any case, `shots/.png` refused, escapes and hostile names refused) and `Json/JsPathTests`; all over `Store/StoreHarness`, the real store on a temp folder with a fake `IProjectStoreSettings` and a `FakeTimeProvider`, whose disposal waits at most 10 s so a failed test cannot hang the run with a job it blocked. `KnownProjectGateTests` refuses a case-variant recents entry on both platforms, and `ListProjectsTests` lists an Electron-written manifest next to the macOS fixture (the WP-A6 demo) |
 | `Store/ImportStepConfineTests` | `shots/` replaced by a symlink (Linux) or junction (Windows-only duplicate in Platform.Tests) makes `ImportStepAsync` throw and write nothing outside (D-22); a digit string beyond double range names the file `step-Infinity.png`; a counter of `1e21` names it `step-1e+21.png` |
 | `Store/DeleteStepsMalformedPathTests` | a removed step with `screenshot: 42` and `flattened: true` completes successfully, the manifest is written, and the other removed steps' files are deleted (D-23) |
 | `Store/ArchiveNameRulesTests` | entries `export\..\project.json`, `export/../project.json`, `./shots/a.png`, `shots//a.png` are all refused with the zip kept and `project.json` byte-identical (D-13, D-25); an entry whose external attributes carry `0x10` is treated as a directory; a non-ASCII entry name without the UTF-8 flag restores under its UTF-8 decoding |
@@ -1916,7 +1949,7 @@ Every consumer outside the store reaches it through `IProjectService` (11 7.3.2)
 
 **Q-MODEL-8.** Hostile-segment rejection (D-6) could refuse a legitimate name some future writer produces. Recommended default: reject; no current writer on either platform produces `:`, device names or trailing dots. Decided in WP-A5: reject, the default, with the trailing-space stem rule of 7.5.
 
-**Q-MODEL-9.** Queuing `DeleteProjectAsync` and the id back-fill (D-7, D-8) means a delete waits behind pending writes. Recommended default: accept; deletes are rare and the queue is short.
+**Q-MODEL-9.** Queuing `DeleteProjectAsync` and the id back-fill (D-7, D-8) means a delete waits behind pending writes. Recommended default: accept; deletes are rare and the queue is short. Decided in WP-A6: accept, the default.
 
 **Q-MODEL-10.** Import failure cleanup (D-9) deletes a folder the import just created; if the confinement check itself were wrong, cleanup could delete the wrong thing. Recommended default: clean up only the exact `<root>/<new uuid>` path, through `ReparseSafeDelete`.
 
@@ -1928,7 +1961,7 @@ Every consumer outside the store reaches it through `IProjectService` (11 7.3.2)
 
 **Q-MODEL-14.** The macOS fixture project lives in a read-only repo. Recommended default: copy `Fixtures/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/` into `dotnet/tests/ShotAI.Core.Tests/Golden/macos-fixture/` (not into `contract/`, which must stay byte-identical across repos) with a README naming its origin commit `f445bca`. Adopted by ARCHITECTURE 12.4 and PLAN WP-A3 (the whole folder, byte-identical, under `Golden/macos-fixture/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/`). Decided in WP-A3: copied at `f445bca`; `Golden/macos-fixture/README.md` lists each file's size and SHA-256.
 
-**Q-MODEL-15.** `setProjectTheme` coerces an unknown value to the default brand (EDGE-MODEL-7). Recommended default: the native API accepts only null or a known brand id and throws `ArgumentException` otherwise; the UI cannot produce anything else. Resolved by 11 7.3.2 and D-IPC-9: adopted as recommended (7.8), with `BrandPalette.IsBrandId` (10, R-ARCH-14) as the test.
+**Q-MODEL-15.** `setProjectTheme` coerces an unknown value to the default brand (EDGE-MODEL-7). Recommended default: the native API accepts only null or a known brand id and throws `ArgumentException` otherwise; the UI cannot produce anything else. Resolved by 11 7.3.2 and D-IPC-9: adopted as recommended (7.8), with `BrandPalette.IsBrandId` (10, R-ARCH-14) as the test. Implemented in WP-A6 (`ProjectThemeKeyTests.AnUnknownBrandIsAProgrammingError`).
 
 **Q-MODEL-16.** Should the no-op guard (D-11) extend to reorder with an unchanged order and to intro edits with identical text? Recommended default: yes for both (return Unchanged when the resulting manifest is value-equal to the input before `updatedAt`), because the rationale (#77) is the same; confirm with 05 that no UI relies on the re-dating.
 
@@ -1936,9 +1969,9 @@ Every consumer outside the store reaches it through `IProjectService` (11 7.3.2)
 
 **Q-MODEL-18.** The Electron golden outputs (AC-MODEL-3) need a small Electron-side test that writes them. Recommended default: add it in the same PR as the native codec, under `src/main/codec-golden.test.ts`, writing only outputs, into `dotnet/tests/ShotAI.Core.Tests/Golden/codec/expected/`, only when an environment variable is set, so normal Electron CI stays read-only. Scheduled by PLAN WP-A3: `SHOTAI_CODEC_GOLDENS=1 npx vitest run src/main/codec-golden.test.ts` (ARCHITECTURE 15.4 keeps it open with this default). Decided in WP-A3: default adopted; the suite is `describe.skipIf(!process.env.SHOTAI_CODEC_GOLDENS)`, so `npm test` reports it skipped and writes nothing, and `Golden/codec/README.md` says how to regenerate.
 
-**Q-MODEL-19.** JS `toLowerCase` applies full Unicode case mapping (final sigma, U+0130 to two code units) while .NET `ToLowerInvariant` applies simple mapping. Recommended default: use `ToLowerInvariant` for both the text and the query; the only effect is on Greek final sigma and dotted capital I in search.
+**Q-MODEL-19.** JS `toLowerCase` applies full Unicode case mapping (final sigma, U+0130 to two code units) while .NET `ToLowerInvariant` applies simple mapping. Recommended default: use `ToLowerInvariant` for both the text and the query; the only effect is on Greek final sigma and dotted capital I in search. Decided in WP-A6: `ToLowerInvariant` for both, the default.
 
-**Q-MODEL-20.** Stale `project.json.<pid>.tmp` files from crashes accumulate in both apps. Recommended default: on open, delete `project.json.*.tmp` siblings whose last write is older than 24 hours (IMPROVEMENT), never one younger (another process could be mid-write on a synced copy). Adopted by ARCHITECTURE 7.10; implemented in `OpenProjectAsync` (WP-A6).
+**Q-MODEL-20.** Stale `project.json.<pid>.tmp` files from crashes accumulate in both apps. Recommended default: on open, delete `project.json.*.tmp` siblings whose last write is older than 24 hours (IMPROVEMENT), never one younger (another process could be mid-write on a synced copy). Adopted by ARCHITECTURE 7.10; implemented in `OpenProjectAsync` (WP-A6). Decided in WP-A6: the default, narrowed to the `<file>.<pid>.tmp` names Electron and `AtomicFile` write, `^project\.json\.[0-9]+\.tmp\z`, and to files in the project folder itself (7.8).
 
 **Q-MODEL-21.** Archive restore name rules. Electron, via JSZip, silently resolves `.`, `..` and empty segments in forward-slash entry names; native rejects them (D-25). A zip produced by some third-party tool with `./` prefixes would restore in Electron and fail natively. Recommended default: reject; only shotAI writes `archive.zip`, and both shotAI writers emit plain names. Revisit only if a real archive fails.
 
