@@ -1,18 +1,12 @@
 {
   "version": 2,
   "dependencies": {
-    "net10.0": {
+    "net10.0-windows10.0.19041": {
       "Microsoft.CodeAnalysis.BannedApiAnalyzers": {
         "type": "Direct",
         "requested": "[5.6.0, )",
         "resolved": "5.6.0",
         "contentHash": "Kcobt3pnOdO0A+6CKiMHZdTEluJpsfxiV20axtZdmfBQnDmiWTKPJADlgAfdTuKNAnVarrkJa0UEGwuOo91muw=="
-      },
-      "Microsoft.Extensions.TimeProvider.Testing": {
-        "type": "Direct",
-        "requested": "[10.10.0, )",
-        "resolved": "10.10.0",
-        "contentHash": "8duZdxuO3Oo8tlyQXVq1drXee6GJC9DjUU97Pq3YaIqf92jrAHsWxbbRKwvjQI48Mer3IANwUKF0elqvHeY4Rw=="
       },
       "Microsoft.VisualStudio.Threading.Analyzers": {
         "type": "Direct",
@@ -154,8 +148,11 @@
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.12, )"
         }
       },
-      "shotai.genbrand": {
-        "type": "Project"
+      "shotai.platform": {
+        "type": "Project",
+        "dependencies": {
+          "ShotAI.Core": "[2.0.0-alpha.0, )"
+        }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "CentralTransitive",

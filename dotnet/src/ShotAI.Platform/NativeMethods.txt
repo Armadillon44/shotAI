@@ -1,1 +1,7 @@
 SetWindowDisplayAffinity
+FindFirstFileEx
+FindClose
+WIN32_FIND_DATAW
+FINDEX_INFO_LEVELS
+FINDEX_SEARCH_OPS
+WIN32_ERROR

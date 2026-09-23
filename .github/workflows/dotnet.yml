@@ -7,7 +7,8 @@
 # - Linux builds the WHOLE solution (EnableWindowsTargeting lets WPF and CsWin32
 #   compile there) and runs the platform-neutral ShotAI.Core tests, which include the
 #   shared contract/conformance suite. Cheap, and it is what cloud sessions can run.
-# - Windows builds and runs every test project, including the ones that need Windows.
+# - Windows builds and runs every test project, including the ones that need Windows,
+#   on x64 and on arm64 (docs/native/spec/12-packaging-deploy-ci.md 7.11.2, Q-PKG-12).
 #
 # Path-filtered jobs never report on PRs they skip, so do not make them required
 # status checks without a paths-filter step, or those PRs will wait forever.
@@ -76,8 +77,14 @@ jobs:
         run: dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release --no-build --output Detailed --filter-class ShotAI.Core.Tests.Conformance.ConformanceTests
 
   windows:
-    name: build + test (Windows)
-    runs-on: windows-latest
+    name: build + test (Windows ${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: windows-latest }
+          - { arch: arm64, runner: windows-11-arm }
+    runs-on: ${{ matrix.runner }}
     steps:
       # A default Windows clone converts text files to CRLF. The brand check must pass on
       # one (AC-INFRA-1), so this job pins that setting rather than inheriting it.
