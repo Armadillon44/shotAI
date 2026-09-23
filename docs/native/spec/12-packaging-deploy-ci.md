@@ -883,6 +883,8 @@ The App project copies `artifacts/native/<rid>/shotai_avif.dll` into the publish
 | Central versions | `Directory.Packages.props` only (existing rule) | REQUIRED |
 | Dependabot | `.github/dependabot.yml` for `nuget` in `/dotnet` and `github-actions` weekly | IMPROVEMENT |
 
+A session whose network cannot reach the certificate revocation servers (the cloud sessions' sandbox) gets NU3018 from every restore under `require`. Such a session sets `NUGET_CERT_REVOCATION_MODE=offline` in its own shell, which checks revocation against cached lists only and turns the failure into information (Microsoft Learn, NU3028: "It is not recommended to switch the revocation check mode to offline under normal circumstances"). No workflow sets it, so CI's online check still gates every merge. Added in WP-A1.
+
 ### 7.9 Runtime hardening owned by packaging
 
 #### 7.9.1 DLL search order (INV-PKG-16)
@@ -1074,6 +1076,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.x' }
+      - name: Restore (locked)                  # INV-PKG-20
+        run: dotnet restore ShotAI.slnx --locked-mode
       - name: Brand table is current            # INV-PKG-21, spec 10
         run: dotnet run --project tools/ShotAI.GenBrand -c Release -- --check
       - name: Third-party notices are current   # INV-PKG-29
@@ -1101,7 +1105,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - checkout, setup-dotnet 10.0.x, download native-avif-${{ matrix.arch }} to artifacts/native/win-${{ matrix.arch }}
-      - run: dotnet build ShotAI.slnx -c Release
+      - run: dotnet restore ShotAI.slnx --locked-mode
+      - run: dotnet build ShotAI.slnx -c Release --no-restore
       - run: dotnet test --solution ShotAI.slnx -c Release --no-build
 
   package:
@@ -1594,7 +1599,7 @@ None are listed, and none exist: Electron's packaging was never under automated 
 
 **Q-PKG-13. libaom build details.** NASM for x64 assembly and the ARM64 MSVC build path need confirming. Recommended default: NASM installed from a pinned, hash-checked download; for ARM64 build natively on `windows-11-arm` if cross-compilation fails; if assembly cannot be built, `-DAOM_TARGET_CPU=generic` (slower, still correct).
 
-**Q-PKG-14. NuGet audit severity in PR CI.** Adopted as ARCHITECTURE 3.1 V5 (high and critical fail every build, low and moderate fail the release workflow only). Recommended default: audit errors fail the release workflow always; in PR CI set `<WarningsNotAsErrors>NU1901;NU1902</WarningsNotAsErrors>` (low and moderate) and keep high and critical as errors.
+**Q-PKG-14. NuGet audit severity in PR CI.** Adopted as ARCHITECTURE 3.1 V5 (high and critical fail every build, low and moderate fail the release workflow only). Recommended default: audit errors fail the release workflow always; in PR CI set `<WarningsNotAsErrors>NU1901;NU1902</WarningsNotAsErrors>` (low and moderate) and keep high and critical as errors. Decided in WP-A1: default adopted in `dotnet/Directory.Build.props`, where the two codes are warnings unless `-p:ShotAIStrictAudit=true`, which WP-E4's release workflow passes.
 
 **Q-PKG-15. Fleet-wide update-check opt-out.** Intune delivers updates, so the notice is noise on managed PCs (macOS has a managed key). Recommended default: not in 2.0.0 (10 Q-INFRA-4); if IT asks, add `HKLM\SOFTWARE\Policies\shotAI\UpdateCheckDisabled` (DWORD) with an ADMX revision, never under `Federation`.
 
@@ -1624,7 +1629,7 @@ None are listed, and none exist: Electron's packaging was never under automated 
 
 **Q-PKG-28. AVIF loadability in the self-test.** Recommended default: extend 10's `--selftest` with one AVIF encode of a 16 by 16 image through `LibavifEncoder` (09), failing the self-test if the DLL is present but the encode fails; absent DLL is a failure only in packaged runs (`verify-payload` already requires it).
 
-**Q-PKG-29. NuGet repository signature validation.** `signatureValidationMode=require` fails for any package that is not repository-signed; all nuget.org packages are repository-signed today, but the setting also rejects local test packages. Recommended default: enable it in `dotnet/nuget.config`; if a legitimate package fails, pin its author certificate as a trusted signer rather than disabling validation.
+**Q-PKG-29. NuGet repository signature validation.** `signatureValidationMode=require` fails for any package that is not repository-signed; all nuget.org packages are repository-signed today, but the setting also rejects local test packages. Recommended default: enable it in `dotnet/nuget.config`; if a legitimate package fails, pin its author certificate as a trusted signer rather than disabling validation. Decided in WP-A1: default adopted; `dotnet/nuget.config` trusts the three nuget.org repository certificates that `dotnet nuget trust source nuget.org` wrote, and every package in the WP-A1 lock files validates. No author certificate was needed.
 
 **Q-PKG-30. WPF native DLLs under restricted DLL search.** EDGE-PKG-48: whether `LOAD_LIBRARY_SEARCH_DEFAULT_DIRS` affects any WPF native load from the WindowsDesktop framework folder is not verified. Recommended default: keep INV-PKG-16 and measure AC-PKG-31 in the first Windows PR that adds `Program.Main`; if the render tier drops or a load fails, add `AddDllDirectory(<WindowsDesktop framework folder>)` immediately after `SetDefaultDllDirectories` rather than dropping the hardening.
 

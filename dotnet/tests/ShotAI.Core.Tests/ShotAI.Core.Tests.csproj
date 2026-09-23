@@ -20,4 +20,8 @@
   <ItemGroup>
     <None Include="$(RepoRoot)contract/**/*" LinkBase="contract" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <!-- The 87-channel map of spec 11 7.4, read by ServiceBoundary.ChannelInventoryTests. -->
+  <ItemGroup>
+    <None Include="ServiceBoundary/channel-map.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

@@ -30,4 +30,32 @@
     <ShotAIWindowsTfm>net10.0-windows10.0.19041.0</ShotAIWindowsTfm>
     <ShotAIMinWindows>10.0.19041.0</ShotAIMinWindows>
   </PropertyGroup>
+
+  <!--
+    Supply chain (docs/native/spec/12-packaging-deploy-ci.md 7.8, INV-PKG-20). Restore is
+    locked to the committed packages.lock.json files, and CI (GitHub Actions sets CI=true)
+    fails instead of silently resolving something new. After a package change, regenerate
+    the lock files with the force-evaluate restore in docs/native/PLAN.md 2.5.
+  -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <!-- Q-PKG-14, ARCHITECTURE 3.1 V5: low and moderate advisories stay warnings outside the
+         release workflow, whose test job passes -p:ShotAIStrictAudit=true so they fail there too. -->
+    <WarningsNotAsErrors Condition="'$(ShotAIStrictAudit)' != 'true'">$(WarningsNotAsErrors);NU1901;NU1902</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <!--
+    Analyzers for every project (ARCHITECTURE 14.9; severities are in .editorconfig).
+    tools/ShotAI.GenBrand stays BCL-only with no package reference at all (spec 10 7.3).
+    BannedSymbols.txt, where a project has one, is the banned-API list for RS0030.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'ShotAI.GenBrand'">
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)/BannedSymbols.txt"
+                     Condition="Exists('$(MSBuildProjectDirectory)/BannedSymbols.txt')" />
+  </ItemGroup>
 </Project>

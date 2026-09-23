@@ -17,6 +17,12 @@ planned in detail; follow the plan instead of improvising scope.
    into Microsoft.Testing.Platform, and `dotnet` only finds it from here or below:
    - `dotnet build ShotAI.slnx -c Release`
    - `dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release`
+   - In a cloud session, restore fails with NU3018 (the sandbox cannot reach certificate
+     revocation servers). Start each shell command with
+     `export NUGET_CERT_REVOCATION_MODE=offline &&`, because shell state does not persist.
+     Never put it in a workflow.
+   - After a package change: `dotnet restore ShotAI.slnx --force-evaluate`, and commit the
+     `packages.lock.json` files.
 5. **Cloud sessions run on Linux.** They can build everything and run the Core tests,
    but not the app or the Windows-only tests. Put every rule that can live in
    `ShotAI.Core` there, and push to read the Windows CI job for the rest (PLAN 2.6).

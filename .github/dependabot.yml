@@ -1,0 +1,16 @@
+# Weekly dependency PRs for the native app and the workflows
+# (docs/native/ARCHITECTURE.md 3.1 V6, docs/native/spec/12-packaging-deploy-ci.md 7.8).
+#
+# A NuGet update must also update the packages.lock.json files: CI restores in locked
+# mode and fails a PR whose lock files do not match (V3). Anthropic and MSAL updates are
+# reviewed by hand and never auto-merged (V9).
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /dotnet
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

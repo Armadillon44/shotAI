@@ -166,6 +166,7 @@ Cloud sessions run on Linux. They build the whole solution (EnableWindowsTargeti
 | Situation | What the session does |
 |---|---|
 | Core logic | writes it with Linux tests; this is the default place for every rule (ARCHITECTURE 2.3, 12.2) |
+| Restore fails with NU3018 (the sandbox cannot reach certificate revocation servers) | runs `export NUGET_CERT_REVOCATION_MODE=offline &&` before each `dotnet` command in that shell, never in a workflow (12 7.8) |
 | Windows-only code (Platform, App) | writes it with its Platform.Tests or App.Tests cases, pushes, and reads the Windows job results; iterates on CI failures; never marks a Windows test as skipped to get green (a capability skip must say why, ARCHITECTURE 12.9) |
 | Manual AC | writes a numbered script in the PR description (preconditions, steps, expected result, the exact strings to compare) and lists the AC as pending in section 9. A person (the maintainer, or the IT tester for Intune items) runs it on the reference machines and records the result in the phase tracking issue: pass, or fail with an issue link. A failed manual AC reopens the WP (a follow-up PR on the same WP id) |
 | Side-by-side AC | follows the matching procedure of section 4 |
@@ -1461,6 +1462,7 @@ Built from every spec's risk statements (the `Risk` entries of each section 11 a
 | X47 | Electron keeps changing during the port (12 Q-PKG-27) | M / M | every WP | freeze to fixes; B6; `MatchesElectronWhileItExists` catches new channels |
 | X48 | Cloud sessions cannot run Windows tests or the app, so defects surface late | H / M | every Windows WP | Windows CI on every PR; manual scripts in PR descriptions; phase exits on real hardware |
 | X49 | The 6 to 8 week estimate slips (feasibility "Effort") | M / M | this plan | lanes run in parallel; WPs sized to one or two sessions; phase exits measure progress |
+| X50 | An `RS0030` allowance lifts every ban in its file, so an allowlisted file can use another banned API unnoticed (found in WP-A1, ARCHITECTURE 14.9) | L / M | every WP that adds an allowlisted file | keep those files single-purpose; ARCHITECTURE 9.5 item 7; `VSTHRD002` still catches waits outside `ShutdownFlush.cs` |
 
 ### 6.2 Open questions by spec
 
