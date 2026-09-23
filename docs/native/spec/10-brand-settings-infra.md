@@ -852,6 +852,7 @@ public static class ContrastMath   // 2.5 formulas, doubles, for the tests and 0
 - `IsBrandId` looks up a `FrozenDictionary<string, BrandDefinition>` built with `StringComparer.Ordinal`; no reflection, no `Enum.TryParse`, no case folding (INV-INFRA-9). REQUIRED.
 - Initialization (EDGE-INFRA-44): the generated part emits `ShotAI`, `Lfi` AND `public static IReadOnlyList<BrandDefinition> All { get; } = [ShotAI, Lfi];` in one file, where textual order guarantees the fields are assigned first; the hand-written part builds the lookup dictionary, `BrandIds`, `RetiredGreys` and anything else derived from `All` in a static constructor or as expression-bodied members (`AppLight => ShotAI.Light`, `CardRadiusPx => ShotAI.Radii.Card`). REQUIRED.
 - Name lookup (EDGE-INFRA-47): inside `BrandPalette` the identifier `ShotAI` is the field, so both parts import other namespaces with `using ShotAI.Core.Theme;` and never write a qualified `ShotAI.` name. REQUIRED.
+- `Appearance` (added in WP-A4): `ShotAI.Core.Theme` is 06's (06 7.4), but `For` takes its `Appearance` and WP-A4 lands before WP-A14, so WP-A4 declares `public enum Appearance { Light, Dark }` in `ShotAI.Core.Theme` and WP-A14 adds the rest of that namespace.
 - `JsonNode` overloads exist because every untrusted input (settings, `project.json`) arrives as a `JsonNode` from 01's `JsJson.Parse`; a node that is not a JSON string is never a brand, never a pin (`PinIsUnrecognised` false), exactly as `typeof v === 'string'`. REQUIRED.
 - `HexNoHash`: `Regex(@"^#([0-9a-fA-F]{6})\z", RegexOptions.CultureInvariant)` (`\z`, not `$`: EDGE-INFRA-43); returns the group `ToUpperInvariant()`; else `throw new ArgumentException("hexNoHash: expected #rrggbb, got " + JsonQuote(value))`, where `JsonQuote` is 01's JSON string quoting (so `null` prints `null`). REQUIRED.
 - `CssFontStack(b)`: `f = Get(b).Font`; `string.Join(",", (f.Family is null ? [] : ["\"" + f.Family + "\""]).Concat(f.Fallbacks))`. For LFI: `"Archivo","Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif`. REQUIRED (09 builds export CSS with it). The WPF font-family conversion (quotes removed, `-apple-system` dropped, `sans-serif` to `Segoe UI`) is 06's.
@@ -939,11 +940,34 @@ public sealed class GenBrandException(string message) : Exception(message);
 | Font | missing: `<b>: no font`; emits `family`, `postScriptName` (IMPROVEMENT: carried, unused by Windows today), `fallbacks` (default empty), `labelStretch` |
 | Alpha | `platforms.windows.alpha` is `[]`; nothing emitted (parity) |
 
+Added in WP-A4. Where Electron crashes, emits garbage or would write a C# file that does not compile, the generator fails with a message instead (IMPROVEMENT):
+
+| Input | Message |
+|---|---|
+| A root that is not an object, or `platforms.windows.colors` not an array of strings | `spec has no platforms.windows.colors` |
+| `brands` missing or not an object (Node throws a `TypeError`) | `spec has no brands` |
+| A token, or a `windowsRenames` value, that is not a plain name `^[a-z][A-Za-z0-9]*$`: each becomes a C# identifier, so this is also what keeps the contract from injecting code | `platforms.windows.colors: <JSON> is not a token name`, `windowsRenames.<t>: <JSON> is not a role name` |
+| A missing or non-string `label` (Node writes the string `'undefined'`), checked after `font` | `<b>: no label` |
+| `font.family` or `font.postScriptName` neither a string nor null | `<b>.font.<k>: must be a string or null` |
+| `font.fallbacks` present and not an array of strings | `<b>.font.fallbacks: must be an array of strings` |
+| `font.labelStretch` neither a finite number nor null | `<b>.font.labelStretch: must be a number or null` |
+| A radius that is a string, a boolean or not finite (`1e400`) | `<b>.radii.<k>: must be a number` |
+
+Also settled in WP-A4:
+
+- String literals escape U+0085, U+2028 and U+2029 as well as the control characters, because C# treats them as line terminators.
+- An integer-valued number below 1e15 in magnitude prints as an integer.
+- `--root <dir>` is resolved against the working directory.
+- Every message ends with `\n` on every OS, as Node's does.
+- An unreadable contract gives `cannot read <path>: <message>`.
+- `Program.Run(args, stdout, stderr, workingDirectory)` is public, so `GenBrandTests` run the command in-process.
+- Referencing the tool executable from the Microsoft.Testing.Platform test executable works on Linux and Windows, so the fallback library `ShotAI.GenBrand.Core` was not needed.
+
 Workflow for a contract change, now three generators: edit `contract/brand.json`; run `npm run gen:brand`, `dotnet run --project dotnet/tools/ShotAI.GenBrand` (from the repo root, or from `dotnet/` with `--project tools/ShotAI.GenBrand`); commit both tables with the contract; land the identical contract and `swift Scripts/gen-brand.swift` output in the macOS repo. After cutover the TypeScript generator is deleted with the Electron tree.
 
 Tool project (`dotnet/tools/ShotAI.GenBrand/ShotAI.GenBrand.csproj`): `OutputType` `Exe`, `net10.0`, `IsPackable` false, NO `ProjectReference` (EDGE-INFRA-48) and no package reference; it is BCL only, like `gen-brand.mjs` is Node builtins only.
 
-CI (12 edits `dotnet.yml`): in the Linux job, before `Build`: `dotnet run --project tools/ShotAI.GenBrand -c Release -- --check` (working directory `dotnet`). The workflow already triggers on `contract/**`. `.gitattributes` gains `dotnet/src/ShotAI.Core/Brand/BrandPalette.Generated.cs text eol=lf`. The tool project is added to `ShotAI.slnx` under `/tools/`. `ShotAI.Core.Tests` references the tool project (so `BrandContractTests.GeneratedFileIsCurrent` runs the same `Generate` on Linux) and links `dotnet/src/ShotAI.Core/Brand/BrandPalette.Generated.cs` and, while it exists, `src/shared/brand-colors.generated.ts` into its output with `CopyToOutputDirectory` (the same pattern the csproj already uses for `contract/**`).
+CI (12 edits `dotnet.yml`): in the Linux job, before `Build`: `dotnet run --project tools/ShotAI.GenBrand -c Release -- --check` (working directory `dotnet`). The workflow already triggers on `contract/**`. Added in WP-A4: `.gitattributes` joins the path filter, and the Windows job runs the same check on a checkout made with `core.autocrlf true` (its first step pins that setting), which is AC-INFRA-1's CRLF clone. `.gitattributes` gains `dotnet/src/ShotAI.Core/Brand/BrandPalette.Generated.cs text eol=lf`. The tool project is added to `ShotAI.slnx` under `/tools/`. `ShotAI.Core.Tests` references the tool project (so `BrandContractTests.GeneratedFileIsCurrent` runs the same `Generate` on Linux) and links `dotnet/src/ShotAI.Core/Brand/BrandPalette.Generated.cs` and, while it exists, `src/shared/brand-colors.generated.ts` into its output with `CopyToOutputDirectory` (the same pattern the csproj already uses for `contract/**`).
 
 ### 7.4 Settings (Core, `ShotAI.Core.Settings`)
 
@@ -1459,10 +1483,10 @@ Target: `Updates.UpdateCheckTests`.
 
 | Class (project) | Tests |
 |---|---|
-| `Brand.GenBrandTests` (Core.Tests, references the tool) | `GeneratesCheckedInFile`; `HashIgnoresCrlf` (CRLF input still gives `c945d17c…`); `CheckReportsStale` (exact message); `CheckIgnoresCrlfInExisting`; `InvariantViolationFails` (contract with dark field == surface2 gives the exact `invariant violated \u2014 shotAI.dark: field and surface2 are both #211f2e.` + why); `RejectsUppercaseOrShortHex` (exact message with JSON quoting); `MissingTokenFails`; `MissingBrandFails`; `PlatformValueTakesWindows`; `MissingWindowsValueFails`; `NullNonChipRadiusFails`; `ThirdBrandIgnored`; `DeterministicOutput` (two runs byte-equal, LF only, trailing newline) |
+| `Brand.GenBrandTests` (Core.Tests, references the tool) | `GeneratesCheckedInFile`; `HashIgnoresCrlf` (CRLF input still gives `c945d17c…`); `CheckReportsStale` (exact message); `CheckIgnoresCrlfInExisting`; `InvariantViolationFails` (contract with dark field == surface2 gives the exact `invariant violated \u2014 shotAI.dark: field and surface2 are both #211f2e.` + why); `RejectsUppercaseOrShortHex` (exact message with JSON quoting); `MissingTokenFails`; `MissingBrandFails`; `PlatformValueTakesWindows`; `MissingWindowsValueFails`; `NullNonChipRadiusFails`; `ThirdBrandIgnored`; `DeterministicOutput` (two runs byte-equal, LF only, trailing newline); added in WP-A4: `CheckTreatsAMissingTableAsStale`, `OneColourChangesExactlyItsLineAndTheStamp` (AC-INFRA-2), `InvariantCoversABrandThatIsNotEmitted`, and one test per row of the 7.3 table added in WP-A4 (`ContractThatIsNotUtf8OrNotJsonFails`, `ColoursMustBeAListOfNames`, `NamesThatWouldInjectCodeAreRefused`, `LabelAndFontFieldsAreTyped`, `StringsAreEscapedCSharpLiterals`, `TheRootIsFoundFromBelowAndMustExist`) |
 | `Brand.BrandContractTests` (Core.Tests) | `GeneratedFileIsCurrent`; `StampMatchesCanonicalHash`; `StampEqualsTypeScriptStamp` (skipped when the TS file is absent after cutover) |
 | `Brand.BrandParityWithElectronTests` (Core.Tests) | `ValuesEqualTypeScriptTable`: parse `brand-colors.generated.ts` with a strict regex and compare every colour, radius, font field and label with the C# table (skipped after cutover) |
-| `Brand.BrandPaletteTests` extra | `RoleToTokenOrderMatchesElectron` (36 rows of 2.3 in order); `RadiusTokens`; `CssFontStackLfi` exact string; `CardAndImageRadius` (10, 8) |
+| `Brand.BrandPaletteTests` extra | `RoleToTokenOrderMatchesElectron` (36 rows of 2.3 in order); `RadiusTokens`; `TypeTokens` (added in WP-A4: `font-stack`, `label-stretch`); `CssFontStackLfi` exact string; `CardAndImageRadius` (10, 8) |
 | `Settings.SettingsCoercionTests` (Core.Tests) | one `[Theory]` row per 2.6.3 worked example, per key, plus: `2.5` gives 3, `0.3` gives 1, `1e400` gives 90 (archive) and 0.85 (scale), `"0.7"` gives 0.85, `theme: "Dark"` gives System, `recents` filtering, 130-char name capped at 120 UTF-16 units, surrogate split kept |
 | `Settings.SettingsCodecTests` (Core.Tests) | `FreshFileBytes` (the 2.6.3 example exactly, no trailing newline, LF); `KeyOrderKeepsFilePositions` (known key in the middle stays there, missing known keys appended in literal order, array-index-like unknown keys first per JS own-key order); `BomTolerated`; `NullFileIsDefaults`; `UnrecognisedBrandPreservedWhenUnchanged`; `UnrecognisedBrandReplacedWhenUserChangesIt`; `NonStringBrandRepaired`; `SopUnknownKeysPreserved`; `SopKnownKeysRepaired`; `RelativeProjectsDirIsDefault` |
 | `Settings.SettingsServiceTests` (Core.Tests) | `OptimisticThenPersisted`; `RollbackOnlyTheFailedChange` (three queued, middle fails); `ConcurrentUpdatesNoLostWrite` (100 parallel `AddRecent`); `FailureDoesNotBreakQueue`; `WriteMergesExternalEdit` (edit the file between two writes; unknown and other known keys survive); `AddRecentDedupesCapsAndNeverThrows`; `CachesReadCurrentSynchronously`; `RemoteVisibleDefaultsProtected` (missing and corrupt file); `CorruptFileBackedUpOnce`; `ReportByline` (trim, gate); `DrainWritesPending`; `RenameRetryLogsOnce` (exact warn text) |
@@ -1481,7 +1505,7 @@ Target: `Updates.UpdateCheckTests`.
 | `Shell.AppPathsTests` (App.Tests; `AppPaths` is App code) | `SettingsFileIsRoamingAppData` (equals `%APPDATA%\shotAI\settings.json`, not a package-virtualized path when run from the installed package, EDGE-INFRA-39); `LogsDirectoryIsRoamingAppData` (`%APPDATA%\shotAI\logs`); `LocalDataDirectoryIsUnderLfi` (equals `%LOCALAPPDATA%\LFI\shotAI`, R-ARCH-13); `NoPathUnderSquirrelRoot` (compared `OrdinalIgnoreCase` after `Path.GetFullPath`, no `IAppPaths` member is `%LOCALAPPDATA%\shotAI` or inside it, EDGE-PKG-22) |
 | `SelfTest.SelfTestProcessTests` (App.Tests) | launches the built `shotAI.exe --selftest` with redirected output; exit code 0 and `[selftest] PASS`; `--update-selftest` is excluded (network) |
 | `Brand.BrandPaletteTests` verification additions (Core.Tests) | `AllIsFullyInitialized` (EDGE-INFRA-44); `HexNoHashRejectsTrailingNewline` (`"#6344f1\n"` throws, EDGE-INFRA-43); `ForCoercesUnknownBrand` (`For("nonsense", Light)` is `ReferenceEquals` the default light palette) |
-| `Brand.GenBrandTests` verification additions | `ErrorOrderMatchesElectron` (a contract missing both `radii` and a colour reports `shotAI: no radii`); `MissingAppearanceValuePrintsUndefined` (`shotAI.accent.dark: expected a lowercase 6-digit #rrggbb, got undefined`); `HexRejectsTrailingNewline`; `ToolHasNoProjectReference` (reads `ShotAI.GenBrand.csproj`, EDGE-INFRA-48); `NumbersFormatInvariant` (under `de-DE`, `12` and `0.5` print as `12` and `0.5`) |
+| `Brand.GenBrandTests` verification additions | `ErrorOrderMatchesElectron` (a contract missing both `radii` and a colour reports `shotAI: no radii`); `MissingAppearanceValuePrintsUndefined` (`shotAI.accent.dark: expected a lowercase 6-digit #rrggbb, got undefined`); `HexRejectsTrailingNewline`; `ToolHasNoProjectReference` (reads `ShotAI.GenBrand.csproj`, EDGE-INFRA-48); `NumbersFormatInvariant` (under a decimal-comma culture, `12` and `0.5` print as `12` and `0.5`. Corrected in WP-A4: the culture is a clone of the invariant culture with `,` as the decimal separator instead of `de-DE`, because a named culture depends on the runner's ICU data) |
 | `Settings.SettingsServiceTests` consolidation additions | `ChangedRaisedOutsideLock` (a `Changed` handler that calls `Current` and `UpdateAsync` from inside the handler does not deadlock, T5); `ThrowingChangedHandlerDoesNotBreakUpdate` (logged through `EventRaiser`, the write still happens) |
 | `Settings.SettingsServiceTests` verification additions | `UnreadableReReadFailsWithoutWriting` (a job whose re-read throws a sharing violation leaves the file byte-identical and rolls back, EDGE-INFRA-46); `MissingReReadUsesInMemoryBase` (delete the file between two updates; the second write keeps the first's values, not defaults); `CancelledBeforeStartRollsBack` (`IsRollback` true); `ChangedCarriesIsRollback`; `DisposeIsIdempotent` |
 | `Updates.UpdateServiceTests` verification additions | `UpToDateLogsRunningVersion`; `ManualStampFailureStillSetsPending` (EDGE-INFRA-45); `JoinedCheckSurvivesCallerCancellation` (cancel the Settings token while the startup request is in flight: the startup check still completes and stamps, EDGE-INFRA-50); `StartupCancellationIsSilent` |
@@ -1496,7 +1520,7 @@ Target: `Updates.UpdateCheckTests`.
 
 **AC-INFRA-2.** Changing one colour in `contract/brand.json` without regenerating makes the native CI job fail at the brand check with the STALE message; regenerating changes exactly that value's line and the stamp line in `BrandPalette.Generated.cs`.
 
-**AC-INFRA-3.** The stamp in `BrandPalette.Generated.cs` equals the stamp in `src/shared/brand-colors.generated.ts` and in the macOS table (`c945d17c…` today).
+**AC-INFRA-3.** The stamp in `BrandPalette.Generated.cs` equals the stamp in `src/shared/brand-colors.generated.ts` and in the macOS table (`c945d17c…` today). Checked in WP-A4: all three are `c945d17c…`, and the macOS contract at `f445bca` is byte-identical to this repo's; `BrandContractTests.StampEqualsTypeScriptStamp` holds the TypeScript half.
 
 **AC-INFRA-4.** `BrandParityWithElectronTests.ValuesEqualTypeScriptTable` passes: every value of the C# table equals the TypeScript table.
 
@@ -1616,7 +1640,7 @@ Target: `Updates.UpdateCheckTests`.
 
 **Q-INFRA-16. Keep the environment-variable triggers?** Recommended default: yes, both (`SHOTAI_SELFTEST=1`, `SHOTAI_CAPTURE_TEST=1`), because `docs/HARDENING-PLAN.md` and existing scripts use them; the switches are primary in new docs.
 
-**Q-INFRA-17. Generator location.** Recommended default: `dotnet/tools/ShotAI.GenBrand` plus the checked-in table, as specified; revisit an incremental source generator only if the checked-in file becomes a merge-conflict problem.
+**Q-INFRA-17. Generator location.** Recommended default: `dotnet/tools/ShotAI.GenBrand` plus the checked-in table, as specified; revisit an incremental source generator only if the checked-in file becomes a merge-conflict problem. Decided in WP-A4: default adopted.
 
 **Q-INFRA-18. Remember the pending update across launches (macOS behavior)?** Electron shows the notice only on the launch that ran the check. Recommended default: parity for 2.0.0; revisit after the pilot.
 

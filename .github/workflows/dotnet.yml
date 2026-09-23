@@ -1,7 +1,8 @@
 # CI for the native Windows app under dotnet/ (see docs/native/PLAN.md).
 #
-# Runs only when the native tree, the shared contract, or this file changes, so
-# Electron-only PRs stay on ci.yml alone. Two jobs:
+# Runs only when the native tree, the shared contract, .gitattributes (which pins the
+# contract and the generated tables to LF) or this file changes, so Electron-only PRs stay
+# on ci.yml alone. Two jobs:
 #
 # - Linux builds the WHOLE solution (EnableWindowsTargeting lets WPF and CsWin32
 #   compile there) and runs the platform-neutral ShotAI.Core tests, which include the
@@ -18,11 +19,13 @@ on:
     paths:
       - 'dotnet/**'
       - 'contract/**'
+      - '.gitattributes'
       - '.github/workflows/dotnet.yml'
   pull_request:
     paths:
       - 'dotnet/**'
       - 'contract/**'
+      - '.gitattributes'
       - '.github/workflows/dotnet.yml'
 
 concurrency:
@@ -56,6 +59,11 @@ jobs:
       # signatures required (dotnet/nuget.config). CI=true also sets RestoreLockedMode.
       - name: Restore (locked)
         run: dotnet restore ShotAI.slnx --locked-mode
+      # The C# brand table is generated from contract/brand.json, which is byte-identical to
+      # the copy in Armadillon44/shotAI_MacOS; this fails when the checked-in table no longer
+      # matches the contract (docs/native/spec/10-brand-settings-infra.md 7.3).
+      - name: Brand table is current
+        run: dotnet run --project tools/ShotAI.GenBrand -c Release --no-restore -- --check
       - name: Build
         run: dotnet build ShotAI.slnx -c Release --no-restore
       - name: Test (core)
@@ -71,12 +79,19 @@ jobs:
     name: build + test (Windows)
     runs-on: windows-latest
     steps:
+      # A default Windows clone converts text files to CRLF. The brand check must pass on
+      # one (AC-INFRA-1), so this job pins that setting rather than inheriting it.
+      - name: Check out with CRLF conversion
+        working-directory: .
+        run: git config --global core.autocrlf true
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
       - name: Restore (locked)
         run: dotnet restore ShotAI.slnx --locked-mode
+      - name: Brand table is current (CRLF checkout)
+        run: dotnet run --project tools/ShotAI.GenBrand -c Release --no-restore -- --check
       - name: Build
         run: dotnet build ShotAI.slnx -c Release --no-restore
       - name: Test

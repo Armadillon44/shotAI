@@ -32,6 +32,9 @@ planned in detail; follow the plan instead of improvising scope.
    - Don't change `contract/` without the same change in the macOS repo (PLAN rule B5).
    - Don't change Electron code except for a parity fix made in both apps (B6).
    - Don't commit ids or anything from a `*.local.json` file. The repo is public (B8).
+   - Don't hand-edit `src/ShotAI.Core/Brand/BrandPalette.Generated.cs`. Regenerate it with
+     `dotnet run --project tools/ShotAI.GenBrand`, and Electron's table with `npm run gen:brand`
+     from the repo root; CI fails when either is stale.
    - Don't skip a test to get CI green.
 7. **Goldens** under `tests/ShotAI.Core.Tests/Golden/` are compared byte for byte. Never
    edit one by hand: regenerate it from its source (for the codec, the Electron generator

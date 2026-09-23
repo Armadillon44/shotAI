@@ -11,6 +11,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ShotAI.Core\ShotAI.Core.csproj" />
+    <!-- The brand generator, so Brand/GenBrandTests and BrandContractTests run its Generate. -->
+    <ProjectReference Include="..\..\tools\ShotAI.GenBrand\ShotAI.GenBrand.csproj" />
   </ItemGroup>
   <!--
     contract/ is shared byte-for-byte with the macOS repo, so it is read in place from
@@ -27,6 +29,14 @@
   <ItemGroup>
     <None Remove="Golden/**" />
     <None Include="Golden/**/*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <!--
+    The checked-in brand tables, read as text by Brand/BrandContractTests and
+    BrandParityWithElectronTests. The TypeScript one goes with the Electron tree at cutover.
+  -->
+  <ItemGroup>
+    <None Include="..\..\src\ShotAI.Core\Brand\BrandPalette.Generated.cs" Link="brand/BrandPalette.Generated.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepoRoot)src/shared/brand-colors.generated.ts" Link="brand/brand-colors.generated.ts" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(RepoRoot)src/shared/brand-colors.generated.ts')" />
   </ItemGroup>
   <!-- The 87-channel map of spec 11 7.4, read by ServiceBoundary.ChannelInventoryTests. -->
   <ItemGroup>
