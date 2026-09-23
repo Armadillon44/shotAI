@@ -23,6 +23,8 @@ planned in detail; follow the plan instead of improvising scope.
      Never put it in a workflow.
    - After a package change: `dotnet restore ShotAI.slnx --force-evaluate`, and commit the
      `packages.lock.json` files.
+   - `dotnet test` prints nothing a passing test emits unless you add `--output Detailed`.
+     The conformance harness reports its open cases that way (spec 01 7.11).
 5. **Cloud sessions run on Linux.** They can build everything and run the Core tests,
    but not the app or the Windows-only tests. Put every rule that can live in
    `ShotAI.Core` there, and push to read the Windows CI job for the rest (PLAN 2.6).
@@ -31,7 +33,10 @@ planned in detail; follow the plan instead of improvising scope.
    - Don't change Electron code except for a parity fix made in both apps (B6).
    - Don't commit ids or anything from a `*.local.json` file. The repo is public (B8).
    - Don't skip a test to get CI green.
-7. **Strings:** the docs write an em dash inside a quoted product string as `\u2014`.
+7. **Goldens** under `tests/ShotAI.Core.Tests/Golden/` are compared byte for byte. Never
+   edit one by hand: regenerate it from its source (for the codec, the Electron generator
+   in `Golden/codec/README.md`). A failure after regenerating is a divergence to fix.
+8. **Strings:** the docs write an em dash inside a quoted product string as `\u2014`.
    A normal C# string literal turns that into the character, which is what you want.
    A raw (`"""`) or verbatim (`@"..."`) literal does not, and would change the text.
    Prompt and message strings must match the Electron source exactly.

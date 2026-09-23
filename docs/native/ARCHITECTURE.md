@@ -964,14 +964,14 @@ A rule that can be tested on Linux is tested on Linux. When a Windows behavior h
 
 ### 12.3 Conformance
 
-The shared `contract/conformance` suite runs natively through the existing harness (`dotnet/tests/ShotAI.Core.Tests/Conformance/`), linked from the repository root and never copied. 01 7.11 replaces the `Round_trips_through_the_codec` skip with the decode, stringify, parse and expect-path algorithm of `src/main/conformance.test.ts:70-139`, including the `ExpectPath.Canonical` fix for `-0`. Open cases report without failing; agreed cases fail. A contract change lands in both repos (`dotnet/README.md`).
+The shared `contract/conformance` suite runs natively through the existing harness (`dotnet/tests/ShotAI.Core.Tests/Conformance/`), linked from the repository root and never copied. 01 7.11 replaces the `Round_trips_through_the_codec` skip with the decode, stringify, parse and expect-path algorithm of `src/main/conformance.test.ts:70-139`, including the `ExpectPath.Canonical` fix for `-0`. Open cases report without failing; agreed cases fail. The report is the test's output, which `dotnet test` prints for a passing test only with `--output Detailed`, so the `dotnet.yml` Linux job re-runs the conformance class in a step of its own to show it (01 7.11, decided in WP-A3). A contract change lands in both repos (`dotnet/README.md`).
 
 ### 12.4 Golden files
 
 | Golden | Produced by | Compared how | Owner |
 |---|---|---|---|
-| `project.json` bytes for representative manifests | an Electron-side vitest that writes into `dotnet/tests/ShotAI.Core.Tests/Golden/` only when an environment variable is set | decode then encode equals the Electron bytes | Q-MODEL-18, AC-MODEL-3 |
-| macOS fixture project | copied from `macOS:Fixtures/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/` with a README naming commit `f445bca` | opens and round-trips | Q-MODEL-14 |
+| `project.json` bytes for representative manifests | `src/main/codec-golden.test.ts`, an Electron-side vitest that writes `Golden/codec/expected/` only when `SHOTAI_CODEC_GOLDENS=1` is set, from the inputs in `Golden/codec/inputs/`, the macOS fixture and the conformance cases (`Golden/codec/README.md`) | decode then encode equals the Electron bytes (`Codec/ElectronGoldenTests`) | Q-MODEL-18, AC-MODEL-3 |
+| macOS fixture project | copied byte-identical from `macOS:Fixtures/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/` into `Golden/macos-fixture/`, with a README naming commit `f445bca` and each file's SHA-256 | its codec output equals Electron's (`macos-fixture` golden) and keeps every `note` and annotation (AC-MODEL-6) | Q-MODEL-14 |
 | Styled and plain export CSS | Node 22 run of the Electron generators; SHA-256 per brand and scale | checksum table (09 3.4) | 09 |
 | HTML and Markdown exports | an Electron run mode `SHOTAI_EXPORT_GOLDENS=<fixtures root>` | text equality with replayed or normalized image payloads plus per-image media type and dimensions (image bytes can never match) | Q-EXP-5, Q-EXP-14 |
 | Word and PowerPoint | the same Electron run | a layout dump (structure, text, geometry) compared against Electron's files, plus manual opens in Office | 09 8.2, AC-EXP-13, AC-EXP-14 |
@@ -1382,9 +1382,7 @@ Each has a default to take if nobody decides before the PR that needs it. Owners
 | Q-EXP-2 | AVIF encoder parameters | squoosh's settings; libavif defaults | verify against `avif_enc.cpp` at the jsquash 2.1.1 tag before the shim is built |
 | Q-EXP-3 | Printing from a hidden WebView2 controller | hidden; an off-screen visible window excluded from capture | hidden, with the fallback if the Windows test prints blank |
 | Q-EXP-14 | What "byte-identical exports" means | text with normalized image payloads; full bytes | text with replayed or normalized payloads plus media type and dimensions |
-| Q-MODEL-1 | `displayScale` out of range | clamp in the codec (Electron); store raw (macOS) | Electron parity until cutover |
 | Q-MODEL-6 | Cloud placeholders and reparse points | D-15 behavior; parity | implement D-15; verify on a Files On-Demand folder |
-| Q-MODEL-18 | Electron-side golden generator | env-gated vitest writing into `dotnet/` | add it with the native codec PR |
 | Q-IPC-10 | Exit flush as a bounded blocking wait | blocking wait; cancel `Closing` and close again | bounded blocking wait (DL4) |
 | Q-IPC-21 | `VSTHRD200` against `Apply` and `ApplyDurable` | keep names and suppress; rename | keep and suppress |
 
@@ -1400,6 +1398,8 @@ Closed in the 2026-09-23 consolidation (kept so the IDs still resolve; each clos
 | Q-INFRA-1, Q-INFRA-2, Q-INFRA-3, Q-INFRA-12 | Settings file changes (preserve unknown enum strings and nested `sop` keys, default a non-absolute `projectsDir`, back up a corrupt file) | adopted: 10 7.4.2 and 7.4.3 specify all four; 01 agreed to Q-INFRA-3 as 01 Q-MODEL-24 |
 | Q-HOME-15 | STA test harness | adopted: the in-repo helper of 2.1 and 12.1 (06 Q-HOME-15) |
 | Q-INFRA-5 | Update notice on managed devices | resolved 2026-09-23: the notice follows the install scope; per-machine installs show who installs updates and no download page (06 INV-HOME-45, 12 7.10.4) |
+| Q-MODEL-1 | `displayScale` out of range | decided in WP-A3: default adopted, the codec clamps (Electron parity) and the shared case stays `open`; revisit with macOS on shotAI_MacOS#105 after cutover (01 Q-MODEL-1) |
+| Q-MODEL-18 | Electron-side golden generator | decided in WP-A3: default adopted, `src/main/codec-golden.test.ts` gated on `SHOTAI_CODEC_GOLDENS=1`, landed with the native codec (01 Q-MODEL-18) |
 
 ### 15.5 Architecture-level divergences from Electron
 
