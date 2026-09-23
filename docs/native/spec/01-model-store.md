@@ -1,6 +1,6 @@
 # 01 Data model, project.json codec and project store
 
-> Spec for the native rewrite. Sources read: `src/shared/project.ts` (554 lines), `src/main/project-store.ts` (1099), `src/main/path-confine.ts` (76), `src/main/atomic-write.ts` (51), `src/main/archive.ts` (134), `contract/conformance/README.md` (72), `contract/conformance/manifest/*.json` (8 files: display-scale-out-of-range 14, huge-step-order-survives 13, junk-step-entry-keeps-the-rest 16, minimal-round-trip 21, null-step-entry-keeps-the-rest 26, theme-known-value 12, theme-unknown-value 18, unknown-root-key 28). Tests: `src/shared/project.test.ts` (91), `src/main/conformance.test.ts` (141), `src/main/normalize-steps.test.ts` (45), `src/main/manifest-extras.test.ts` (224), `src/main/mutate-serialize.test.ts` (78), `src/main/unknown-callout.test.ts` (62), `src/main/section-callout.test.ts` (52), `src/main/project-theme-key.test.ts` (206), `src/main/path-confine.test.ts` (41), `src/main/path-confine-symlink.test.ts` (70), `src/main/archive.test.ts` (87). Supporting reads: `src/main/step-render.ts` (60), `src/main/settings.ts` (434, recents and archive-age parts), `src/shared/doc-scale.ts` (166, clamp), `src/shared/theme-palette.ts` (530, brand narrowing), `src/main/export-package.ts` (204, import), `src/main/ipc.ts` (981, project handlers and `parseStepPatch`), `src/renderer/project/ProjectList.tsx` (629, search and sort), `src/main/CaptureController.ts` (1485, step literal), `src/main/main.ts` (595, `shot://` and startup auto-archive), `.gitattributes` (18). Commits read: `6c4b6b5` (#85), `0021d71` (#87), `3d00c18` (#96), `bb0decc` (#97), `8f3941a` (#98), `18f3c4d` (#99), `772e381` (#77), `77adda3` (#106). macOS: `Packages/ShotModel/Sources/ShotModel/{ProjectSchema,ProjectStore,ProjectJSON,JSONValue,PathConfine,AtomicWrite,Archive,Zip,DocScale,Settings,StepPatch}.swift`, `Packages/ShotModel/Tests/ShotModelTests/*` (19 files, test names), `Fixtures/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/project.json` (255). Scaffold: `dotnet/README.md`, `dotnet/tests/ShotAI.Core.Tests/Conformance/*.cs`. Verification also read: `node_modules/jszip/lib/{load,utils,zipEntry,object,defaults}.js` (JSZip 3.10.1, the version `package-lock.json` pins), `src/main/secrets.ts` and `src/main/claude-auth.ts` (the other atomic-write callers), `macOS:Packages/ShotModel/Sources/ShotModel/{PathConfine,AtomicWrite,Archive}.swift` in full. Status: extracted and verified.
+> Spec for the native rewrite. Sources read: `src/shared/project.ts` (554 lines), `src/main/project-store.ts` (1099), `src/main/path-confine.ts` (76), `src/main/atomic-write.ts` (51), `src/main/archive.ts` (134), `contract/conformance/README.md` (72), `contract/conformance/manifest/*.json` (8 files: display-scale-out-of-range 14, huge-step-order-survives 13, junk-step-entry-keeps-the-rest 16, minimal-round-trip 21, null-step-entry-keeps-the-rest 26, theme-known-value 12, theme-unknown-value 18, unknown-root-key 28). Tests: `src/shared/project.test.ts` (91), `src/main/conformance.test.ts` (141), `src/main/normalize-steps.test.ts` (45), `src/main/manifest-extras.test.ts` (224), `src/main/mutate-serialize.test.ts` (78), `src/main/unknown-callout.test.ts` (62), `src/main/section-callout.test.ts` (52), `src/main/project-theme-key.test.ts` (206), `src/main/path-confine.test.ts` (41), `src/main/path-confine-symlink.test.ts` (70), `src/main/archive.test.ts` (87). Supporting reads: `src/main/step-render.ts` (60), `src/main/settings.ts` (434, recents and archive-age parts), `src/shared/doc-scale.ts` (166, clamp), `src/shared/theme-palette.ts` (530, brand narrowing), `src/main/export-package.ts` (204, import), `src/main/ipc.ts` (981, project handlers and `parseStepPatch`), `src/renderer/project/ProjectList.tsx` (629, search and sort), `src/main/CaptureController.ts` (1485, step literal), `src/main/main.ts` (595, `shot://` and startup auto-archive), `.gitattributes` (18). Commits read: `6c4b6b5` (#85), `0021d71` (#87), `3d00c18` (#96), `bb0decc` (#97), `8f3941a` (#98), `18f3c4d` (#99), `772e381` (#77), `77adda3` (#106). macOS: `Packages/ShotModel/Sources/ShotModel/{ProjectSchema,ProjectStore,ProjectJSON,JSONValue,PathConfine,AtomicWrite,Archive,Zip,DocScale,Settings,StepPatch}.swift`, `Packages/ShotModel/Tests/ShotModelTests/*` (19 files, test names), `Fixtures/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/project.json` (255). Scaffold: `dotnet/README.md`, `dotnet/tests/ShotAI.Core.Tests/Conformance/*.cs`. Verification also read: `node_modules/jszip/lib/{load,utils,zipEntry,object,defaults}.js` (JSZip 3.10.1, the version `package-lock.json` pins), `src/main/secrets.ts` and `src/main/claude-auth.ts` (the other atomic-write callers), `macOS:Packages/ShotModel/Sources/ShotModel/{PathConfine,AtomicWrite,Archive}.swift` in full. Status: extracted and verified. Consolidated with ARCHITECTURE.md R-ARCH-1 to R-ARCH-26 on 2026-09-23.
 
 Conventions used in this document:
 
@@ -32,12 +32,12 @@ Conventions used in this document:
 | What goes into a captured step (click math, captions, element, shot PNG writing) | 02 |
 | Single-instance lock (the reason there is only one writer per machine) and the Explorer reveal call | 03 |
 | `applyPatchAndInvalidate` semantics, `writeStepRender`, render freshness, flatten | 04 (this spec defines the store transaction around them) |
-| Which report edits are optimistic and how the UI shows pending and failed saves | 05 (this spec supplies the mechanism, section 7.10) |
+| Which report edits are optimistic and how the UI shows pending and failed saves | 05 (this spec supplies the mechanism, section 7.10; the contract is ARCHITECTURE 7.4, the edit-to-path table ARCHITECTURE 7.5) |
 | Home list UI: tabs, date groups, busy rows, auto-refresh | 06 (this spec supplies the summary, search text and ranking function) |
 | SOP apply and revert (`sop-apply.ts`) which call `mutate`, `renumber`, `normalizeSteps` | 07 |
 | The `.shotai` package format, its marker and size caps (`export-package.ts`) | 09 (this spec owns `createProjectFromImport`) |
 | `settings.json` (projects dir, recents list, brand, archive age), brand palette and `pinnedBrand`, logging sinks | 10 |
-| The IPC channel table and its argument validation (`parseStepPatch`, `asString`, `isNum`) | 11 |
+| The IPC channel table and its argument validation (`parseStepPatch`, `asString`, `isNum`); the declaration of `IProjectService` (11 7.3.2), which this spec's `ProjectStore` implements | 11 |
 | Running `ShotAI.Core.Tests` on Linux and the Windows test projects in CI | 12 |
 
 ## 2. Reference behavior (Electron)
@@ -893,7 +893,7 @@ REQUIRED (with the IMPROVEMENTs in 7.6).
 
 **EDGE-MODEL-38.** A symlink inside `shots/` or `export/` at archive time is not zipped and is removed with the directory (the link, not its target). Required. Citation: `archive.ts:39-40,98-100`.
 
-**EDGE-MODEL-39.** Native only: WPF `BitmapImage` with the default cache option keeps the image file open, which blocks the atomic rename of a re-baked render, the archive `rm` of `shots/`, and `deleteSteps`. Required natively: every image load reads the bytes into memory (`BitmapCacheOption.OnLoad`, stream closed) and bypasses the WPF image cache per `renderRev` (`BitmapCreateOptions.IgnoreImageCache`). Owner of the loading code: 05; the rule is stated here because it protects this subsystem's writes.
+**EDGE-MODEL-39.** Native only: an image load that keeps the file open (for example WPF `BitmapImage` with its default cache option) blocks the atomic rename of a re-baked render, the archive `rm` of `shots/`, and `deleteSteps`. Required natively: every image load reads the bytes into memory off the UI thread (a `FileStream` opened with `FileShare.ReadWrite | FileShare.Delete`, closed before decoding), decodes from memory, and keys any image cache by (path, `renderRev`) so a re-bake is never served stale (05 INV-REP-32). The decode is the one WIC path shared by capture, editor, flatten, report and export (ARCHITECTURE 3.5): after the magic-byte check (PNG `89 50 4E 47`, JPEG `FF D8 FF`), the decoder is created explicitly with `CreateDecoder(GUID_ContainerFormatPng or GUID_ContainerFormatJpeg, ...)` and `Initialize`d on the memory stream, never with the content-sniffing `CreateDecoderFromStream`, which could invoke any third-party codec installed on the machine; undecodable input fails closed (R-ARCH-21, D-ARCH-3, Q-IPC-16). WPF `BitmapImage` is not used for project images. Owner of the loading code: 05 (`ReportImageLoader` in the App, `ReportImageDecoder` in Platform); the rule is stated here because it protects this subsystem's writes.
 
 **EDGE-MODEL-40.** Auto-archive with `updatedAt` equal to `''` or not an ISO string. Required: `Date.parse` yields NaN and the project is skipped. Citation: `project-store.ts:623-624`.
 
@@ -970,12 +970,13 @@ The Swift port (`Packages/ShotModel`) is a field-for-field mirror with deliberat
 | `ShotAI.Core.Json` | ShotAI.Core | `JsJson` (reader and writer with ECMAScript semantics), `JsNumber`, `JsMath`, `JsString`, `IsoTime`, `JsJsonException` |
 | `ShotAI.Core.Model` | ShotAI.Core | `ProjectManifest`, `ProjectStep`, `SopIntro`, `SopBackup`, `StepClick`, `CapturedWindow`, `CapturedMonitor`, `StepElement`, `CaptureTarget`, `Rect`, `Point`, `CalloutKinds`, `CalloutGlyphs`, `StepNumbering`, `StepList` (`Renumber`), `StepGeometry` (`ParseRect`, `ParsePoint`; not `Geometry`, which would share its simple name with the namespace `ShotAI.Core.Geometry`: code in any other `ShotAI.Core.*` namespace that writes `Geometry.ParseRect(...)` binds `Geometry` to that namespace before using directives are consulted and fails with CS0234), `ProjectSummary`, `ProjectTitles` |
 | `ShotAI.Core.Codec` | ShotAI.Core | `ManifestCodec`, `ManifestKeys` |
-| `ShotAI.Core.Store` | ShotAI.Core | `ProjectStore`, `IProjectStoreSettings`, `SerialWriteQueue`, `AtomicFile`, `IRenameRetryClassifier`, `PathConfine`, `IPathProbe`, `ManagedPathProbe`, `ReparseSafeDelete`, `ArchiveEngine`, `ProjectSearch`, `ProjectSession`, `ProjectOperation`, `MutateResult`, exceptions |
+| `ShotAI.Core.Store` | ShotAI.Core | `IProjectService` (declared by 11 7.3.2, implemented only by `ProjectStore`), `ProjectStore`, `IProjectStoreSettings`, `OpenedProject`, `SerialWriteQueue`, `AtomicFile`, `IRenameRetryClassifier`, `PathConfine`, `IPathProbe`, `PathKind`, `ManagedPathProbe`, `ReparseSafeDelete`, `ArchiveEngine`, `ProjectSearch`, `ImportLimits` (11 7.3.2), `ImportFile`, `MutateResult`, `ProjectOperation`, `ManifestChangeKind`, `ManifestChangedEventArgs`, `PersistFailedEventArgs` (R-ARCH-20), `IProjectSession`, `ProjectSession`, `IProjectSessionFactory`, `IProjectSettle`, `ProjectSessionFactory` (R-ARCH-5, R-ARCH-6), the exceptions of 7.13 (all deriving from `ShotAI.Core.Errors.ShotAIException`) |
 | `ShotAI.Core.Geometry` | ShotAI.Core | `DocScale.Clamp` (05 owns the rest of the geometry) |
-| `ShotAI.Platform.FileSystem` | ShotAI.Platform | `WindowsPathProbe` (reparse tags), `WindowsRenameRetryClassifier` |
-| `ShotAI.App` | ShotAI.App | DI registration; image loading rule (EDGE-MODEL-39, owned by 05) |
+| `ShotAI.Core.Composition` | ShotAI.Core | this spec's registrations inside `CoreServiceCollectionExtensions.AddShotAICore` (7.14) |
+| `ShotAI.Platform.FileSystem` | ShotAI.Platform | `WindowsPathProbe` (reparse tags), `WindowsRenameRetryClassifier`; both `internal sealed`, registered only as their Core interfaces by `AddShotAIPlatform` (INV-ARCH-4) |
+| `ShotAI.App` | ShotAI.App | no type of this spec; the App calls `AddShotAICore` and `AddShotAIPlatform`, runs the exit flush through `ShutdownFlush` (7.12); image loading rule (EDGE-MODEL-39, owned by 05) |
 
-Core references only the BCL plus two Microsoft NuGet packages, `Microsoft.Extensions.Logging.Abstractions` and `System.IO.Hashing` (both added to `Directory.Packages.props`); tests add `Microsoft.Extensions.TimeProvider.Testing`. No Windows API in Core. Every Windows-specific behavior is behind `IPathProbe` and `IRenameRetryClassifier`, with managed defaults that run on Linux.
+Core references only the BCL plus Microsoft NuGet packages on the Core allowlist of ARCHITECTURE 3.2: `Microsoft.Extensions.Logging.Abstractions` (added by the foundation PR, WP-A1), `Microsoft.Extensions.DependencyInjection.Abstractions` (the `AddShotAICore` signature, WP-A1) and `System.IO.Hashing` (added with the archive engine, WP-A8), all pinned exactly in `dotnet/Directory.Packages.props`; tests add `Microsoft.Extensions.TimeProvider.Testing`. It also uses the foundation namespaces `ShotAI.Core.Errors` (`ShotAIException`) and `ShotAI.Core.Threading` (`EventRaiser`) (11). No Windows API in Core (INV-ARCH-1). Every Windows-specific behavior is behind `IPathProbe` and `IRenameRetryClassifier`, with managed defaults that run on Linux.
 
 ### 7.2 JSON with ECMAScript semantics
 
@@ -1182,6 +1183,8 @@ public static class ManifestCodec
 }
 ```
 
+This block is the authority for the codec's public surface: `ManifestCodec` has exactly the members `FileName`, `Decode`, `NormalizeSteps`, `CoerceIntro`, `CoerceSopBackup`, `Encode`, `Serialize` and `Read`, and `ManifestKeys` has `All` (the 15 names of 2.2, never derived from what `Encode` emitted, INV-MODEL-2). PLAN WP-A3, ARCHITECTURE 2.4 and the callers in 07 (`NormalizeSteps`) and 09 (`Decode(node, "Imported project")`, `Encode`) cite this list; a new member is added here first. `ManifestCorruptException` lives in `ShotAI.Core.Store` (7.13) even though the codec throws it: `Decode` throws it for a null root, `Read` throws it around a `JsJsonException`, and the store throws it around a missing file.
+
 `Decode` rules are the table in 2.2 applied to `JsonNode`. JS `typeof` maps as: `JsonValue` of kind Number is "number", String is "string", True or False is "boolean"; `JsonObject` and `JsonArray` are "object"; a JSON null or missing key is null or undefined. When `parsed` is a `JsonArray` or a `JsonValue`, every field takes its default and there are no extras (EDGE-MODEL-33). Extras are copied by `DeepClone()` in the parsed object's own-key order. Decode must not mutate its input (the harness reuses fixture objects).
 
 `NormalizeSteps`: for each element, `JsonObject` is kept (`DeepClone`), with `annotations` set to a new empty `JsonArray` in place when present and not an array, or appended when missing; any other element is dropped and counted; if any were dropped, log at Error `"manifest: dropped {dropped} malformed step(s) of {total}"`.
@@ -1305,18 +1308,21 @@ The managed default (Core, Linux) classifies `UnauthorizedAccessException` as `"
 ### 7.7 The write queue
 
 ```csharp
-public sealed class SerialWriteQueue : IAsyncDisposable
+public sealed class SerialWriteQueue : IDisposable, IAsyncDisposable
 {
     public Task<T> Enqueue<T>(Func<CancellationToken, Task<T>> job, CancellationToken ct = default);
     public Task DrainAsync(TimeSpan timeout);      // IMPROVEMENT: used at app exit
 }
 ```
 
+The same type backs `SettingsService`'s own queue (10 7.4.3); the two queues are independent (ARCHITECTURE 6.1).
+
 - One instance per `ProjectStore`, shared by all projects (parity: one global chain).
 - Implementation: an unbounded `Channel<WorkItem>` with `SingleReader = true` and one consumer loop started at construction; each `WorkItem` holds the job and a `TaskCompletionSource<T>` created with `TaskCreationOptions.RunContinuationsAsynchronously`; because `Enqueue<T>` is generic and the channel is not, the channel carries a non-generic abstract `WorkItem` with `abstract Task RunAsync()`, implemented by a private `WorkItem<T>`. The consumer awaits each job with `ConfigureAwait(false)`. FIFO in `Enqueue` call order. Do NOT use `SemaphoreSlim.WaitAsync` (not FIFO).
 - A job's exception completes only its own task; the loop continues (parity with `run.then(noop, noop)`).
 - A job whose `ct` is canceled before it starts completes as canceled without running.
-- `DisposeAsync` completes the writer and awaits the loop. `ProjectStore.FlushAsync(timeout)` delegates to `DrainAsync(timeout)`; the App calls it on exit (7.12) so a save issued just before quit reaches disk (IMPROVEMENT: Electron can lose a pending chain at process exit).
+- `DrainAsync(timeout)` completes when every job enqueued before the call has finished, or when `timeout` elapses (it then completes without faulting; the jobs keep running). `ProjectStore.FlushAsync(timeout)` delegates to it; `ShutdownFlush` calls it on exit together with the settings flush (7.12, ARCHITECTURE 4.5 step 3) so a save issued just before quit reaches disk (IMPROVEMENT D-18: Electron can lose a pending chain at process exit).
+- `Dispose()` (synchronous, R-ARCH-10): completes the channel writer so later `Enqueue` calls throw `ObjectDisposedException`, and returns without waiting for the consumer, because it runs on the UI thread after the exit flush already drained the queue; a job still running then finishes on the pool or ends with the process (a started atomic write leaves the old or the new file, 7.6). Idempotent. `DisposeAsync()` does the same and then awaits the consumer loop (tests and non-container owners).
 
 ### 7.8 ProjectStore API
 
@@ -1333,10 +1339,18 @@ public interface IProjectStoreSettings            // implemented by spec 10's se
 
 public enum MutateResult { Changed, Unchanged }
 
-public sealed class ProjectStore : IAsyncDisposable
+// Every public instance member below is a member of IProjectService (11 7.3.2); ResolveImage is static.
+// Consumers outside the store depend on IProjectService, never on ProjectStore (R-ARCH-4, INV-ARCH-3),
+// and never dispose it (the container does, 7.12).
+public sealed class ProjectStore : IProjectService, IDisposable, IAsyncDisposable
 {
     public ProjectStore(IProjectStoreSettings settings, IPathProbe probe, AtomicFile atomic,
-                        ArchiveEngine archive, TimeProvider time, ILogger<ProjectStore> log);
+                        ArchiveEngine archive, IStepRenderWriter renderWriter,   // 04, ShotAI.Core.Rendering
+                        TimeProvider time, ILogger<ProjectStore> log);
+
+    /// E1 (11). Raised through EventRaiser, on the thread that ran AutoArchiveStaleAsync, outside any lock,
+    /// when at least one project moved (R-ARCH-24). Subscribers marshal with IUiDispatcher.Post.
+    public event EventHandler? ProjectsChanged;
 
     // Root and gate
     public Task SetProjectsDirAsync(string dir);                                       // CreateDirectory, then persist
@@ -1356,7 +1370,7 @@ public sealed class ProjectStore : IAsyncDisposable
     public Task DeleteProjectAsync(string projectPath);
     public Task<ProjectSummary> ArchiveProjectAsync(string projectPath);
     public Task<ProjectSummary> UnarchiveProjectAsync(string projectPath);
-    public Task<int> AutoArchiveStaleAsync(int ageDays, CancellationToken ct = default);
+    public Task<int> AutoArchiveStaleAsync(int ageDays, CancellationToken ct = default);   // raises ProjectsChanged when > 0
 
     // Mutation
     public Task<ProjectManifest> MutateAsync(string projectPath, Func<ProjectManifest, ValueTask<MutateResult>> fn);
@@ -1378,7 +1392,10 @@ public sealed class ProjectStore : IAsyncDisposable
     // Images (replaces openProjectWithId + resolveProjectFile + shot://)
     public static string? ResolveImage(string projectDir, string rel);   // Confine + extension in {.png,.jpg,.jpeg} (OrdinalIgnoreCase)
 
-    public Task FlushAsync(TimeSpan timeout);
+    public Task FlushAsync(TimeSpan timeout);        // exit (7.12): DrainAsync of the store queue
+
+    public void Dispose();                           // completes the queue writer, never blocks (7.7, R-ARCH-10)
+    public ValueTask DisposeAsync();                 // the same, then awaits the consumer
 }
 ```
 
@@ -1391,16 +1408,17 @@ Behavior per method: exactly section 2.9, with these mechanics:
 - **ListProjectsAsync**: enumerate `Directory.EnumerateFileSystemEntries(root)` (catch a missing or unreadable root and continue with recents); keep entries that `probe.Probe` classifies as `Directory` (not `Link`); read each (skip on any exception; IMPROVEMENT: log at Debug with the folder name); then recents as in 2.9.5; dedupe on `Path.GetFullPath` with Ordinal comparison. `ct` is checked between folders. Output order: root entries in enumeration order, then recents; callers sort.
 - **CreateProjectAsync**: 2.9.8, writing canonical key order (so `theme` sits after `steps`, IMPROVEMENT D-3).
 - **CreateProjectFromImportAsync**: 2.9.9. Whitelist test with the two regexes (`^shots/[^/]+\z`, `^export/\.render/[^/]+\z`, `RegexOptions.CultureInvariant`; `\z`, not `$`, EDGE-MODEL-55) on the `\`-to-`/` normalized name; `ConfineNoLinks`; write with `FileMode.CreateNew` (the `wx` flag). IMPROVEMENT D-9: on any exception after the folder was created, `ReparseSafeDelete.DeleteTree(dir)` and rethrow.
-- **OpenProjectAsync**: 2.9.10; the id back-fill runs as a queued job (IMPROVEMENT D-7), still without an `updatedAt` bump and with failures logged and swallowed.
+- **OpenProjectAsync**: 2.9.10; the id back-fill runs as a queued job (IMPROVEMENT D-7), still without an `updatedAt` bump and with failures logged and swallowed. After the read, `project.json.*.tmp` siblings whose last write is older than 24 hours are deleted, failures ignored, never a younger one (Q-MODEL-20, ARCHITECTURE 7.10).
 - **DeleteProjectAsync**: queued (IMPROVEMENT D-8); `ReparseSafeDelete.DeleteTree(resolved)`; prune recents (`Path.GetFullPath(r) == resolved`, Ordinal).
 - **MutateAsync**: 2.9.3. The function runs on the queue's thread; it must not touch UI objects.
 - **SetProjectDisplayScaleAsync**: `clean = DocScale.Clamp(scale)`; returns `Unchanged` when `(m.DisplayScale ?? 1) == clean` (IMPROVEMENT D-11, the #77 re-dating class, matching macOS); else sets or clears.
-- **SetProjectThemeAsync**: argument validated by the caller to null or a known brand id (11); body per 2.9.3 with the raw compare `m.Theme == brand` (Ordinal, null equals null).
+- **SetProjectThemeAsync**: a non-null `brand` for which `BrandPalette.IsBrandId` (10, R-ARCH-14) is false throws `ArgumentException` before the job is queued (Q-MODEL-15, IMPROVEMENT D-IPC-9); the menu only produces null or a known id; body per 2.9.3 with the raw compare `m.Theme == brand` (Ordinal, null equals null).
 - **SetProjectIntroAsync**: `clean` = null when both strings are empty; per 2.9.3.
-- **Step ops**: 2.9.12. `ReorderStepsAsync` uses the no-drop algorithm (IMPROVEMENT D-10). `UpdateStepAsync` and `MergeStepsAsync` call `StepPatchApplier.ApplyAndInvalidate(step, patch, hasFreshPng)` and `IStepRenderWriter.WriteAsync(resolved, step, id, png)` from 04 inside the same job, render first, then manifest.
+- **AutoArchiveStaleAsync**: 2.9.13 (INV-MODEL-32); `ct` is checked between projects; after the sweep, when the count is above 0, raise `ProjectsChanged` through `EventRaiser.Raise` (a throwing handler is logged and the rest still run, 11 T5), then return the count. It is the only member that raises the event (R-ARCH-24, Q-IPC-6); the startup code only calls the method (7.14).
+- **Step ops**: 2.9.12. `ReorderStepsAsync` uses the no-drop algorithm (IMPROVEMENT D-10). `MergeStepsAsync` throws `MergeIntoItselfException` (`cannot merge a step into itself`, 7.13) when `keepId == dropId` (Ordinal) before the gate and before queuing, as Electron does (EDGE-IPC-46). A missing step throws `StepNotFoundException` (`step {id} not found`) inside the job. `UpdateStepAsync` and `MergeStepsAsync` call `StepPatchApplier.ApplyAndInvalidate(step, patch, hasFreshPng)` and `IStepRenderWriter.WriteAsync(resolved, step, id, png)` from 04 (injected into the constructor) inside the same job, render first, then manifest; if the manifest write fails, the job awaits the render's `RenderWriteReceipt.RollbackAsync()` before rethrowing (INV-EDIT-27, ARCHITECTURE 7.6).
 - **DeleteStepsAsync**: after the manifest write, for each removed step's raw `screenshot` and `flattened` values, skip anything that is not a non-empty JSON string (IMPROVEMENT D-23, EDGE-MODEL-50), then `ConfineNoLinks`, then `File.Delete` with exceptions ignored. Removed-step identification uses the raw `id` compared as a JSON string with Ordinal equality (a non-string id never matches, as in JS `Set.has`).
-- **ImportStepAsync**: magic-byte check first (throw `UnsupportedImageException("Unsupported file \u2014 please choose a PNG or JPEG image.")`), then the job; counter regex `^step-([0-9]+)\.` with `RegexOptions.IgnoreCase | RegexOptions.CultureInvariant`, enumerating `shots/` with any enumeration error falling back to the step count (parity with the `catch`); `Number(m[1])` parsed as a double with `double.Parse(..., NumberStyles.None, CultureInfo.InvariantCulture)` (a 400-digit counter must not throw; it yields Infinity); `maxFile = Math.Max(maxFile, n)`; the file name is `"step-" + JsNumber.ToJsString(maxFile + 1).PadLeft(4, '0') + "." + ext` (JS `String(n).padStart(4, '0')`; `ToJsString` must return `"Infinity"` for Infinity, 7.2.2); `rel = "shots/" + filename`; `abs = ConfineNoLinks(resolved, rel)` else throw `ImportRejectedException` (IMPROVEMENT [SECURITY] D-22, EDGE-MODEL-49); write with `FileMode.CreateNew`.
-- **ResolveImage**: `Confine(projectDir, rel)` then the extension allowlist. The UI (05, 06) loads bytes off the UI thread per EDGE-MODEL-39.
+- **ImportStepAsync**: checks in this order (EDGE-IPC-46): `ImportLimits.Check(bytes.Length)` (11 7.3.2; `No image data received` for 0 bytes, `Image too large (max 60 MB)` above 62914560, the checks Electron made in `ipc.ts:450-451`), then the magic-byte check (throw `UnsupportedImageException("Unsupported file \u2014 please choose a PNG or JPEG image.")`), then the job, whose first step is the gate; counter regex `^step-([0-9]+)\.` with `RegexOptions.IgnoreCase | RegexOptions.CultureInvariant`, enumerating `shots/` with any enumeration error falling back to the step count (parity with the `catch`); `Number(m[1])` parsed as a double with `double.Parse(..., NumberStyles.None, CultureInfo.InvariantCulture)` (a 400-digit counter must not throw; it yields Infinity); `maxFile = Math.Max(maxFile, n)`; the file name is `"step-" + JsNumber.ToJsString(maxFile + 1).PadLeft(4, '0') + "." + ext` (JS `String(n).padStart(4, '0')`; `ToJsString` must return `"Infinity"` for Infinity, 7.2.2); `rel = "shots/" + filename`; `abs = ConfineNoLinks(resolved, rel)` else throw `ImportRejectedException` (IMPROVEMENT [SECURITY] D-22, EDGE-MODEL-49); write with `FileMode.CreateNew`.
+- **ResolveImage**: `Confine(projectDir, rel)` then the extension allowlist. The UI (05, 06) loads bytes off the UI thread and decodes them with the explicit PNG or JPEG decoder per EDGE-MODEL-39 (R-ARCH-21).
 
 ### 7.9 Archive engine
 
@@ -1441,42 +1459,88 @@ No size caps by default (Q-MODEL-7).
 
 The fixed decision requires UI edits to update the in-memory model first and persist through the serialized queue with rollback. Electron's model (every op re-reads the disk) is kept as the PERSISTENCE semantics; the optimistic layer sits above it.
 
+The contract below is the consolidated one of ARCHITECTURE 7.4 (R-ARCH-5, R-ARCH-6, R-ARCH-20, R-ARCH-23), which folded in the requests of 05, 07, 09 and 11. ARCHITECTURE 7.4 is the canonical statement; this section restates it so the store can be implemented from this spec alone, and the two must never diverge.
+
 ```csharp
+namespace ShotAI.Core.Store;
+
+public enum ManifestChangeKind { Local, Persisted, RolledBack, Durable, External }   // here, not in 05's ShotAI.Core.Report (R-ARCH-20)
+public sealed record ManifestChangedEventArgs(ManifestChangeKind Kind, IReadOnlyList<string>? AffectedStepIds);
+public sealed record PersistFailedEventArgs(ProjectOperation Operation, Exception Error);
+
 public abstract class ProjectOperation
 {
-    /// Pure and deterministic: no IO, no clock, no random ids (generate ids when constructing the operation).
+    /// Pure and deterministic: no IO, no clock, no random ids (generate ids and timestamps when constructing the operation).
     public abstract MutateResult Apply(ProjectManifest m);
-    public virtual bool BumpsUpdatedAt => true;           // false only for operations that mirror archive semantics
+    public virtual bool BumpsUpdatedAt => true;                      // false only for operations that mirror archive semantics (Q-MODEL-25)
+    public virtual IReadOnlyList<string>? AffectedStepIds => null;   // null = structural; 05's ReportOperation overrides (R-ARCH-20)
 }
 
-public sealed class ProjectSession : IAsyncDisposable
+public interface IProjectSession : IAsyncDisposable
 {
-    public ProjectSession(ProjectStore store, string projectDir, ProjectManifest loaded, SynchronizationContext ui);
-    public ProjectManifest Current { get; }                // what the UI renders
-    public int PendingCount { get; }
-    public event EventHandler? Changed;                    // raised on the UI context
-    public event EventHandler<PersistFailedEventArgs>? PersistFailed;   // raised on the UI context
+    string ProjectDir { get; }
+    ProjectManifest Current { get; }                                 // what the UI renders; UI thread
+    int PendingCount { get; }
+    event EventHandler<ManifestChangedEventArgs>? Changed;           // posted to the captured UI context
+    event EventHandler<PersistFailedEventArgs>? PersistFailed;       // posted to the captured UI context
 
-    /// Applies op to Current immediately (UI thread) and queues the same op against a fresh disk read.
+    /// Applies op to a clone of Current immediately (UI thread) and queues the same op against a fresh disk read.
     /// The returned task completes when the op is on disk, or faults after the rollback.
-    public Task<ProjectManifest> Apply(ProjectOperation op);
+    Task<ProjectManifest> Apply(ProjectOperation op);
 
-    /// For the editor save path and any op that writes a file besides project.json: no optimistic step.
-    public Task<ProjectManifest> ApplyDurable(Func<ProjectStore, Task<ProjectManifest>> call);
+    /// For the editor save and any call that writes a file besides project.json: no optimistic step.
+    /// Takes the interface, never the concrete ProjectStore (R-ARCH-5).
+    Task<ProjectManifest> ApplyDurable(Func<IProjectService, Task<ProjectManifest>> call);
+
+    /// The "wait for pending writes" primitive (R-ARCH-6).
+    Task WhenIdleAsync(CancellationToken ct = default);
 }
+
+/// UI thread only: captures SynchronizationContext.Current for the session's events and registers the
+/// session by path for IProjectSettle; the registration ends only when every operation and durable call
+/// the session accepted has finished, which can be after DisposeAsync (R-ARCH-27). Sessions are never
+/// constructed with `new` outside the factory (R-ARCH-5).
+public interface IProjectSessionFactory { IProjectSession Create(OpenedProject opened); }
+
+/// 07 and 09 call this before egress (ARCHITECTURE 7.7). 09's requested IProjectService.WhenIdleAsync(path)
+/// is this member (R-ARCH-6).
+public interface IProjectSettle { Task WhenSettledAsync(string projectPath, CancellationToken ct); }
+
+internal sealed class ProjectSession : IProjectSession { /* created only by ProjectSessionFactory */ }
+
+public sealed class ProjectSessionFactory(IProjectService store, ILogger<ProjectSessionFactory> log)
+    : IProjectSessionFactory, IProjectSettle;                          // one instance registered as both (7.14)
 ```
+
+Rules (S1 to S10 of ARCHITECTURE 7.4):
+
+| # | Rule |
+|---|---|
+| S1 | `Apply(op)` runs `op.Apply` on a deep clone of `Current` on the UI thread. `Changed`: `Current` becomes the clone, `Changed(Local, op.AffectedStepIds)` is raised, and the same operation is queued as `store.MutateAsync(ProjectDir, m => ValueTask.FromResult(op.Apply(m)))`. `Unchanged`: nothing is queued; the task completes with `Current`. |
+| S2 | If `op.Apply` throws on the clone, `Current` is untouched, nothing is queued, no event is raised, and the returned task is faulted with that exception, unwrapped (05 7.5 request 1, 07 Q-SOP-21). |
+| S3 | When the last pending operation persists, `Current` becomes the persisted manifest (it adopts `updatedAt`). The event is `Changed(Persisted)` when it equals the previous `Current` apart from `updatedAt`, else `Changed(External)` (the disk carried a change this session did not make). |
+| S4 | When a queued operation fails, the session re-reads the disk (or uses the last persisted manifest if the read fails), re-applies every still-pending operation in order, sets `Current`, raises `Changed(RolledBack)` and `PersistFailed(op, error)`, and faults that operation's task. |
+| S5 | `ApplyDurable(call)` awaits `call(store)`; `Current` becomes its result with every optimistic operation issued after the durable call started re-applied on top; `Changed(Durable)` is raised. |
+| S6 | `WhenIdleAsync` completes when every operation queued and every durable call started before the call has finished (persisted or rolled back). |
+| S7 | `IProjectSettle.WhenSettledAsync(path)` finds every registered session for `Path.GetFullPath(path)` (compared `OrdinalIgnoreCase`, 02 D9), the open one and any disposed one still draining (S9), and awaits their `WhenIdleAsync`; with none registered it completes at once. 09's requested `IProjectService.WhenIdleAsync(path)` is this member (R-ARCH-6). |
+| S8 | Events are posted (never sent) to the context captured by `Create`; handlers check `sender == currentSession` (05 INV-REP-31). |
+| S9 | `DisposeAsync` stops raising events at once and lets queued writes drain on the shared queue; it never cancels them. The session stays registered with `IProjectSettle` until every operation and durable call it accepted has finished (persisted or rolled back), and unregisters only then, so an export or SOP run started from Home right after Back still waits for those writes (superseded wording: "unregisters at `DisposeAsync`", R-ARCH-27). |
+| S10 | Operations are pure and deterministic, with ids and timestamps fixed at construction, because the same instance runs twice (clone, then disk). |
 
 | Session state | Event | Guard | Action | Next |
 |---|---|---|---|---|
-| Idle (Pending 0) | `Apply(op)` | `op.Apply(clone of Current)` returns Changed | Current = the clone; raise Changed; enqueue `MutateAsync(dir, m => op.Apply(m))` | Pending(1) |
+| Idle (Pending 0) | `Apply(op)` | `op.Apply(clone of Current)` returns Changed | Current = the clone; raise `Changed(Local, op.AffectedStepIds)`; enqueue `MutateAsync(dir, m => op.Apply(m))` | Pending(1) |
 | Idle | `Apply(op)` | returns Unchanged | nothing queued; task completes with Current | Idle |
+| any | `Apply(op)` | `op.Apply` throws | nothing changes, nothing queued, no event; the task faults with the exception (S2) | unchanged |
 | Pending(n) | `Apply(op)` | Changed | as above | Pending(n+1) |
 | Pending(n) | a queued op persisted | n > 1 | record the persisted manifest as `LastPersisted` | Pending(n-1) |
-| Pending(1) | the queued op persisted | | Current = the persisted manifest (adopts `updatedAt` and any external change); raise Changed | Idle |
-| Pending(n) | a queued op failed | | re-read the disk (or use `LastPersisted` if the read fails); re-apply the ops still pending on top; Current = result; raise Changed and PersistFailed with the error; fault that op's task | Pending(n-1) |
-| any | `ApplyDurable(call)` | | await the store call; Current = its result; raise Changed | unchanged count |
+| Pending(1) | the queued op persisted | | Current = the persisted manifest; raise `Changed(Persisted)` or `Changed(External)` (S3) | Idle |
+| Pending(n) | a queued op failed | | re-read the disk (or use `LastPersisted` if the read fails); re-apply the ops still pending on top; Current = result; raise `Changed(RolledBack)` and `PersistFailed(op, error)`; fault that op's task | Pending(n-1) |
+| any | `ApplyDurable(call)` | | await `call(store)`; Current = its result with later optimistic ops re-applied; raise `Changed(Durable)` | unchanged count |
 
-Which edits use `Apply` and which use `ApplyDurable` is decided by 05 and 06. Recommended default: `ApplyDurable` for every call that writes a file other than `project.json` (the editor save with its PNG, a merge that carries a re-baked PNG, image import, archive, unarchive, delete project), because the render or image must be on disk before anything can read it; `Apply` for rename, intro, theme, scale, text and callout patches with no PNG, delete step, reorder, add text step. The failure notice text belongs to 05 (Q-MODEL-12).
+Threading: `Apply`, `Current` and `Create` are UI-thread members (ARCHITECTURE T1, T9); `ProjectSession.cs` is the one Core file with a reasoned per-file `CA2007` suppression (T3) and `ProjectSessionFactory.cs` the one Core file allowed `SynchronizationContext.Current` (ARCHITECTURE 14.9). `VSTHRD200` would reject the names `Apply` and `ApplyDurable`; they keep them with a justified per-member suppression (Q-IPC-21).
+
+Which edit takes which path is fixed by ARCHITECTURE 7.5 (05 7.5, 06 D-HOME-7, 07 7.9, 04 7.10.7): `Apply` for every report edit that writes only `project.json` (zoom, pan, move, caption, instructions, delete step, text step, callout, overview, add text step, document scale), the View, Brand pin, SOP apply and SOP revert; `ApplyDurable` for every call that writes a file other than `project.json` (the editor save with its PNG, a merge that carries a re-baked PNG, image import, screenshot insert, the pre-egress flatten through 04's `IStepFlattener` session overload, which takes `IProjectSession`, R-ARCH-5). Rename, archive, unarchive and delete project are Home list operations: list-level optimism in `HomeViewModel` over a direct `IProjectService` call, no session (06 D-HOME-7). Capture steps during a recording go straight to the store on the shared queue and the report adopts the result as `External` after the session (02 7.12, 05 7.3). The rollback notice text is `Your last change couldn't be saved and was undone. ` followed by the exception message (05 7.5, ARCHITECTURE 5.5; Q-MODEL-12).
 
 ### 7.11 Conformance harness
 
@@ -1555,43 +1619,56 @@ Expected native results for the current fixtures: every `agreed` case passes; `d
 
 ### 7.12 Threading, cancellation, disposal
 
-- Core has no thread affinity. All IO is async (`FileStream` with `FileOptions.Asynchronous`, `File.ReadAllBytesAsync`); directory enumeration and zip work run on the thread pool inside queue jobs or listing calls.
+- Core has no thread affinity. All IO is async (`FileStream` with `FileOptions.Asynchronous`, `File.ReadAllBytesAsync`); directory enumeration and zip work run on the thread pool inside queue jobs or listing calls. Core awaits with `ConfigureAwait(false)` everywhere (`CA2007` as error), except `ProjectSession.cs` (ARCHITECTURE T3).
 - The queue consumer is the only code that writes manifests. Reads outside the queue (list, get-for-read) may run concurrently with a write; the atomic rename guarantees they see the old or the new file.
-- `ProjectSession` marshals `Changed` and `PersistFailed` to the captured `SynchronizationContext` (the WPF `DispatcherSynchronizationContext`).
-- Cancellation: listing and auto-archive check `ct` between projects; a queued job observes `ct` only before it starts.
-- Disposal: `ProjectStore.DisposeAsync` completes the queue and awaits the consumer. The container must be disposed with `await provider.DisposeAsync()`: `ServiceProvider.Dispose()` throws `InvalidOperationException` when a resolved service implements `IAsyncDisposable` but not `IDisposable` (Microsoft Learn, `ServiceProvider.Dispose`).
-- App exit: WPF's `Application.OnExit` is synchronous, and an `async void` override returns to the dispatcher at its first `await`, after which the process can end before the flush completes. The App therefore blocks there on a thread-pool task: `Task.Run(() => store.FlushAsync(TimeSpan.FromSeconds(5))).Wait(TimeSpan.FromSeconds(6))`. This cannot deadlock because no queue job or Core continuation needs the UI thread (Core awaits with `ConfigureAwait(false)`, and `ProjectSession` events are posted, never awaited, by the queue). The same flush runs from `SessionEnding` for logoff and shutdown.
+- `ProjectSession` posts `Changed` and `PersistFailed` to the `SynchronizationContext` captured by `IProjectSessionFactory.Create` on the UI thread (the WPF `DispatcherSynchronizationContext`); it is the only Core type that touches a synchronization context (ARCHITECTURE 6.3). `ProjectStore.ProjectsChanged` is raised on the thread that ran `AutoArchiveStaleAsync`, outside any lock, through `EventRaiser` (11 T5); subscribers marshal with `IUiDispatcher.Post` (11 T6).
+- Cancellation: listing and auto-archive check `ct` between projects; a queued job observes `ct` only before it starts; a started job always completes (ARCHITECTURE 6.5 K1, K6).
+- Disposal (superseded by R-ARCH-10; the earlier `await provider.DisposeAsync()` design is withdrawn): `App.OnExit` is synchronous and calls `provider.Dispose()` (ARCHITECTURE 4.1 C5, 4.5 step 5). `ServiceProvider.Dispose()` throws `InvalidOperationException` for a resolved service that implements only `IAsyncDisposable` (Microsoft Learn, `ServiceProvider.Dispose`), so every disposable singleton of this spec implements `IDisposable`: `ProjectStore : IProjectService, IDisposable, IAsyncDisposable`, whose `Dispose` completes the queue writer and returns without blocking and without needing the UI thread (7.7). `AtomicFile`, `ArchiveEngine` and `ProjectSessionFactory` hold nothing to dispose. `ProjectSession` is `IAsyncDisposable` only and exempt, because it is not container-owned: the factory creates it and the project view disposes it on Back (S9, 11 7.10 rule 2). `Composition.ContainerTests.NoAsyncOnlyDisposables` enforces the rule (AC-MODEL-36).
+- App exit (ARCHITECTURE 4.5, 11 7.10): WPF's `Application.OnExit` is synchronous, and an `async void` override would return to the dispatcher at its first `await`, after which the process can end before the flush completes. Step 3 therefore blocks once, in the one allowlisted file `ShutdownFlush.cs`: `ShutdownFlush.Run(TimeSpan.FromSeconds(5))` runs `Task.WhenAll(projects.FlushAsync(t), settings.FlushAsync(t)).Wait(t)` over the project queue and the settings queue together, 5 s in total; on timeout it logs Warning `exit: pending writes not flushed within 5 s` and continues. This cannot deadlock because no queue job, Core continuation or `Dispose` needs the UI thread (DL4: Core awaits with `ConfigureAwait(false)`, and `ProjectSession` events are posted, never awaited, by the queue). Step 5 is `provider.Dispose()`. `SessionEnding` (logoff, shutdown) calls the capture `Teardown()` and lets WPF continue to `OnExit`, which runs the same flush; there is no second flush.
 
 ### 7.13 Errors and messages
+
+Every exception below lives in `ShotAI.Core.Store` and derives from `ShotAI.Core.Errors.ShotAIException` (11 X2, ARCHITECTURE 8.1), so `UserMessage.From` shows its `Message` verbatim; no user-facing message of this spec is carried by a BCL exception type.
 
 | Exception (Core.Store) | Message (verbatim, from Electron) |
 |---|---|
 | `ProjectNotKnownException` | `Project path is not within the projects directory` |
 | `StepNotFoundException` | `step {id} not found` |
-| `InvalidOperationException` (merge) | `cannot merge a step into itself` |
+| `MergeIntoItselfException` (merge; replaces the earlier `InvalidOperationException`, 11 X2) | `cannot merge a step into itself` |
 | `UnsupportedImageException` | `Unsupported file \u2014 please choose a PNG or JPEG image.` |
 | `ImportRejectedException` | `Package contains an unexpected file path: {rel}` / `Refusing to extract a path outside the project: {rel}`; for the `ImportStepAsync` confinement refusal (D-22), new native text `Refusing to write outside the project: shots/{filename}` |
 | `ArchiveException` | the three archive messages in 2.13 |
 | `ManifestCorruptException` (IMPROVEMENT) | wraps the parse or null-root failure; its user-facing text is Q-MODEL-11; the inner exception carries the parser message for the log |
+| `ShotAIException` thrown by `ImportLimits.Check` (11 7.3.2) | `No image data received` / `Image too large (max 60 MB)` |
 
-A missing `project.json` surfaces as `FileNotFoundException` wrapped in `ManifestCorruptException` for open; listing skips it.
+A missing `project.json` surfaces as `FileNotFoundException` wrapped in `ManifestCorruptException` for open; listing skips it. `SetProjectThemeAsync`'s `ArgumentException` for an unknown brand id (7.8) is a programming error, never a user message (D-IPC-9).
 
-### 7.14 Composition (ShotAI.App)
+### 7.14 Composition (AddShotAICore, AddShotAIPlatform)
+
+Each project registers its own types in its extension method (ARCHITECTURE 4.1 C7, 4.3); nothing of this spec is registered in `App.OnStartup` directly. `AddShotAILogging(loggerFactory)` (10) has already registered `ILoggerFactory` and the open generic `ILogger<T>`.
 
 ```csharp
-services.AddLogging(/* sinks: spec 10 */);                                   // registers ILogger<T>
+// ShotAI.Core.Composition.CoreServiceCollectionExtensions.AddShotAICore
 services.AddSingleton(TimeProvider.System);
-services.AddSingleton<IPathProbe, WindowsPathProbe>();                      // Platform
-services.AddSingleton<IRenameRetryClassifier, WindowsRenameRetryClassifier>(); // Platform
 services.AddSingleton<AtomicFile>();
 services.AddSingleton<ArchiveEngine>();
-services.AddSingleton<IProjectStoreSettings>(sp => sp.GetRequiredService<SettingsService>()); // spec 10
-services.AddSingleton<ProjectStore>();
+services.AddSingleton<IProjectService, ProjectStore>();          // the only registration of the store (R-ARCH-4); the container disposes it
+services.AddSingleton<ProjectSessionFactory>();
+services.AddSingleton<IProjectSessionFactory>(sp => sp.GetRequiredService<ProjectSessionFactory>());
+services.AddSingleton<IProjectSettle>(sp => sp.GetRequiredService<ProjectSessionFactory>());   // one instance for both
+// IProjectStoreSettings: forwarded to the SettingsService instance loaded at startup step 5b (10 7.11, ARCHITECTURE 4.3)
+// IStepRenderWriter: registered by 04 in the same method
+
+// ShotAI.Platform.Composition.PlatformServiceCollectionExtensions.AddShotAIPlatform
+services.AddSingleton<IPathProbe, WindowsPathProbe>();                       // internal sealed (INV-ARCH-4)
+services.AddSingleton<IRenameRetryClassifier, WindowsRenameRetryClassifier>();
 ```
 
-Shutdown: `await provider.DisposeAsync()` (not `Dispose()`, 7.12).
+`ManagedPathProbe` and the managed `IRenameRetryClassifier` default are used by `ShotAI.Core.Tests` and the Core self-test (10 7.8), never registered in the shipped container.
 
-Startup (after the main window shows): `_ = Task.Run(async () => { var n = await store.AutoArchiveStaleAsync(await settings.GetArchiveAgeDaysAsync()); if (n > 0) homeViewModel.RequestRefresh(); })` with failures logged as `startup auto-archive failed (non-fatal):`.
+Shutdown: `ShutdownFlush.Run(TimeSpan.FromSeconds(5))` flushes this store together with the settings queue, then `provider.Dispose()` (7.12, ARCHITECTURE 4.5, R-ARCH-10).
+
+Startup (ARCHITECTURE 4.2 step 13, 03 7.4.1 step 13): after the main window shows, fire and forget on the thread pool under `IAppLifetime.Stopping`: `IProjectService.AutoArchiveStaleAsync(settings.Current.ArchiveAgeDays, lifetime.Stopping)`, with failures logged at Warning as `startup auto-archive failed (non-fatal):`. The method itself raises `ProjectsChanged` when it moved at least one project, and 06's `HomeViewModel` marshals that event and re-lists (R-ARCH-24, 11 E1); the startup code never reaches into a view model.
 
 ### 7.15 Divergence register
 
@@ -1614,7 +1691,7 @@ Startup (after the main window shows): `_ = Task.Run(async () => { var n = await
 | D-15 | Name-surrogate reparse points are links; other reparse points (cloud placeholders) are ordinary entries, read fully when archived | IMPROVEMENT (possibly a fix) | EDGE-MODEL-13 |
 | D-16 | Search text includes only string values | IMPROVEMENT | Electron would join a non-string caption as `[object Object]` or `42`; no writer stores one |
 | D-17 | `IsoTime.TryParseJsDate` accepts only the ECMAScript ISO subset | IMPROVEMENT | V8's legacy date parsing is implementation-defined; shotAI writes only ISO |
-| D-18 | Queue drained on exit | IMPROVEMENT | a save issued just before quit reaches disk |
+| D-18 | Queue drained on exit (by `ShutdownFlush`, at most 5 s together with the settings queue, ARCHITECTURE 4.5) | IMPROVEMENT | a save issued just before quit reaches disk |
 | D-19 | `openProjectWithId`, the session id registry and `shot://` | ELECTRON-ONLY | replaced by `ProjectStore.ResolveImage` (confine plus extension allowlist) and in-process image loading |
 | D-20 | The known-project gate's untrusted-renderer rationale | ELECTRON-ONLY (rationale) | the gate itself is kept as defense in depth (INV-MODEL-27) |
 | D-21 | `JsJson.MaxDepth = 1000` | IMPROVEMENT (bounded) | a finite limit instead of a V8 stack overflow |
@@ -1667,11 +1744,11 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 | `Store/CreateProjectTests` | folder named by a lowercase v4 UUID equal to `id`; `shots/` and `export/` exist; default title format; whitespace title gets the default; brand stamping |
 | `Store/CreateFromImportTests` | whitelist accepts `shots/a.png` and `export/.render/x.png`, rejects `shots/sub/a.png`, `export/a.png`, `project.json`, `../x`; exact messages; duplicate entry aborts and the new folder is deleted (D-9); on Windows `shots/A.png` plus `shots/a.png` aborts; title, theme and flattened kept; sopBackup null; archived false; createdAt kept or filled |
 | `Store/OpenProjectTests` | back-fills an empty id once through the queue without bumping `updatedAt`; auto-unarchives an archived project; FlagOnly stays flagged (EDGE-MODEL-18) |
-| `Store/StepOperationTests` | every row of 2.9.12 including renumber after each op, `addTextStep` with NaN, `importStep` counter past orphans and case-insensitive match, `.jpg` for JPEG, exact error messages, `deleteSteps` removes files only through `ConfineNoLinks` |
+| `Store/StepOperationTests` | every row of 2.9.12 including renumber after each op, `addTextStep` with NaN, `importStep` counter past orphans and case-insensitive match, `.jpg` for JPEG, exact error messages, `deleteSteps` removes files only through `ConfineNoLinks`; `ImportStepAsync` reports `ImportLimits` before the magic bytes before the gate (a 0-byte buffer for an unknown project throws `No image data received`, a 7-byte PNG header for an unknown project throws `UnsupportedImageException`); `MergeStepsAsync(p, a, a, ...)` throws `MergeIntoItselfException` before the gate; `SetProjectThemeAsync` with an unknown non-null id throws `ArgumentException` and writes nothing |
 | `Store/ReorderNoDropTests` | duplicate ids named in `orderedIds` keep every step (D-10) |
-| `Store/AutoArchiveTests` | 0 and negative do nothing; only live projects strictly older than the cutoff; unparsable `updatedAt` skipped; one failing project does not stop the rest; returns the count |
+| `Store/AutoArchiveTests` | 0 and negative do nothing; only live projects strictly older than the cutoff; unparsable `updatedAt` skipped; one failing project does not stop the rest; returns the count; `ProjectsChanged` is raised exactly once when the count is above 0 and not at all when it is 0, and a throwing handler does not stop a second handler (R-ARCH-24) |
 | `Store/ArchiveVerifyTests` | a corrupted tmp (one entry truncated) fails verification with the exact message, originals intact (D-12); an empty project archives to an empty zip; `export/../project.json` entry refused (D-13); a directory entry in a JSZip-made zip is skipped; a zip written by .NET restores with JSZip semantics (entry names use `/`) |
-| `Store/ProjectSessionTests` | optimistic apply raises Changed before persistence; persisted result adopted; a failing second op rolls back only itself and re-applies the third; Unchanged queues nothing; events arrive on the supplied SynchronizationContext |
+| `Store/ProjectSessionTests` | S1 to S10 of 7.10 (AC-ARCH-4): optimistic apply raises `Changed(Local, AffectedStepIds)` before persistence; a throwing `op.Apply` changes, queues and raises nothing and faults the task with that exception; Unchanged queues nothing; a persisted echo equal to `Current` apart from `updatedAt` raises `Persisted`, a differing one `External`; a failing second op rolls back only itself, re-applies the third, raises `RolledBack` and `PersistFailed` carrying the failed operation; `DurableResultKeepsLaterOptimisticEdits`; `ApplyDurable` hands the call an `IProjectService`; `WhenIdleAsync` and `IProjectSettle.WhenSettledAsync` complete only after earlier work, and at once for a project with no registered session; a session disposed with writes pending stays registered until they finish, so `WhenSettledAsync` for its path waits for them (R-ARCH-27), and `DisposeAsync` does not cancel queued writes; events arrive on the context captured by `IProjectSessionFactory.Create` (`ManualUiDispatcher`-backed context); a randomized interleaving of `Apply`, `ApplyDurable` and injected failures ends equal to a sequential model |
 | `Store/HostileSegmentTests` | every rule in 7.5 true and false cases, platform-neutral |
 | Windows-only `Platform.Tests/FileSystem/ReparsePointTraversalTests` | a junction under the projects root is not listed; deleting a project containing a junction to an outside folder leaves the outside folder's files intact; archiving skips a junction inside `shots/` |
 | Windows-only `Platform.Tests/FileSystem/WindowsPathProbeTests` | junction and symlink are `Link`; a regular file and directory are classified; a missing path is `Missing`; an access-denied path is `Unknown` |
@@ -1681,6 +1758,8 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 | `Store/ArchiveNameRulesTests` | entries `export\..\project.json`, `export/../project.json`, `./shots/a.png`, `shots//a.png` are all refused with the zip kept and `project.json` byte-identical (D-13, D-25); an entry whose external attributes carry `0x10` is treated as a directory; a non-ASCII entry name without the UTF-8 flag restores under its UTF-8 decoding |
 | `Codec/RegexAnchorTests` | `"shots/a.png\n"` fails the import whitelist; `"Project 2026/01/01 00:00:00\n"` untrimmed fails `IsAutoGenerated`'s regex and passes after `JsString.Trim`; Arabic-Indic digits do not match `[0-9]` (D-26) |
 | `Store/ProjectSearchComparerTests` | `'a'`, `'A'`, `'\u00e1'` compare equal under the name comparer; ISO dates order identically under Ordinal and the JS expected order; descending keeps tie order |
+| `Store/ProjectStoreDisposalTests` | `Dispose()` returns without waiting for a running job and is idempotent; `Enqueue` after `Dispose` throws `ObjectDisposedException`; `FlushAsync(timeout)` returns within the timeout while a job is blocked and completes early when the queue drains; `ProjectStore` implements `IDisposable` (R-ARCH-10); the container-level checks are 11's `Composition.ContainerTests.NoAsyncOnlyDisposables` and `LifecycleTests.ExitOrderMatchesSpec11` (App.Tests) |
+| `Store/StoreExceptionTests` | every exception of 7.13 derives from `ShotAIException` and `UserMessage.From` returns its exact message (11 X2) |
 
 ## 9. Acceptance criteria
 
@@ -1726,15 +1805,15 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 
 **AC-MODEL-21.** `ImportStepAsync` with a 3-byte `FF D8 FF` buffer succeeds and names the file `.jpg`; with `89 50 4E 47` and length 7 it throws `UnsupportedImageException` with the exact message.
 
-**AC-MODEL-22.** `AutoArchiveTests`: with ages 91 and 89 days and `ageDays = 90`, exactly the 91-day project is archived and `updatedAt` of both is unchanged.
+**AC-MODEL-22.** `AutoArchiveTests`: with ages 91 and 89 days and `ageDays = 90`, exactly the 91-day project is archived and `updatedAt` of both is unchanged, and `ProjectsChanged` is raised exactly once (R-ARCH-24); with `ageDays = 0` nothing moves and the event is not raised.
 
-**AC-MODEL-23.** `ProjectSessionTests` pass; in the running app (manual), editing a caption shows the new text before the disk write completes, and making `project.json` read-only then editing shows the rollback and the failure notice (05's text) within 2 seconds (the retry schedule is 1.3 s).
+**AC-MODEL-23.** `ProjectSessionTests` pass, covering S1 to S10 of 7.10 (the same test class as AC-ARCH-4); in the running app (manual), editing a caption shows the new text before the disk write completes, and making `project.json` read-only then editing shows the rollback and the failure notice (05's text) within 2 seconds (the retry schedule is 1.3 s).
 
 **AC-MODEL-24.** Manual cross-app check: create a project in Electron v1.3.0, open and edit it natively, reopen it in Electron: all steps, annotations, theme and intro intact. Repeat with a macOS-authored project (the fixture).
 
 **AC-MODEL-25.** Manual: open a project whose `project.json` was saved with a BOM by Notepad; it lists and opens natively.
 
-**AC-MODEL-26.** `ShotAI.Core` has no reference to any `Windows.*` namespace, `Microsoft.Win32` or a Windows TFM (enforced by the Linux build of ShotAI.Core.Tests and a banned-API analyzer rule).
+**AC-MODEL-26.** `ShotAI.Core` has no reference to any `Windows.*` namespace, `Microsoft.Win32` or a Windows TFM (enforced by the Linux build of ShotAI.Core.Tests, `CA1416` as error, `Architecture.CoreReferencesTests`, and the `N:Microsoft.Win32` and `N:Windows` entries of Core's `BannedSymbols.txt`, ARCHITECTURE 14.9). If the pinned BannedApiAnalyzers does not accept `N:` namespace entries (proved or disproved by WP-A1's deliberate violation), the banned-symbol part is dropped and the criterion is met by `CA1416` plus `Architecture.CoreReferencesTests`.
 
 **AC-MODEL-27.** `HostileSegmentTests` pass; `PathConfine.Confine(dir, "shots/a.png:x")` and `"shots/CON.png"` return null.
 
@@ -1744,7 +1823,7 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 
 **AC-MODEL-30.** `SerialWriteQueueTests`: 1,000 concurrent enqueues complete in enqueue order.
 
-**AC-MODEL-31.** App exit with a pending queued write completes that write (manual: rename a project and quit within 100 ms; the new title is on disk).
+**AC-MODEL-31.** App exit with a pending queued write completes that write through `ShutdownFlush` (manual: rename a project and quit within 100 ms; the new title is on disk; the same check as AC-ARCH-5 and AC-IPC-18).
 
 **AC-MODEL-32.** `CalloutKindTests`: glyph code points are exactly U+2139, U+26A0, U+2501 and empty, and none is in the embedded Emoji_Presentation set.
 
@@ -1754,35 +1833,37 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 
 **AC-MODEL-35.** `DeleteStepsMalformedPathTests`: `DeleteStepsAsync` over a step with `screenshot: 42` returns normally and the written manifest no longer contains that step.
 
-**AC-MODEL-36.** `dotnet/tests/ShotAI.Core.Tests/Conformance/ConformanceCase.cs` loads cases through `JsJson.Parse`, and a disposal test proves `ServiceProvider.DisposeAsync()` (not `Dispose()`) is what the App calls.
+**AC-MODEL-36.** `dotnet/tests/ShotAI.Core.Tests/Conformance/ConformanceCase.cs` loads cases through `JsJson.Parse` (WP-A3), and (superseded by R-ARCH-10, which replaced the earlier `ServiceProvider.DisposeAsync()` clause) `Composition.ContainerTests.NoAsyncOnlyDisposables` proves that every registered disposable singleton, `ProjectStore` included, implements `IDisposable`, and `LifecycleTests.ExitOrderMatchesSpec11` proves that the synchronous `App.OnExit` runs `ShutdownFlush.Run` before `provider.Dispose()` (WP-A12).
 
 ## 10. Interfaces with other subsystems
 
+Every consumer outside the store reaches it through `IProjectService` (11 7.3.2), `IProjectSession`, `IProjectSessionFactory` or `IProjectSettle`, never through the concrete `ProjectStore` (R-ARCH-4, INV-ARCH-3).
+
 | Spec | This subsystem consumes | This subsystem provides |
 |---|---|---|
-| 02 Capture | the captured `ProjectStep` (raw object in the 2.3 capture shape), shot file written before `AddStepAsync` or `InsertStepAtAsync` | `ProjectStore.OpenProjectAsync`, `AddStepAsync`, `InsertStepAtAsync`, `DeleteStepsAsync` (discard a session), `DeleteProjectAsync` (discard a new project), `PathConfine.ConfineNoLinks` for the shot write (recommended; Electron does not confine it), `CaptureTarget` view |
-| 03 Shell | the single-instance guarantee (one writer per machine); the Explorer reveal implementation | `ResolveKnownProjectAsync` before reveal; `FlushAsync` at exit |
-| 04 Editor | `StepPatch`, `StepPatchApplier.ApplyAndInvalidate`, `IStepRenderWriter` (which should use `AtomicFile`, EDGE-MODEL-47) | `UpdateStepAsync`, `MergeStepsAsync` (durable path), `ProjectSession.ApplyDurable`, `GetProjectForReadAsync` for OCR, `PathConfine` |
-| 05 Report | which edits are optimistic, the failure notice text, image loading rules | `ProjectSession`, `ProjectOperation` for each edit, `StepNumbering`, `CalloutKinds`, `CalloutGlyphs`, `ResolveImage`, `ProjectManifest` and `ProjectStep` views |
-| 06 Home | tab, sort key and direction, query | `ListProjectsAsync`, `ProjectSummary`, `ProjectSearch`, `CreateProjectAsync`, `RenameProjectAsync`, `DeleteProjectAsync`, `ArchiveProjectAsync`, `UnarchiveProjectAsync`, `SetProjectsDirAsync`, the auto-archive refresh signal |
-| 07 SOP | `SopTones` (known tones, default) | `MutateAsync`, `ManifestCodec.NormalizeSteps`, `renumber` (as `StepList.Renumber`), `ProjectTitles.IsAutoGenerated`, `GetProjectForReadAsync`, `SopBackup`, `IntroEditedByUser`, `CaptionEditedByUser` |
-| 08 Auth | none | `AtomicFile` (for any secrets file, if 08 keeps one) |
-| 09 Export | the package reader (marker, caps, magic bytes), producing `(ProjectManifest, ImportFile[])` | `ManifestCodec.Decode(parsed, "Imported project")`, `CreateProjectFromImportAsync`, `GetProjectForReadAsync`, `PathConfine.Confine` for image reads |
-| 10 Infra | `IProjectStoreSettings` (projects dir, recents with MAX 20, brand), `ArchiveAgeDays`, brand narrowing (`BrandIds.IsBrandId`, `PinnedBrand`), logging categories | `AtomicFile` with `onRetry` for `settings.json`, `JsJson` if settings needs unknown-key preservation with JS semantics |
-| 11 Service boundary | nothing | the `ProjectStore` method set as the `IProjectService` surface; argument coercions that remain meaningful (brand must be a known id or null, `atIndex` double, patch validation from 04) |
+| 02 Capture | the captured `ProjectStep` (raw object in the 2.3 capture shape), shot file written before `AddStepAsync` or `InsertStepAtAsync` | `IProjectService.OpenProjectAsync`, `AddStepAsync`, `InsertStepAtAsync`, `DeleteStepsAsync` (discard a session), `DeleteProjectAsync` (discard a new project), `PathConfine.ConfineNoLinks` for the shot write (recommended; Electron does not confine it), `CaptureTarget` view |
+| 03 Shell | the single-instance guarantee (one writer per machine); the Explorer reveal implementation (`IShellReveal`); the startup trigger of auto-archive (ARCHITECTURE 4.2 step 13) | `IProjectService.ResolveKnownProjectAsync` before reveal; `IProjectService.AutoArchiveStaleAsync` (raises `ProjectsChanged`); `FlushAsync` for `ShutdownFlush` at exit (ARCHITECTURE 4.5) |
+| 04 Editor | `StepPatch`, `StepPatchApplier.ApplyAndInvalidate`, `IStepRenderWriter` and `RenderWriteReceipt` (injected into `ProjectStore`; the writer uses `AtomicFile`, EDGE-MODEL-47) | `IProjectService.UpdateStepAsync`, `MergeStepsAsync` (durable path), `IProjectSession.ApplyDurable`, `GetProjectForReadAsync` for OCR, `PathConfine`; 04's `IStepFlattener` session overload takes `IProjectSession` (R-ARCH-5) |
+| 05 Report | which edits are optimistic (05 7.5, ARCHITECTURE 7.5), the rollback notice text, image loading rules (EDGE-MODEL-39, R-ARCH-21) | `IProjectSession` created by `IProjectSessionFactory.Create` on the UI thread, never `new ProjectSession` (R-ARCH-5); `ProjectOperation` (with the virtual `AffectedStepIds` that 05's `ReportOperation` overrides) and `ManifestChangeKind` and `ManifestChangedEventArgs` in `ShotAI.Core.Store` (R-ARCH-20); `StepNumbering`, `CalloutKinds`, `CalloutGlyphs`, `ResolveImage`, `ProjectManifest` and `ProjectStep` views; `IProjectService.ImportStepAsync`, `MergeStepsAsync` |
+| 06 Home | tab, sort key and direction, query | `IProjectService.ListProjectsAsync`, `ProjectSummary`, `ProjectSearch`, `CreateProjectAsync`, `RenameProjectAsync`, `DeleteProjectAsync`, `ArchiveProjectAsync`, `UnarchiveProjectAsync`, `SetProjectsDirAsync`, and the `ProjectsChanged` event raised by `AutoArchiveStaleAsync` (R-ARCH-24), which `HomeViewModel` marshals with `IUiDispatcher.Post` and answers with a re-list |
+| 07 SOP | `SopCatalog.Tones` (known tones, default; 07 7.2) | `IProjectService.MutateAsync`, `IProjectSession.Apply` for `ApplySopPlanOperation` and `RevertSopOperation`, `IProjectSettle.WhenSettledAsync` (R-ARCH-6), `ManifestCodec.NormalizeSteps`, `renumber` (as `StepList.Renumber`), `ProjectTitles.IsAutoGenerated`, `GetProjectForReadAsync`, `SopBackup`, `IntroEditedByUser`, `CaptionEditedByUser` |
+| 08 Auth | none | `AtomicFile` (for `secrets.dpapi.json`) |
+| 09 Export | the package reader (marker, caps, magic bytes), producing `(ProjectManifest, ImportFile[])` | `ManifestCodec.Decode(parsed, "Imported project")`, `ManifestCodec.Encode`, `IProjectService.CreateProjectFromImportAsync`, `GetProjectForReadAsync`, `IProjectSettle.WhenSettledAsync` before egress (not `IProjectService.WhenIdleAsync(path)`, R-ARCH-6); the static `PathConfine` (`Confine` for image reads, `ConfineNoLinks` with an `IPathProbe` argument) and the concrete `AtomicFile`, never `IPathConfine` or `IAtomicFile` (R-ARCH-17) |
+| 10 Infra | `IProjectStoreSettings` (projects dir, recents with MAX 20, brand; always a fully qualified projects dir, Q-INFRA-3), `ISettingsService.Current.ArchiveAgeDays`, brand narrowing (`BrandPalette.IsBrandId`, `BrandPalette.PinnedBrand`, R-ARCH-14), logging categories (`projects`) | `AtomicFile` with `onRetry` for `settings.json`, `SerialWriteQueue` for the settings queue, `JsJson` for unknown-key preservation with JS semantics, `ProjectStore` and `ReparseSafeDelete` for the self-test |
+| 11 Service boundary | the declaration of `IProjectService`, `IProjectSession`, `IProjectSessionFactory` and `ImportLimits` (7.3.2); `ShotAIException`, `UserMessage`, `EventRaiser` | `ProjectStore : IProjectService, IDisposable, IAsyncDisposable`; `ProjectsChanged` (E1); argument coercions that remain meaningful (brand must be a known id or null, `atIndex` double, patch validation from 04) |
 | 12 Packaging and CI | Linux job running ShotAI.Core.Tests; Windows job running ShotAI.Platform.Tests with junction creation allowed | test projects and the golden files |
 
 ## 11. Open questions and risks
 
 **Q-MODEL-1.** `displayScale` out of range: clamp in the codec (Electron, file becomes `1.25`) or store raw and clamp at use (macOS, file keeps `9`)? Recommended default: Electron parity (clamp in the codec) until cutover, so the shared case stays `open` for the same reason on both Windows builds; after cutover, raise on shotAI_MacOS#105 whether both native apps should store raw and flip the case to `agreed`.
 
-**Q-MODEL-2.** The fixed decision names System.Text.Json. This spec uses its `Utf8JsonReader` and `JsonNode` but a hand-written writer and string unescaper, because the library cannot reproduce `JSON.stringify` bytes or accept lone surrogates. Recommended default: accept (the divergence is mechanical and fully tested); record it in PLAN.md as an interpretation of the decision.
+**Q-MODEL-2.** The fixed decision names System.Text.Json. This spec uses its `Utf8JsonReader` and `JsonNode` but a hand-written writer and string unescaper, because the library cannot reproduce `JSON.stringify` bytes or accept lone surrogates. Recommended default: accept (the divergence is mechanical and fully tested); record it in PLAN.md as an interpretation of the decision. Resolved by ARCHITECTURE 15.2 I-1: "System.Text.Json" means its `Utf8JsonReader` and `JsonNode` tree plus a Core unescaper and a hand-written `JSON.stringify` writer; golden files prove byte parity.
 
 **Q-MODEL-3.** Canonical root key order (D-3) makes the first native save of an Electron file that was just mutated reorder up to three keys. Recommended default: accept; golden tests compare decode-then-encode, where both agree.
 
 **Q-MODEL-4.** Stripping a BOM (D-4) makes native read files Electron cannot. Recommended default: strip; never write a BOM.
 
-**Q-MODEL-5.** `FlushFileBuffers` on every manifest write costs latency on NTFS (typically a few ms to tens of ms, more under Defender). Recommended default: flush; the optimistic UI hides the latency. Measure during Phase A and revisit if a capture burst slows down.
+**Q-MODEL-5.** `FlushFileBuffers` on every manifest write costs latency on NTFS (typically a few ms to tens of ms, more under Defender). Recommended default: flush; the optimistic UI hides the latency. Measure during Phase A and revisit if a capture burst slows down. Adopted by ARCHITECTURE 7.10; the proposed budget is PB-14 (p95 under 50 ms for a 100-step manifest), measured manually in Phase A.
 
 **Q-MODEL-6.** The claim that libuv reports every reparse point as a link in `readdir` (and therefore that Electron skips OneDrive placeholder folders and drops placeholder files from archives) is from reading, not measurement. Recommended default: implement D-15 regardless; verify on a Windows machine with a Files On-Demand folder (dehydrate a project, list it in Electron, archive a copy) and file an Electron issue if confirmed.
 
@@ -1794,28 +1875,32 @@ All in `ShotAI.Core.Tests` (Linux and Windows) unless marked Windows-only. Windo
 
 **Q-MODEL-10.** Import failure cleanup (D-9) deletes a folder the import just created; if the confinement check itself were wrong, cleanup could delete the wrong thing. Recommended default: clean up only the exact `<root>/<new uuid>` path, through `ReparseSafeDelete`.
 
-**Q-MODEL-11.** User-facing text for an unreadable manifest. Electron shows the raw parser or ENOENT message. Recommended default (IMPROVEMENT, final wording owned by 06): `This project can't be opened because its project.json is missing or damaged.` with the parser message in the log only.
+**Q-MODEL-11.** User-facing text for an unreadable manifest. Electron shows the raw parser or ENOENT message. Recommended default (IMPROVEMENT, final wording owned by 06): `This project can't be opened because its project.json is missing or damaged.` with the parser message in the log only. Adopted by 05 EDGE-REP-39 and 06 EDGE-HOME-24: a non-"gone" open failure raises `OpenFailed(message)` and Home shows this sentence as an error notice (PLAN WP-A17).
 
-**Q-MODEL-12.** The optimistic rollback notice text. Recommended default (owned by 05): `Your last change couldn't be saved and was undone.` followed by the error message.
+**Q-MODEL-12.** The optimistic rollback notice text. Recommended default (owned by 05): `Your last change couldn't be saved and was undone.` followed by the error message. Resolved by 05 7.5 and ARCHITECTURE 5.5: the report's `SaveError` notice slot shows `Your last change couldn't be saved and was undone. ` followed by `UserMessage.From(error)`.
 
-**Q-MODEL-13.** Paths longer than 260 characters (a deep custom projects root). Recommended default: declare `longPathAware` in `src/ShotAI.App/app.manifest` (03, 12) and add a test that creates and archives a project under a 300-character root on the Windows runner.
+**Q-MODEL-13.** Paths longer than 260 characters (a deep custom projects root). Recommended default: declare `longPathAware` in `src/ShotAI.App/app.manifest` (03, 12) and add a test that creates and archives a project under a 300-character root on the Windows runner. Resolved (ARCHITECTURE 1.3): the scaffold already declares it (`dotnet/src/ShotAI.App/app.manifest:16`); the 300-character-root test is scheduled in WP-A8.
 
-**Q-MODEL-14.** The macOS fixture project lives in a read-only repo. Recommended default: copy `Fixtures/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/` into `dotnet/tests/ShotAI.Core.Tests/Golden/macos-fixture/` (not into `contract/`, which must stay byte-identical across repos) with a README naming its origin commit `f445bca`.
+**Q-MODEL-14.** The macOS fixture project lives in a read-only repo. Recommended default: copy `Fixtures/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/` into `dotnet/tests/ShotAI.Core.Tests/Golden/macos-fixture/` (not into `contract/`, which must stay byte-identical across repos) with a README naming its origin commit `f445bca`. Adopted by ARCHITECTURE 12.4 and PLAN WP-A3 (the whole folder, byte-identical, under `Golden/macos-fixture/b7e2c4d1-9f3a-4e8b-a2c5-6d1f8e9a0b3c/`).
 
-**Q-MODEL-15.** `setProjectTheme` coerces an unknown value to the default brand (EDGE-MODEL-7). Recommended default: the native API accepts only null or a known brand id and throws `ArgumentException` otherwise; the UI cannot produce anything else.
+**Q-MODEL-15.** `setProjectTheme` coerces an unknown value to the default brand (EDGE-MODEL-7). Recommended default: the native API accepts only null or a known brand id and throws `ArgumentException` otherwise; the UI cannot produce anything else. Resolved by 11 7.3.2 and D-IPC-9: adopted as recommended (7.8), with `BrandPalette.IsBrandId` (10, R-ARCH-14) as the test.
 
 **Q-MODEL-16.** Should the no-op guard (D-11) extend to reorder with an unchanged order and to intro edits with identical text? Recommended default: yes for both (return Unchanged when the resulting manifest is value-equal to the input before `updatedAt`), because the rationale (#77) is the same; confirm with 05 that no UI relies on the re-dating.
 
 **Q-MODEL-17.** `listProjects` reads every manifest on every Home refresh (06 polls). Recommended default: parity first; if Phase A profiling shows cost, cache summaries keyed by (full path, `project.json` last-write time, length) and invalidate on any queued write to that project.
 
-**Q-MODEL-18.** The Electron golden outputs (AC-MODEL-3) need a small Electron-side test that writes them. Recommended default: add it in the same PR as the native codec, under `src/main/codec-golden.test.ts`, writing only outputs, into `dotnet/tests/ShotAI.Core.Tests/Golden/codec/expected/`, only when an environment variable is set, so normal Electron CI stays read-only.
+**Q-MODEL-18.** The Electron golden outputs (AC-MODEL-3) need a small Electron-side test that writes them. Recommended default: add it in the same PR as the native codec, under `src/main/codec-golden.test.ts`, writing only outputs, into `dotnet/tests/ShotAI.Core.Tests/Golden/codec/expected/`, only when an environment variable is set, so normal Electron CI stays read-only. Scheduled by PLAN WP-A3: `SHOTAI_CODEC_GOLDENS=1 npx vitest run src/main/codec-golden.test.ts` (ARCHITECTURE 15.4 keeps it open with this default).
 
 **Q-MODEL-19.** JS `toLowerCase` applies full Unicode case mapping (final sigma, U+0130 to two code units) while .NET `ToLowerInvariant` applies simple mapping. Recommended default: use `ToLowerInvariant` for both the text and the query; the only effect is on Greek final sigma and dotted capital I in search.
 
-**Q-MODEL-20.** Stale `project.json.<pid>.tmp` files from crashes accumulate in both apps. Recommended default: on open, delete `project.json.*.tmp` siblings whose last write is older than 24 hours (IMPROVEMENT), never one younger (another process could be mid-write on a synced copy).
+**Q-MODEL-20.** Stale `project.json.<pid>.tmp` files from crashes accumulate in both apps. Recommended default: on open, delete `project.json.*.tmp` siblings whose last write is older than 24 hours (IMPROVEMENT), never one younger (another process could be mid-write on a synced copy). Adopted by ARCHITECTURE 7.10; implemented in `OpenProjectAsync` (WP-A6).
 
 **Q-MODEL-21.** Archive restore name rules. Electron, via JSZip, silently resolves `.`, `..` and empty segments in forward-slash entry names; native rejects them (D-25). A zip produced by some third-party tool with `./` prefixes would restore in Electron and fail natively. Recommended default: reject; only shotAI writes `archive.zip`, and both shotAI writers emit plain names. Revisit only if a real archive fails.
 
-**Q-MODEL-22.** Step ids used as file names (EDGE-MODEL-51). Electron normalizes the id through `path.posix.join` and then confines, so a hand-edited id can redirect a render anywhere inside the project with a `.png` suffix. Recommended default (04 decides): refuse any id that is not a single safe path segment, with the existing `refusing to write render for step "{id}" \u2014 path escapes the project folder` text.
+**Q-MODEL-22.** Step ids used as file names (EDGE-MODEL-51). Electron normalizes the id through `path.posix.join` and then confines, so a hand-edited id can redirect a render anywhere inside the project with a `.png` suffix. Recommended default (04 decides): refuse any id that is not a single safe path segment, with the existing `refusing to write render for step "{id}" \u2014 path escapes the project folder` text. Resolved by 04 D-EDIT-22: the render writer refuses such an id with that message (`RefusedRenderPathException`).
 
 **Q-MODEL-23.** `CompressionLevel.Optimal` is described as zlib level 6 in 7.9. The .NET mapping of `Optimal` to a zlib level is an implementation detail that has changed across runtime versions (UNVERIFIED for .NET 10). Recommended default: parity of level is not required (the archive only has to be DEFLATE and readable by JSZip and macOS); do not assert compressed sizes in tests.
+
+**Q-MODEL-24.** 10's Q-INFRA-3 asks for this spec's agreement: a `projectsDir` in `settings.json` that is empty or not fully qualified loads as the default folder (`%USERPROFILE%\shotAI Projects`) instead of resolving against the process's current directory. Answer: agreed. The known-project gate (2.9.1, 7.8) and `ListProjectsAsync` then always see a fully qualified root from `IProjectStoreSettings`, so `Path.GetFullPath(projectsDir)` never depends on the working directory; the store adds no check of its own. Recorded here for PLAN WP-A10.
+
+**Q-MODEL-25.** `ProjectOperation.BumpsUpdatedAt` (ARCHITECTURE 7.4) has no carrier: S1 queues `IProjectService.MutateAsync(dir, fn)`, whose job always bumps `updatedAt` unless `fn` returns `Unchanged` (2.9.3), and `IProjectService` (11 7.3.2) has no parameter for it. No operation in 2.0.0 overrides the property (the archive-like writes are Home list calls, not session operations). Recommended default: keep the property, assert in `ProjectSessionTests` that every shipped operation returns `true`, and when the first operation needs `false`, add an optional `bool bumpUpdatedAt = true` parameter to `IProjectService.MutateAsync` in 11 7.3.2, ARCHITECTURE 7.4 and this spec's 7.8 in the same PR.

@@ -7,6 +7,9 @@ official Anthropic C# SDK (`anthropics/anthropic-sdk-csharp` at `2beeb9f`).
 Question: can shotAI drop Electron and Node and be rebuilt on native Windows libraries, and is
 that practical?
 
+> **Follow-up:** the rewrite is planned in [docs/native/](native/README.md) (work packages,
+> architecture and per-subsystem specs). The scaffold is in [dotnet/](../dotnet/README.md).
+
 ## Verdict
 
 **Possible: yes.** Every subsystem has a native Windows equivalent, most of them first-party
