@@ -8,10 +8,12 @@
     <PackageVersion Include="Microsoft.Windows.CsWin32" Version="0.3.335" />
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
   </ItemGroup>
-  <!-- Core: the logging and DI abstractions every subsystem builds on (ARCHITECTURE 3.2). -->
+  <!-- Core: the logging and DI abstractions every subsystem builds on, and CRC-32 for the
+       archive check (ARCHITECTURE 3.2). -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="System.IO.Hashing" Version="10.0.12" />
   </ItemGroup>
   <!-- Analyzers, referenced from Directory.Build.props with PrivateAssets="all" (V7). -->
   <ItemGroup>

@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShotAI.Core.Store;
 using ShotAI.Platform.FileSystem;
@@ -8,13 +9,16 @@ namespace ShotAI.Platform.Tests.FileSystem;
 
 /// <summary>
 /// The store over junctions with the shipped probe (spec 01 8.2, INV-MODEL-33, AC-MODEL-12): a
-/// junction under the projects folder is not listed, and deleting a project never follows one.
-/// The archive case lands with the archive engine (WP-A8).
+/// junction under the projects folder is not listed, and neither deleting nor archiving a
+/// project follows one.
 /// </summary>
 public sealed class ReparsePointTraversalTests : IAsyncLifetime
 {
     private const string Manifest =
         """{"version":1,"id":"test","title":"T","createdWith":"shotAI","createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z","captureSettings":null,"steps":[],"sopBackup":null}""";
+
+    private static readonly WindowsPathProbe Probe = new();
+    private static readonly AtomicFile Atomic = new(TimeProvider.System, new WindowsRenameRetryClassifier());
 
     private readonly TempDir _temp = new("traversal-");
     private readonly ProjectStore _store;
@@ -24,8 +28,9 @@ public sealed class ReparsePointTraversalTests : IAsyncLifetime
         Directory.CreateDirectory(Root);
         _store = new ProjectStore(
             new FakeProjectStoreSettings(Root),
-            new WindowsPathProbe(),
-            new AtomicFile(TimeProvider.System, new WindowsRenameRetryClassifier()),
+            Probe,
+            Atomic,
+            new ArchiveEngine(Probe, Atomic, NullLogger<ArchiveEngine>.Instance),
             TimeProvider.System,
             NullLogger<ProjectStore>.Instance);
     }
@@ -44,6 +49,12 @@ public sealed class ReparsePointTraversalTests : IAsyncLifetime
     {
         _temp.File(Path.Combine(relative, "project.json"), Manifest);
         return _temp.Combine(relative);
+    }
+
+    private static string[] ZipNames(string zipPath)
+    {
+        using var zip = ZipFile.OpenRead(zipPath);
+        return zip.Entries.Select(e => e.FullName).Order(StringComparer.Ordinal).ToArray();
     }
 
     [Fact]
@@ -70,6 +81,32 @@ public sealed class ReparsePointTraversalTests : IAsyncLifetime
         await _store.DeleteProjectAsync(project);
 
         Assert.False(Path.Exists(project));
+        Assert.All(outsideFiles, f => Assert.True(File.Exists(f), f));
+    }
+
+    /// <summary>
+    /// EDGE-MODEL-38 with the shipped probe: the junction is neither followed nor zipped, removing
+    /// <c>shots/</c> removes only the link, and the restore brings back the real files only.
+    /// </summary>
+    [Fact]
+    public async Task ArchivingSkipsAJunctionInsideShots()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var project = Project(@"projects\proj1");
+        _temp.File(@"projects\proj1\shots\step-0001.png", "shot");
+        var outsideFiles = new[] { _temp.File(@"outside\keep.png"), _temp.File(@"outside\sub\deep.txt") };
+        Links.Junction(Path.Combine(project, "shots", "escape"), _temp.Combine("outside"));
+
+        await _store.ArchiveProjectAsync(project);
+
+        Assert.Equal(["shots/step-0001.png"], ZipNames(Path.Combine(project, ArchiveEngine.ZipName)));
+        Assert.False(Path.Exists(Path.Combine(project, "shots")));
+        Assert.All(outsideFiles, f => Assert.True(File.Exists(f), f));
+
+        await _store.UnarchiveProjectAsync(project);
+
+        Assert.Equal("shot", await File.ReadAllTextAsync(Path.Combine(project, "shots", "step-0001.png"), ct));
+        Assert.False(Path.Exists(Path.Combine(project, "shots", "escape")));
         Assert.All(outsideFiles, f => Assert.True(File.Exists(f), f));
     }
 

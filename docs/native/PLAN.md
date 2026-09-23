@@ -366,12 +366,12 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | Archive, unarchive and auto-archive, streaming and CRC-verified, restoring zips written by Electron and writing zips Electron restores |
 | Spec inputs | 01 2.9.13, 7.9, INV-MODEL-16, D-12, D-13, D-14, D-15, D-25, EDGE-MODEL-13 to EDGE-MODEL-15, EDGE-MODEL-48; 11 Q-IPC-6; ARCHITECTURE R-ARCH-24; Q-MODEL-6, Q-MODEL-7, Q-MODEL-13, Q-MODEL-21, Q-MODEL-23 |
-| Deliverables | `ArchiveEngine` (`System.IO.Compression`, `System.IO.Hashing` CRC-32, size and CRC verification before the originals are removed, `..` and sanitized-name refusal, pack rename through the retry schedule); `ProjectStore.ArchiveProjectAsync`, `UnarchiveProjectAsync`, `AutoArchiveStaleAsync` (raises `ProjectsChanged` when at least one project moved), auto-unarchive on open, the `ArchiveEngine archive` parameter of the 01 7.8 `ProjectStore` constructor and the `ProjectsChanged` event on `IProjectService`, both of which WP-A6 left out; `ArchiveException`; `System.IO.Hashing` in `Directory.Packages.props` |
-| Tests | Port `src/main/archive.test.ts` (`Store/ArchiveTests`). New: `Store/ArchiveVerifyTests`, `ArchiveNameRulesTests`, `AutoArchiveTests` (including `ProjectsChanged` raised exactly once when at least one project moved, not at all when none did, and a throwing handler not stopping a second one, R-ARCH-24, AC-MODEL-22), the archive case of `ReparsePointTraversalTests`, a 300-character-root create and archive test on Windows (Q-MODEL-13); `UpdatedAtSemanticsTests` completed with every row of 2.9.4 |
+| Deliverables | `ArchiveEngine` (`System.IO.Compression`, `System.IO.Hashing` CRC-32, size and CRC verification before the originals are removed, `..` and sanitized-name refusal, pack rename through the retry schedule); `ProjectStore.ArchiveProjectAsync`, `UnarchiveProjectAsync`, `AutoArchiveStaleAsync` (raises `ProjectsChanged` when at least one project moved), auto-unarchive on open, the `ArchiveEngine archive` parameter of the 01 7.8 `ProjectStore` constructor and the `ProjectsChanged` event on `IProjectService`, both of which WP-A6 left out; `ArchiveException`; `System.IO.Hashing` in `Directory.Packages.props`; added in WP-A8: the internal `BeforeVerify` seam of `ArchiveEngine` (01 7.9), which only the tests set |
+| Tests | Port `src/main/archive.test.ts` (`Store/ArchiveTests`). New: `Store/ArchiveVerifyTests`, `ArchiveNameRulesTests`, `AutoArchiveTests` (including `ProjectsChanged` raised exactly once when at least one project moved, not at all when none did, and a throwing handler not stopping a second one, R-ARCH-24, AC-MODEL-22), the archive case of `ReparsePointTraversalTests`, a 300-character-root create and archive test on Windows (Q-MODEL-13); `UpdatedAtSemanticsTests` completed with every row of 2.9.4; added in WP-A8: `Store/ArchivePackTests` (links, an entry the probe cannot classify, a folder named `archive.zip`, cancellation, a failed and a retried rename, the log lines), `Store/ArchiveProjectTests` (the store wrappers over every row of the 2.9.13 state machine), the auto-unarchive, half-packed and failed-restore cases of `OpenProjectTests`, the archive texts of `StoreExceptionTests`, `Store/ZipFixture`, and the `Golden/archive/electron-archive.zip` fixture with its JSZip generator; the 300-character-root test is `Platform.Tests/FileSystem/LongPathArchiveTests` |
 | Acceptance criteria | AC-MODEL-2 (the checklist over every 01 8.1 file, ported in WP-A3, WP-A5, WP-A6 and here), AC-MODEL-13, AC-MODEL-15, AC-MODEL-22, AC-MODEL-33 |
 | Depends on | WP-A6, WP-A7 |
 | Size | M |
-| Risks and de-risking | Cloud placeholder files silently dropped by Electron's archive walk (Q-MODEL-6, unverified): native implements D-15 regardless, and M-A checks it on a Files On-Demand folder. AC-MODEL-13's cross-app half needs Electron 1.3.0 on the Windows test machine |
+| Risks and de-risking | Cloud placeholder files silently dropped by Electron's archive walk (Q-MODEL-6, unverified): native implements D-15 regardless, and M-A checks it on a Files On-Demand folder. AC-MODEL-13's cross-app half needs Electron 1.3.0 on the Windows test machine. Outcome in WP-A8: a zip `PackAsync` wrote restores byte-identical under JSZip 3.10.1, and a zip JSZip wrote restores natively; .NET 10's reader, like JSZip, does not check CRC-32 on read; 70 mutations of the engine, the store wrappers and the sweep were each caught by a test. The Electron 1.3.0 half of AC-MODEL-13 and Q-MODEL-6 stay for M-A |
 | Demo | archive a project natively, restore it in Electron 1.3.0: every image shows |
 
 #### WP-A9. Project session
@@ -1481,13 +1481,13 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-MODEL-4 | BOM stripping | WP-A2 | strip on read, never write a BOM |
 | Q-MODEL-5 | `FlushFileBuffers` latency | WP-A5 | flush; measure PB-14 at M-A (decided in WP-A5) |
 | Q-MODEL-6 | cloud placeholders as links | WP-A8 | implement D-15; verify on P5 in M-A; Electron issue if confirmed |
-| Q-MODEL-7 | restore size caps | WP-A8 | no caps (streaming) |
+| Q-MODEL-7 | restore size caps | WP-A8 | no caps (streaming) (decided in WP-A8) |
 | Q-MODEL-8 | hostile-segment rejection | WP-A5 | reject (decided in WP-A5) |
 | Q-MODEL-9 | queued delete waits | WP-A6 | accept (decided in WP-A6) |
 | Q-MODEL-10 | import cleanup scope | WP-A7 | exact new folder only, through `ReparseSafeDelete` (decided in WP-A7) |
 | Q-MODEL-11 | unreadable-manifest text | WP-A17 | the recommended sentence; parser message in the log only |
 | Q-MODEL-12 | rollback notice text | WP-C2 | `Your last change couldn't be saved and was undone. ` plus the message |
-| Q-MODEL-13 | paths over 260 characters | WP-A8 | `longPathAware` already in the manifest; 300-character-root test on Windows |
+| Q-MODEL-13 | paths over 260 characters | WP-A8 | `longPathAware` already in the manifest; 300-character-root test on Windows (done in WP-A8: `LongPathArchiveTests`) |
 | Q-MODEL-14 | macOS fixture location | WP-A3 | copy to `Golden/macos-fixture/` with its README |
 | Q-MODEL-15 | unknown brand in `SetProjectThemeAsync` | WP-A6 | `ArgumentException` (D-IPC-9) (decided in WP-A6) |
 | Q-MODEL-16 | no-op guard for reorder and intro | WP-C1 | yes, value-equal results are `Unchanged` |
@@ -1495,9 +1495,9 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-MODEL-18 | Electron golden generator | WP-A3 | `src/main/codec-golden.test.ts`, env-gated |
 | Q-MODEL-19 | `toLowerCase` full mapping | WP-A6 | `ToLowerInvariant` for text and query (decided in WP-A6) |
 | Q-MODEL-20 | stale tmp files | WP-A6 | delete `project.json.<pid>.tmp` files older than 24 hours on open (decided in WP-A6) |
-| Q-MODEL-21 | archive name rules | WP-A8 | reject `.`, `..` and empty segments |
+| Q-MODEL-21 | archive name rules | WP-A8 | reject `.`, `..` and empty segments (decided in WP-A8) |
 | Q-MODEL-22 | step ids as file names | WP-C5 | decided by D-EDIT-22: refuse non-segment ids |
-| Q-MODEL-23 | `CompressionLevel.Optimal` mapping | WP-A8 | do not assert compressed sizes |
+| Q-MODEL-23 | `CompressionLevel.Optimal` mapping | WP-A8 | do not assert compressed sizes (decided in WP-A8) |
 | Q-MODEL-24 | 01's answer to Q-INFRA-3 | closed | agreed: a non-absolute `projectsDir` loads as the default, so the store always sees a fully qualified root; WP-A10 edits no spec |
 | Q-MODEL-25 | `ProjectOperation.BumpsUpdatedAt` has no carrier through `MutateAsync` | WP-A9 | keep the property; `ProjectSessionTests.ShippedOperationsBumpUpdatedAt` asserts every shipped operation returns `true`; the first operation that needs `false` adds an optional `bool bumpUpdatedAt = true` to `IProjectService.MutateAsync` (11 7.3.2, ARCHITECTURE 7.4, 01 7.8) in its own PR |
 
@@ -1755,7 +1755,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-3 | `IProjectStore` versus `IProjectService` | WP-A6 | `IProjectService` (R-ARCH-4); 09 already uses it (2026-09-23 consolidation) (decided in WP-A6) |
 | Q-IPC-4 | drop `capture:single` | WP-B2 | yes |
 | Q-IPC-5 | keep `ListRecentProjectsAsync` | WP-A6 | keep (decided in WP-A6) |
-| Q-IPC-6 | `ProjectsChanged` | WP-A8 | event on `IProjectService` raised by auto-archive |
+| Q-IPC-6 | `ProjectsChanged` | WP-A8 | event on `IProjectService` raised by auto-archive (implemented in WP-A8) |
 | Q-IPC-7 | a manual update find and the notice | WP-E1 | parity (no push) |
 | Q-IPC-8 | unknown `settings.json` keys | WP-A10 | preserve |
 | Q-IPC-9 | analyzer noise | WP-A1 | suppress only for `*.g.cs` |
@@ -2411,7 +2411,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-A5. Atomic file, write queue and path confinement (#127)
 - [x] WP-A6. Project store: projects (#128)
 - [x] WP-A7. Project store: steps and imports (#129)
-- [ ] WP-A8. Archive engine
+- [x] WP-A8. Archive engine (#130)
 - [ ] WP-A9. Project session
 - [ ] WP-A10. Settings service
 - [ ] WP-A11. Logging
