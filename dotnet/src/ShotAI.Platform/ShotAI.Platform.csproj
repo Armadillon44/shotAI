@@ -17,4 +17,8 @@
   <ItemGroup>
     <ProjectReference Include="..\ShotAI.Core\ShotAI.Core.csproj" />
   </ItemGroup>
+  <!-- The seam implementations are internal sealed (INV-ARCH-4); their tests reach them directly. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ShotAI.Platform.Tests" />
+  </ItemGroup>
 </Project>

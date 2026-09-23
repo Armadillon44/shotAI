@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Tests of ShotAI.Platform that need Windows: junctions, reparse tags, real sharing
+    violations. The project builds on Linux like the rest of the solution; only a Windows
+    runner can run it (docs/native/ARCHITECTURE.md 2.1).
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(ShotAIWindowsTfm)</TargetFramework>
+    <SupportedOSPlatformVersion>$(ShotAIMinWindows)</SupportedOSPlatformVersion>
+    <!-- xunit.v3 test projects are executables. -->
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>ShotAI.Platform.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ShotAI.Platform\ShotAI.Platform.csproj" />
+    <ProjectReference Include="..\..\src\ShotAI.Core\ShotAI.Core.csproj" />
+  </ItemGroup>
+</Project>

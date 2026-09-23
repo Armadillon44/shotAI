@@ -1595,7 +1595,7 @@ None are listed, and none exist: Electron's packaging was never under automated 
 
 **Q-PKG-11. Symbols.** Recommended default: PDBs not installed; published as `shotAI-<v>-symbols.zip` on the release (they contain source paths from the runner, no secrets). Alternative: a private symbol store.
 
-**Q-PKG-12. ARM64 runner.** `windows-11-arm` hosted runners are expected to be available to public repositories; availability and label are unverified. Recommended default: use them; if unavailable, run the ARM64 tests and smoke on a self-hosted ARM64 runner or manually per release (AC-PKG-26).
+**Q-PKG-12. ARM64 runner.** `windows-11-arm` hosted runners are expected to be available to public repositories; availability and label are unverified. Recommended default: use them; if unavailable, run the ARM64 tests and smoke on a self-hosted ARM64 runner or manually per release (AC-PKG-26). Decided in WP-A5: default adopted; the hosted `windows-11-arm` runner runs this public repository's Windows job.
 
 **Q-PKG-13. libaom build details.** NASM for x64 assembly and the ARM64 MSVC build path need confirming. Recommended default: NASM installed from a pinned, hash-checked download; for ARM64 build natively on `windows-11-arm` if cross-compilation fails; if assembly cannot be built, `-DAOM_TARGET_CPU=generic` (slower, still correct).
 

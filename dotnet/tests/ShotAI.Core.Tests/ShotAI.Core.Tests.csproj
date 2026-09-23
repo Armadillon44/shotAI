@@ -8,6 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
+    <!-- FakeTimeProvider: the retry and drain schedules are asserted without sleeping (spec 01 7.6). -->
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ShotAI.Core\ShotAI.Core.csproj" />
