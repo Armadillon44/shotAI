@@ -109,3 +109,10 @@ Desktop.ini
 # free reconnaissance that would live in git history forever. Copy
 # src/main/entra/federation.example.json and fill it in.
 src/main/entra/federation.local.json
+
+# .NET build output for the native app under dotnet/ (see docs/native/PLAN.md)
+dotnet/**/bin/
+dotnet/**/obj/
+dotnet/**/TestResults/
+.vs/
+*.user

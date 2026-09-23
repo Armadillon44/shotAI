@@ -1,0 +1,10 @@
+<Project>
+  <!-- Central package management: every version lives here, never in a .csproj. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Windows.CsWin32" Version="0.3.335" />
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
+  </ItemGroup>
+</Project>

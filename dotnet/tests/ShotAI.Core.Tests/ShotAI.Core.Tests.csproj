@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- xunit.v3 test projects are executables. -->
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>ShotAI.Core.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ShotAI.Core\ShotAI.Core.csproj" />
+  </ItemGroup>
+  <!--
+    contract/ is shared byte-for-byte with the macOS repo, so it is read in place from
+    the repo root and never copied into dotnet/. Linking it into the test output lets
+    the suite find it regardless of the working directory.
+  -->
+  <ItemGroup>
+    <None Include="$(RepoRoot)contract/**/*" LinkBase="contract" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

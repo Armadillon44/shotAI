@@ -1,0 +1,71 @@
+# CI for the native Windows app under dotnet/ (see docs/native/PLAN.md).
+#
+# Runs only when the native tree, the shared contract, or this file changes, so
+# Electron-only PRs stay on ci.yml alone. Two jobs:
+#
+# - Linux builds the WHOLE solution (EnableWindowsTargeting lets WPF and CsWin32
+#   compile there) and runs the platform-neutral ShotAI.Core tests, which include the
+#   shared contract/conformance suite. Cheap, and it is what cloud sessions can run.
+# - Windows builds and runs every test project, including the ones that need Windows.
+#
+# Path-filtered jobs never report on PRs they skip, so do not make them required
+# status checks without a paths-filter step, or those PRs will wait forever.
+name: native (.NET)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dotnet/**'
+      - 'contract/**'
+      - '.github/workflows/dotnet.yml'
+  pull_request:
+    paths:
+      - 'dotnet/**'
+      - 'contract/**'
+      - '.github/workflows/dotnet.yml'
+
+concurrency:
+  group: dotnet-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+# dotnet finds global.json by searching up from the working directory, and global.json
+# is what opts `dotnet test` into Microsoft.Testing.Platform (required by xunit.v3 on
+# the .NET 10 SDK). Run every step from dotnet/ or that opt-in is silently missed.
+defaults:
+  run:
+    working-directory: dotnet
+
+jobs:
+  linux:
+    name: build all · test core (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build
+        run: dotnet build ShotAI.slnx -c Release
+      - name: Test (core)
+        run: dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Release --no-build
+
+  windows:
+    name: build + test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build
+        run: dotnet build ShotAI.slnx -c Release
+      - name: Test
+        run: dotnet test --solution ShotAI.slnx -c Release --no-build

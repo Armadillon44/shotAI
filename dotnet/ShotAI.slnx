@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ShotAI.Core/ShotAI.Core.csproj" />
+    <Project Path="src/ShotAI.Platform/ShotAI.Platform.csproj" />
+    <Project Path="src/ShotAI.App/ShotAI.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj" />
+  </Folder>
+</Solution>
