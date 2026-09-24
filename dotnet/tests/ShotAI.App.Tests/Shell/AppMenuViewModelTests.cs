@@ -96,7 +96,8 @@ public sealed class AppMenuViewModelTests
         menu.ZoomInCommand.Execute(null);
         var scale = Assert.IsType<ScaleTransform>(((FrameworkElement)main.FindName("ContentRoot")).LayoutTransform);
         Assert.Equal((menu.ZoomFactor, menu.ZoomFactor), (scale.ScaleX, scale.ScaleY));
-        Assert.Equal(1.44, scale.ScaleX, 12);
+        // Two half steps are level 1: factor 1.2.
+        Assert.Equal(1.2, scale.ScaleX, 12);
         Assert.Same(Transform.Identity, ((FrameworkElement)main.FindName("AppMenu")).LayoutTransform);
     });
 

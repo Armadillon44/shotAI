@@ -93,6 +93,17 @@ public sealed class WindowLayoutTests
     public void RoundsLikeJavaScriptForNegativeHalves() =>
         Assert.Equal(new DipRect(-1143, 0, 1010, 700), Detail(new(-999, 0, 721, 700), new(-1920, 0, 1920, 1040), open: true, 1));
 
+    /// <summary>
+    /// The new x is rounded to the nearest DIP, halves up: 355.3 is 355 and 355.5 is 356. A work
+    /// area read from pixels at 125% is fractional, so both occur.
+    /// </summary>
+    [Fact]
+    public void RoundsFractionsToTheNearestAndHalvesUp()
+    {
+        Assert.Equal(355, Detail(new(500, 0, 720.6, 700), FullHd, open: true, 1)!.Value.X);
+        Assert.Equal(356, Detail(new(500, 0, 721, 700), FullHd, open: true, 1)!.Value.X);
+    }
+
     /// <summary>The scale goes through <c>clampScale</c>: 0.825 snaps to 0.85, NaN is 1, 2 is 1.25, 1.125 is 1.15.</summary>
     [Theory]
     [InlineData(0.825, 1010)]
@@ -132,6 +143,14 @@ public sealed class WindowLayoutTests
     public void InitialRoundsLikeJavaScript() =>
         Assert.Equal(-907, WindowLayout.Initial(new(-1095, 0, 1095, 900)).X);
 
+    /// <summary>(1092.6 - 720) / 2 = 186.3, which rounds to 186, and 1093.6 gives 186.8, which rounds to 187.</summary>
+    [Fact]
+    public void InitialRoundsFractionsToTheNearest()
+    {
+        Assert.Equal(186, WindowLayout.Initial(new(0, 0, 1092.6, 900)).X);
+        Assert.Equal(187, WindowLayout.Initial(new(0, 0, 1093.6, 900)).X);
+    }
+
     [Fact]
     public void ToPixelsScalesEachEdge()
     {
@@ -139,6 +158,10 @@ public sealed class WindowLayoutTests
         // Edges 150.6 and 1230.6 round to 151 and 1231: the width is their distance, 1080.
         Assert.Equal(new PixelRect(151, 0, 1080, 1110), WindowLayout.ToPixels(new(100.4, 0, 720, 740), 1.5));
         Assert.Equal(new PixelRect(-2400, 0, 900, 925), WindowLayout.ToPixels(new(-1920, 0, 720, 740), 1.25));
+        // Top 75.45 and bottom 1185.45 round to 75 and 1185.
+        Assert.Equal(new PixelRect(151, 75, 1080, 1110), WindowLayout.ToPixels(new(100.4, 50.3, 720, 740), 1.5));
+        // Edges 0.4 and 1.8 round to 0 and 2, where the width alone, 1.4, would round to 1.
+        Assert.Equal(new PixelRect(0, 0, 2, 1), WindowLayout.ToPixels(new(0.4, 0, 1.4, 1), 1));
     }
 
     [Fact]

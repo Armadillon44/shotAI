@@ -3,7 +3,7 @@ namespace ShotAI.Core.Shell;
 /// <summary>
 /// The shell's user-visible strings (spec 03 2.11, INV-SHELL-22), exactly as Electron shows
 /// them. Each work package adds the strings of the windows it builds: the menu's and About's
-/// with WP-A15, the Brand submenu's with WP-A18, the pill's with WP-B6, the overlay's with the
+/// with WP-A15, the Brand submenu's with WP-A18, the pill's with WP-B7, the overlay's with the
 /// area selection.
 /// </summary>
 public static class ShellStrings

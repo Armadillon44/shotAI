@@ -59,7 +59,7 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<AppMenuViewModel>();
         services.AddSingleton<ThemeManager>();
         // Step 9 starts these in this order (ARCHITECTURE 4.3): RemoteVisibilityApplier (WP-B5)
-        // and RecordingVisibilityController (WP-B6) are registered before the theme manager.
+        // and RecordingVisibilityController (WP-B7) are registered before the theme manager.
         services.AddSingleton<IAppStartup>(sp => sp.GetRequiredService<ThemeManager>());
         return services;
     }

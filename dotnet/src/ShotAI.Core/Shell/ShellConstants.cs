@@ -2,7 +2,7 @@ namespace ShotAI.Core.Shell;
 
 /// <summary>
 /// The shell's sizes in DIP (spec 03 3, 7.2). Each work package adds the constants of the
-/// windows it builds: the main window's with WP-A15, the pill's with WP-B6, the overlay's with
+/// windows it builds: the main window's with WP-A15, the pill's with WP-B7, the overlay's with
 /// the area selection.
 /// </summary>
 public static class ShellConstants
