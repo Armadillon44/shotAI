@@ -15,7 +15,8 @@ engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP
 (WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13), the theme
 with its fonts (WP-A14), the main window with its menu and About (WP-A15), the Home list
 (WP-A16), the read-only report (WP-A17), View, Brand (WP-A18), Home's row operations
-(WP-A19a) and the external link allowlist (WP-A19b): analyzers, supply-chain rules, Core's
+(WP-A19a), the external link allowlist (WP-A19b) and the capture rules with the capture shield
+(WP-B1): analyzers, supply-chain rules, Core's
 error, threading and composition types, `JsJson` (reads what `JSON.parse` reads, writes the
 bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron
 for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite
@@ -85,6 +86,14 @@ the app exits reaches the disk. A link leaves the app for the browser only throu
 `https` to `anthropic.com`, its subdomains or exactly `github.com`, else it is refused and logged by
 origin only, and `ShellUrlLauncher` is the one piece of code that hands a URL to the shell, which an
 IL scan of the built assemblies checks.
+Recording is not wired up yet, but its rules are in Core and tested on Linux: the crops of each
+capture mode, rounded half up as JavaScript rounds, the auto mode's choice of window, region or
+whole screen, the step captions phrased as Electron phrases them, the downscale with its 1100 px
+floor, the shot file names that never reuse a deleted step's number, and which UI Automation
+element may name itself in a caption. Every screen read goes through one funnel,
+`ShieldedScreenCapture`, which excludes shotAI's windows from capture for exactly the read and then
+restores what the remote visibility setting says, even when the read throws or two reads overlap;
+source and reflection tests fail CI if anything else reads screen pixels.
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.
 

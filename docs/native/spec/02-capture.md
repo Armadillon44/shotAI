@@ -616,6 +616,8 @@ When the hit element is not actionable, `controlType` and `bounds` describe the 
 
 `control_type_name` maps UIA ids 50000 to 50040 to `Button, Calendar, CheckBox, ComboBox, Edit, Hyperlink, Image, ListItem, List, Menu, MenuBar, MenuItem, ProgressBar, RadioButton, ScrollBar, Slider, Spinner, StatusBar, Tab, TabItem, Text, ToolBar, ToolTip, Tree, TreeItem, Custom, Group, Thumb, DataGrid, DataItem, Document, SplitButton, Window, Pane, Header, HeaderItem, Table, TitleBar, Separator, SemanticZoom, AppBar` in that order; any other id gives `"Unknown"` (`:48-93`).
 
+As built in WP-B1: the climb is Core's `ElementMapping.Choose` over `ElementFacts` (each examined element's name and control type id, read lazily), and `ElementMapping.ToStep` maps the result to the step's element. `Choose` stops without asking for the parent of the sixth element examined; the Rust loop fetches it and then leaves on its depth check (IMPROVEMENT: one cross-process call fewer when nothing qualifies; the element chosen is the same).
+
 **Actionable allowlist** (`is_actionable`, `:98-117`), exactly 15 ids: 50000 Button, 50002 CheckBox, 50003 ComboBox, 50004 Edit ("Name = the field label"), 50005 Hyperlink, 50007 ListItem, 50011 MenuItem, 50013 RadioButton, 50015 Slider, 50016 Spinner, 50018 Tab, 50019 TabItem, 50024 TreeItem, 50029 DataItem, 50031 SplitButton. Excluded on purpose: types "whose Name is often free content (Text/Document/Pane) \u2014 excluded so we never put a field's contents (or a block of page text) in a caption" (`:95-97`). Chromium exposes a UIA tree, so web content resolves too (`:8-9`).
 
 `Cargo.toml`: crate `element-locator` 0.1.0, `cdylib` named `element_locator`, `serde_json = "1"`, `windows = "0.58"` with features `Win32_UI_Accessibility`, `Win32_System_Com`, `Win32_Foundation`; release `opt-level = 2`, `lto = true`, `strip = true` (`native/element-locator/Cargo.toml:1-26`).
@@ -954,6 +956,8 @@ Electron history before `9da70df` is squashed; where no commit exists, the sourc
 
 Model types (`CaptureTarget`, `Rect`, `Point`, `ProjectStep`, `StepClick`, `StepElement`, `CapturedWindow`, `CapturedMonitor`, `WindowInfo`, `MonitorInfo`, `ProjectManifest`) come from spec 01; store calls go through `IProjectService` (`ShotAI.Core.Store`), never the concrete `ProjectStore` (R-ARCH-4). Core uses `Microsoft.Extensions.Logging.Abstractions` (platform neutral), which the foundation PR adds to `dotnet/Directory.Packages.props` together with `ShotAI.Core.Errors` and `ShotAI.Core.Threading` (ARCHITECTURE 3.5, WP-A1), so the capture PRs find it; capture adds no package of its own.
 
+Corrected in WP-B1: `WindowInfo` and `MonitorInfo` are not spec 01 types. They are the Window and Screen choosers' shapes (`src/shared/project.ts:36-50`), never persisted, so they are declared in `ShotAI.Core.Capture` beside `CaptureTargets`, their only user. As built in WP-B1: `ICaptureService` is declared by WP-B2 with `CaptureEngine`, because it is a catalog interface (ARCHITECTURE 4.4, 11 7.3) and `ContainerTests.EveryCatalogInterfaceResolves` requires every catalogued interface that exists to resolve; `CaptureException` and `TriggerException` arrive with WP-B2 as well. The seams, records and pure rules of this section and 7.2 are in, with these surfaces: `CaptureGeometry.UnionRect`, `ClickBox`, `CropRect`, `AreaCrop` (the area path's crop, 2.8.2) and `RegionCrop` (the auto shell-region crop); `AutoClassifier.Classify(ForegroundInfo?)` and `Classify(app, title)`; `ClickCaptions.ControlWord`, `Build`, `Hotkey` and `AppName` (`screen` with no window); `DownscalePolicy.Compute`, which gives a `DownscaleTarget` or null, and `Encode`, which gives an `EncodedShot` (the PNG, its size and the width ratio applied; the fallback encodes the frame as grabbed, and a failure of that encode fails the capture, which Electron cannot hit because its input is already a PNG); `ShotNaming.Format`, `OrphanNumber` and `Seed`; `UiaControlTypes.Name`, `IsActionable` and `ActionableIds`. The shell host test and the orphan pattern fold ASCII case only, through the internal `AsciiCase`, as a JavaScript `/i` without `u` does, whatever the culture: `ToUpperInvariant` would turn the long s (U+017F) into `S`, a case-insensitive `Regex` matches the Kelvin sign (U+212A) with `k`, and a Turkish culture lowers `I` to a dotless i.
+
 ### 7.2 Core contracts
 
 ```csharp
@@ -1051,6 +1055,8 @@ public interface ICaptureSettings { double CaptureScaleNow(); bool RemoteVisible
 ```
 
 Why a synchronous `Grab`: the menu path needs a synchronous read at mousedown (EDGE-CAP-1), and the other paths call it on the capture worker thread, so no async variant is needed. This also makes the shield a plain `using` scope.
+
+As built in WP-B1: the clock's delay is `ICaptureClock.DelayAsync(int ms, CancellationToken ct)`, since the analyzers require the suffix on a method that returns a `Task` (VSTHRD200). `ShieldedScreenCapture.FromPoint` enumerates the monitors afresh on each call and tests `left <= x < right` and `top <= y < bottom`; `Monitors()` and `FromPoint` read no pixels, so they take no shield.
 
 Service-boundary requests from spec 11 section 10, adopted here: `CaptureScreenshotAsync` throws `CaptureException("A screenshot needs an explicit target (screen, window, or area).")` for a null or `Auto` target (EDGE-IPC-16, D18); `StartAsync` clamps a negative `InsertAt` to 0 (EDGE-IPC-17; 2.2.2 step 7 already clamps to `[0, length]`); every `CaptureScreenshotAsync` that passed target validation ends with exactly one idle `StateChanged`, on success and on failure (EDGE-IPC-33, INV-CAP-31); `capture:single` has no member (Q-CAP-1); events go through `EventRaiser` (T5); `CaptureEngine` implements `IDisposable` as well as `IAsyncDisposable` (R-ARCH-10, 7.13).
 
@@ -1153,6 +1159,8 @@ Deadlock rule (correction found in verification). `SetWindowDisplayAffinity` req
 4. If the Phase B probe shows that `SetWindowDisplayAffinity` must run on the owning UI thread (Q-CAP-15), the grab thread posts the change and waits for its completion with a bounded timeout, and on timeout skips the grab (fail closed: a missed step reported through `CaptureFailed`), never grabs unshielded (ARCHITECTURE DL2, Q-ARCH-6). The UI thread never waits on capture work in either direction.
 
 This replaces Electron's "seed from `remoteVisibleNow()` at creation" (`RegionService.ts:90`) with protected-first then relaxed, which is the fail-closed order `src/main/main.ts:496-502` already uses for startup windows.
+
+As built in WP-B1: `DepthForTest` is `internal`, read by the Core tests through `InternalsVisibleTo`, so the shield's public surface is `ApplyRemoteVisibility`, `Take` (whose `Releaser` is the `IDisposable`) and `ExcludedForNewWindow`.
 
 ### 7.9 Own windows: `OwnWindowRegistry`
 
@@ -1355,6 +1363,8 @@ Purpose: (1) the routing invariant, asserted from source, that every grab is shi
 
 The fake `IWindowProtection` records `SetAllExcluded` calls per fake window exactly like the vitest mock's `p` arrays.
 
+Corrected in WP-B1: `EngineDependsOnlyOnShieldedCapture` is `CaptureFunnelSourceTests.OnlyTheFunnelHoldsTheRawCapture`, a reflection check of every Core type's constructors, fields, properties and methods, so `CaptureEngine` is covered the moment WP-B2 adds it, and no other type can take an `IMonitorCapture` either. As built in WP-B1: `OnlyFunnelReadsScreenPixels` also lets `CaptureSeams.cs`, the interface's declaration, name `IMonitorCapture`; it refuses the other screen reads (`StretchBlt`, `PrintWindow`, `CopyFromScreen`, DXGI's `DuplicateOutput`) outside `GdiMonitorCapture.cs` as well as `BitBlt`, and the name `GdiMonitorCapture` outside its own file and `PlatformCaptureRegistration.cs`. `ShieldedCaptureUsesUsingScope` requires the funnel's one raw read to follow `using var _ = _shield.Take();` in `Grab`. Every source rule is also run on a changed copy, to prove it can fail. `SkipsDestroyedWindows` also covers a window destroyed while the shield is held. The fakes are in `Capture/CaptureFakes.cs`.
+
 ### 8.3 `src/main/click-caption.test.ts`
 
 Purpose: pin caption phrasing. Ports to **ShotAI.Core.Tests (Linux)**, class `ClickCaptionsTests`.
@@ -1390,6 +1400,8 @@ Extend with every row of 2.9.1 (theory data) and the hotkey caption cases (`Capt
 | `ShieldedCaptureTests` | `EveryGrabTakesAndReleasesTheShield`, `ThrowingGrabStillReleases` |
 | `CaptureFunnelSourceTests` | 8.2 source scans plus `NoGraphicsCaptureUsage` (no `Windows.Graphics.Capture` string under `dotnet/src`); the scans cover every file under `dotnet/src` and `dotnet/tools`, with an explicit allowlist (in the test, reviewed in PRs) for the `ShotAI.ProtectionProbe` diagnostic, which must read raw pixels (Electron's scan covered only `CaptureController.ts`, 2.16) |
 | `Architecture.CoreReferencesTests` (owned by spec 11) | Core references no Windows assembly (INV-CAP-24, INV-ARCH-1); this spec adds no separate architecture test class |
+
+As built in WP-B1: new `CaptureConstantsTests` reads the named and inline numbers of section 3 from `CaptureController.ts`, `capture-geometry.ts`, `element-locator.ts` and `lib.rs`, and checks the native ones against the table. `CaptureShieldTests` adds `TheRestoreValueIsLatchedFromTheSettingAtTheFirstTake`; its `RegisterWhileShieldHeldStartsExcluded` and `RegisterSeedsFromSetting` are the shield's half of INV-CAP-7 (`ExcludedForNewWindow`), while the registry's half stays `OwnWindowRegistryTests` (WP-B5); `ConcurrentTakesFromManyThreads` also checks that every holder sees the windows excluded and that excludes and restores alternate. `ShieldedCaptureTests` adds the half-open `FromPoint` cases and a grab inside a held shield. `NoGraphicsCaptureUsage` reads every file under `dotnet/src` and `dotnet/tools`, not only C#, for `Windows.Graphics.Capture` and `GraphicsCapture`. `JsMathTests.NoMathRoundInCapture` also refuses `MathF`, `double`, `float`, `decimal` and `Half` rounding and a static import of `System.Math`, and requires the folder to call `JsMath.Round`. The JavaScript edges are pinned: `JsString.Trim` blanks a U+FEFF title and not a U+0085 one, U+0130 and U+017F do not fold, a Turkish culture changes nothing, a 5000 x 1 strip is not downscaled, a portrait's floor is on its height, a blank title outside Explorer is a window, and crops are checked on a monitor below the primary and for regions above or wholly off the monitor. New `AsciiCaseTests` pins the fold itself: A to Z, and no other character.
 
 **ShotAI.Platform.Tests (Windows only):**
 
@@ -1520,7 +1532,7 @@ Extend with every row of 2.9.1 (theory data) and the hotkey caption cases (`Capt
 
 **Q-CAP-9. node-screenshots' `Window.all()` filter** (which windows it lists and reports as focused) is not inspectable. Recommended default: the get-windows filter (7.5); compare the Window chooser lists of both builds on one machine.
 
-**Q-CAP-10. ComboBox and Edit names can carry content in some frameworks (privacy).** Recommended default: parity (keep both on the allowlist) because captions and SOP quality depend on field labels; record known leaking apps and consider refusing `ValuePattern`-equal names later.
+**Q-CAP-10. ComboBox and Edit names can carry content in some frameworks (privacy).** Recommended default: parity (keep both on the allowlist) because captions and SOP quality depend on field labels; record known leaking apps and consider refusing `ValuePattern`-equal names later. Decided in WP-B1: the default; `UiaControlTypesTests.ComboBoxAndEditStayActionable` pins it.
 
 **Q-CAP-11. Monitor id.** Electron used node-screenshots' id (believed to be the `HMONITOR` value, unverified). It is persisted only as metadata and used within a session. Recommended default: `(uint)HMONITOR`, re-resolved each step; never compare ids across launches. Resolved by R-ARCH-22: the monitor id type is `uint` (`(uint)HMONITOR`) in every spec (06's `CaptureReadiness` included), the manifest's JSON number converts at the codec edge, and ids are never compared across launches.
 
