@@ -22,9 +22,11 @@ namespace ShotAI.App.Tests.Shell;
 /// after a hide, when a button is clicked and when it is dragged (INV-SHELL-6, R2, Q-SHELL-21);
 /// it renders the engine's state (2.4.4), docks once per run (INV-SHELL-8), asks before a discard
 /// (INV-SHELL-13) and opens its error's tooltip while inactive (Q-SHELL-3). The clicks and drags
-/// are real input, near the primary monitor's bottom-left corner, clear of the windows the
-/// Platform tests open meanwhile in their own process.
+/// are real input on a pill just above the primary monitor's taskbar, below the windows the
+/// Platform tests open meanwhile in their own process. The tests run alone and hold the
+/// desktop's input (<see cref="RealInputLock"/>), and each puts the cursor back where it was.
 /// </summary>
+[Collection(RealInputCollection.Name)]
 public sealed class CapturePillWindowTests
 {
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(10);
@@ -47,13 +49,32 @@ public sealed class CapturePillWindowTests
         return Task.CompletedTask;
     });
 
-    /// <summary>EDGE-SHELL-46: an owned pill would hide with the main window for the whole recording.</summary>
+    /// <summary>
+    /// EDGE-SHELL-46: an owned pill would hide with the main window for the whole recording. WPF
+    /// makes a window whose ShowInTaskbar is false the owned window of a hidden window of its
+    /// own, which never shows, so the pill has no Owner and no owner that shows or hides.
+    /// </summary>
     [Fact]
-    public Task HasNoOwner() => WithPillAsync(pill =>
+    public Task HasNoOwner() => WithPillAsync(async pill =>
     {
         Assert.Null(pill.Window.Owner);
-        Assert.Equal(0, User32.GetWindow(pill.Window.Handle, User32.GwOwner));
-        return Task.CompletedTask;
+        var owner = User32.GetWindow(pill.Window.Handle, User32.GwOwner);
+        Assert.True(owner == 0 || !User32.IsWindowVisible(owner), "the pill's owner is a visible window");
+        var main = TestMainWindow.Create(new WindowRegistration(pill.Registry), shutdown: pill.Shutdown);
+        main.Show();
+        try
+        {
+            Assert.NotEqual(new WindowInteropHelper(main).Handle, owner);
+            pill.Recording(0);
+            await pill.ShowAsync();
+            main.Hide();
+            await TestShell.Settle();
+            Assert.True(User32.IsWindowVisible(pill.Window.Handle));
+        }
+        finally
+        {
+            main.Close();
+        }
     });
 
     /// <summary>Q-SHELL-21: ShowActivated holds for the first show and for a show after a hide.</summary>
@@ -354,6 +375,7 @@ public sealed class CapturePillWindowTests
     internal sealed class PillHarness : IDisposable
     {
         private const int WmActivate = 0x0006;
+        private readonly (int X, int Y) _cursor = SyntheticMouse.Cursor();
         private int _activations;
 
         public PillHarness()
@@ -365,8 +387,10 @@ public sealed class CapturePillWindowTests
             Window = new CapturePillWindow(new WindowRegistration(Registry), ViewModel, Shutdown);
             var hwnd = Window.Handle;
             HwndSource.FromHwnd(hwnd)!.AddHook(RecordActivation);
+            // Just above the taskbar: on the runners' 1024 x 768 screens the Platform tests'
+            // topmost windows end 640 pixels down, and the Start button is on the taskbar.
             var primary = MonitorQueries.Primary();
-            WindowStyles.MoveNoActivate(hwnd, primary.Bounds.X + 40, primary.Bounds.Bottom - (int)Math.Ceiling(ShellConstants.PillHeight * primary.Scale) - 36);
+            WindowStyles.MoveNoActivate(hwnd, primary.WorkArea.X + 40, primary.WorkArea.Bottom - (int)Math.Ceiling(ShellConstants.PillHeight * primary.Scale) - 2);
         }
 
         public OwnWindowRegistry Registry { get; } = new(NullLogger<OwnWindowRegistry>.Instance);
@@ -417,6 +441,8 @@ public sealed class CapturePillWindowTests
         {
             Shutdown.Begin();
             Window.Close();
+            // The cursor goes back where the test found it, off the pill's place, where later tests open their windows.
+            if (SyntheticMouse.Cursor() != _cursor) SyntheticMouse.MoveTo(_cursor.X, _cursor.Y);
         }
 
         private nint RecordActivation(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)

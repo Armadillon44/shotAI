@@ -29,15 +29,17 @@ public sealed class PillPresenterTests
     [Fact]
     public void PausedLabelCountsTheSteps() => Assert.Equal("Paused \u00B7 3", Shown(Paused(3)).View.Label);
 
-    /// <summary>The count is the engine's, whatever it is (2.4.4).</summary>
+    /// <summary>The count and the status, which the pill's styles follow, are the engine's, whatever they are (2.4.4).</summary>
     [Fact]
     public void TheLabelFollowsEachState()
     {
         var pill = Shown(Recording(0));
         pill.OnState(Recording(12));
         Assert.Equal("Capturing \u00B7 12", pill.View.Label);
+        Assert.Equal(CaptureStatus.Recording, pill.View.Status);
         pill.OnState(Paused(12));
         Assert.Equal("Paused \u00B7 12", pill.View.Label);
+        Assert.Equal(CaptureStatus.Paused, pill.View.Status);
     }
 
     // Controls group.

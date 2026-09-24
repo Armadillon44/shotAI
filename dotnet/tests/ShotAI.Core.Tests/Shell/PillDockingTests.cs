@@ -90,4 +90,12 @@ public sealed class PillDockingTests
         Assert.Contains(string.Create(CultureInfo.InvariantCulture, $"  animation: tb-flash {ShellConstants.FlashMs / 1000.0}s ease-out forwards;\n"), css, StringComparison.Ordinal);
         Assert.Contains(string.Create(CultureInfo.InvariantCulture, $"  animation: tb-pulse {ShellConstants.PulseMs / 1000.0}s ease-in-out infinite;\n"), css, StringComparison.Ordinal);
     }
+
+    /// <summary>The pill's tooltip delay, a native constant with no Electron source, is spec 03 section 3's.</summary>
+    [Fact]
+    public void TheTooltipDelayIsSpec03s()
+    {
+        var spec = RepoFiles.ReadText("docs/native/spec/03-windows-shell.md").ReplaceLineEndings("\n");
+        Assert.Contains(string.Create(CultureInfo.InvariantCulture, $"| Native: pill tooltip delay (new) | {ShellConstants.PillTooltipDelayMs} | ms |"), spec, StringComparison.Ordinal);
+    }
 }
