@@ -530,6 +530,17 @@ public sealed class StoreSelfTestTests : IDisposable
         Assert.Equal(["a", "b", "c"], order);
     }
 
+    /// <summary><c>path.basename</c> ignores a trailing separator, so a store path that ends in one still names the UUID folder.</summary>
+    [Fact]
+    public async Task TrailingSeparatorIsNotPartOfTheName()
+    {
+        Assert.Equal(SelfTestOutcome.Pass, await RunAsync(Fixed(real => new Breaker(real)
+        {
+            AfterCreate = (i, s) => i == 0 ? s with { Path = s.Path + Path.DirectorySeparatorChar } : s,
+        })));
+        Assert.Equal("[selftest] folder name   = \"" + Ids[0] + "\"", Lines()[3]);
+    }
+
     [Fact]
     public async Task NullsAreRefused()
     {
@@ -540,6 +551,8 @@ public sealed class StoreSelfTestTests : IDisposable
         await Assert.ThrowsAsync<ArgumentNullException>(() => StoreSelfTest.RunAsync(factory, _paths, null!, _err, log));
         await Assert.ThrowsAsync<ArgumentNullException>(() => StoreSelfTest.RunAsync(factory, _paths, _out, null!, log));
         await Assert.ThrowsAsync<ArgumentNullException>(() => StoreSelfTest.RunAsync(factory, _paths, _out, _err, null!));
+        var time = await Assert.ThrowsAsync<ArgumentNullException>(() => StoreSelfTest.RunAsync(factory, _paths, _out, _err, log, null!));
+        Assert.Equal("time", time.ParamName);
         Assert.Throws<ArgumentNullException>(() => new ProjectStoreFactory(null!, NullLoggerFactory.Instance));
         Assert.Throws<ArgumentNullException>(() => new ProjectStoreFactory(TimeProvider.System, null!));
     }
