@@ -36,6 +36,8 @@ public sealed class ExternalLinkPolicyTests
         // Allowed by parity (Q-INFRA-21): user info and a non-default port on an allowed host.
         "https://user@github.com/",
         "https://github.com:8443/x",
+        // The host compares in its punycode form, as WHATWG's hostname: an ideographic full stop is a dot.
+        "https://anthropic\u3002com/",
     };
 
     public static TheoryData<string, string> Refused => new()
