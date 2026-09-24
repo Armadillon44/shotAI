@@ -1,12 +1,14 @@
 using System.Globalization;
+using ShotAI.Core.Capture;
 using ShotAI.Core.Json;
+using ShotAI.Core.Model;
 
 namespace ShotAI.Core.Home;
 
 /// <summary>
-/// Home's strings (spec 06 2.2, 2.7 to 2.12 and 2.17, 7.3), pinned by <c>HomeTextTests</c> on
-/// Linux (ARCHITECTURE 5.1). The hero, the capture-mode picker and the recording panel (WP-B9)
-/// and the export items of the row menu and the bulk bar (WP-D16) add theirs.
+/// Home's strings (spec 06 2.2 to 2.12 and 2.17, 7.3), pinned by <c>HomeTextTests</c> on Linux
+/// (ARCHITECTURE 5.1): the list's, and since WP-B9a the create hero's, the capture-mode picker's
+/// and the recording panel's. The export items of the row menu and the bulk bar (WP-D16) add theirs.
 /// </summary>
 /// <remarks>
 /// The date span labels are <see cref="DateGroups.Label"/> and the content tier's is 01's
@@ -188,6 +190,140 @@ public static class HomeText
     /// <summary>The confirm button's default label, and an alert's only button.</summary>
     public const string ConfirmOk = "OK";
 
+    /// <summary>The create hero's heading (2.3).</summary>
+    public const string StartProject = "Start a project";
+
+    /// <summary>The hero's mission line.</summary>
+    public const string Mission =
+        "Record a process, mark it up, and let Claude turn it into a step-by-step guide \u2014 a standard operating procedure \u2014 you can export and share.";
+
+    /// <summary>The name box's placeholder, also its help text (7.13).</summary>
+    public const string NamePlaceholder = "Name (optional \u2014 defaults to a timestamp)";
+
+    /// <summary>The name box's accessible name (7.13, native: Electron's box had only a placeholder).</summary>
+    public const string NameBoxName = "Project name";
+
+    /// <summary>The Capture button, which creates the project and starts recording into it.</summary>
+    public const string CaptureButton = "Capture \u25b8";
+
+    /// <summary>Its tooltip.</summary>
+    public const string CaptureButtonTitle = "Start recording \u2014 every click captures a step";
+
+    /// <summary>The Capture button while a create runs.</summary>
+    public const string Creating = "Creating\u2026";
+
+    /// <summary>The Empty Project button.</summary>
+    public const string EmptyProject = "Empty Project";
+
+    /// <summary>Its tooltip.</summary>
+    public const string EmptyProjectTitle = "Create an empty project and open it \u2014 add images, screenshots, or text without capturing";
+
+    /// <summary>The mode chips' group, its accessible name (2.4).</summary>
+    public const string ModeGroupName = "Capture mode";
+
+    /// <summary>The label before the chips, upper-cased by the view.</summary>
+    public const string ModeLabel = "Mode";
+
+    /// <summary>The Screen chip.</summary>
+    public const string ModeScreen = "Screen";
+
+    /// <summary>The Auto chip.</summary>
+    public const string ModeAuto = "Auto";
+
+    /// <summary>The Window chip.</summary>
+    public const string ModeWindow = "Window";
+
+    /// <summary>The Area chip.</summary>
+    public const string ModeArea = "Area";
+
+    /// <summary>The warning after the chips in Auto mode.</summary>
+    public const string AutoWarning = "\u26a0 Auto is best-effort";
+
+    /// <summary>Its tooltip.</summary>
+    public const string AutoWarningTitle =
+        "Auto guesses per click and may capture extra or unintended context. Pick Screen, Window, or Area for predictable results.";
+
+    /// <summary>The mode hint below the chips, before the bold <see cref="ModeScreen"/>.</summary>
+    public const string ModeHintBefore = "What shotAI grabs for each step: a full monitor (";
+
+    /// <summary>After the bold Screen, before the bold <see cref="ModeWindow"/>.</summary>
+    public const string ModeHintAfterScreen = "), one ";
+
+    /// <summary>After the bold Window, before the bold <see cref="ModeArea"/>.</summary>
+    public const string ModeHintAfterWindow = ", a fixed ";
+
+    /// <summary>After the bold Area, before the bold <see cref="ModeAuto"/>.</summary>
+    public const string ModeHintAfterArea = " you drag out, or ";
+
+    /// <summary>After the bold Auto.</summary>
+    public const string ModeHintAfterAuto = "-detect per click.";
+
+    /// <summary>The target dropdown's trigger and empty list while the targets load.</summary>
+    public const string Loading = "Loading\u2026";
+
+    /// <summary>The trigger in Window mode with no window picked.</summary>
+    public const string SelectWindow = "Select a window\u2026";
+
+    /// <summary>The trigger in Screen mode with no monitor picked.</summary>
+    public const string SelectMonitor = "Select a monitor\u2026";
+
+    /// <summary>A window without a title.</summary>
+    public const string Untitled = "(untitled)";
+
+    /// <summary>The popover's head in Window mode.</summary>
+    public const string WindowsHead = "Windows";
+
+    /// <summary>The popover's head in Screen mode.</summary>
+    public const string MonitorsHead = "Monitors";
+
+    /// <summary>The head's Refresh button, which reloads the targets and leaves the popover open.</summary>
+    public const string Refresh = "\u21bb Refresh";
+
+    /// <summary>Its tooltip.</summary>
+    public const string RefreshTitle = "Refresh the list";
+
+    /// <summary>The window list's accessible name.</summary>
+    public const string WindowListName = "Window to capture";
+
+    /// <summary>The monitor list's accessible name.</summary>
+    public const string MonitorListName = "Monitor to capture";
+
+    /// <summary>The window list with none listed.</summary>
+    public const string NoWindows = "No windows found";
+
+    /// <summary>The monitor list with none listed.</summary>
+    public const string NoMonitors = "No monitors found";
+
+    /// <summary>What follows the primary monitor's size.</summary>
+    public const string PrimarySuffix = " \u00b7 primary";
+
+    /// <summary>The Area button with no area selected.</summary>
+    public const string SelectArea = "Select area\u2026";
+
+    /// <summary>The Area button once an area is selected.</summary>
+    public const string ReselectArea = "Re-select area";
+
+    /// <summary>The Area button while the overlay is up.</summary>
+    public const string Selecting = "Selecting\u2026";
+
+    /// <summary>Window mode with no window picked, under the picker.</summary>
+    public const string WindowWarning = "Pick a window above to start recording \u2014 that's why Capture \u25b8 is greyed out.";
+
+    /// <summary>Area mode with no area selected and none being selected.</summary>
+    public const string AreaWarning = "Select an area above to start recording \u2014 that's why Capture \u25b8 is greyed out.";
+
+    /// <summary>The recording panel's Pause (2.6).</summary>
+    public const string Pause = "Pause";
+
+    /// <summary>The recording panel's Resume, while paused.</summary>
+    public const string Resume = "Resume";
+
+    /// <summary>The recording panel's Stop.</summary>
+    public const string Stop = "Stop";
+
+    /// <summary>The recording panel's hint.</summary>
+    public const string RecordingHint = "Click anywhere (or press Ctrl+Shift+S) to capture a step. Clicks on shotAI's own windows are ignored.";
+
     /// <summary>A row checkbox's accessible name: <c>`Select ${p.title}`</c>.</summary>
     public static string SelectRow(string title)
     {
@@ -276,6 +412,92 @@ public static class HomeText
     {
         ArgumentNullException.ThrowIfNull(trimmedQuery);
         return "No projects match \u201c" + trimmedQuery + "\u201d";
+    }
+
+    /// <summary>A mode chip's label.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">Not a mode.</exception>
+    public static string ModeChip(CaptureMode mode) => mode switch
+    {
+        CaptureMode.Screen => ModeScreen,
+        CaptureMode.Auto => ModeAuto,
+        CaptureMode.Window => ModeWindow,
+        CaptureMode.Area => ModeArea,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a capture mode."),
+    };
+
+    /// <summary>A mode chip's tooltip (<c>MODE_OPTIONS</c>' hint).</summary>
+    /// <exception cref="ArgumentOutOfRangeException">Not a mode.</exception>
+    public static string ModeHint(CaptureMode mode) => mode switch
+    {
+        CaptureMode.Screen => "Capture one full monitor each step",
+        CaptureMode.Auto => "Best-effort smart capture \u2014 may include extra/unintended context",
+        CaptureMode.Window => "Capture one specific window each step",
+        CaptureMode.Area => "Drag-select a fixed region to capture",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a capture mode."),
+    };
+
+    /// <summary>
+    /// The trigger in Window mode (<c>pickerLabel</c>, 2.4): the picked window as
+    /// <c>`${app ? app + ' \u2014 ' : ''}${title || '(untitled)'}`</c>, else <see cref="Loading"/>
+    /// while the targets load, else <see cref="SelectWindow"/>. A kept pick shows the title it was
+    /// listed with (EDGE-HOME-31).
+    /// </summary>
+    public static string WindowLabel(WindowInfo? window, bool loading) =>
+        window is null ? loading ? Loading : SelectWindow
+        : (window.App.Length > 0 ? window.App + " \u2014 " : "") + WindowItemName(window);
+
+    /// <summary>A window's name in the list: its title, or <see cref="Untitled"/>.</summary>
+    public static string WindowItemName(WindowInfo window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        return window.Title.Length > 0 ? window.Title : Untitled;
+    }
+
+    /// <summary>
+    /// The trigger in Screen mode: the picked monitor, found among the listed ones, as
+    /// <c>`${name} \u00b7 ${width}\u00d7${height}${isPrimary ? ' \u00b7 primary' : ''}`</c>, else
+    /// <see cref="Loading"/> while the targets load, else <see cref="SelectMonitor"/>.
+    /// </summary>
+    public static string MonitorLabel(MonitorInfo? monitor, bool loading) =>
+        monitor is null ? loading ? Loading : SelectMonitor : monitor.Name + " \u00b7 " + MonitorItemDetail(monitor);
+
+    /// <summary>A monitor's size in the list, after its name: <c>`${width}\u00d7${height}`</c> and the primary's suffix.</summary>
+    public static string MonitorItemDetail(MonitorInfo monitor)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        return monitor.Width.ToString(CultureInfo.InvariantCulture) + "\u00d7" + monitor.Height.ToString(CultureInfo.InvariantCulture)
+            + (monitor.IsPrimary ? PrimarySuffix : "");
+    }
+
+    /// <summary>The Area button: <see cref="Selecting"/>, <see cref="ReselectArea"/> or <see cref="SelectArea"/>.</summary>
+    public static string AreaButton(bool selecting, bool hasArea) => selecting ? Selecting : hasArea ? ReselectArea : SelectArea;
+
+    /// <summary>
+    /// The selected area beside the button: <c>`${width} \u00d7 ${height}px @ (${x}, ${y})`</c>, each
+    /// number as JavaScript writes it.
+    /// </summary>
+    public static string AreaLabel(Rect area) =>
+        JsNumber.ToJsString(area.Width) + " \u00d7 " + JsNumber.ToJsString(area.Height) + "px @ ("
+        + JsNumber.ToJsString(area.X) + ", " + JsNumber.ToJsString(area.Y) + ")";
+
+    /// <summary>
+    /// The recording panel's label (2.6): <c>`${paused ? 'Paused' : 'Capturing'} \u00b7 ${projectTitle}`</c>,
+    /// a missing title rendering as nothing, as JSX renders null.
+    /// </summary>
+    public static string RecordingLabel(CaptureState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return (state.Status == CaptureStatus.Paused ? "Paused" : "Capturing") + " \u00b7 " + (state.ProjectTitle ?? "");
+    }
+
+    /// <summary>The recording panel's count, <c>`${n} steps`</c>, with no singular (EDGE-HOME-30).</summary>
+    public static string RecordingCount(int steps) => steps.ToString(CultureInfo.InvariantCulture) + " steps";
+
+    /// <summary>The error notice for a capture that failed while recording: <c>`Capture error: ${message}`</c>.</summary>
+    public static string CaptureError(string message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return "Capture error: " + message;
     }
 
     /// <summary>The no-match sub-line, which names the Archive tab there.</summary>

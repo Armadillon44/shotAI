@@ -1,5 +1,8 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
+using ShotAI.Core.Capture;
 using ShotAI.Core.Home;
+using ShotAI.Core.Model;
 using ShotAI.Core.Tests.Support;
 using Xunit;
 using static ShotAI.Core.Tests.Home.TestZones;
@@ -7,10 +10,10 @@ using static ShotAI.Core.Tests.Home.TestZones;
 namespace ShotAI.Core.Tests.Home;
 
 /// <summary>
-/// Spec 06 8.4 (the list literals of 2.2, 2.7 to 2.12 and 2.17): each string equals the spec's
-/// text, and the ones Electron writes as one literal are found in its source.
+/// Spec 06 8.4 (every literal of 2.2 to 2.17): each string equals the spec's text, and each is
+/// found in the Electron source, JSX text that spans lines read as JSX collapses it.
 /// </summary>
-public sealed class HomeTextTests
+public sealed partial class HomeTextTests
 {
     private static readonly CultureInfo EnUs = CultureInfo.GetCultureInfo("en-US");
 
@@ -227,6 +230,185 @@ public sealed class HomeTextTests
         Assert.Equal("3 steps \u00b7 archived \u2014", HomeText.StepsMeta(3, HomeTab.Archive, "last Tuesday", EnUs, TimeZoneInfo.Utc));
         Assert.DoesNotContain("Invalid Date", HomeText.StepsMeta(3, HomeTab.Active, "2026-13-40", EnUs, TimeZoneInfo.Utc), StringComparison.Ordinal);
     }
+
+    /// <summary>2.3: the create hero.</summary>
+    [Fact]
+    public void Hero()
+    {
+        Assert.Equal("Start a project", HomeText.StartProject);
+        Assert.Equal(
+            "Record a process, mark it up, and let Claude turn it into a step-by-step guide \u2014 a standard operating procedure \u2014 you can export and share.",
+            HomeText.Mission);
+        Assert.Equal("Name (optional \u2014 defaults to a timestamp)", HomeText.NamePlaceholder);
+        Assert.Equal("Project name", HomeText.NameBoxName);
+        Assert.Equal("Capture \u25b8", HomeText.CaptureButton);
+        Assert.Equal("Start recording \u2014 every click captures a step", HomeText.CaptureButtonTitle);
+        Assert.Equal("Creating\u2026", HomeText.Creating);
+        Assert.Equal("Empty Project", HomeText.EmptyProject);
+        Assert.Equal("Create an empty project and open it \u2014 add images, screenshots, or text without capturing", HomeText.EmptyProjectTitle);
+        // The list's empty state names the two buttons.
+        Assert.Equal((HomeText.NoProjectsSubCapture, HomeText.NoProjectsSubEmpty), (HomeText.CaptureButton, HomeText.EmptyProject));
+    }
+
+    /// <summary>2.4: the mode chips in <c>MODE_OPTIONS</c>' order, their tooltips, the Auto warning and the hint.</summary>
+    [Fact]
+    public void ModeChips()
+    {
+        Assert.Equal(("Capture mode", "Mode"), (HomeText.ModeGroupName, HomeText.ModeLabel));
+        CaptureMode[] order = [CaptureMode.Screen, CaptureMode.Auto, CaptureMode.Window, CaptureMode.Area];
+        Assert.Equal(["Screen", "Auto", "Window", "Area"], order.Select(HomeText.ModeChip));
+        Assert.Equal(order, Enum.GetValues<CaptureMode>());
+        Assert.Equal(
+            [
+                "Capture one full monitor each step",
+                "Best-effort smart capture \u2014 may include extra/unintended context",
+                "Capture one specific window each step",
+                "Drag-select a fixed region to capture",
+            ],
+            order.Select(HomeText.ModeHint));
+        Assert.Equal("\u26a0 Auto is best-effort", HomeText.AutoWarning);
+        Assert.Equal(
+            "Auto guesses per click and may capture extra or unintended context. Pick Screen, Window, or Area for predictable results.",
+            HomeText.AutoWarningTitle);
+        Assert.Equal(
+            "What shotAI grabs for each step: a full monitor (Screen), one Window, a fixed Area you drag out, or Auto-detect per click.",
+            HomeText.ModeHintBefore + HomeText.ModeScreen + HomeText.ModeHintAfterScreen + HomeText.ModeWindow + HomeText.ModeHintAfterWindow
+            + HomeText.ModeArea + HomeText.ModeHintAfterArea + HomeText.ModeAuto + HomeText.ModeHintAfterAuto);
+        Assert.Throws<ArgumentOutOfRangeException>(() => HomeText.ModeChip((CaptureMode)4));
+        Assert.Throws<ArgumentOutOfRangeException>(() => HomeText.ModeHint((CaptureMode)4));
+    }
+
+    /// <summary>2.4: the target dropdown's head, lists and empty lines, the Area button and the two warnings.</summary>
+    [Fact]
+    public void Picker()
+    {
+        Assert.Equal(("Windows", "Monitors"), (HomeText.WindowsHead, HomeText.MonitorsHead));
+        Assert.Equal(("\u21bb Refresh", "Refresh the list"), (HomeText.Refresh, HomeText.RefreshTitle));
+        Assert.Equal(("Window to capture", "Monitor to capture"), (HomeText.WindowListName, HomeText.MonitorListName));
+        Assert.Equal(("No windows found", "No monitors found"), (HomeText.NoWindows, HomeText.NoMonitors));
+        Assert.Equal(("Loading\u2026", "(untitled)"), (HomeText.Loading, HomeText.Untitled));
+        Assert.Equal(("Select a window\u2026", "Select a monitor\u2026"), (HomeText.SelectWindow, HomeText.SelectMonitor));
+        Assert.Equal("Selecting\u2026", HomeText.AreaButton(selecting: true, hasArea: true));
+        Assert.Equal("Selecting\u2026", HomeText.AreaButton(selecting: true, hasArea: false));
+        Assert.Equal("Re-select area", HomeText.AreaButton(selecting: false, hasArea: true));
+        Assert.Equal("Select area\u2026", HomeText.AreaButton(selecting: false, hasArea: false));
+        Assert.Equal("Pick a window above to start recording \u2014 that's why Capture \u25b8 is greyed out.", HomeText.WindowWarning);
+        Assert.Equal("Select an area above to start recording \u2014 that's why Capture \u25b8 is greyed out.", HomeText.AreaWarning);
+    }
+
+    /// <summary>2.4's <c>pickerLabel</c> in Window mode, with and without the app and the title, and before a pick.</summary>
+    [Fact]
+    public void WindowLabel()
+    {
+        Assert.Equal("Notepad \u2014 notes.txt - Notepad", HomeText.WindowLabel(new WindowInfo(1, 2, "notes.txt - Notepad", "Notepad"), loading: false));
+        Assert.Equal("Notepad \u2014 (untitled)", HomeText.WindowLabel(new WindowInfo(1, 2, "", "Notepad"), loading: true));
+        Assert.Equal("notes.txt", HomeText.WindowLabel(new WindowInfo(1, 2, "notes.txt", ""), loading: false));
+        Assert.Equal("(untitled)", HomeText.WindowLabel(new WindowInfo(1, 2, "", ""), loading: false));
+        Assert.Equal("Loading\u2026", HomeText.WindowLabel(null, loading: true));
+        Assert.Equal("Select a window\u2026", HomeText.WindowLabel(null, loading: false));
+        Assert.Equal("(untitled)", HomeText.WindowItemName(new WindowInfo(1, 2, "", "Notepad")));
+        Assert.Equal("Inbox", HomeText.WindowItemName(new WindowInfo(1, 2, "Inbox", "Outlook")));
+        Assert.Throws<ArgumentNullException>(() => HomeText.WindowItemName(null!));
+    }
+
+    /// <summary>2.4's <c>pickerLabel</c> in Screen mode, the primary and another, and a list item's size.</summary>
+    [Fact]
+    public void MonitorLabel()
+    {
+        var primary = new MonitorInfo(65_537, "DELL U2720Q", 3840, 2160, IsPrimary: true);
+        var side = new MonitorInfo(131_073, "Display 2", 1920, 1080, IsPrimary: false);
+        Assert.Equal("DELL U2720Q \u00b7 3840\u00d72160 \u00b7 primary", HomeText.MonitorLabel(primary, loading: false));
+        Assert.Equal("Display 2 \u00b7 1920\u00d71080", HomeText.MonitorLabel(side, loading: true));
+        Assert.Equal("Loading\u2026", HomeText.MonitorLabel(null, loading: true));
+        Assert.Equal("Select a monitor\u2026", HomeText.MonitorLabel(null, loading: false));
+        Assert.Equal("3840\u00d72160 \u00b7 primary", HomeText.MonitorItemDetail(primary));
+        Assert.Equal("1920\u00d71080", HomeText.MonitorItemDetail(side));
+        Assert.Throws<ArgumentNullException>(() => HomeText.MonitorItemDetail(null!));
+    }
+
+    /// <summary>The selected area as the template literal writes each number: no <c>.0</c>, a negative origin kept.</summary>
+    [Fact]
+    public void AreaLabel()
+    {
+        Assert.Equal("600 \u00d7 450px @ (2660, 140)", HomeText.AreaLabel(new Rect(2660, 140, 600, 450)));
+        Assert.Equal("25 \u00d7 25px @ (-2560, -14)", HomeText.AreaLabel(new Rect(-2560, -14, 25, 25)));
+        Assert.Equal("0.5 \u00d7 1e+21px @ (0, 0)", HomeText.AreaLabel(new Rect(-0d, 0, 0.5, 1e21)));
+    }
+
+    /// <summary>2.6: the recording panel's label, count, buttons, hint and the capture error notice.</summary>
+    [Fact]
+    public void RecordingPanel()
+    {
+        Assert.Equal("Capturing \u00b7 Payroll run", HomeText.RecordingLabel(new CaptureState(CaptureStatus.Recording, @"C:\p", "Payroll run", 3, false)));
+        Assert.Equal("Paused \u00b7 Payroll run", HomeText.RecordingLabel(new CaptureState(CaptureStatus.Paused, @"C:\p", "Payroll run", 3, false)));
+        Assert.Equal("Capturing \u00b7 ", HomeText.RecordingLabel(new CaptureState(CaptureStatus.Recording, null, null, 0, false)));
+        Assert.Equal("1 steps", HomeText.RecordingCount(1));
+        Assert.Equal("0 steps", HomeText.RecordingCount(0));
+        Assert.Equal("12 steps", HomeText.RecordingCount(12));
+        Assert.Equal(("Pause", "Resume", "Stop"), (HomeText.Pause, HomeText.Resume, HomeText.Stop));
+        Assert.Equal("Click anywhere (or press Ctrl+Shift+S) to capture a step. Clicks on shotAI's own windows are ignored.", HomeText.RecordingHint);
+        Assert.Equal("Capture error: Disk full", HomeText.CaptureError("Disk full"));
+        Assert.Equal("Capture error: ", HomeText.CaptureError(""));
+        Assert.Throws<ArgumentNullException>(() => HomeText.RecordingLabel(null!));
+        Assert.Throws<ArgumentNullException>(() => HomeText.CaptureError(null!));
+    }
+
+    /// <summary>2.3, 2.4 and 2.6's strings as App.tsx writes them.</summary>
+    [Fact]
+    public void HeroPickerAndPanelLiteralsMatchTheElectronSource()
+    {
+        var app = ElectronSource.Read("src/renderer/project/App.tsx").ReplaceLineEndings("\n");
+        var text = JsxLines().Replace(app, " ");
+        Assert.Contains($"<h2 className=\"home__h\">{HomeText.StartProject}</h2>", app, StringComparison.Ordinal);
+        Assert.Contains(HomeText.Mission, text, StringComparison.Ordinal);
+        Assert.Contains($"placeholder=\"{HomeText.NamePlaceholder}\"", app, StringComparison.Ordinal);
+        Assert.Contains($"title=\"{HomeText.CaptureButtonTitle}\"", app, StringComparison.Ordinal);
+        Assert.Contains($"{{busy ? '{HomeText.Creating}' : '{HomeText.CaptureButton}'}}", app, StringComparison.Ordinal);
+        Assert.Contains($"title=\"{HomeText.EmptyProjectTitle}\"", app, StringComparison.Ordinal);
+        Assert.Contains($"> {HomeText.EmptyProject} </button>", text, StringComparison.Ordinal);
+
+        Assert.Contains($"aria-label=\"{HomeText.ModeGroupName}\"", app, StringComparison.Ordinal);
+        Assert.Contains($"<span className=\"home__mode-label\">{HomeText.ModeLabel}</span>", app, StringComparison.Ordinal);
+        foreach (var mode in Enum.GetValues<CaptureMode>())
+        {
+            var wire = mode.ToString().ToLowerInvariant();
+            Assert.Contains($"{{ mode: '{wire}', label: '{HomeText.ModeChip(mode)}', hint: '{HomeText.ModeHint(mode)}' }}", app, StringComparison.Ordinal);
+        }
+        Assert.Contains($"title=\"{HomeText.AutoWarningTitle}\"", app, StringComparison.Ordinal);
+        Assert.Contains($"> {HomeText.AutoWarning} </span>", text, StringComparison.Ordinal);
+        Assert.Contains($"{HomeText.ModeHintBefore}<b>{HomeText.ModeScreen}</b>{HomeText.ModeHintAfterScreen.TrimEnd()}{{' '}}", app, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<b>{HomeText.ModeWindow}</b>{HomeText.ModeHintAfterWindow}<b>{HomeText.ModeArea}</b>{HomeText.ModeHintAfterArea}<b>{HomeText.ModeAuto}</b>{HomeText.ModeHintAfterAuto}",
+            text, StringComparison.Ordinal);
+
+        Assert.Contains("`${pickedWindow.app ? `${pickedWindow.app} \u2014 ` : ''}${pickedWindow.title || '(untitled)'}`", app, StringComparison.Ordinal);
+        Assert.Contains($"? '{HomeText.Loading}'\n          : '{HomeText.SelectWindow}'", app, StringComparison.Ordinal);
+        Assert.Contains("`${m.name} \u00b7 ${m.width}\u00d7${m.height}${m.isPrimary ? ' \u00b7 primary' : ''}`", app, StringComparison.Ordinal);
+        Assert.Contains($": '{HomeText.SelectMonitor}'", app, StringComparison.Ordinal);
+        Assert.Contains($"{{mode === 'window' ? '{HomeText.WindowsHead}' : '{HomeText.MonitorsHead}'}}", app, StringComparison.Ordinal);
+        Assert.Contains($"aria-label={{mode === 'window' ? '{HomeText.WindowListName}' : '{HomeText.MonitorListName}'}}", app, StringComparison.Ordinal);
+        Assert.Contains($"title=\"{HomeText.RefreshTitle}\"", app, StringComparison.Ordinal);
+        Assert.Contains($"> {HomeText.Refresh} </button>", text, StringComparison.Ordinal);
+        Assert.Contains($"{{w.title || '{HomeText.Untitled}'}}", app, StringComparison.Ordinal);
+        Assert.Contains($"{{targetsLoading ? '{HomeText.Loading}' : '{HomeText.NoWindows}'}}", app, StringComparison.Ordinal);
+        Assert.Contains($"{{targetsLoading ? '{HomeText.Loading}' : '{HomeText.NoMonitors}'}}", app, StringComparison.Ordinal);
+        Assert.Contains($"{{m.width}}\u00d7{{m.height}} {{m.isPrimary ? '{HomeText.PrimarySuffix}' : ''}}", text, StringComparison.Ordinal);
+        Assert.Contains($"? '{HomeText.Selecting}' : pickedArea ? '{HomeText.ReselectArea}' : '{HomeText.SelectArea}'}}", text, StringComparison.Ordinal);
+        Assert.Contains("{pickedArea.width} \u00d7 {pickedArea.height}px @ ({pickedArea.x},{' '} {pickedArea.y})", text, StringComparison.Ordinal);
+        Assert.Contains($"> {HomeText.WindowWarning} </p>", text, StringComparison.Ordinal);
+        Assert.Contains($"> {HomeText.AreaWarning} </p>", text, StringComparison.Ordinal);
+
+        Assert.Contains("{capture.status === 'paused' ? 'Paused' : 'Capturing'} \u00b7{' '}", app, StringComparison.Ordinal);
+        Assert.Contains("{capture.stepCount} steps", app, StringComparison.Ordinal);
+        foreach (var button in new[] { HomeText.Pause, HomeText.Resume, HomeText.Stop })
+            Assert.Contains($"> {button} </button>", text, StringComparison.Ordinal);
+        Assert.Contains($"> {HomeText.RecordingHint} </p>", text, StringComparison.Ordinal);
+        Assert.Contains("setError(`Capture error: ${message}`)", app, StringComparison.Ordinal);
+    }
+
+    // JSX text across lines: a line break and the indentation around it read as one space.
+    [GeneratedRegex(@"[ \t]*\n[ \t]*")]
+    private static partial Regex JsxLines();
 
     /// <summary>The date is the local date in the zone, in the culture's short form (Q-HOME-4).</summary>
     [Fact]
