@@ -65,6 +65,24 @@ public sealed partial class CaptureEngineTests
         Assert.Empty(h.Events);
     }
 
+    /// <summary>D10, INV-CAP-23: a screenshot into a project whose <c>shots/</c> is a link is refused before anything is hidden or grabbed.</summary>
+    [Fact]
+    public async Task ScreenshotRefusesALinkedShotsFolderFirst()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        var outside = Path.Combine(h.Store.Temp.Root, "elsewhere");
+        Directory.CreateDirectory(outside);
+        Symlinks.Directory(Path.Combine(p, "shots"), outside);
+
+        var e = await Assert.ThrowsAsync<CaptureException>(() => h.ScreenshotAsync(p, Screen1, 0).Bounded());
+
+        Assert.Equal(CaptureMessages.ShotsOutsideProject, e.Message);
+        Assert.Empty(h.Events);
+        Assert.Empty(h.Screen.Grabs);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
+    }
+
     /// <summary>An area that overlaps a monitor by a pixel is on screen, and is cropped with the area formula.</summary>
     [Fact]
     public async Task ScreenshotOfAnAreaOverlappingAMonitor()

@@ -76,6 +76,7 @@ public sealed partial class ContainerTests
     {
         using var c = new TestContainer(Dispatcher.CurrentDispatcher);
         var names = CatalogNames();
+        Assert.Subset(names.ToHashSet(StringComparer.Ordinal), ResolvableFrom.Keys.ToHashSet(StringComparer.Ordinal)); // no entry outlives a rename
         var resolved = new List<string>();
         var pending = new List<string>();
         foreach (var name in names)
