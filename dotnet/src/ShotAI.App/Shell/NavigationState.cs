@@ -81,6 +81,14 @@ public sealed class NavigationState : IShellNavigationState
         EventRaiser.Raise(Changed, this, _log, nameof(Changed));
     }
 
+#if DEBUG
+    /// <summary>
+    /// Debug builds only: raises <see cref="Changed"/> with nothing changed, for AC-SHELL-21's
+    /// manual check (<see cref="DebugNavigationPulse"/>).
+    /// </summary>
+    internal void RaiseUnchanged() => EventRaiser.Raise(Changed, this, _log, nameof(Changed));
+#endif
+
     private void From(ShellViewModel shell) =>
         Set(shell.CurrentView == ShellViewKind.Project, shell.OpenProjectPath, shell.RawProjectTheme);
 }

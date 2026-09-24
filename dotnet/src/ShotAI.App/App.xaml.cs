@@ -126,6 +126,10 @@ public partial class App : Application
         StartAll(_services.GetServices<IAppStartup>());
         // Home lists the projects once the window is up (06 2.18 row 1).
         shell.Start();
+#if DEBUG
+        // AC-SHELL-21's manual check, in a Debug build only.
+        if (DebugNavigationPulse.StartIfAsked(_services.GetRequiredService<NavigationState>())) NavigationPulse(_log);
+#endif
 
         // Step 11: from here a second launch surfaces this window.
         _activation = new ActivationListener(main.ShowFromSecondInstance, _loggers.CreateLogger<ActivationListener>());
@@ -260,6 +264,11 @@ public partial class App : Application
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "second instance: no running window found")]
     private static partial void NoRunningWindow(ILogger logger);
+
+#if DEBUG
+    [LoggerMessage(Level = LogLevel.Information, Message = "debug: navigation state raised every 1 s (SHOTAI_DEBUG_NAV_PULSE=1)")]
+    private static partial void NavigationPulse(ILogger logger);
+#endif
 
     [LoggerMessage(Level = LogLevel.Information, Message = "render: software forced (SHOTAI_ENABLE_GPU=0)")]
     private static partial void SoftwareForced(ILogger logger);
