@@ -474,7 +474,9 @@ public sealed class StoreSelfTestTests : IDisposable
         time.Advance(TimeSpan.FromSeconds(5) - TimeSpan.FromTicks(1));
         Assert.False(run.IsCompleted);
         time.Advance(TimeSpan.FromTicks(1));
-        Assert.Equal(SelfTestOutcome.Pass, await run.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
+        // The bound is the given clock's: once it has passed, the rest takes milliseconds, well
+        // short of the 5 s a bound on the system clock would still need.
+        Assert.Equal(SelfTestOutcome.Pass, await run.WaitAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken));
         Assert.False(File.Exists(TestSettingsFile));
     }
 
