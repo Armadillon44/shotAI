@@ -31,10 +31,14 @@ public sealed class ExitFlushTests
 
         Assert.True(s.Flush().Run(ShutdownFlush.Bound));
 
+        // The writes are on disk when the flush returns. The rename's task is the queue job's
+        // own, done before the drain; the update's ends in UpdateAsync's continuation, which
+        // the queue runs on the pool (RunContinuationsAsynchronously) and may run just after,
+        // so it is awaited rather than read.
         Assert.True(rename.IsCompletedSuccessfully);
-        Assert.True(update.IsCompletedSuccessfully);
         Assert.Contains("\"title\": \"After\"", await File.ReadAllTextAsync(Path.Combine(project.Path, "project.json"), TestContext.Current.CancellationToken), StringComparison.Ordinal);
         Assert.Contains("\"archiveAgeDays\": 42", await File.ReadAllTextAsync(s.Paths.SettingsFile, TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Equal(42, (await update.WaitAsync(ShutdownFlush.Bound, TestContext.Current.CancellationToken)).ArchiveAgeDays);
     }
 
     /// <summary>A store that never drains makes the exit go on after the bound, with the warning.</summary>
