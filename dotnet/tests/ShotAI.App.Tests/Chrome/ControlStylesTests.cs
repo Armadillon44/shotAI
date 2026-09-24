@@ -31,6 +31,8 @@ public sealed class ControlStylesTests
             "Button.Base", "Button.Small", "Button.Primary", "Button.Danger", "Button.Ghost", "Button.Icon", "Chip", "SortChip",
             "TextInput", "Switch", "SettingsGroup", "SettingsToggleCard", "Badge.Ok", "Badge.Draft", "MenuItem.Base",
             "MenuItem.Danger", "MenuHeader", "PickerItem", "TabUnderline", "HomeTab", "HomeTabCount", "FocusVisual",
+            // Added in WP-A19a: the row checkbox, the bulk bar's toggle and delete, the rename box.
+            "RowCheck", "BulkToggle", "Button.SmallDanger", "RenameInput",
         })
         {
             Assert.IsType<Style>(controls[key]);
@@ -159,6 +161,7 @@ public sealed class ControlStylesTests
         _ when target == typeof(ButtonBase) || target == typeof(Button) => new Button { Content = "Label" },
         _ when target == typeof(RadioButton) => new RadioButton { Content = "Label", IsChecked = true },
         _ when target == typeof(CheckBox) => new CheckBox { Content = "Label", IsChecked = true },
+        _ when target == typeof(ToggleButton) => new ToggleButton { Content = "Label", IsChecked = true },
         _ when target == typeof(TextBox) => new TextBox { Text = "Label" },
         _ when target == typeof(ContentControl) => new ContentControl { Content = "Label" },
         _ when target == typeof(ListBoxItem) => new ListBoxItem { Content = "Label", IsSelected = true },

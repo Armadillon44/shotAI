@@ -223,7 +223,7 @@ public sealed partial class HomeViewTests
         var (t, view, window) = await Show(width: 1200, listing: [Project(@"C:\p\a", "A", Today)]);
         try
         {
-            var head = VisualTree.Descendants<ShotAI.App.Chrome.FlexWrapPanel>(view).Single();
+            var head = VisualTree.Descendants<ShotAI.App.Chrome.FlexWrapPanel>(view).Single(p => !view.BulkBar.IsAncestorOf(p));
             var parts = head.Children.Cast<FrameworkElement>().ToList();
             Assert.All(parts, p => Assert.Equal(0, LayoutInformation.GetLayoutSlot(p).Top));
             Assert.Equal(340, parts[1].ActualWidth, 3);

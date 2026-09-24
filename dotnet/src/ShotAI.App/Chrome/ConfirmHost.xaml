@@ -10,8 +10,14 @@
     button has the focus when it opens, so Enter confirms (EDGE-HOME-27). Collapsed while no
     question is shown. The data context is the ConfirmService.
   -->
+  <!-- The fixed colours are merged here, as Controls.xaml merges them, so the reads resolve wherever the host is made. -->
   <UserControl.Resources>
-    <BooleanToVisibilityConverter x:Key="Visible" />
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="../Themes/FixedColors.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <BooleanToVisibilityConverter x:Key="Visible" />
+    </ResourceDictionary>
   </UserControl.Resources>
   <Grid x:Name="Root" Visibility="{Binding IsOpen, Converter={StaticResource Visible}}"
         FocusManager.IsFocusScope="True" KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Contained"
