@@ -96,6 +96,18 @@ public sealed class DateGroupsTests
         Assert.Equal(["old", "new", "mid"], group.Items.Select(i => i.Id));
     }
 
+    /// <summary>
+    /// Today is the zone's date, not UTC's: at Sat 2026-07-18 16:00 UTC it is already Sunday 01:30
+    /// in the +09:30 zone, so the week started that midnight and Wednesday is last week.
+    /// </summary>
+    [Fact]
+    public void TodayIsTheZonesDate()
+    {
+        var now = new DateTimeOffset(2026, 7, 18, 16, 0, 0, TimeSpan.Zero);
+        Assert.Equal(DateBucket.LastWeek, DateGroups.BucketFor(At(2026, 7, 15), now, Fixed));
+        Assert.Equal(DateBucket.ThisWeek, DateGroups.BucketFor(InFixed(2026, 7, 19, 0, 30), now, Fixed));
+    }
+
     [Fact]
     public void AnUndefinedBucketHasNoLabel() =>
         Assert.Throws<ArgumentOutOfRangeException>(() => DateGroups.Label((DateBucket)5));

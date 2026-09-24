@@ -58,6 +58,15 @@ public sealed class FlexWrapTests
         Assert.Equal(1, slots[2].Line);
     }
 
+    /// <summary>The gap counts when a line is filled: two items that fit only without it take two lines.</summary>
+    [Fact]
+    public void TheGapCountsWhenFilling()
+    {
+        FlexItem[] two = [new(150, Min: 150, Max: 150), new(200, Min: 200, Max: 200)];
+        Assert.Equal([0, 1], FlexWrap.Layout(two, 360, 16).Select(s => s.Line));
+        Assert.Equal([0, 0], FlexWrap.Layout(two, 366, 16).Select(s => s.Line));
+    }
+
     /// <summary>One item on its line starts at the left, whatever is left over.</summary>
     [Fact]
     public void ALoneItemStartsAtTheLeft()
@@ -107,6 +116,7 @@ public sealed class FlexWrapTests
         Assert.Throws<ArgumentOutOfRangeException>(() => FlexWrap.Layout([Sort], double.PositiveInfinity, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => FlexWrap.Layout([Sort], -1, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => FlexWrap.Layout([Sort], 100, double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => FlexWrap.Layout([Sort], 100, -1));
         Assert.Throws<ArgumentOutOfRangeException>(() => FlexWrap.Layout([new FlexItem(double.NaN)], 100, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => FlexWrap.Layout([new FlexItem(10, Grow: -1)], 100, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => FlexWrap.Layout([new FlexItem(10, Min: 20, Max: 10)], 100, 0));

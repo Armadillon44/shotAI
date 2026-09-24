@@ -82,7 +82,22 @@ public sealed class ListSyncTests
         var two = new object();
         var edits = ListSync.Plan<object>([one], [two, one], ReferenceEqualityComparer.Instance);
         Assert.Equal(new ListEdit<object>(ListEditKind.Insert, 0, 0, two), Assert.Single(edits));
+
+        // Items the comparer calls equal are one item, in the skip, the move and the removal: the current one stays.
+        Assert.Empty(ListSync.Plan(["a", "B"], ["A", "b"], StringComparer.OrdinalIgnoreCase));
+        var moved = ListSync.Plan(["a", "B", "c"], ["C", "A"], StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(
+            [new ListEdit<string>(ListEditKind.Remove, 1, 1, "B"), new ListEdit<string>(ListEditKind.Move, 0, 1, "C")],
+            moved);
+        var list = new List<string> { "a", "B", "c" };
+        ListSync.Apply(list, moved);
+        Assert.Equal(["c", "a"], list);
     }
+
+    /// <summary>An edit of no defined kind is refused, not skipped.</summary>
+    [Fact]
+    public void AnUndefinedEditIsRefused() =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => ListSync.Apply(new List<string> { "a" }, [new ListEdit<string>((ListEditKind)9, 0, 0, "a")]));
 
     private static IEnumerable<string[]> Permutations(string[] items)
     {

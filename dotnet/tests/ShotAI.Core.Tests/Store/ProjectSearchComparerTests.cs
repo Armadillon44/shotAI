@@ -99,6 +99,23 @@ public sealed class ProjectSearchComparerTests
         }
     }
 
+    /// <summary>
+    /// The name sort is the given culture's: Swedish puts U+00E4 (<c>a-diaeresis</c>) after
+    /// <c>z</c>, as its own letter, where the invariant culture reads it as an accented <c>a</c>
+    /// (spec 06 Q-HOME-4, the user's culture).
+    /// </summary>
+    [Fact]
+    public void TheNameSortIsTheCulturesOwn()
+    {
+        var aUmlaut = Titled(((char)0x00E4).ToString());
+        var z = Titled("z");
+        var swedish = CultureInfo.GetCultureInfo("sv-SE");
+        Assert.True(ProjectSearch.ByTitle(swedish)(aUmlaut, z) > 0);
+        Assert.True(ProjectSearch.ByTitle(swedish.CompareInfo)(aUmlaut, z) > 0);
+        Assert.True(ProjectSearch.ByTitle(CultureInfo.InvariantCulture)(aUmlaut, z) < 0);
+        Assert.True(ProjectSearch.ByTitle(CultureInfo.InvariantCulture.CompareInfo)(aUmlaut, z) < 0);
+    }
+
     [Fact]
     public void TheUpdatedComparerReadsUpdatedAt()
     {

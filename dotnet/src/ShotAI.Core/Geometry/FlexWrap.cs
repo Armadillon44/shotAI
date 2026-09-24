@@ -18,10 +18,10 @@ public readonly record struct FlexSlot(int Line, double X, double Width);
 /// <remarks>
 /// A line takes items while their bases (each clamped to its limits) and the gaps between them
 /// fit, and always takes at least one. Its free space then goes to its growing items in
-/// proportion to their grow factors, none past its maximum; a line that overflows (an item
-/// alone wider than the row) shrinks every item in proportion to its basis, none below its
-/// minimum, as <c>flex-shrink: 1</c> does. What is left is spread evenly between the items; a
-/// line of one item starts at the left.
+/// proportion to their grow factors, none past its maximum. Only a line of one item can
+/// overflow, since a second item joins only when it fits; that item shrinks to the row, not
+/// below its minimum, as <c>flex-shrink: 1</c> does. What is left is spread evenly between the
+/// items; a line of one item starts at the left.
 /// </remarks>
 public static class FlexWrap
 {
@@ -77,7 +77,7 @@ public static class FlexWrap
         for (var i = 0; i < n; i++) widths[i] = Hypothetical(items[start + i]);
         var free = available - widths.Sum() - gap * (n - 1);
         if (free > Tolerance) Grow(items, start, widths, free);
-        else if (free < -Tolerance) Shrink(items, start, widths, -free);
+        else if (free < -Tolerance) widths[0] = Math.Max(items[start].Min, available);
 
         var left = available - widths.Sum() - gap * (n - 1);
         var between = gap + (n > 1 && left > 0 ? left / (n - 1) : 0);
@@ -94,7 +94,7 @@ public static class FlexWrap
     private static void Grow(IReadOnlyList<FlexItem> items, int start, double[] widths, double free)
     {
         var frozen = new bool[widths.Length];
-        for (var i = 0; i < widths.Length; i++) frozen[i] = items[start + i].Grow == 0 || widths[i] >= items[start + i].Max;
+        for (var i = 0; i < widths.Length; i++) frozen[i] = items[start + i].Grow == 0;
         while (free > Tolerance)
         {
             var total = 0.0;
@@ -121,41 +121,6 @@ public static class FlexWrap
                 return;
             }
             free -= given;
-        }
-    }
-
-    // flex-shrink: 1: take the overflow from every item in proportion to its basis; an item that
-    // would pass its minimum stops there, and the rest is taken again from the others.
-    private static void Shrink(IReadOnlyList<FlexItem> items, int start, double[] widths, double overflow)
-    {
-        var frozen = new bool[widths.Length];
-        for (var i = 0; i < widths.Length; i++) frozen[i] = widths[i] <= items[start + i].Min;
-        while (overflow > Tolerance)
-        {
-            var total = 0.0;
-            for (var i = 0; i < widths.Length; i++) if (!frozen[i]) total += items[start + i].Basis;
-            if (total == 0) return;
-            var clamped = false;
-            var taken = 0.0;
-            for (var i = 0; i < widths.Length; i++)
-            {
-                if (frozen[i]) continue;
-                var want = widths[i] - overflow * items[start + i].Basis / total;
-                var min = items[start + i].Min;
-                if (want <= min)
-                {
-                    taken += widths[i] - min;
-                    widths[i] = min;
-                    frozen[i] = true;
-                    clamped = true;
-                }
-            }
-            if (!clamped)
-            {
-                for (var i = 0; i < widths.Length; i++) if (!frozen[i]) widths[i] -= overflow * items[start + i].Basis / total;
-                return;
-            }
-            overflow -= taken;
         }
     }
 }
