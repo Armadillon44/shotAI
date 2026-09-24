@@ -11,6 +11,8 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <RootNamespace>ShotAI.Platform.Tests</RootNamespace>
+    <!-- LibraryImport generates marshalling code, which needs unsafe blocks (Startup/DllSearchTests). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
