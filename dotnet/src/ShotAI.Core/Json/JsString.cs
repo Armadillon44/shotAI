@@ -21,6 +21,29 @@ public static class JsString
     }
 
     /// <summary>
+    /// <c>String.prototype.toWellFormed</c>: every lone surrogate replaced by U+FFFD, as a UTF-16
+    /// to UTF-8 conversion leaves it (Win32's <c>WideCharToMultiByte</c>, Rust's lossy decode).
+    /// The string itself when it has none.
+    /// </summary>
+    public static string ToWellFormed(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        char[]? copy = null;
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (!char.IsSurrogate(value[i])) continue;
+            if (char.IsHighSurrogate(value[i]) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+            {
+                i++;
+                continue;
+            }
+            copy ??= value.ToCharArray();
+            copy[i] = '\uFFFD';
+        }
+        return copy is null ? value : new string(copy);
+    }
+
+    /// <summary>
     /// ECMAScript WhiteSpace (TAB, VT, FF, ZWNBSP and the Unicode Zs category) or
     /// LineTerminator (LF, CR, LS, PS).
     /// </summary>

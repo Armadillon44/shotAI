@@ -22,7 +22,8 @@ public static class CoreServiceCollectionExtensions
     /// <see cref="ProjectStore"/> needs) and <see cref="ICaptureSettings"/> to it (spec 10 7.4.3,
     /// 11 7.10). <see cref="ExternalLinks"/> needs an <see cref="IUrlLauncher"/>, which
     /// <c>AddShotAIPlatform</c> registers (spec 10 7.7). The capture shield and the shielded
-    /// screen funnel need Platform's window protection and raw monitor read (spec 02 7.7, 7.8).
+    /// screen funnel need Platform's window protection and raw monitor read (spec 02 7.7, 7.8),
+    /// and the capture engine every other Platform capture seam (spec 02 7.1).
     /// </remarks>
     public static IServiceCollection AddShotAICore(this IServiceCollection services)
     {
@@ -45,6 +46,9 @@ public static class CoreServiceCollectionExtensions
         // The one shield, which the funnel and the remote-visibility applier share (ARCHITECTURE 4.3).
         services.AddSingleton<CaptureShield>();
         services.AddSingleton<IScreenCapture, ShieldedScreenCapture>();
+        services.AddSingleton<ICaptureClock, TimeProviderCaptureClock>();
+        // The container disposes the engine at exit step 5, synchronously (spec 02 7.13, AC-CAP-35).
+        services.AddSingleton<ICaptureService, CaptureEngine>();
         return services;
     }
 }

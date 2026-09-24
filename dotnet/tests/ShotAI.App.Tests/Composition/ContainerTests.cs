@@ -32,11 +32,8 @@ public sealed partial class ContainerTests
 
     // A catalog interface that exists before the work package that makes it resolvable, with that
     // package. The entry fails the test once the interface resolves, so that package removes it.
-    private static readonly Dictionary<string, string> ResolvableFrom = new(StringComparer.Ordinal)
-    {
-        // CaptureEngine needs every Platform capture seam, the last of which lands in WP-B6 (spec 02 7.1).
-        ["ICaptureService"] = "WP-B6",
-    };
+    // None now: ICaptureService's, the last, went with WP-B6.
+    private static readonly Dictionary<string, string> ResolvableFrom = new(StringComparer.Ordinal);
 
     /// <summary>The production path of startup step 6 builds, with both validations on.</summary>
     [Fact]

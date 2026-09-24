@@ -25,6 +25,13 @@ internal sealed class TestWindow : IDisposable
     public static TestWindow Overlapped() =>
         Create(0, User32.WsOverlappedWindow | User32.WsVisible, 10, 20, 300, 200, parent: 0, name: "shotAI test");
 
+    /// <summary>
+    /// A visible top-level window named <paramref name="name"/>, with a caption unless
+    /// <paramref name="style"/> gives none, owned by <paramref name="owner"/> when one is given.
+    /// </summary>
+    public static TestWindow Visible(string name, int style = User32.WsOverlappedWindow, int exStyle = 0, nint owner = 0) =>
+        Create(exStyle, style | User32.WsVisible, 10, 20, 300, 200, owner, name);
+
     /// <summary>A message-only window named <paramref name="name"/>, as the running instance creates.</summary>
     public static TestWindow MessageOnly(string name) =>
         Create(0, 0, 0, 0, 0, 0, User32.HwndMessage, name);
