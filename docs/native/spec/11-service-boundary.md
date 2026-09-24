@@ -273,7 +273,7 @@ The renderer's whole auth vocabulary is this object plus the three verbs. "Delib
 | 3 | `cssRect && cssRect.width >= 4 && cssRect.height >= 4` (`MIN_DRAG`) and the sender not destroyed: `phys = screen.dipToScreenRect(sender, { x: b.x + round(x), y: b.y + round(y), width: round(w), height: round(h) })` with `b = sender.getBounds()`; log info `` `region selected: ${w}x${h} @ (${x},${y}) [physical px]` ``. The `>= 4` test is on the UNROUNDED CSS width and height. Else (no rect, or too small): log debug `region: selection cancelled` and resolve `null`. A large enough rect from a sender that is already destroyed resolves `null` with NO log line. |
 | 4 | Teardown: close every overlay not yet destroyed, resolve the pending promise. An overlay closed out from under the selection (for example at app quit) also resolves `null`, so `selectArea()` never hangs. |
 
-03 owns the math and the overlay (03 7.4.4); the sender check becomes a generation check there (INV-IPC-15).
+03 owns the math and the overlay (03 7.4.4); the sender check becomes a generation check there (INV-IPC-15). As built in WP-B8: `AreaSelectionService.Finish(generation, rect)` ignores every generation but the pending one, and a cancellation posts `Finish` for its own generation through `IUiDispatcher` (K5), from a registration disposed when the selection ends.
 
 ### 2.6 Push delivery state machine (update notice)
 
@@ -405,7 +405,7 @@ Strings thrown or shown by `ipc.ts`, `main.ts` and `RegionService.ts` themselves
 
 **INV-IPC-15. An area selection result is accepted only from the selection that is pending.** A result from an overlay of an earlier or finished selection is ignored. Why: every window shared the preload, so any renderer could fire `region:complete`; natively a stale overlay (a second `SelectAreaAsync` superseding the first) must not resolve the new request. Citation: `src/main/RegionService.ts:114-120`. Test: 03 `AreaSelectionServiceTests.StaleOverlayCannotResolve` and `NewSelectionResolvesPreviousNull`.
 
-**INV-IPC-16. The requester is hidden for an area selection and restored and activated afterwards on every path.** Success, cancel, exception and cancellation all restore it, unless it was closed meanwhile. Citation: `src/main/ipc.ts:943-960`. Test: 03 `AreaSelectionServiceTests.RestoresMainWindowOnCancelAndError` and `CancellationResolvesNull`.
+**INV-IPC-16. The requester is hidden for an area selection and restored and activated afterwards on every path.** Success, cancel, exception and cancellation all restore it, unless it was closed meanwhile. Citation: `src/main/ipc.ts:943-960`. Test: 03 `AreaSelectionServiceTests.RestoresMainWindowOnCancelAndError` and `CancellationResolvesNull`. As built in WP-B8: as written, the exception included (a monitor list that cannot be read, an overlay that cannot be made), and a requester closed meanwhile stays closed (`ARequesterClosedMeanwhileStaysClosed`).
 
 **INV-IPC-17. User-visible error text is the service's exception message, verbatim, with no transport prefix; unexpected failures show one generic sentence; cancellation shows nothing.** Rules in 7.9. Why: Electron's `Error invoking remote method ...` prefix was transport noise (07 EDGE-SOP-23); a .NET message for an unexpected exception is not user text (06 D-HOME-26). Test: `Errors.UserMessageTests`.
 
