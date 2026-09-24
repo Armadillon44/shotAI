@@ -54,6 +54,17 @@ public sealed class MainWindowTests
         Assert.True(User32.IsWindowVisible(hwnd));
     });
 
+    /// <summary>The exit closes the window before it disposes the listener; a signal in between is ignored, not an exception.</summary>
+    [Fact]
+    public Task ShowFromSecondInstanceAfterCloseDoesNothing() => Sta.RunAsync(() =>
+    {
+        var main = new MainWindow(Registration());
+        main.Show();
+        main.Close();
+        main.ShowFromSecondInstance();
+        Assert.False(main.IsVisible);
+    });
+
     private static WindowRegistration Registration() => new(new OwnWindowRegistry(NullLogger<OwnWindowRegistry>.Instance));
 
     private static Task WithMainAsync(Func<MainWindow, nint, Task> body) => Sta.RunAsync(async () =>

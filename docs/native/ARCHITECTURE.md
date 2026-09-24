@@ -1369,7 +1369,7 @@ Each has a default to take if nobody decides before the PR that needs it. Owners
 | Q-AUTH-5 | `MsalCacheHelper` behavior on an undecryptable file or failed write | rely on it; custom DPAPI cache with a named mutex | pin with `MsalCachePersistenceTests`; fall back to the custom design if they fail |
 | Q-SOP-1 | Sonnet 5 price in the estimate | parity (3 and 15 per MTok); the published table | parity until confirmed on anthropic.com/pricing, then all three platforms together |
 | Q-CAP-5 | Raw Input instead of the low-level hook | hook plus watchdog; Raw Input | hook plus watchdog; Raw Input only if field logs show reinstalls |
-| Q-SHELL-3 | Tooltips and popups in the non-activating pill | WPF tooltips; `ShotAIPopup` on hover; a `WH_CALLWNDPROC` catch-all | build the tests first, then pick the first option that passes |
+| Q-SHELL-3 | Tooltips and popups in the non-activating pill | WPF tooltips; `ShotAIPopup` on hover; a `WH_CALLWNDPROC` catch-all | build the tests first, then pick the first option that passes. Decided in WP-A13 for the registration: the catch-all (`WindowShowHook`, 03 7.4.7), since every `Opened` handler registered its popup after it was visible; the pill's tooltips stay open for WP-B7 |
 | Q-SHELL-19 | The legacy guard's `MessageBox` | keep until S5; a registered `ShotAIWindow` notice | keep, allowlisted |
 | Q-SHELL-20 | Window widths include invisible borders | keep constants as outer widths; add the border | keep; measure once against Electron |
 | Q-REP-2 | The native report is narrower than Electron's (770 versus 820 DIP at 100%) | accept; fix Electron's CSS before cutover | accept, and fix Electron's CSS if cheap so pilot users see one report |
