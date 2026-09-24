@@ -31,7 +31,7 @@ namespace ShotAI.App;
 /// <remarks>
 /// Steps 1 to 4, 5b, 6 to 9, 11, 12 and 13 run (step 0 is <see cref="Program"/>). Steps 1b and
 /// 13's update check join in WP-E1, 2a in WP-E5, 5 in WP-D2, 10 in WP-B5 and the pill of step 8
-/// in WP-B6; the exit order's capture teardown joins with the capture engine.
+/// in WP-B7; the exit order's capture teardown joins with the capture engine.
 /// </remarks>
 public partial class App : Application
 {
@@ -108,7 +108,11 @@ public partial class App : Application
 
         // Steps 8 and 9: the main window registers, and so is excluded, before it is shown, and
         // the theme is merged before its first frame (D-HOME-10).
-        var main = new MainWindow(_services.GetRequiredService<WindowRegistration>());
+        var main = new MainWindow(
+            _services.GetRequiredService<WindowRegistration>(),
+            _services.GetRequiredService<AppMenuViewModel>(),
+            _services.GetRequiredService<MainWindowSizer>(),
+            _services.GetRequiredService<IAppInfo>());
         MainWindow = main;
         main.ContentRendered += LogFirstRender;
         ShowThemed(_services.GetRequiredService<ThemeManager>(), Resources, main);

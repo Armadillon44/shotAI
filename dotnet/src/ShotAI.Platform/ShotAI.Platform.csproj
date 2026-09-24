@@ -14,6 +14,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Win32.SystemEvents" />
+    <!-- The one WebView2 reference of the solution (INV-ARCH-5); ShotAI.Platform.Export alone uses it. -->
+    <PackageReference Include="Microsoft.Web.WebView2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ShotAI.Core\ShotAI.Core.csproj" />

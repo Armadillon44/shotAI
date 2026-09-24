@@ -990,7 +990,7 @@ public static class ReportGeometry
 }
 ```
 
-`Clamp(object?)`: `double` and the JSON number kinds are numbers; anything else (null, string, bool, object, array, `JsonNode` of another kind) gives 1.0. The codec (01) and the UI use the same function. `Widths`: `htmlCol = JsMath.Round(816 * s)`, `htmlImgMax = Math.Max(120, htmlCol - 78)`, `repFrame = htmlDoc = htmlCol + 64`, `reportCol = htmlCol`, `embed = htmlImgMax * 2`. `DetailWindowWidth`: `want = Widths(s).RepFrame + 130`; `usable = (double.IsFinite(W) && W > 0) ? Math.Floor(W) : want`; `return (int)Math.Max(1010, Math.Min(want, usable))`.
+`Clamp(object?)`: `double` and the JSON number kinds are numbers; anything else (null, string, bool, object, array, `JsonNode` of another kind) gives 1.0. The codec (01) and the UI use the same function. `Widths`: `htmlCol = JsMath.Round(816 * s)`, `htmlImgMax = Math.Max(120, htmlCol - 78)`, `repFrame = htmlDoc = htmlCol + 64`, `reportCol = htmlCol`, `embed = htmlImgMax * 2`. `DetailWindowWidth`: `want = Widths(s).RepFrame + 130`; `usable = (double.IsFinite(W) && W > 0) ? Math.Floor(W) : want`; `return (int)Math.Max(1010, Math.Min(want, usable))`. As built in WP-A15, with 03's window sizing: `DetailWindowWidth` and the constants it needs (`HtmlColumnBase`, `DocPadding`, `ReportFrameBase`, `DetailWindowBase`, `WindowChrome`) landed ahead of the report, computing the frame as `JsMath.Round(816 * Clamp(s)) + 64`, which is `Widths(s).RepFrame`; `Widths` and the detents join in WP-A17, and the `detailWindowWidth` group of `doc-scale.test.ts` is `Geometry/DocScaleDetailWindowWidthTests`.
 
 The arithmetic `816 * s` is done in `double` exactly as JS does (`816 * 0.7` is `571.1999999999999`, rounding to 571); tests compare against the table in section 3.
 

@@ -4,14 +4,77 @@
         xmlns:shell="clr-namespace:ShotAI.App.Shell"
         xmlns:core="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
         Title="{x:Static core:ShellStrings.AppName}"
-        Width="720" Height="740"
-        MinWidth="680" MinHeight="560"
+        Width="{x:Static core:ShellConstants.ListWidth}" Height="{x:Static core:ShellConstants.InitialHeight}"
+        MinWidth="{x:Static core:ShellConstants.MinWidth}" MinHeight="{x:Static core:ShellConstants.MinHeight}"
+        WindowStartupLocation="Manual"
+        ResizeMode="CanResize"
+        Icon="/shotAI;component/Assets/shotAI_icon.ico"
         Background="{DynamicResource Brush.ground}"
         Foreground="{DynamicResource Brush.ink}"
         FontFamily="{DynamicResource Font.stack}">
-  <Grid Margin="24">
-    <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap">
-      shotAI native (scaffold). Not a working app yet: see docs/native/PLAN.md.
-    </TextBlock>
-  </Grid>
+  <!--
+    Spec 03 7.4.5: the chords of the menu table. Zoom In also answers Ctrl+= and numpad plus,
+    Zoom Out numpad minus (D21); Edit's keys are the focused text box's own.
+  -->
+  <Window.InputBindings>
+    <KeyBinding Key="O" Modifiers="Control" Command="{Binding ImportProjectCommand}" />
+    <KeyBinding Key="OemComma" Modifiers="Control" Command="{Binding OpenSettingsCommand}" />
+    <KeyBinding Key="D0" Modifiers="Control" Command="{Binding ActualSizeCommand}" />
+    <KeyBinding Key="OemPlus" Modifiers="Control+Shift" Command="{Binding ZoomInCommand}" />
+    <KeyBinding Key="OemPlus" Modifiers="Control" Command="{Binding ZoomInCommand}" />
+    <KeyBinding Key="Add" Modifiers="Control" Command="{Binding ZoomInCommand}" />
+    <KeyBinding Key="OemMinus" Modifiers="Control" Command="{Binding ZoomOutCommand}" />
+    <KeyBinding Key="Subtract" Modifiers="Control" Command="{Binding ZoomOutCommand}" />
+    <KeyBinding Key="F11" Command="{x:Static shell:ShellCommands.ToggleFullScreen}" />
+    <KeyBinding Key="M" Modifiers="Control" Command="{x:Static shell:ShellCommands.Minimize}" />
+    <KeyBinding Key="W" Modifiers="Control" Command="{x:Static shell:ShellCommands.Close}" />
+  </Window.InputBindings>
+  <DockPanel>
+    <!--
+      The Electron menu bar, 2.8.1 less the Electron-only items (D9). The headers take a
+      first-letter access key (D19); the gesture texts are set, so none is localized or Del.
+    -->
+    <Menu x:Name="AppMenu" DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="{x:Static core:ShellStrings.ImportProject}" InputGestureText="Ctrl+O" Command="{Binding ImportProjectCommand}" />
+        <MenuItem Header="{x:Static core:ShellStrings.Settings}" InputGestureText="Ctrl+," Command="{Binding OpenSettingsCommand}" />
+        <Separator />
+        <MenuItem Header="{x:Static core:ShellStrings.Exit}" Command="{x:Static shell:ShellCommands.Exit}" />
+      </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem Header="{x:Static core:ShellStrings.Undo}" InputGestureText="Ctrl+Z" Command="ApplicationCommands.Undo" />
+        <MenuItem Header="{x:Static core:ShellStrings.Redo}" InputGestureText="Ctrl+Y" Command="ApplicationCommands.Redo" />
+        <Separator />
+        <MenuItem Header="{x:Static core:ShellStrings.Cut}" InputGestureText="Ctrl+X" Command="ApplicationCommands.Cut" />
+        <MenuItem Header="{x:Static core:ShellStrings.Copy}" InputGestureText="Ctrl+C" Command="ApplicationCommands.Copy" />
+        <MenuItem Header="{x:Static core:ShellStrings.Paste}" InputGestureText="Ctrl+V" Command="ApplicationCommands.Paste" />
+        <MenuItem Header="{x:Static core:ShellStrings.Delete}" InputGestureText="" Command="ApplicationCommands.Delete" />
+        <Separator />
+        <MenuItem Header="{x:Static core:ShellStrings.SelectAll}" InputGestureText="Ctrl+A" Command="ApplicationCommands.SelectAll" />
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="{x:Static core:ShellStrings.ActualSize}" InputGestureText="Ctrl+0" Command="{Binding ActualSizeCommand}" />
+        <MenuItem Header="{x:Static core:ShellStrings.ZoomIn}" InputGestureText="Ctrl+Plus" Command="{Binding ZoomInCommand}" />
+        <MenuItem Header="{x:Static core:ShellStrings.ZoomOut}" InputGestureText="Ctrl+-" Command="{Binding ZoomOutCommand}" />
+        <Separator />
+        <MenuItem Header="{x:Static core:ShellStrings.ToggleFullScreen}" InputGestureText="F11" Command="{x:Static shell:ShellCommands.ToggleFullScreen}" />
+      </MenuItem>
+      <MenuItem Header="_Window">
+        <MenuItem Header="{x:Static core:ShellStrings.Minimize}" InputGestureText="Ctrl+M" Command="{x:Static shell:ShellCommands.Minimize}" />
+        <MenuItem Header="{x:Static core:ShellStrings.Close}" InputGestureText="Ctrl+W" Command="{x:Static shell:ShellCommands.Close}" />
+      </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="{x:Static core:ShellStrings.About}" Command="{x:Static shell:ShellCommands.About}" />
+      </MenuItem>
+    </Menu>
+    <!-- View's zoom scales the content only, as Chromium scaled the page and never the menu bar (Q-SHELL-12). -->
+    <Grid x:Name="ContentRoot">
+      <Grid.LayoutTransform>
+        <ScaleTransform ScaleX="{Binding ZoomFactor}" ScaleY="{Binding ZoomFactor}" />
+      </Grid.LayoutTransform>
+      <TextBlock Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap">
+        shotAI native (scaffold). Not a working app yet: see docs/native/PLAN.md.
+      </TextBlock>
+    </Grid>
+  </DockPanel>
 </shell:ShotAIWindow>

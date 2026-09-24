@@ -12,8 +12,8 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5),
 the project store's project and step operations and imports (WP-A6, WP-A7), the archive
 engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP-A10), logging
-(WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13) and the theme
-with its fonts (WP-A14): analyzers, supply-chain
+(WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13), the theme
+with its fonts (WP-A14) and the main window with its menu and About (WP-A15): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -51,7 +51,11 @@ merged before the window shows and replaced whole when the theme or brand settin
 mode (while the theme follows it) or the open project's pinned brand changes, and every colour,
 corner and font reaches XAML through a `DynamicResource` key, which a Linux source scan enforces.
 LFI text renders from the upstream static Archivo instances in `Fonts\static\`, each folder of
-font files with its OFL licence.
+font files with its OFL licence. The main window opens at Electron's 720 x 740 DIP, centred on the
+monitor the cursor is on and no taller than its work area, with Electron's menu bar less its
+Electron-only items: File's Import Project and Settings, Edit, View's zoom of the content in
+half-level steps and full screen, Window's Minimize and Close, and Help's About, whose `.NET` and
+`WebView2` line comes from Platform's WebView2 probe; the App itself has no WebView2 reference.
 
 ## Layout
 
@@ -61,8 +65,8 @@ font files with its OFL licence.
 | `src/ShotAI.Platform` | `net10.0-windows10.0.19041.0` | Windows services: hooks, capture, UI Automation, display affinity, DPAPI, policy registry, OCR, WebView2 PDF host, libavif. |
 | `src/ShotAI.App` | `net10.0-windows10.0.19041.0` | The WPF app (`shotAI.exe`): windows, views, view models, composition root. |
 | `tests/ShotAI.Core.Tests` | `net10.0` | xunit.v3 tests for Core, including the shared `contract/conformance` suite. Runs on Linux and Windows. |
-| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search, the single-instance lock, window styles, the show hook, the own-window registry, WIC, the app-mode monitor. Builds everywhere, runs on Windows only. |
-| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, the theme manager, resources and styles, the fonts as packaged and as WPF resolves them, and the real exe run as a process (the self-test, a second launch, closing the main window, the theme before the first show). Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search, the single-instance lock, window styles, the show hook, the own-window registry, WIC, the app-mode monitor, the monitor queries, the WebView2 version probe. Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, the theme manager, resources and styles, the fonts as packaged and as WPF resolves them, the main window's size, placement and full screen, the menu and its chords, About, the one WebView2 reference, and the real exe run as a process (the self-test, a second launch, closing the main window, the theme before the first show). Builds everywhere, runs on Windows only. |
 | `assets/fonts/static` | | The upstream Archivo static instances WPF renders, their `OFL.txt` and `SOURCES.md` (the upstream commit and each file's sha256). |
 | `tools/ShotAI.GenBrand` | `net10.0` | The brand generator: writes `src/ShotAI.Core/Brand/BrandPalette.Generated.cs` from `contract/brand.json`; `--check` fails when it is stale. BCL only, so it builds when the table does not. |
 
@@ -104,6 +108,9 @@ set it in a workflow; CI's online check is the one that gates merges (12 7.8).
   committed `packages.lock.json` files, from nuget.org only, with repository signatures
   required (`nuget.config`). After a package change, run
   `dotnet restore ShotAI.slnx --force-evaluate` and commit the lock files.
+- **WebView2 is Platform's alone** (INV-ARCH-5): only `ShotAI.Platform.Export` uses it, and
+  `Directory.Build.targets` drops the package's WPF and WinForms control assemblies from every
+  project, so no build can name the controls and neither ships.
 - **Banned APIs** are listed per project in `src/*/BannedSymbols.txt` (RS0030). An
   allowance is an `.editorconfig` section for exactly one file, and it lifts every ban
   in that file, so keep allowlisted files small (ARCHITECTURE 14.9).

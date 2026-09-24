@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    Shared targets for every project under dotnet/.
+
+    WebView2's package targets reference its WPF and WinForms control assemblies in every project
+    that gets the package, directly or through ShotAI.Platform. The solution uses neither control
+    (INV-ARCH-5 bans both; the PDF host and the version probe use the core assembly only), and in
+    a project without WPF the WPF one pulls in a WindowsBase that conflicts with the framework's
+    (MSB3277). So both are dropped from every project, and neither ships.
+  -->
+  <Target Name="ShotAIDropWebView2ControlReferences" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)"
+                 Condition="'%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf' Or '%(Reference.Filename)' == 'Microsoft.Web.WebView2.WinForms'" />
+    </ItemGroup>
+  </Target>
+</Project>

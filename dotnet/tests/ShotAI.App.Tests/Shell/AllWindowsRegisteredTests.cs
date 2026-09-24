@@ -30,7 +30,7 @@ public sealed partial class AllWindowsRegisteredTests
     {
         var registry = NewRegistry();
         using var probe = ShowProbe.Install();
-        var main = new MainWindow(new WindowRegistration(registry));
+        var main = TestMainWindow.Create(new WindowRegistration(registry));
         main.Show();
         var hwnd = new WindowInteropHelper(main).Handle;
         try
@@ -42,6 +42,27 @@ public sealed partial class AllWindowsRegisteredTests
             main.Close();
         }
         Assert.False(registry.IsRegistered(hwnd));
+    });
+
+    /// <summary>Help, About: a dialog owned by the main window, excluded before its first frame like every other.</summary>
+    [Fact]
+    public Task AboutIsExcludedBeforeItIsShown() => Sta.RunAsync(() =>
+    {
+        var registry = NewRegistry();
+        using var probe = ShowProbe.Install();
+        var main = TestMainWindow.Create(new WindowRegistration(registry));
+        main.Show();
+        var about = new AboutWindow(new WindowRegistration(registry), "shotAI 2.0.0", "detail") { Owner = main };
+        try
+        {
+            about.Show();
+            AssertExcludedBeforeShown(registry, probe, new WindowInteropHelper(about).Handle);
+        }
+        finally
+        {
+            about.Close();
+            main.Close();
+        }
     });
 
     [Fact]

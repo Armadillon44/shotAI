@@ -50,6 +50,14 @@
     <None Include="$(RepoRoot)dotnet/assets/fonts/static/*.ttf;$(RepoRoot)dotnet/assets/fonts/static/OFL.txt"
           Link="Fonts\static\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <!--
+    The app icon as a WPF resource (spec 03 2.10.9): the main window's Icon and About's 64 x 64
+    image read it as /shotAI;component/Assets/shotAI_icon.ico, a URI of this assembly, not of the
+    entry assembly, which is the test host in the tests.
+  -->
+  <ItemGroup>
+    <Resource Include="$(RepoRoot)assets/shotAI_icon.ico" Link="Assets/shotAI_icon.ico" />
+  </ItemGroup>
   <!-- The App.Tests project reaches the composition root's internals. -->
   <ItemGroup>
     <InternalsVisibleTo Include="ShotAI.App.Tests" />

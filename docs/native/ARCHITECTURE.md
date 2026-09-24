@@ -155,7 +155,7 @@ Folder equals namespace, one public type per file, file named after the type (`C
 | Core | `ShotAI.Core.Store` | 01, 11 | `ProjectStore`, `IProjectService`, `IProjectSession`, `IProjectSessionFactory`, `ProjectSessionFactory`, `IProjectSettle`, `OpenedProject`, `ImportFile`, `ProjectOperation`, `MutateResult`, `ManifestChangeKind`, `ManifestChangedEventArgs`, `PersistFailedEventArgs`, `SerialWriteQueue`, `AtomicFile`, `PathConfine`, `IPathProbe`, `ReparseSafeDelete`, `ArchiveEngine`, `ImportLimits`, the store exceptions of 01 7.13 (`ProjectNotKnownException`, `StepNotFoundException`, `MergeIntoItselfException`, `UnsupportedImageException`, `ImportRejectedException`, `ArchiveException`, `ManifestCorruptException`); the full list is 01 7.1 |
 | Core | `ShotAI.Core.Geometry` | 05 (01 uses `DocScale.Clamp`) | `DocScale`, `DocWidths`, `ReportGeometry` |
 | Core | `ShotAI.Core.Capture` | 02 | `CaptureEngine`, `ICaptureService`, `CaptureShield`, `ShieldedScreenCapture`, seams, `CaptureGeometry`, `ClickCaptions` |
-| Core | `ShotAI.Core.Shell` | 03, 11 | `WindowLayout`, `PillPresenter`, `RecordingVisibilityPlanner`, `AreaSelectionMath`, `BrandMenuModel`, `ShellStrings`, `SingleInstanceIdentity`, `PixelRect`, `IShellReveal`, `Machine`, `RuntimeDiagnostics`, `RenderModePolicy` |
+| Core | `ShotAI.Core.Shell` | 03, 11 | `WindowLayout`, `UiZoom`, `AboutText`, `ShellConstants`, `DipRect`, `PillPresenter`, `RecordingVisibilityPlanner`, `AreaSelectionMath`, `BrandMenuModel`, `ShellStrings`, `SingleInstanceIdentity`, `PixelRect`, `IShellReveal`, `Machine`, `RuntimeDiagnostics`, `RenderModePolicy` |
 | Core | `ShotAI.Core.Editor` | 04 | `EditorDocument`, annotation views, `AnnotationFactory`, `TransformMath`, `HitTesting` |
 | Core | `ShotAI.Core.Rendering` | 04 | `Flattener`, `RedactionBaker`, `StepPatch`, `StepPatchValidator`, `StepPatchApplier`, `IStepRenderWriter`, `IStepFlattener` (R-ARCH-7) |
 | Core | `ShotAI.Core.Redaction` | 04 | `RenderGate`, `IRenderGate`, `RenderGateException`, `SensitiveTextDetector`, `ISensitiveRegionScanner`, `IOcrEngine` |
@@ -176,7 +176,8 @@ Folder equals namespace, one public type per file, file named after the type (`C
 | Platform | `ShotAI.Platform.Theme`, `.Processes`, `.Install`, `.Composition` | 06, 12, 11 | `SystemAppearanceMonitor`, `ProcessSnapshot`, `ProcessStarter`, `InstallInfoReader` (and its internal `InstallInfo`), `PlatformServiceCollectionExtensions` |
 | Platform | root | 12, scaffold | `NativeMethods.txt`, `CaptureExclusion` (existing), `DllSearchHardening` |
 | App | `ShotAI.App` | 03, 10, 11 | `Program` (explicit `Main`), `App` (composition root), `AppPaths`, `SelfTestHost` (10), `ViewModelBase` (11) |
-| App | `ShotAI.App.Shell`, `.Capture`, `.Startup` | 03, 02, 12 | windows (`ShotAIWindow` and its subclasses), `ShotAIPopup`, `WindowRegistration`, `PopupExclusion`, `ActivationListener`, `AreaSelectionService`, `RecordingVisibilityController`, `AppMenuViewModel`, `LegacyInstanceGuard`, `PersonalCopyGuard` |
+| App | `ShotAI.App.Shell`, `.Capture`, `.Startup` | 03, 02, 12 | windows (`ShotAIWindow` and its subclasses, `MainWindow` and `AboutWindow` among them), `ShotAIPopup`, `WindowRegistration`, `PopupExclusion`, `ActivationListener`, `MainWindowSizer`, `ShellCommands`, `NavigationState`, `AreaSelectionService`, `RecordingVisibilityController`, `AppMenuViewModel`, `LegacyInstanceGuard`, `PersonalCopyGuard` |
+| App | `ShotAI.App.Services` | 11 | `IAppStartup`, `IAppInfo`, `AppInfo`, `AppInfoProvider` (as of WP-A15), later `IFileDialogs`, `WpfFileDialogs`, `RemoteVisibilityApplier` (11 7.1) |
 | App | `ShotAI.App.Home`, `.Settings`, `.Tour`, `.Chrome` | 06 | view models, `NoticeCenter`, `ConfirmService`, `ThemeManager`, `Themes/*.xaml` |
 | App | `ShotAI.App.Report`, `.Editor`, `.Sop`, `.Export`, `.Auth` | 05, 04, 07, 09, 08 | views, view models, `ReportImageLoader`, `StaRenderThread`, `EditorFactory`, `IColorPicker` and `Win32ColorPicker` (in `.Editor`, 04 7.1), `SopPanelViewModelFactory`, `ExportService`, `EmbeddedBakedFederationSource` |
 | App | `ShotAI.App.Threading`, `.Services`, `.Composition` | 11 (04 for `UiDeferral`) | `WpfUiDispatcher`, `UiDeferral` (in `.Threading`, beside the dispatcher; R-ARCH-18), `AppLifetime`, `ShutdownFlush`, `IFileDialogs`, `IAppInfo`, `IAppStartup`, `AppServiceCollectionExtensions`, `ServiceProviderFactory`, `AppLogging` (10's step 1 factory and banner) |
@@ -240,7 +241,7 @@ Test projects mirror the namespace of what they test (`ShotAI.Core.Tests.Store.A
 | `Microsoft.Identity.Client.Extensions.Msal` | Platform | DPAPI token cache with a cross-process lock | 08 7.6 | MIT | compatible with MSAL line |
 | `System.Security.Cryptography.ProtectedData` | Platform | DPAPI for the API key | 08 7.11 | MIT | .NET 10 line |
 | `Microsoft.Win32.SystemEvents` | Platform | `UserPreferenceChanged`, the app-mode change of `SystemAppearanceMonitor`; the App's desktop runtime carries the same assembly, and the package keeps Platform off WPF (added in WP-A14) | 06 7.14 | MIT | .NET 10 line (`10.0.12`) |
-| `Microsoft.Web.WebView2` | Platform | PDF printing host; runtime version probe | 09 7.16, 11 7.13 | Microsoft WebView2 SDK licence (BSD-style, UNVERIFIED wording) | latest stable |
+| `Microsoft.Web.WebView2` | Platform | PDF printing host; runtime version probe (added in WP-A15 with the probe; its WPF and WinForms control assemblies are dropped from every project by `dotnet/Directory.Build.targets`, 03 7.11) | 09 7.16, 11 7.13 | BSD-3-Clause text (the package's `LICENSE.txt`, read in WP-A15) | `1.0.4191.47`, the latest stable at WP-A15 |
 | `Microsoft.Extensions.DependencyInjection` | App | the container | 03 7.11, 11 7.13 | MIT | .NET 10 line |
 | `Microsoft.Extensions.Logging` | App | `LoggerFactory` | 10 7.11 | MIT | .NET 10 line |
 | `Microsoft.Extensions.Logging.Debug` | App (Debug configuration only) | debugger output in place of electron-log's console transport | 10 7.5.1 | MIT | .NET 10 line |
@@ -256,7 +257,7 @@ Transitive packages worth knowing: `Anthropic` 12.50.0 brings `System.Text.Json`
 |---|---|---|---|---|
 | `shotai_avif.dll` (libavif 1.x plus libaom, statically linked, C shim) | built in CI per architecture, placed next to `shotAI.exe` | AVIF for styled HTML export | BSD-2-Clause (both) | pinned commits and source SHA-256 in `dotnet/native/avif/pins.json`, build attestation, never committed as a binary (INV-PKG-19); bound with `LibraryImport`, the one sanctioned exception to "CsWin32 for every P/Invoke" (Q-EXP-1, I-3 in 15.2) |
 | `msalruntime*.dll` | `Microsoft.Identity.Client.Broker`, flattened by the RID publish | WAM broker | Microsoft | Microsoft-signed; architecture checked by `verify-payload` (12 7.2.4) |
-| `WebView2Loader.dll` | `Microsoft.Web.WebView2` | WebView2 bootstrap | Microsoft | same |
+| `WebView2Loader.dll` | `Microsoft.Web.WebView2` (x86, x64 and arm64 copies under `runtimes\win-<arch>\native\` of a RID-less build, as of WP-A15) | WebView2 bootstrap | Microsoft | same |
 | .NET 10 Desktop Runtime | Intune dependency, serviced by Microsoft Update | framework-dependent host | MIT | apphost searches global locations only (INV-PKG-17) |
 | WebView2 Evergreen Runtime | Windows 11 and Microsoft 365 installs; Intune prerequisite otherwise | PDF export only | Microsoft | a missing runtime gives `PdfRuntimeMissing` (D-EXP-4) |
 | Windows OCR recognizer (Feature on Demand `Language.OCR~~~en-US~0.0.1.0`) | present on en-US installs; IT deploys elsewhere | auto-redact pre-scan | Windows | missing recognizer gives the `Unavailable` notice (04 7.9, Q-EDIT-5) |
@@ -348,15 +349,15 @@ Some work must happen before any service exists. The order is 03 7.4.1 with 12 a
 | `IUiDispatcher` | `WpfUiDispatcher` over the dispatcher passed to `AddShotAIApp` (`Dispatcher.CurrentDispatcher` at step 6) | singleton instance | App | 11 |
 | `IAppLifetime`, `IAppInfo`, `IFileDialogs`, `IAppPaths` | `AppLifetime`, `AppInfoProvider`, `WpfFileDialogs`, `AppPaths` | singleton | App | 11, 10 |
 | `IExportService`, `IExportDialogs`, `ExportEngine` | 09 types | singleton | App (service, dialogs), Core (engine) | 09 |
-| `IAreaSelectionService`, `IMainWindowLayout`, `AppMenuViewModel`, `RecordingVisibilityController`, `CapturePillViewModel`, `PopupExclusion`, `WindowRegistration` (the `OwnWindowRegistry` wiring) | 03 types | singleton | App | 03 |
+| `IAreaSelectionService`, `IMainWindowLayout`, `AppMenuViewModel`, `RecordingVisibilityController`, `CapturePillViewModel`, `PopupExclusion`, `WindowRegistration` (the `OwnWindowRegistry` wiring) | 03 types (as of WP-A15: `IMainWindowLayout` forwarded to the `MainWindowSizer` singleton, which startup step 8 passes to the main window, and `AppMenuViewModel`) | singleton | App | 03 |
 | `OwnWindowRegistry` | same, registered as itself (the one public Platform registration, 02 7.1; corrected in WP-A13: the App wires it through `WindowRegistration`, and Platform, which owns the type, registers it) | singleton | Platform | 02, 03 |
-| `IShellNavigationState` | `NavigationState` (added in WP-A14: registered as itself, the theme manager's input; 03's interface joins in WP-A15) | singleton | App | 06 |
+| `IShellNavigationState` | `NavigationState` (added in WP-A14: registered as itself, the theme manager's input; as of WP-A15 also 03's interface, forwarded to the same instance) | singleton | App | 06 |
 | `INoticeService`, `IConfirmService`, `ThemeManager` | `NoticeCenter`, `ConfirmService`, `ThemeManager` | singleton | App | 06 |
 | `StaRenderThread`, `IOverlayRasterizer` (`WpfOverlayRasterizer`) | 04 types | singleton | App | 04 |
 | `EditorFactory`, `IColorPicker` | `EditorFactory` (C6), `Win32ColorPicker` | singleton | App | 04 7.10.1 |
 | `ReportImageLoader`, `ReportImageDecoder`, `IImageSizeProbe` | 05 types | singleton | App, Platform | 05 |
-| `IAppStartup` (multiple, in this order) | `RemoteVisibilityApplier`, `RecordingVisibilityController`, `ThemeManager` (the one registered as of WP-A14, forwarded to the `ThemeManager` singleton; WP-B5 and WP-B6 register the other two before it) | singleton | App | 11 7.10 |
-| view models | per spec | transient; named singletons only where a spec says so (today 06's `CaptureModePickerViewModel`, EDGE-HOME-57) | App | INV-IPC-22 |
+| `IAppStartup` (multiple, in this order) | `RemoteVisibilityApplier`, `RecordingVisibilityController`, `ThemeManager` (the one registered as of WP-A14, forwarded to the `ThemeManager` singleton; WP-B5 and WP-B7 register the other two before it (corrected in WP-A15 from WP-B6: the pill and `RecordingVisibilityController` are WP-B7's)) | singleton | App | 11 7.10 |
+| view models | per spec | transient; named singletons only where a spec says so (06's `CaptureModePickerViewModel`, EDGE-HOME-57, and 03's `AppMenuViewModel`, registered in WP-A15, and `CapturePillViewModel`) | App | INV-IPC-22 |
 | factories (C6) | per spec | singleton | App or Core | 4.1 |
 
 ### 4.4 The service catalog is the backbone
@@ -1254,7 +1255,7 @@ Corrected in WP-A1, from its deliberate violations against BannedApiAnalyzers 5.
 - `await` is not flagged, although it compiles to `GetAwaiter().GetResult()`.
 - An allowance turns `RS0030` off for the whole file, because the analyzer reports every ban under that one ID: an allowlisted file may use any banned API, not only the one it is allowlisted for. The allowlisted files stay small and single-purpose, 9.5 item 7 asks about them, and the other rules still apply in them (a synchronous wait also fails `VSTHRD002`, which is off only in `ShutdownFlush.cs`).
 - The lists cover the look-alikes of each rule that the first draft missed: the other half-to-even roundings in Core, and in the App the `DispatcherExtensions` methods, `Task.WaitAny` and every awaiter's `GetResult`.
-- The WebView2 and WinForms `MessageBox` entries were proved in a scratch project with the App's list, because no project references those assemblies yet.
+- The WebView2 and WinForms `MessageBox` entries were proved in a scratch project with the App's list, because no project references those assemblies yet. As of WP-A15 Platform references the WebView2 core assembly, but no project references the two control assemblies: `dotnet/Directory.Build.targets` drops them, so the WebView2 entries ban types no build can name.
 
 ### 14.10 Pull requests
 
