@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using ShotAI.App.Chrome;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
@@ -346,7 +347,7 @@ public sealed class ThemeManagerTests
 
         public FakeSystemAppearance System { get; } = new();
 
-        public NavigationState Nav { get; } = new();
+        public NavigationState Nav { get; } = new(NullLogger<NavigationState>.Instance);
 
         public CapturingLoggerProvider Logs { get; } = new();
 

@@ -6,7 +6,9 @@ namespace ShotAI.App.Tests.Support;
 /// <summary>
 /// A store whose listing the test sets, counts and can hold open: each call returns
 /// <see cref="Listing"/>, or waits on the next gate the test queued. <see cref="RaiseProjectsChanged"/>
-/// fires the store's event as the startup auto-archive does.
+/// fires the store's event as the startup auto-archive does. A project <see cref="CanOpen"/> made
+/// openable is also <see cref="Stored"/>, which <see cref="MutateAsync"/> edits as the store's
+/// queued write does: on a copy, kept only when the edit changed it.
 /// </summary>
 internal sealed class ListingProjects : FakeProjectService, IProjectService
 {
@@ -57,8 +59,43 @@ internal sealed class ListingProjects : FakeProjectService, IProjectService
 
     private readonly Dictionary<string, TaskCompletionSource<OpenedProject>> _openGates = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>An open of <paramref name="path"/> returns <paramref name="manifest"/>.</summary>
-    public void CanOpen(string path, ProjectManifest manifest) => Openable[path] = () => new OpenedProject(path, manifest);
+    /// <summary>An open of <paramref name="path"/> returns <paramref name="manifest"/>, which is also what a write finds there.</summary>
+    public void CanOpen(string path, ProjectManifest manifest)
+    {
+        Openable[path] = () => new OpenedProject(path, manifest);
+        Stored[path] = manifest.DeepClone();
+    }
+
+    /// <summary>What each folder holds for a write: set by <see cref="CanOpen"/>, replaced by each write that changed it.</summary>
+    public Dictionary<string, ProjectManifest> Stored { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The folder of each write asked for, in order, the unchanged ones included.</summary>
+    public List<string> Mutated { get; } = [];
+
+    /// <summary>When set, a write throws it and keeps nothing.</summary>
+    public Exception? MutateFailure { get; set; }
+
+    private readonly Queue<TaskCompletionSource> _mutateGates = new();
+
+    /// <summary>The next write waits for the returned source, which the test completes.</summary>
+    public TaskCompletionSource GateMutate()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mutateGates.Enqueue(gate);
+        return gate;
+    }
+
+    public override async Task<ProjectManifest> MutateAsync(string projectPath, Func<ProjectManifest, ValueTask<MutateResult>> fn)
+    {
+        Mutated.Add(projectPath);
+        if (_mutateGates.TryDequeue(out var gate)) await gate.Task;
+        if (MutateFailure is { } failure) throw failure;
+        if (!Stored.TryGetValue(projectPath, out var stored)) throw new ProjectNotKnownException();
+        var next = stored.DeepClone();
+        if (await fn(next) == MutateResult.Unchanged) return stored;
+        Stored[projectPath] = next;
+        return next;
+    }
 
     /// <summary>An open of <paramref name="path"/> throws <paramref name="failure"/>.</summary>
     public void OpenFails(string path, Exception failure) => Openable[path] = () => throw failure;

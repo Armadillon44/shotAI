@@ -15,7 +15,7 @@ public enum ReportNoticeSlot
     /// <summary><c>Export failed: </c> and the message.</summary>
     Export,
 
-    /// <summary>The rollback notice of a write the disk refused (7.5; its text joins with the editing UI, WP-C2).</summary>
+    /// <summary><c>Your last change couldn't be saved and was undone. </c> and the message: a write the disk refused was rolled back (7.5).</summary>
     Save,
 
     /// <summary>Information, with no prefix: the capture guard (EDGE-REP-23).</summary>
@@ -76,6 +76,7 @@ public sealed class NoticeStackViewModel : ViewModelBase
     {
         ReportNoticeSlot.Import => ReportStrings.ImportFailed,
         ReportNoticeSlot.Export => ReportStrings.ExportFailed,
+        ReportNoticeSlot.Save => ReportStrings.RolledBack,
         _ => "",
     };
 

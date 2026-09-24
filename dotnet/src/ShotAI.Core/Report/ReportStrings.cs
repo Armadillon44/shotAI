@@ -5,9 +5,10 @@ namespace ShotAI.Core.Report;
 
 /// <summary>
 /// The report's strings (spec 05 2.22, 7.10, 7.18), pinned by <c>ReportStringsTests</c> on
-/// Linux. The read-only report (WP-A17) has the text it displays; each editing package adds the
-/// strings of its controls: the edit and menu strings with the editing UI (WP-C2), the figure
-/// controls and the insert menu with WP-C3, the export control with WP-D.
+/// Linux. The read-only report (WP-A17) has the text it displays, and WP-A18 the rollback notice
+/// of its first edit; each editing package adds the strings of its controls: the edit and menu
+/// strings with the editing UI (WP-C2), the figure controls and the insert menu with WP-C3, the
+/// export control with WP-D.
 /// </summary>
 public static class ReportStrings
 {
@@ -34,6 +35,13 @@ public static class ReportStrings
 
     /// <summary>The prefix of the export notice (2.7).</summary>
     public const string ExportFailed = "Export failed: ";
+
+    /// <summary>
+    /// The prefix of the rollback notice (7.5, Q-REP-1): an optimistic edit the disk refused was
+    /// undone, and <c>UserMessage.From</c> of the error follows. Added in WP-A18 with the first
+    /// such edit, View, Brand.
+    /// </summary>
+    public const string RolledBack = "Your last change couldn't be saved and was undone. ";
 
     /// <summary>The accessible name of a section row whose heading is empty (7.18; native).</summary>
     public const string SectionName = "Section";

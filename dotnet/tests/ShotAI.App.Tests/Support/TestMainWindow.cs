@@ -14,10 +14,21 @@ namespace ShotAI.App.Tests.Support;
 /// <summary>The main window as startup step 8 makes it, over its own registry and a fixed <see cref="IAppInfo"/>. On the UI thread.</summary>
 internal static class TestMainWindow
 {
+    /// <summary>
+    /// The window over <paramref name="menu"/> and <paramref name="shell"/>; without them, a menu
+    /// that follows a navigation state that follows a shell over that menu, as startup wires them.
+    /// </summary>
     public static MainWindow Create(
         WindowRegistration? registration = null, MainWindowSizer? sizer = null, AppMenuViewModel? menu = null, IAppInfo? appInfo = null, ShellViewModel? shell = null)
     {
-        menu ??= new AppMenuViewModel();
+        if (menu is null)
+        {
+            var navigation = new NavigationState(NullLogger<NavigationState>.Instance);
+            menu = new AppMenuViewModel(
+                navigation, new FakeSettingsService(), new WpfUiDispatcher(System.Windows.Threading.Dispatcher.CurrentDispatcher), NullLogger<AppMenuViewModel>.Instance);
+            shell ??= Shell(menu);
+            navigation.Follow(shell);
+        }
         return new(
             registration ?? new WindowRegistration(new OwnWindowRegistry(NullLogger<OwnWindowRegistry>.Instance)),
             menu,

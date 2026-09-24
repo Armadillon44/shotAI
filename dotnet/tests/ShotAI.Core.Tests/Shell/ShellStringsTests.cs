@@ -7,7 +7,8 @@ namespace ShotAI.Core.Tests.Shell;
 /// <summary>
 /// Spec 03 8.3 (INV-SHELL-22): each string equals its 2.11 text. The strings arrive with the
 /// windows that show them: the main window's title with WP-A13, the menu's and About's with
-/// WP-A15; the em-dash window titles join with the pill and the overlay.
+/// WP-A15, the Brand submenu's with WP-A18; the em-dash window titles join with the pill and the
+/// overlay.
 /// </summary>
 public sealed class ShellStringsTests
 {
@@ -30,10 +31,27 @@ public sealed class ShellStringsTests
             ["Edit", "Undo", "Redo", "Cut", "Copy", "Paste", "Delete", "Select All"],
             [ShellStrings.EditMenu, ShellStrings.Undo, ShellStrings.Redo, ShellStrings.Cut, ShellStrings.Copy, ShellStrings.Paste, ShellStrings.Delete, ShellStrings.SelectAll]);
         Assert.Equal(
-            ["View", "Actual Size", "Zoom In", "Zoom Out", "Toggle Full Screen"],
-            [ShellStrings.ViewMenu, ShellStrings.ActualSize, ShellStrings.ZoomIn, ShellStrings.ZoomOut, ShellStrings.ToggleFullScreen]);
+            ["View", "Actual Size", "Zoom In", "Zoom Out", "Toggle Full Screen", "Brand"],
+            [ShellStrings.ViewMenu, ShellStrings.ActualSize, ShellStrings.ZoomIn, ShellStrings.ZoomOut, ShellStrings.ToggleFullScreen, ShellStrings.Brand]);
         Assert.Equal(["Window", "Minimize", "Close"], [ShellStrings.WindowMenu, ShellStrings.Minimize, ShellStrings.Close]);
         Assert.Equal(["Help", "About shotAI"], [ShellStrings.HelpMenu, ShellStrings.About]);
+    }
+
+    /// <summary>2.11's Brand rows (added in WP-A18): App default names the brand label it resolves to.</summary>
+    [Fact]
+    public void BrandRowsAreTheTableOf211()
+    {
+        Assert.Equal("App default (shotAI)", ShellStrings.BrandAppDefault("shotAI"));
+        Assert.Equal("App default (LFI)", ShellStrings.BrandAppDefault("LFI"));
+    }
+
+    /// <summary>The Brand submenu's labels as <c>menu.ts</c> writes them (<c>:186</c>, <c>:242</c>).</summary>
+    [Fact]
+    public void BrandLabelsMatchTheElectronSource()
+    {
+        var menu = ElectronSource.Read("src/main/menu.ts").ReplaceLineEndings("\n");
+        Assert.Contains($"          label: '{ShellStrings.Brand}',\n", menu, StringComparison.Ordinal);
+        Assert.Contains("        label: `" + ShellStrings.BrandAppDefault("${BRANDS[brandState.appBrand].label}") + "`,\n", menu, StringComparison.Ordinal);
     }
 
     /// <summary>The ellipsis is one character, U+2026, as menu.ts writes it, not three dots.</summary>
