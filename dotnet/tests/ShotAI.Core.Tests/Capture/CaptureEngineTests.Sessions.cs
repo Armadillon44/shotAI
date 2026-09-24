@@ -329,6 +329,39 @@ public sealed partial class CaptureEngineTests
         Assert.Empty(EngineHarness.StepsOnDisk(p));
     }
 
+    /// <summary>
+    /// EDGE-CAP-28: a mousedown that passed the session check before a stop, and is queued only
+    /// after the next session started, belongs to the ended session, so it lands nowhere.
+    /// </summary>
+    [Fact]
+    public async Task AStaleClickLandsInNoLaterSession()
+    {
+        await using var h = new EngineHarness();
+        using var entered = new SemaphoreSlim(0);
+        using var release = new ManualResetEventSlim(false);
+        h.Elements.OnQuery = (_, _) =>
+        {
+            entered.Release();
+            release.Wait(EngineHarness.Timeout);
+            return Task.FromResult<StepElement?>(null);
+        };
+        var p1 = h.Project();
+        var p2 = h.Project("p2");
+        await h.StartAsync(p1);
+        var click = Task.Run(() => h.Triggers.Click(100, 100), TestContext.Current.CancellationToken);
+        Assert.True(await entered.WaitAsync(EngineHarness.Timeout, TestContext.Current.CancellationToken), "no mousedown reached the element query");
+        await h.Engine.StopAsync().Bounded();
+        await h.StartAsync(p2);
+        release.Set();
+        await click.Bounded();
+        await h.SettleAsync();
+
+        Assert.Empty(h.Landed);
+        Assert.Empty(EngineHarness.StepsOnDisk(p1));
+        Assert.Empty(EngineHarness.StepsOnDisk(p2));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(p2, "shots")));
+    }
+
     [Fact]
     public async Task DiscardDeletesExactlyThisSessionsSteps()
     {

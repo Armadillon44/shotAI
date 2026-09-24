@@ -119,7 +119,24 @@ public sealed partial class CaptureEngineTests
         Assert.Empty(EngineHarness.StepsOnDisk(p));
     }
 
-    /// <summary>T5: a throwing handler is logged, and the handlers after it and the next event still run.</summary>
+    /// <summary>7.13: the container calls only <c>Dispose</c>, which tears down first: the triggers go and nothing starts after it.</summary>
+    [Fact]
+    public async Task DisposeAloneTearsDown()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        await h.StartAsync(p);
+
+#pragma warning disable VSTHRD103 // The synchronous Dispose is what this test is about.
+        h.Engine.Dispose();
+#pragma warning restore VSTHRD103
+
+        Assert.Equal(1, h.Triggers.Detaches);
+        Assert.False(h.Triggers.Attached);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => h.StartAsync(h.Project("p2")));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => h.ScreenshotAsync(p, new CaptureTarget("screen"), 0));
+    }
+
     /// <summary>Spec 02 7.2: every seam is required, and the null one is named.</summary>
     [Fact]
     public async Task EverySeamIsRequired()
@@ -139,6 +156,7 @@ public sealed partial class CaptureEngineTests
         }
     }
 
+    /// <summary>T5: a throwing handler is logged, and the handlers after it and the next event still run.</summary>
     [Fact]
     public async Task EventsGoThroughEventRaiser()
     {

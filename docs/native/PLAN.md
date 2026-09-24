@@ -586,8 +586,8 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 |---|---|
 | Goal | `CaptureEngine` runs sessions (new, append, rolling-cursor insert), the FIFO capture queue, every grab path, persistence and events, over fakes |
 | Spec inputs | 02 2.1, 2.2 (2.2.1 to 2.2.9), 2.5, 2.6, 2.8.2, 2.10 (as consumed), 2.13 to 2.15, 7.3, 7.10 (D4 to D11, D16, D18, D21 to D24), 7.11, 7.12, 7.13, INV-CAP-8 to INV-CAP-12, INV-CAP-19 to INV-CAP-28; 11 section 10 requests to 02 (EventRaiser, explicit-target `ShotAIException`, `InsertAt` clamp, idle `StateChanged` after a screenshot, `IDisposable`); ARCHITECTURE R-ARCH-10; Q-CAP-1, Q-CAP-6, Q-CAP-7, Q-CAP-12, Q-CAP-17, Q-IPC-4, Q-IPC-23 |
-| Deliverables | `ICaptureService` (moved here from WP-B1: a catalog interface must resolve as soon as it exists), `CaptureEngine : ICaptureService, IDisposable` (`StartAsync` with atomic reservation, `Pause`, `Resume`, `StopAsync` draining in-flight captures, `DiscardAsync`, `CaptureScreenshotAsync` with the 350 ms hide settle, `ListTargetsAsync`, `Teardown`, a synchronous idempotent `Dispose` that `provider.Dispose()` calls at exit and that never awaits in-flight jobs, and a `DisposeAsync` kept only for tests and non-container owners, 02 7.13, R-ARCH-10), internal `CaptureSession`, the single-reader `Channel<CaptureJob>` worker with `SessionAlive(gen)` re-checks, the grab paths (window, area with its preserved crop quirk, auto region, fullscreen) through `IScreenCapture` only, orphan seeding (D11, D22), `shots/` confinement (D10), events through `EventRaiser` in Electron's order, `CaptureException` and `TriggerException` (both `ShotAIException`, 02 7.2), job failure messages through `UserMessage`, the log lines of 2.6 step 18; `captureSingle` not ported (D16) |
-| Tests | No further Electron file. New: `Capture/CaptureEngineTests` (the session, persistence, screenshot and event cases of 02 8.4, for example `StopDrainsInFlightCaptures`, `CaptureBailsWhenSessionClearedMidFlight`, `InsertSessionLandsStepsAtCursorInOrder`, `ScreenshotWaits350MsAfterHide`, `RecordingChangedSequence`, `StepLandedCarriesRenumberedOrderAndIndex`, `StartDuringScreenshotThrows`, `LogLineFormatMatchesElectron`, and the AC-CAP-35 cases `DisposeIsSynchronousAndIdempotent`, `EventsGoThroughEventRaiser`, `JobFailureMessageUsesUserMessage`, `ThrownMessagesAreShotAIExceptions`), `ServiceBoundary/ScreenshotTargetTests` |
+| Deliverables | `ICaptureService` (moved here from WP-B1: a catalog interface must resolve as soon as it exists), `CaptureEngine : ICaptureService, IDisposable` (`StartAsync` with atomic reservation, `Pause`, `Resume`, `StopAsync` draining in-flight captures, `DiscardAsync`, `CaptureScreenshotAsync` with the 350 ms hide settle, `ListTargetsAsync`, `Teardown`, a synchronous idempotent `Dispose` that `provider.Dispose()` calls at exit and that never awaits in-flight jobs, and a `DisposeAsync` kept only for tests and non-container owners, 02 7.13, R-ARCH-10), internal `CaptureSession`, the single-reader `Channel<CaptureJob>` worker with `SessionAlive(gen)` re-checks, the grab paths (window, area with its preserved crop quirk, auto region, fullscreen) through `IScreenCapture` only, orphan seeding (D11, D22), `shots/` confinement (D10), events through `EventRaiser` in Electron's order, `CaptureException` and `TriggerException` (both `ShotAIException`, 02 7.2), job failure messages through `UserMessage`, the log lines of 2.6 step 18; `captureSingle` not ported (D16). As built in WP-B2: `ICaptureService` does not resolve yet, because `CaptureEngine` needs every capture seam and the Platform ones land in WP-B4 to WP-B6; `ContainerTests.EveryCatalogInterfaceResolves` lists it in `ResolvableFrom` until WP-B6 registers it, and fails once it resolves. The channel is a `Channel<QueueItem>` of jobs and drain markers. `IProjectService.AddStepAsync` and `InsertStepAtAsync` return the manifest as written, and the engine reads the landed step from it by id (D5; the store change and its two test doubles are in this WP). The messages are `CaptureMessages`. New `TimeProviderCaptureClock` in Core, for WP-B6 to register. Teardown is permanent, and stop and discard block only new input while they drain (02 7.3, corrected) |
+| Tests | No further Electron file. New: `Capture/CaptureEngineTests` (the session, persistence, screenshot and event cases of 02 8.4, for example `StopDrainsInFlightCaptures`, `CaptureBailsWhenSessionClearedMidFlight`, `InsertSessionLandsStepsAtCursorInOrder`, `ScreenshotWaits350MsAfterHide`, `RecordingChangedSequence`, `StepLandedCarriesRenumberedOrderAndIndex`, `StartDuringScreenshotThrows`, `LogLineFormatMatchesElectron`, and the AC-CAP-35 cases `DisposeIsSynchronousAndIdempotent`, `EventsGoThroughEventRaiser`, `JobFailureMessageUsesUserMessage`, `ThrownMessagesAreShotAIExceptions`), `ServiceBoundary/ScreenshotTargetTests`. As built in WP-B2: `CaptureEngineTests` is one partial class in five files over `Capture/EngineHarness` (a fake for every seam and the real `ProjectStore` in a temp folder); 02 8.4's `OwnWindowClickDoesNotQueryElement` is `PillClicksCreateNoSteps`; new beyond 8.4: `AStaleClickLandsInNoLaterSession`, `DisposeAloneTearsDown`, `EverySeamIsRequired`, `TheMessagesAreElectrons` and `Capture/TimeProviderCaptureClockTests` (the full list is in 02 8.4); the menu cases of 8.4 are WP-B3's |
 | Acceptance criteria | none owned (the engine's automated criterion AC-CAP-2 completes in WP-B3; AC-CAP-35, whose Linux cases this WP writes, also needs `CaptureEngine` resolvable in the full container, so it is met in WP-B6, where the last capture seam is registered) |
 | Depends on | WP-B1, WP-A7, WP-A10 |
 | Size | M |
@@ -1523,23 +1523,23 @@ Every open question of every spec, with the WP that owns its decision and the de
 
 | Q | Topic | Owner | Decision or mitigation |
 |---|---|---|---|
-| Q-CAP-1 | port `captureSingle` | WP-B2 | no (D16) |
+| Q-CAP-1 | port `captureSingle` | WP-B2 | no (D16) (decided in WP-B2) |
 | Q-CAP-2 | hotkey rebinding | WP-B4 | none in 2.0.0 |
 | Q-CAP-3 | `MOD_NOREPEAT` | WP-B4 | use it |
 | Q-CAP-4 | inactive-window clicks | WP-B11 | parity first; the `WindowFromPoint` fallback if AC-CAP-27 fails |
 | Q-CAP-5 | Raw Input | WP-B4, WP-E7 | hook plus watchdog; Raw Input only if pilot logs show reinstalls |
-| Q-CAP-6 | screenshot caption wording | WP-B2 | Electron parity |
-| Q-CAP-7 | grab-failure wording | WP-B2 | the recommended sentence |
+| Q-CAP-6 | screenshot caption wording | WP-B2 | Electron parity (decided in WP-B2) |
+| Q-CAP-7 | grab-failure wording | WP-B2 | the recommended sentence (decided in WP-B2) |
 | Q-CAP-8 | window rect source | WP-B11 | `DWMWA_EXTENDED_FRAME_BOUNDS`; switch if crops differ by 14 to 16 px |
 | Q-CAP-9 | window list filter | WP-B11 | get-windows filter; compare chooser lists |
 | Q-CAP-10 | ComboBox and Edit names | WP-B1 | parity (kept on the allowlist) (decided in WP-B1) |
 | Q-CAP-11 | monitor id | WP-B5 | `(uint)HMONITOR`, never compared across launches (R-ARCH-22) |
-| Q-CAP-12 | `captureSettings` | WP-B2 | never written natively; preserved by the codec |
+| Q-CAP-12 | `captureSettings` | WP-B2 | never written natively; preserved by the codec (decided in WP-B2) |
 | Q-CAP-13 | `CAPTUREBLT` | WP-B11 | keep unless flicker without a menu benefit |
 | Q-CAP-14 | DXGI Desktop Duplication | WP-B5 | not in 2.0.0 |
 | Q-CAP-15 | affinity on layered windows and from workers | WP-B5 | probe first; DL2 if needed |
 | Q-CAP-16 | resize interpolation | WP-B11 | WIC Fant; compare legibility |
-| Q-CAP-17 | element names in logs | WP-B2 | Debug only |
+| Q-CAP-17 | element names in logs | WP-B2 | Debug only (decided in WP-B2) |
 | Q-CAP-18 | PNG pixel format | WP-B5 | RGBA |
 | Q-CAP-19 | GC pauses on the hook thread | WP-B4 | allocation-free proc, pooled frames, watchdog |
 | Q-CAP-20 | `lastLeftClick` across sessions | WP-B3 | reset on start |
@@ -1771,7 +1771,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-1 | two `IAuthService` shapes | WP-D4 | 08 canonical (R-ARCH-2) |
 | Q-IPC-2 | owner of the connection test | WP-D4 | `IAuthService.TestConnectionAsync` (R-ARCH-3) |
 | Q-IPC-3 | `IProjectStore` versus `IProjectService` | WP-A6 | `IProjectService` (R-ARCH-4); 09 already uses it (2026-09-23 consolidation) (decided in WP-A6) |
-| Q-IPC-4 | drop `capture:single` | WP-B2 | yes |
+| Q-IPC-4 | drop `capture:single` | WP-B2 | yes (decided in WP-B2) |
 | Q-IPC-5 | keep `ListRecentProjectsAsync` | WP-A6 | keep (decided in WP-A6) |
 | Q-IPC-6 | `ProjectsChanged` | WP-A8 | event on `IProjectService` raised by auto-archive (implemented in WP-A8) |
 | Q-IPC-7 | a manual update find and the notice | WP-E1 | parity (no push) |
@@ -1790,7 +1790,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-20 | dispatcher priority | WP-B9 | `Normal` plus coalescing; the 20-click script |
 | Q-IPC-21 | `VSTHRD200` on `Apply` | WP-A9 | keep the names, suppress on two members (done in WP-A9) |
 | Q-IPC-22 | `GetState()` ahead of `StepLanded` | WP-B9 | panel shows the list length |
-| Q-IPC-23 | `StartAsync` during a screenshot | WP-B2 | throws `A recording is already in progress` (D21) |
+| Q-IPC-23 | `StartAsync` during a screenshot | WP-B2 | throws `A recording is already in progress` (D21) (decided in WP-B2) |
 
 #### 12 Packaging, CI and release
 
@@ -2447,7 +2447,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 **Phase B: capture engine**
 
 - [x] WP-B1. Capture Core: rules, captions and the shield (#143)
-- [ ] WP-B2. Capture engine: sessions and the capture pipeline
+- [x] WP-B2. Capture engine: sessions and the capture pipeline (#144)
 - [ ] WP-B3. Capture engine: click decisions and menus
 - [ ] WP-B4. Input hook and hotkey
 - [ ] WP-B5. Screen capture, display affinity and the protection probe

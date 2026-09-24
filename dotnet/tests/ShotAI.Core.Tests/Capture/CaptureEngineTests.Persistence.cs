@@ -167,6 +167,39 @@ public sealed partial class CaptureEngineTests
         Assert.Contains(h.Logs.Entries, e => e.Message == "capture failed:" && e.Exception is InvalidOperationException { Message: "internal detail" });
     }
 
+    /// <summary>7.3: a cancellation outside teardown is a failure like any other in the log, but shows nothing (UserMessage.From), and the queue goes on.</summary>
+    [Fact]
+    public async Task ACancelledJobIsLoggedButNotRaised()
+    {
+        await using var h = new EngineHarness(inner => new FailingAdd(inner, new Queue<Exception>([new OperationCanceledException()])));
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(100, 100);
+        await h.ClickAsync(200, 200);
+
+        Assert.Empty(h.Failures);
+        Assert.Contains(h.Logs.Entries, e => e.Message == "capture failed:" && e.Exception is OperationCanceledException);
+        Assert.Equal("shots/step-0002.png", Assert.Single(h.Landed).Step.Screenshot);
+    }
+
+    /// <summary>7.3: a job that teardown cancels under it is not reported, not even in the log.</summary>
+    [Fact]
+    public async Task ACancellationAfterTeardownIsNotLogged()
+    {
+        CancelledAdd? store = null;
+        await using var h = new EngineHarness(inner => store = new CancelledAdd(inner));
+        var p = h.Project();
+        await h.StartAsync(p);
+        h.Triggers.Click(100, 100);
+        await store!.Entered.Task.Bounded();
+        h.Engine.Teardown();
+        store.Release.SetResult();
+        await h.SettleAsync();
+
+        Assert.Empty(h.Failures);
+        Assert.DoesNotContain(h.Logs.Entries, e => e.Message == "capture failed:");
+    }
+
     /// <summary>EDGE-CAP-52: a store failure after the write keeps the PNG, untracked, logs its path, and surfaces the error.</summary>
     [Fact]
     public async Task StoreFailureAfterWriteSurfacesErrorAndKeepsPng()
@@ -242,6 +275,21 @@ public sealed partial class CaptureEngineTests
 
         public override Task<ProjectManifest> AddStepAsync(string projectPath, ProjectStep step) =>
             Interlocked.Increment(ref _calls) == 1 ? Task.FromException<ProjectManifest>(failure) : base.AddStepAsync(projectPath, step);
+    }
+
+    // AddStepAsync waits for the test, then throws what a store call cancelled under it throws.
+    private sealed class CancelledAdd(IProjectService inner) : ForwardingProjectService(inner)
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async Task<ProjectManifest> AddStepAsync(string projectPath, ProjectStep step)
+        {
+            Entered.TrySetResult();
+            await Release.Task.ConfigureAwait(false);
+            throw new OperationCanceledException();
+        }
     }
 
     // AddStepAsync fails with each queued exception in turn, then passes.
