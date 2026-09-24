@@ -248,7 +248,9 @@ public sealed class MenuPollTests
             h.Screen.Displays[0] = FakeMonitorCapture.Monitor(1, 0, 0, 1920, 1080);
             h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1920, 0, 2560, 1440, primary: true));
         });
+        var grabs = h.Screen.Grabs.Count;
         h.Triggers.Click(-290, 310);
+        Assert.Equal(grabs + 1, h.Screen.Grabs.Count);
         Assert.Equal(2u, h.Screen.Grabs[^1].Id);
         await h.SettleAsync();
 
@@ -328,8 +330,10 @@ public sealed class MenuPollTests
             h.Screen.Displays[0] = FakeMonitorCapture.Monitor(1, 0, 0, 1920, 1080);
             h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1920, 0, 2560, 1440, primary: secondIsPrimary));
         });
+        var grabs = h.Screen.Grabs.Count;
         await TickAsync(h);
 
+        Assert.Equal(grabs + 1, h.Screen.Grabs.Count);
         Assert.Equal(expected, h.Screen.Grabs[^1].Id);
     }
 
