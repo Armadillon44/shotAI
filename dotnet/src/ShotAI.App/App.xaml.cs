@@ -106,7 +106,9 @@ public partial class App : Application
     {
         ArgumentNullException.ThrowIfNull(e);
         RunExitOrder(_services, _log, e.ApplicationExitCode);
-        // The rest of step 6: the sink writes what is queued, waiting at most 2 s (10 7.10).
+        // The rest of step 6: the factory releases the providers it made (the debugger's), then
+        // the sink writes what is queued, waiting at most 2 s (10 7.10).
+        _loggers?.Dispose();
         _logFile?.Dispose();
         base.OnExit(e);
     }
