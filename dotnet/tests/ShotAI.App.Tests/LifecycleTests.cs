@@ -30,7 +30,8 @@ public sealed class LifecycleTests
                 order.Add("flush");
                 return Task.CompletedTask;
             }))
-            .AddSingleton(new DisposalRecorder(order)));
+            // Made by the container, which disposes only what it made.
+            .AddSingleton(_ => new DisposalRecorder(order)));
         c.Provider.GetRequiredService<IAppLifetime>().Stopping.Register(() => order.Add("stopping"));
         c.Provider.GetRequiredService<DisposalRecorder>();
         c.Logs.OnEntry = e => order.Add(e.Message);

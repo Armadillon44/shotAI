@@ -577,6 +577,7 @@ What macOS did not need and Windows does: an explicit dispatcher abstraction (Sw
 | ShotAI.Platform | `ShotAI.Platform.Shell` | `ShellReveal` (implements `IShellReveal`), `ShellUrlLauncher` (implements `IUrlLauncher`), `StaThread` |
 | ShotAI.Platform | `ShotAI.Platform.Export` | `WebView2RuntimeInfo` (implements `IWebView2RuntimeInfo`; version probe only) |
 | ShotAI.Platform | `ShotAI.Platform.Composition` | `PlatformServiceCollectionExtensions.AddShotAIPlatform` |
+| ShotAI.App | `ShotAI.App` | `ViewModelBase` (ARCHITECTURE 5.1; placed in WP-A12) |
 | ShotAI.App | `ShotAI.App.Threading` | `WpfUiDispatcher`, `AppLifetime`, `ShutdownFlush`, `UiDeferral` (04's helper, R-ARCH-18) |
 | ShotAI.App | `ShotAI.App.Services` | `IAppInfo`, `AppInfo` (record), `AppInfoProvider`, `IFileDialogs`, `WpfFileDialogs`, `IAppStartup`, `RemoteVisibilityApplier` |
 | ShotAI.App | `ShotAI.App.Composition` | `AppServiceCollectionExtensions.AddShotAIApp`, `ServiceProviderFactory` |
@@ -1236,7 +1237,7 @@ Shutdown (`App.OnExit`, UI thread), in order:
 |---|---|---|
 | 1 | `AppLifetime` cancels `Stopping` (every linked operation token cancels) | none |
 | 2 | `ICaptureService.Teardown()` (synchronous, 03 INV-SHELL-19) | 02 |
-| 3 | `ShutdownFlush.Run(TimeSpan.FromSeconds(5))`: `Task.WhenAll(projects.FlushAsync(t), settings.FlushAsync(t)).Wait(t)`. Both flushes run their jobs on pool threads and never need the UI thread, which is why this one blocking wait is safe (INV-IPC-21). A timeout logs Warning `exit: pending writes not flushed within 5 s` and continues. | 5 s total |
+| 3 | `ShutdownFlush.Run(TimeSpan.FromSeconds(5))`: `Task.WhenAll(projects.FlushAsync(Timeout.InfiniteTimeSpan), settings.FlushAsync(Timeout.InfiniteTimeSpan)).Wait(t)` (corrected in WP-A12: a drain given `t` would complete at `t` without faulting, 01 7.7, so only the wait is bounded). Both flushes run their jobs on pool threads and never need the UI thread, which is why this one blocking wait is safe (INV-IPC-21). A timeout logs Warning `exit: pending writes not flushed within 5 s` and continues. | 5 s total |
 | 4 | `ActivationListener.Dispose()`, the instance lock (03) | none |
 | 5 | `provider.Dispose()` | each `Dispose` bounded by its spec |
 | 6 | log `exiting (code <n>)` (03) and flush the log sink (10) | 10 |
@@ -1252,7 +1253,7 @@ Shutdown (`App.OnExit`, UI thread), in order:
 | L3 | `AppMenuViewModel` logs Debug `menu: brand state open={open} project={rawTheme ?? "null"} app={appBrand}` whenever the computed brand menu state changes (the successor of `ipc: view:set-brand-menu ...`). | REQUIRED |
 | L4 | `ExternalLinks` logs Warning `refused openExternal for non-allowlisted URL: {origin}` (2.5.1). | REQUIRED |
 | L5 | `EventRaiser` logs Warning `event handler failed: {eventName}` with the exception. | IMPROVEMENT |
-| L6 | `ShutdownFlush` logs Warning `exit: pending writes not flushed within 5 s` on timeout. | IMPROVEMENT |
+| L6 | `ShutdownFlush` logs Warning `exit: pending writes not flushed within 5 s` on timeout, and Warning `exit: flushing pending writes failed:` with the exception when a flush faults (added in WP-A12); the exit goes on after either. | IMPROVEMENT |
 | L7 | Unexpected exceptions shown as `UserMessage.Generic` are logged at Error by the view model that caught them, with the operation name and the exception (type, message, stack); never the user's text content. | IMPROVEMENT |
 | L8 | Never logged anywhere on the boundary: the API key, tokens, assertions, the account UPN, captions, step text, custom instructions, file contents, and URL paths or queries. | REQUIRED [SECURITY] |
 
@@ -1366,8 +1367,8 @@ No Electron test file is assigned to this subsystem: `src/main/ipc.ts`, `src/sha
 | `ServiceBoundary.ChannelMapResolutionTests` | `EveryTargetResolves` (each `channel-map.json` row's `member` string resolves by reflection across the Core, Platform and App assemblies to a method, property, event, command property or parameter of the named type); `DroppedChannelHasSuccessor` (`capture:single` resolves to `ICaptureService.CaptureScreenshotAsync`) |
 | `Threading.WpfUiDispatcherTests` | `PostFromPoolRunsOnUiThread`; `PostFromUiThreadDoesNotRunInline`; `OrderAcrossTwoSubscribersIsRaiseOrder`; `InvokeAsyncCanceledBeforeRun`; `PostAfterShutdownIsDropped` |
 | `Threading.EventOrderTests` | a fake `ICaptureService` raises `StepLanded`, `StateChanged`, `StepLanded`, `StateChanged` from a pool thread; `RecordingPanelViewModel` and a pill presenter observe `[S, T, S, T]` with step counts non-decreasing |
-| `Threading.NoSyncWaitTests` | Roslyn syntax scan of `src/ShotAI.App/**/*.cs`: no `.Wait(`, `.Result`, `GetAwaiter().GetResult()`, `Dispatcher.Invoke(` outside the allowlisted files (belt and braces for the analyzers) |
-| `Threading.ViewModelAffinityTests` | every view model constructed off the UI thread throws in debug builds (`Dispatcher.VerifyAccess` in `ObservableObject` base `ViewModelBase`) |
+| `Threading.NoSyncWaitTests` | scan of `src/ShotAI.App/**/*.cs`: no `.Wait(`, `.Result`, `GetAwaiter().GetResult()`, `Dispatcher.Invoke(` outside the allowlisted files (belt and braces for the analyzers). Corrected in WP-A12: a text scan with comments and string literals removed, not a Roslyn syntax scan, so the tests take no compiler package; each rule is also run on a snippet to prove it fires |
+| `Threading.ViewModelAffinityTests` | every view model constructed off the UI thread throws in debug builds (`Dispatcher.VerifyAccess` in `ObservableObject` base `ViewModelBase`). Corrected in WP-A12: the check is behind `ViewModelBase.CheckAffinity`, on by default only in a Debug build, and throws with the view model and property named; the tests turn it on, since CI runs the Release build |
 | `Composition.ContainerTests` | `BuildsWithValidateOnBuild`; `EveryCatalogInterfaceResolves` (every interface of 7.3 and ARCHITECTURE 4.4); `SettleAndFactoryAreOneInstance` (`IProjectSettle` and `IProjectSessionFactory` resolve to the same `ProjectSessionFactory`, R-ARCH-6); `SingletonsAreSingletons`; `ViewModelsAreTransient` (except the named singleton view models of INV-IPC-22); `NoAsyncOnlyDisposables` (every registered disposable singleton type implements `IDisposable`); `StartupsStartInRegistrationOrder` |
 | `Composition.ViewModelDependencyTests` | reflection over view model constructors: parameters are catalog interfaces (7.3 and ARCHITECTURE 4.4, including `ICaptureTargetSelection`, R-ARCH-26), 06's chrome services, the factories of ARCHITECTURE 4.1 C6, `IUiDispatcher` (any view model), `ILogger<T>`, value types or other view models; one named addition: `EditorViewModel`, which `EditorFactory` constructs, may also take the Core types `Flattener`, `IRenderCodec` and `IPathProbe` and the App interface `IColorPicker` (04 7.10.1); never `ProjectStore`, `EntraSession`, `IApiKeyStore`, `MsalGateway`, `CaptureEngine`, `SettingsService` (concrete) or any Platform type (INV-ARCH-3) |
 | `Composition.CommandConventionsTests` | every `IAsyncRelayCommand` on a view model disallows concurrent execution unless allowlisted |

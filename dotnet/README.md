@@ -11,8 +11,8 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 **Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), the model
 and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5),
 the project store's project and step operations and imports (WP-A6, WP-A7), the archive
-engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP-A10) and logging
-(WP-A11): analyzers, supply-chain
+engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP-A10), logging
+(WP-A11) and the app host (WP-A12): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -36,7 +36,12 @@ every key a newer build wrote, where it was, and writes the bytes Electron's set
 writes for every golden in `tests/ShotAI.Core.Tests/Golden/settings/`. `FileLoggerProvider` writes
 `shotai.log` in electron-log's line format, so both builds share one readable log; a call only
 formats and queues its line, and one writer appends per batch, rotates past 5 MiB and keeps at most
-`shotai.log` and `shotai.old.log`. The app host is next (WP-A12).
+`shotai.log` and `shotai.old.log`. `shotAI.exe` starts: `Program.Main` restricts the DLL search
+first, `App` logs the banner, loads the settings, builds and validates the container, shows a
+placeholder window, logs the runtime line, and on exit cancels, flushes the queued writes for at
+most 5 s and disposes in the specified order; `--selftest` runs the store self-test against a
+settings file and projects folder of its own and exits 0 on `[selftest] PASS`. The window base,
+popup exclusion and single instance are next (WP-A13).
 
 ## Layout
 
@@ -46,7 +51,8 @@ formats and queues its line, and one writer appends per batch, rotates past 5 Mi
 | `src/ShotAI.Platform` | `net10.0-windows10.0.19041.0` | Windows services: hooks, capture, UI Automation, display affinity, DPAPI, policy registry, OCR, WebView2 PDF host, libavif. |
 | `src/ShotAI.App` | `net10.0-windows10.0.19041.0` | The WPF app (`shotAI.exe`): windows, views, view models, composition root. |
 | `tests/ShotAI.Core.Tests` | `net10.0` | xunit.v3 tests for Core, including the shared `contract/conformance` suite. Runs on Linux and Windows. |
-| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations. Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search. Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, the self-test process. Builds everywhere, runs on Windows only. |
 | `tools/ShotAI.GenBrand` | `net10.0` | The brand generator: writes `src/ShotAI.Core/Brand/BrandPalette.Generated.cs` from `contract/brand.json`; `--check` fails when it is stale. BCL only, so it builds when the table does not. |
 
 Windows 10 2004 (10.0.19041) is the minimum because it is the first build with
@@ -65,6 +71,7 @@ dotnet test --project tests/ShotAI.Core.Tests/ShotAI.Core.Tests.csproj -c Releas
 dotnet run --project tools/ShotAI.GenBrand -- --check                                 # is the brand table current?
 dotnet test --solution ShotAI.slnx -c Release                                         # Windows: every test project
 dotnet run --project src/ShotAI.App                                                   # Windows only
+dotnet run --project src/ShotAI.App -- --selftest                                     # Windows: exits 0 on PASS
 ```
 
 The whole solution **builds** on Linux and macOS (`EnableWindowsTargeting`), so a broken
