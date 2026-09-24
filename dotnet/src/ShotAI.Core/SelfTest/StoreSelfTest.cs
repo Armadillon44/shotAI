@@ -42,17 +42,18 @@ public static partial class StoreSelfTest
     /// <param name="error">Standard error.</param>
     /// <param name="log">The self-test's logger, under <c>main</c>.</param>
     public static Task<SelfTestOutcome> RunAsync(ProjectStoreFactory factory, IAppPaths paths, TextWriter output, TextWriter error, ILogger log) =>
-        RunAsync(factory, paths, output, error, log, DisposeBound);
+        RunAsync(factory, paths, output, error, log, TimeProvider.System);
 
-    /// <summary><see cref="RunAsync(ProjectStoreFactory, IAppPaths, TextWriter, TextWriter, ILogger)"/> with the clean-up's wait given.</summary>
+    /// <summary><see cref="RunAsync(ProjectStoreFactory, IAppPaths, TextWriter, TextWriter, ILogger)"/> with the clock of the clean-up's bound given.</summary>
     internal static async Task<SelfTestOutcome> RunAsync(
-        ProjectStoreFactory factory, IAppPaths paths, TextWriter output, TextWriter error, ILogger log, TimeSpan disposeBound)
+        ProjectStoreFactory factory, IAppPaths paths, TextWriter output, TextWriter error, ILogger log, TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
         ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(time);
         var testRoot = Path.Combine(paths.TempDirectory, "shotai-selftest-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
         var settingsFile = testRoot + ".settings.json";
         SelfTestStore? store = null;
@@ -68,7 +69,7 @@ public static partial class StoreSelfTest
         }
         finally
         {
-            await CleanUpAsync(store, testRoot, settingsFile, disposeBound).ConfigureAwait(false);
+            await CleanUpAsync(store, testRoot, settingsFile, time).ConfigureAwait(false);
         }
     }
 
@@ -157,13 +158,15 @@ public static partial class StoreSelfTest
     }
 
     // Step 7. Nothing here changes the outcome or holds up the exit for long.
-    private static async Task CleanUpAsync(SelfTestStore? store, string testRoot, string settingsFile, TimeSpan disposeBound)
+    private static async Task CleanUpAsync(SelfTestStore? store, string testRoot, string settingsFile, TimeProvider time)
     {
         if (store is not null)
         {
             try
             {
-                await store.DisposeAsync().AsTask().WaitAsync(disposeBound).ConfigureAwait(false);
+                // The bound starts before the disposal does.
+                using var bound = new CancellationTokenSource(DisposeBound, time);
+                await store.DisposeAsync().AsTask().WaitAsync(bound.Token).ConfigureAwait(false);
             }
             catch (Exception)
             {

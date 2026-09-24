@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using ShotAI.Core.Json;
 using ShotAI.Core.Model;
 using ShotAI.Core.SelfTest;
@@ -451,43 +452,66 @@ public sealed class StoreSelfTestTests : IDisposable
         Assert.False(Directory.Exists(TestRoot));
     }
 
-    /// <summary>Step 7 waits a bounded time for queued writes, so it cannot hold up the exit.</summary>
+    /// <summary>Step 7 waits 5 s for the queued writes and no longer, so a write that never finishes cannot hold up the exit.</summary>
     [Fact]
     public async Task CleanUpIsBounded()
     {
+        var time = new FakeTimeProvider();
+        var disposing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var never = new TaskCompletionSource();
         var factory = new ProjectStoreFactory(p =>
         {
             var real = ProjectStoreFactory.Build(p, TimeProvider.System, NullLoggerFactory.Instance);
-            return new SelfTestStore(real.Projects, real, new Disposal(() => new ValueTask(never.Task)));
+            return new SelfTestStore(real.Projects, real, new Disposal(() =>
+            {
+                disposing.SetResult();
+                return new ValueTask(never.Task);
+            }));
         });
-        var run = StoreSelfTest.RunAsync(factory, _paths, _out, _err, NullLogger.Instance, TimeSpan.FromMilliseconds(100));
-        Assert.Same(run, await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)));
-        Assert.Equal(SelfTestOutcome.Pass, await run);
+        var run = StoreSelfTest.RunAsync(factory, _paths, _out, _err, NullLogger.Instance, time);
+        await disposing.Task.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
+        time.Advance(TimeSpan.FromSeconds(5) - TimeSpan.FromTicks(1));
+        Assert.False(run.IsCompleted);
+        time.Advance(TimeSpan.FromTicks(1));
+        Assert.Equal(SelfTestOutcome.Pass, await run.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
         Assert.False(File.Exists(TestSettingsFile));
     }
 
-    /// <summary>The app's clean-up wait is the exit flush's 5 s.</summary>
+    /// <summary>Within the bound, step 7 waits for the queued writes before it deletes anything.</summary>
     [Fact]
     public async Task CleanUpWaitsForQueuedWrites()
     {
-        var released = new TaskCompletionSource();
-        var disposed = false;
+        var time = new FakeTimeProvider();
+        var disposing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rootWhileWaiting = false;
         var factory = new ProjectStoreFactory(p =>
         {
             var real = ProjectStoreFactory.Build(p, TimeProvider.System, NullLoggerFactory.Instance);
             return new SelfTestStore(real.Projects, real, new Disposal(async () =>
             {
-                await released.Task;
-                disposed = true;
+                disposing.SetResult();
+                await release.Task;
             }));
         });
-        var run = RunAsync(factory);
-        await Task.Delay(TimeSpan.FromMilliseconds(300), TestContext.Current.CancellationToken);
+        var run = StoreSelfTest.RunAsync(factory, _paths, _out, _err, NullLogger.Instance, time);
+        await disposing.Task.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
         Assert.False(run.IsCompleted);
-        released.SetResult();
-        Assert.Equal(SelfTestOutcome.Pass, await run);
-        Assert.True(disposed);
+        rootWhileWaiting = Directory.Exists(TestRoot);
+        release.SetResult();
+        Assert.Equal(SelfTestOutcome.Pass, await run.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
+        Assert.True(rootWhileWaiting);
+        Assert.False(Directory.Exists(TestRoot));
+    }
+
+    /// <summary>The projects-folder line prints the value read back from the store, not the folder the test asked for (selftest.ts:29).</summary>
+    [Fact]
+    public async Task ProjectsDirIsTheValueReadBack()
+    {
+        await RunAsync(Fixed(real => new Breaker(real) { ProjectsDirOverride = @"read\back" }));
+        Assert.Equal(@"[selftest] projectsDir  = read\back", Lines()[0]);
     }
 
     [Fact]
@@ -559,6 +583,11 @@ public sealed class StoreSelfTestTests : IDisposable
         public Action? OnRecents { get; init; }
 
         public Exception? SetDirThrows { get; init; }
+
+        public string? ProjectsDirOverride { get; init; }
+
+        public override Task<string> GetProjectsDirAsync() =>
+            ProjectsDirOverride is null ? base.GetProjectsDirAsync() : Task.FromResult(ProjectsDirOverride);
 
         public override Task SetProjectsDirAsync(string dir) =>
             SetDirThrows is null ? base.SetProjectsDirAsync(dir) : Task.FromException(SetDirThrows);
