@@ -18,10 +18,29 @@ public sealed class ViewModelAffinityTests : IDisposable
 
     public void Dispose() => ViewModelBase.CheckAffinity = _saved;
 
+    /// <summary>
+    /// On a thread of its own, never the pool: a pool thread keeps a <c>Dispatcher</c> once any code
+    /// on it has made a WPF object, and the check then passes there (fixed in WP-A18, when
+    /// <c>ReportImageDecoderTests</c> had left one).
+    /// </summary>
     [Fact]
-    public async Task ConstructedOffTheUiThreadThrows()
+    public void ConstructedOffTheUiThreadThrows()
     {
-        var e = await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => new Sample()));
+        Exception? thrown = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                _ = new Sample();
+            }
+            catch (Exception e)
+            {
+                thrown = e;
+            }
+        });
+        thread.Start();
+        thread.Join();
+        var e = Assert.IsType<InvalidOperationException>(thrown);
         Assert.Equal("Sample must be created on the UI thread.", e.Message);
     }
 
