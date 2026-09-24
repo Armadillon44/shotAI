@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using ShotAI.Core.Capture;
+using ShotAI.Core.Settings;
 using ShotAI.Core.Store;
 
 namespace ShotAI.Core.Composition;
@@ -12,8 +14,11 @@ public static class CoreServiceCollectionExtensions
     /// <remarks>
     /// <see cref="AtomicFile"/> needs an <see cref="IRenameRetryClassifier"/>, which
     /// <c>AddShotAIPlatform</c> registers, as it does <see cref="IPathProbe"/> (spec 01 7.14).
-    /// <see cref="ProjectStore"/> also needs <see cref="IProjectStoreSettings"/>, the settings
-    /// service loaded at startup (spec 10 7.11).
+    /// The settings service is the one <see cref="SettingsService"/> App loads at startup
+    /// (ARCHITECTURE 4.2 step 5b) and registers as that instance; Core forwards
+    /// <see cref="ISettingsService"/>, <see cref="IProjectStoreSettings"/> (which
+    /// <see cref="ProjectStore"/> needs) and <see cref="ICaptureSettings"/> to it (spec 10 7.4.3,
+    /// 11 7.10).
     /// </remarks>
     public static IServiceCollection AddShotAICore(this IServiceCollection services)
     {
@@ -27,6 +32,9 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ProjectSessionFactory>();
         services.AddSingleton<IProjectSessionFactory>(sp => sp.GetRequiredService<ProjectSessionFactory>());
         services.AddSingleton<IProjectSettle>(sp => sp.GetRequiredService<ProjectSessionFactory>());
+        services.AddSingleton<ISettingsService>(sp => sp.GetRequiredService<SettingsService>());
+        services.AddSingleton<IProjectStoreSettings>(sp => sp.GetRequiredService<SettingsService>());
+        services.AddSingleton<ICaptureSettings>(sp => sp.GetRequiredService<SettingsService>());
         return services;
     }
 }

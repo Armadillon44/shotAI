@@ -992,6 +992,8 @@ public static class SopSettingsCoercer
 
 Wire comparisons are `StringComparison.Ordinal` against the exact lowercase strings. `Coerce` treats a non-object `raw` as `{}`. 10 persists the object under `sop` and exposes change notification; 06's Settings writes through 10. REQUIRED (D-SOP-11 is the one IMPROVEMENT).
 
+Added in WP-A10: `SopCatalog.TryParseTone(string?, out SopTone)` and `TryParseEffort(string?, out SopEffort)`, the ordinal wire parse the coercer and 10's codec use; `IsModel`, `IsTone` and `IsEffort` answer for a CLR string and for a JSON string value alike, and never for another type (`typeof v === 'string'`). `CapCustomInstructions` returns a string of 2000 units or fewer as it is, a lone surrogate included (parity); only a cut that splits a pair drops the pair's high half (D-SOP-11).
+
 ### 7.3 Prompt text
 
 ```csharp
@@ -1445,6 +1447,7 @@ Purpose: #64 end to end through the real store, including the codec round trip (
 | `SopApplyTests` | Core.Tests | `RegenerateKeepsFirstBackup`; `SectionStepShapeAndPosition`; `TextStepsUnchanged`; `TitleTrimmedAndBlankIgnored`; `RefusalWritesNothing`; `BackupKeyOrder`; `ClonePathAndDiskPathAgree` (the operation applied to a clone and to a fresh read give equal manifests); `SectionOnlyEntryDoesNotLand` |
 | `SopRevertTests` | Core.Tests | `RestoresWholesale`; `ThrowsWhenNothingToRevert` (exact message); `RestoresFlag`; `InvalidatesRendersChangedSinceSnapshot` (D-SOP-13); `KeepsRenderWhenUnchanged` |
 | `SopSettingsCoerceTests` | Core.Tests | unknown model, tone, effort fall back; non-bool enabled falls back; cap 2000; cap never ends on a lone high surrogate (D-SOP-11); non-object raw gives defaults |
+| `SopCatalogParityWithElectronTests` (added in WP-A10) | Core.Tests | every model, effort and tone string, the tone prompts, the model parameters, the cap and the estimate's output size equal `src/shared/sop.ts`, `src/main/claude-models.ts` and `src/main/claude-service.ts`, read with strict patterns; skipped after cutover |
 | `MasterSwitchTests` | Core.Tests | `EveryEntryPointRefusesWithoutIo` (estimate and generate; zero handler calls, zero `IAnthropicClientFactory` calls, zero file reads; the connection test's switch-off row is 08's `ConnectionTesterTests`, R-ARCH-3) |
 | `SopLoggingTests` | Core.Tests | `NoLandingLogsNumbersOnly`; `AppliedLineReportsLanded` |
 | `SopPanelViewModelTests` | App.Tests (Windows) | state machine rows of 7.10: `HiddenWhenOffWithoutBackup`, `RevertOnlyWhenOffWithBackup`, `RegenerateConfirmsFirst`, `CancelDuringPrepareShowsNoError`, `LateEstimateAfterCancelIgnored`, `CancelDuringGeneration` (D-SOP-8), `DoneBeforeApply` (D-SOP-9), `NoHintWhileUnknown` (D-SOP-10), `FollowsMasterSwitchLive` (D-SOP-17), `ClosingViewCancels`, `EscapeClosesReview` (D-SOP-23), `CommandBarDisabledDuringReview` (D-SOP-24), `RefreshesOnAuthStatusChanged` (08 EDGE-AUTH-25; a fake `IAuthService` raising the event from a pool thread), `RaisesSopChangedAfterApplyAndRevert`, labels and tooltips exact |

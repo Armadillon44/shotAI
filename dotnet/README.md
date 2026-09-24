@@ -11,7 +11,7 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 **Status:** foundations (WP-A1), JSON with JavaScript semantics (WP-A2), the model
 and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5),
 the project store's project and step operations and imports (WP-A6, WP-A7), the archive
-engine (WP-A8) and the optimistic project session (WP-A9): analyzers, supply-chain
+engine (WP-A8), the optimistic project session (WP-A9) and the settings service (WP-A10): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -29,7 +29,10 @@ deletes an original, and restores zips Electron wrote (`tests/ShotAI.Core.Tests/
 the store archives, restores on open, and auto-archives stale projects. `IProjectSession` shows an
 edit at once, writes it through the store's queue, and on a failed write rolls back only that
 edit, with the others still pending shown again on top of the disk; `IProjectSettle` lets an export
-or SOP run wait for those writes. The settings service is next (WP-A10).
+or SOP run wait for those writes. `SettingsService` reads `settings.json` once at startup, applies each
+change at once and writes it through its own queue, rolling back only a failed change; it keeps
+every key a newer build wrote, where it was, and writes the bytes Electron's settings module
+writes for every golden in `tests/ShotAI.Core.Tests/Golden/settings/`. Logging is next (WP-A11).
 
 ## Layout
 

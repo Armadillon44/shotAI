@@ -35,6 +35,13 @@ internal static class JsValue
         return true;
     }
 
+    /// <summary><c>typeof node === 'boolean'</c>, and its value.</summary>
+    public static bool TryGetBoolean(JsonNode? node, out bool value)
+    {
+        value = node is JsonValue t && t.GetValueKind() == JsonValueKind.True;
+        return value || (node is JsonValue f && f.GetValueKind() == JsonValueKind.False);
+    }
+
     /// <summary><c>node === true</c>.</summary>
     public static bool IsTrue(JsonNode? node) =>
         node is JsonValue v && v.GetValueKind() == JsonValueKind.True;

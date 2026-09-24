@@ -1203,7 +1203,7 @@ ARCHITECTURE 4.3 is the consolidated registration table (with the resolutions of
 | `IProjectSessionFactory`, `IProjectSettle` (01 declares, 07 requested) | `ProjectSessionFactory` (one instance for both, via `sp => sp.GetRequiredService<ProjectSessionFactory>()`) | singleton | Core |
 | `ICaptureService` | `CaptureEngine` (also `IDisposable`, R-ARCH-10) | singleton | Core (seams from Platform) |
 | `CaptureShield`, `IScreenCapture` | `CaptureShield`, `ShieldedScreenCapture` (02) | singleton | Core |
-| `ISettingsService`, `ICaptureSettings`, `IProjectStoreSettings` | the one `SettingsService` loaded synchronously at startup step 5b (ARCHITECTURE 4.2), registered as that instance, with forwarding factories for the other two; `Dispose` idempotent | singleton instance | App (the instance), Core (the forwarders) (10) |
+| `ISettingsService`, `ICaptureSettings`, `IProjectStoreSettings` | the one `SettingsService` loaded synchronously at startup step 5b (ARCHITECTURE 4.2), registered by App as that instance (as `SettingsService`), with Core forwarding all three interfaces to it (corrected in WP-A10: the forwarders resolve the concrete type, so none casts one interface to another); `Dispose` idempotent, since the container disposes it through each forwarder | singleton instance | App (the instance), Core (the forwarders) (10) |
 | `IUpdateService`, `ReleaseFeed`, `AppVersion` | 10 | singleton | Core (10) |
 | `IExternalLinks` | `ExternalLinks` (this spec's algorithm, 10's registration) | singleton | Core |
 | `IAuthService`, `IAnthropicClientFactory`, `ISupportUrlAllowlist`, `ISharedHttp`, `IApiKeyStore` (internal), `EntraSession`, `FederationConfigProvider` | 08 (the only Anthropic client factory, R-ARCH-15) | singleton, lazy | Core (08) |

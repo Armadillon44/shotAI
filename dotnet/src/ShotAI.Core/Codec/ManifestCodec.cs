@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using ShotAI.Core.Geometry;
 using ShotAI.Core.Json;
 using ShotAI.Core.Model;
+using ShotAI.Core.Sop;
 using ShotAI.Core.Store;
 
 namespace ShotAI.Core.Codec;
@@ -21,10 +22,6 @@ namespace ShotAI.Core.Codec;
 public static partial class ManifestCodec
 {
     public const string FileName = "project.json";
-
-    // isSopTone (src/shared/sop.ts:56,73). SopCatalog.IsTone (spec 07 7.2) is the shared test
-    // once WP-A10 lands it; this is the same exact, case-sensitive comparison.
-    private static readonly string[] SopTones = ["professional", "friendly", "concise", "detailed"];
 
     private const string DefaultSopTone = "professional";
 
@@ -140,7 +137,7 @@ public static partial class ManifestCodec
             Intro = CoerceIntro(r["intro"]),
             IntroEditedByUser = JsValue.IsTrue(r["introEditedByUser"]),
             Model = JsValue.TryGetString(r["model"], out var model) ? model : "",
-            Tone = JsValue.TryGetString(r["tone"], out var tone) && Array.IndexOf(SopTones, tone) >= 0 ? tone : DefaultSopTone,
+            Tone = JsValue.TryGetString(r["tone"], out var tone) && SopCatalog.IsTone(tone) ? tone : DefaultSopTone,
             At = JsValue.TryGetString(r["at"], out var at) ? at : "",
         };
         backup.Steps.AddRange(NormalizeSteps(steps, log));

@@ -1,0 +1,28 @@
+{
+  "somethingFuture": {
+    "a": [
+      1,
+      2
+    ]
+  },
+  "theme": "dark",
+  "brand": "lfi",
+  "zLast": true,
+  "projectsDir": "/shotai-home/shotAI Projects",
+  "recents": [],
+  "sop": {
+    "enabled": true,
+    "model": "claude-sonnet-5",
+    "tone": "professional",
+    "effort": "medium",
+    "customInstructions": ""
+  },
+  "remoteVisible": false,
+  "captureScale": 0.85,
+  "hasSeenTour": false,
+  "userName": "",
+  "includeNameInReports": false,
+  "archiveAgeDays": 90,
+  "updateCheckEnabled": true,
+  "lastUpdateCheckAt": 1790000000000
+}
