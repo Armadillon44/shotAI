@@ -62,12 +62,18 @@ public sealed class SetProjectThemeOperationTests
         Assert.Equal(stored, m.Theme);
     }
 
-    /// <summary>The other value is a change, the default brand against no pin included (#77).</summary>
+    /// <summary>
+    /// The other value is a change, the default brand against no pin included (#77), and so is a
+    /// stored pin that differs only by case or that this build does not know: the compare is exact.
+    /// </summary>
     [Theory]
     [InlineData(null, "shotAI")]
     [InlineData("shotAI", null)]
     [InlineData("shotAI", "lfi")]
     [InlineData("lfi", "shotAI")]
+    [InlineData("LFI", "lfi")]
+    [InlineData("shotai", "shotAI")]
+    [InlineData("future-brand", "shotAI")]
     public void AnotherValueIsAChange(string? stored, string? chosen)
     {
         var m = With(stored);

@@ -397,9 +397,10 @@ public sealed class AppMenuViewModelTests
     });
 
     /// <summary>
-    /// The click echo (7.4.5, Risk R4): a row built from the window's own container style is never
-    /// checkable, so a click on the ticked row leaves it ticked, bound to the model, and a click on
-    /// another row ticks it only through the model.
+    /// The click echo (7.4.5, Risk R4): the rows as a generator makes them from the window's own
+    /// container style (a container per row, the row its data context) are never checkable, so a
+    /// click on the ticked row leaves it ticked and bound to the model, and a click on another row
+    /// ticks it only through the model.
     /// </summary>
     [Fact]
     public Task CheckedIsNotToggledByWpf() => WithShellAsync(async (main, t) =>
@@ -407,22 +408,33 @@ public sealed class AppMenuViewModelTests
         t.Projects.CanOpen(Project, Themed("lfi"));
         await t.Shell.OpenProjectAsync(Project);
         var style = ((MenuItem)main.FindName("BrandMenu")).ItemContainerStyle;
-        var items = t.Menu.BrandItems.Select(row => new MenuItem { Style = style, DataContext = row }).ToList();
-        Assert.Equal(["App default (shotAI)", "shotAI", "LFI"], items.Select(i => (string)i.Header));
-        Assert.All(items, i => Assert.False(i.IsCheckable));
-        Assert.Equal([false, false, true], items.Select(i => i.IsChecked));
+        var host = new Menu { ItemsSource = t.Menu.BrandItems, ItemContainerStyle = style };
+        var window = new Window { Content = host, Width = 480, Height = 120, ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = 0, Top = 0 };
+        window.Show();
+        try
+        {
+            await TestShell.Settle();
+            var items = Enumerable.Range(0, t.Menu.BrandItems.Count).Select(i => Assert.IsType<MenuItem>(host.ItemContainerGenerator.ContainerFromIndex(i))).ToList();
+            Assert.Equal(["App default (shotAI)", "shotAI", "LFI"], items.Select(i => (string)i.Header));
+            Assert.All(items, i => Assert.False(i.IsCheckable));
+            Assert.Equal([false, false, true], items.Select(i => i.IsChecked));
 
-        Click(items[2]);
-        await TestShell.Settle();
-        Assert.True(items[2].IsChecked);
-        Assert.NotNull(BindingOperations.GetBindingExpression(items[2], MenuItem.IsCheckedProperty));
-        Assert.Empty(t.Projects.Mutated);
+            Click(items[2]);
+            await TestShell.Settle();
+            Assert.True(items[2].IsChecked);
+            Assert.NotNull(BindingOperations.GetBindingExpression(items[2], MenuItem.IsCheckedProperty));
+            Assert.Empty(t.Projects.Mutated);
 
-        Click(items[1]);
-        await TestShell.Settle();
-        Assert.Equal([false, true, false], items.Select(i => i.IsChecked));
-        Assert.Equal("shotAI", t.Projects.Stored[Project].Theme);
-        Assert.All(items, i => Assert.NotNull(BindingOperations.GetBindingExpression(i, MenuItem.IsCheckedProperty)));
+            Click(items[1]);
+            await TestShell.Settle();
+            Assert.Equal([false, true, false], items.Select(i => i.IsChecked));
+            Assert.Equal("shotAI", t.Projects.Stored[Project].Theme);
+            Assert.All(items, i => Assert.NotNull(BindingOperations.GetBindingExpression(i, MenuItem.IsCheckedProperty)));
+        }
+        finally
+        {
+            window.Close();
+        }
     });
 
     [Fact]
