@@ -85,7 +85,10 @@ public sealed partial class CaptureEngineTests
         Assert.All(h.Codec.EncodedLive, Assert.True);
     }
 
-    /// <summary>D12: in screen mode a pre-grab of a monitor the user did not pick is not used, and is disposed.</summary>
+    /// <summary>
+    /// D12: in screen mode a pre-grab of a monitor the user did not pick is not used, and is
+    /// disposed before the chosen monitor is grabbed, so two monitors' buffers are not held at once.
+    /// </summary>
     [Fact]
     public async Task AnUnusedPreGrabIsDisposed()
     {
@@ -96,12 +99,41 @@ public sealed partial class CaptureEngineTests
         await h.SettleAsync();
         await MenuPollTests.TickAsync(h);
         var polled = h.Engine.ArmForTest!.Frame!.Frame;
+        bool? goneAtTheChosenGrab = null;
+        h.Screen.OnGrab = m =>
+        {
+            if (m.Id == 2) goneAtTheChosenGrab = polled.IsDisposed;
+        };
         h.Triggers.Click(410, 310);
         await h.SettleAsync();
 
         Assert.Equal(2, h.Landed[^1].Step.Raw["monitor"]!["id"]!.GetValue<double>());
-        Assert.True(polled.IsDisposed);
+        Assert.True(goneAtTheChosenGrab);
         Assert.All(h.Screen.Frames, f => Assert.True(f.IsDisposed));
+    }
+
+    /// <summary>2.8 path A with no frame at the mousedown: the grab made at capture time is disposed once its crop is copied out.</summary>
+    [Fact]
+    public async Task ALateSelectionGrabIsDisposedAfterItsCrop()
+    {
+        await using var h = new EngineHarness();
+        await h.StartAsync(h.Project());
+        h.Triggers.Click(400, 300, MouseButton.Right);
+        await h.SettleAsync();
+        var failNext = true;
+        h.Screen.OnGrab = _ =>
+        {
+            if (!failNext) return;
+            failNext = false;
+            throw new InvalidOperationException("BitBlt failed"); // the click-time grab
+        };
+        h.Triggers.Click(410, 310);
+        await h.SettleAsync();
+
+        Assert.Equal("Select from context menu in screen", h.Landed[^1].Step.Caption);
+        Assert.Equal(2, h.Screen.Frames.Count);
+        Assert.All(h.Screen.Frames, f => Assert.True(f.IsDisposed));
+        Assert.All(h.Codec.EncodedLive, Assert.True);
     }
 
     /// <summary>A selection queued behind a capture that is still running, then paused, never runs: its frame is disposed all the same.</summary>
