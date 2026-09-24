@@ -30,3 +30,13 @@ CoCreateInstance
 CLSID_WICImagingFactory
 IWICImagingFactory
 WINDOW_EX_STYLE
+SetWindowsHookEx
+UnhookWindowsHookEx
+CallNextHookEx
+GetCurrentThreadId
+CWPSTRUCT
+WINDOWPOS
+WINDOW_STYLE
+WM_WINDOWPOSCHANGING
+WM_SHOWWINDOW
+WM_NCDESTROY

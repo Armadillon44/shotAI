@@ -78,6 +78,24 @@ internal static class AppProcess
         return 0;
     }
 
+    /// <summary>
+    /// Waits until the child has logged its first render (startup step 12), so every startup step
+    /// has run, the activation listener of step 11 included; returns the child's main window.
+    /// </summary>
+    public static async Task<nint> StartedAsync(Process process, long logStart)
+    {
+        var window = await MainWindowAsync(process);
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < Bound)
+        {
+            if (process.HasExited) Assert.Fail($"shotAI exited with code {process.ExitCode} during startup");
+            if (LogFrom(logStart).Any(l => l.Contains("startup: main window rendered in ", StringComparison.Ordinal))) return window;
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+        Assert.Fail("shotAI did not log its first render");
+        return 0;
+    }
+
     /// <summary>The length of the user's log now, where a run's lines will start.</summary>
     public static long LogLength() => File.Exists(Log) ? new FileInfo(Log).Length : 0;
 

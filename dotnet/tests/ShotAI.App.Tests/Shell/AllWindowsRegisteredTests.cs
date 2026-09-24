@@ -83,6 +83,40 @@ public sealed partial class AllWindowsRegisteredTests
         popup.IsOpen = false;
     });
 
+    /// <summary>The show hook needs no subclass: a plain <see cref="Popup"/>, as a third-party control would open, is covered too.</summary>
+    [Fact]
+    public Task APlainPopupIsExcludedBeforeItIsShown() => WithWindowAsync(async (window, registry, probe) =>
+    {
+        var popup = new Popup { PlacementTarget = window.Button, Child = Swatch() };
+        popup.IsOpen = true;
+        AssertExcludedBeforeShown(registry, probe, await PopupHandleAsync(popup.Child));
+        popup.IsOpen = false;
+    });
+
+    /// <summary>
+    /// A window WPF knows nothing of, shown on the UI thread as a system dialog would be (the color
+    /// and file dialogs, Q-EDIT-21, Q-SHELL-22), is excluded before it is visible, and leaves the
+    /// registry when it is destroyed.
+    /// </summary>
+    [Fact]
+    public Task AWin32WindowOfTheUiThreadIsExcludedBeforeItIsShown() => WithWindowAsync((window, registry, probe) =>
+    {
+        var hwnd = User32.CreateWindowEx(0, "STATIC", "dialog", User32.WsPopup, 10, 10, 120, 80, 0, 0, 0, 0);
+        Assert.NotEqual(0, hwnd);
+        try
+        {
+            Assert.False(registry.IsRegistered(hwnd));
+            User32.ShowWindow(hwnd, User32.SwShowNoActivate);
+            AssertExcludedBeforeShown(registry, probe, hwnd);
+        }
+        finally
+        {
+            User32.DestroyWindow(hwnd);
+        }
+        Assert.False(registry.IsRegistered(hwnd));
+        return Task.CompletedTask;
+    });
+
     /// <summary>With the window and a popup open, every visible top-level window of the UI thread is registered and excluded.</summary>
     [Fact]
     public Task EveryShownHwndIsRegistered() => WithWindowAsync(async (window, registry, probe) =>
@@ -143,11 +177,13 @@ public sealed partial class AllWindowsRegisteredTests
 
     private static Border Swatch() => new() { Width = 60, Height = 30, Background = Brushes.White };
 
-    // A shown ProbeWindow with the popup handlers installed; afterwards no dead window is left in the registry.
+    // A shown ProbeWindow with the popup exclusion installed on the test's UI thread, as startup
+    // step 7 installs it; afterwards no dead window is left in the registry.
     private static Task WithWindowAsync(Func<ProbeWindow, OwnWindowRegistry, ShowProbe, Task> body) => Sta.RunAsync(async () =>
     {
-        new PopupExclusion().Install();
         var registry = NewRegistry();
+        using var exclusion = new PopupExclusion(registry);
+        exclusion.Install();
         using var probe = ShowProbe.Install();
         var window = new ProbeWindow(new WindowRegistration(registry));
         window.Show();

@@ -14,6 +14,8 @@ internal static unsafe partial class User32
     public const uint WmClose = 0x0010;
     public const int SwMinimize = 6;
     public const int SwMaximize = 3;
+    public const int SwShowNoActivate = 4;
+    public const int WsPopup = unchecked((int)0x80000000);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -53,6 +55,15 @@ internal static unsafe partial class User32
     [LibraryImport("user32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     public static partial nint GetAncestor(nint hwnd, uint flags);
+
+    [LibraryImport("user32.dll", EntryPoint = "CreateWindowExW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint CreateWindowEx(int exStyle, string className, string? windowName, int style, int x, int y, int width, int height, nint parent, nint menu, nint instance, nint param);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DestroyWindow(nint hwnd);
 
     [LibraryImport("user32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

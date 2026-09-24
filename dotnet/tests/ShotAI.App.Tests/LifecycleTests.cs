@@ -95,16 +95,14 @@ public sealed class LifecycleTests
         using var app = Process.Start(AppProcess.StartInfo([], temp.Root))!;
         try
         {
-            User32.Close(await AppProcess.MainWindowAsync(app));
+            User32.Close(await AppProcess.StartedAsync(app, start));
             Assert.Equal(0, await AppProcess.WaitForExitAsync(app));
         }
         finally
         {
             if (!app.HasExited) app.Kill(entireProcessTree: true);
         }
-        var lines = AppProcess.LogFrom(start);
-        Assert.Contains(lines, l => l.Contains("startup: main window rendered in ", StringComparison.Ordinal));
-        Assert.EndsWith("] [info]  (main)     exiting (code 0)", lines[^1], StringComparison.Ordinal);
+        Assert.EndsWith("] [info]  (main)     exiting (code 0)", AppProcess.LogFrom(start)[^1], StringComparison.Ordinal);
     }
 
     /// <summary>Step 13 archives with the setting's age and the app's stopping token, on the pool.</summary>

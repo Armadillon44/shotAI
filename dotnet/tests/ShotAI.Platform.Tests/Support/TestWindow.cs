@@ -17,6 +17,10 @@ internal sealed class TestWindow : IDisposable
     public static TestWindow Popup(int exStyle = 0, int x = 10, int y = 20, int width = 300, int height = 200, string? name = null) =>
         Create(exStyle, User32.WsPopup, x, y, width, height, parent: 0, name);
 
+    /// <summary>A hidden child of <paramref name="parent"/>, which is not a top-level window.</summary>
+    public static TestWindow Child(TestWindow parent) =>
+        Create(0, User32.WsChild, 0, 0, 50, 50, parent.Handle, name: null);
+
     /// <summary>A visible top-level window with a caption, which can be minimized.</summary>
     public static TestWindow Overlapped() =>
         Create(0, User32.WsOverlappedWindow | User32.WsVisible, 10, 20, 300, 200, parent: 0, name: "shotAI test");

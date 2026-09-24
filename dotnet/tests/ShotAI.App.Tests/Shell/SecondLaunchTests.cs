@@ -19,10 +19,11 @@ public sealed class SecondLaunchTests
     public async Task SurfacesTheMinimizedFirstInstanceAndExits()
     {
         using var temp = new TempDir();
+        var firstStart = AppProcess.LogLength();
         using var first = Process.Start(AppProcess.StartInfo([], temp.Root))!;
         try
         {
-            var window = await AppProcess.MainWindowAsync(first);
+            var window = await AppProcess.StartedAsync(first, firstStart);
             User32.ShowWindow(window, User32.SwMinimize);
             Assert.True(await EventuallyAsync(() => User32.IsIconic(window)), "the window did not minimize");
 

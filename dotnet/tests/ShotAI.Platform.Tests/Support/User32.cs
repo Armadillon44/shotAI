@@ -10,6 +10,7 @@ namespace ShotAI.Platform.Tests.Support;
 internal static partial class User32
 {
     public const int WsPopup = unchecked((int)0x80000000);
+    public const int WsChild = 0x40000000;
     public const int WsVisible = 0x10000000;
     public const int WsOverlappedWindow = 0x00CF0000;
     public const int WsExTopmost = 0x00000008;
@@ -17,6 +18,8 @@ internal static partial class User32
     public const int WsExAppWindow = 0x00040000;
     public const int WsExNoActivate = 0x08000000;
     public const int GwlExStyle = -20;
+    public const int SwHide = 0;
+    public const int SwShowNoActivate = 4;
     public const int SwMinimize = 6;
     public const uint WdaNone = 0;
     public const uint WdaExcludeFromCapture = 0x11;
@@ -45,6 +48,11 @@ internal static partial class User32
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsIconic(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindowVisible(nint hwnd);
 
     [LibraryImport("user32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
