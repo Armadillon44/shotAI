@@ -19,7 +19,8 @@ internal static class TestMainWindow
     /// that follows a navigation state that follows a shell over that menu, as startup wires them.
     /// </summary>
     public static MainWindow Create(
-        WindowRegistration? registration = null, MainWindowSizer? sizer = null, AppMenuViewModel? menu = null, IAppInfo? appInfo = null, ShellViewModel? shell = null)
+        WindowRegistration? registration = null, MainWindowSizer? sizer = null, AppMenuViewModel? menu = null, IAppInfo? appInfo = null, ShellViewModel? shell = null,
+        ShellShutdown? shutdown = null)
     {
         if (menu is null)
         {
@@ -35,7 +36,8 @@ internal static class TestMainWindow
             sizer ?? new MainWindowSizer(),
             appInfo ?? new FakeAppInfo(),
             shell ?? Shell(menu),
-            new ReportImageLoader(new ReportImageDecoder(), NullLogger<ReportImageLoader>.Instance));
+            new ReportImageLoader(new ReportImageDecoder(), NullLogger<ReportImageLoader>.Instance),
+            shutdown ?? new ShellShutdown());
     }
 
     // A shell over an empty store; nothing lists until the test starts it.

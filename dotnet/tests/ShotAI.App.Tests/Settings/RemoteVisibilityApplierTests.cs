@@ -159,15 +159,21 @@ public sealed class RemoteVisibilityApplierTests : IDisposable
         Assert.Equal(0, _settings.Subscribers);
     }
 
-    /// <summary>The container makes one applier, which step 9 starts before the theme manager (ARCHITECTURE 4.3).</summary>
+    /// <summary>
+    /// The container makes one applier, which step 9 starts first, then the recording visibility
+    /// controller (WP-B7), then the theme manager (ARCHITECTURE 4.3).
+    /// </summary>
     [Fact]
     public Task TheContainerStartsTheApplierFirst() => Sta.RunAsync(() =>
     {
         using var c = new TestContainer(System.Windows.Threading.Dispatcher.CurrentDispatcher);
         var startups = ((IEnumerable<IAppStartup>)c.Provider.GetService(typeof(IEnumerable<IAppStartup>))!).ToList();
+        Assert.Equal(3, startups.Count);
         Assert.IsType<RemoteVisibilityApplier>(startups[0]);
         Assert.Same(c.Provider.GetService(typeof(RemoteVisibilityApplier)), startups[0]);
-        Assert.IsType<ShotAI.App.Chrome.ThemeManager>(startups[^1]);
+        Assert.IsType<ShotAI.App.Shell.RecordingVisibilityController>(startups[1]);
+        Assert.Same(c.Provider.GetService(typeof(ShotAI.App.Shell.RecordingVisibilityController)), startups[1]);
+        Assert.IsType<ShotAI.App.Chrome.ThemeManager>(startups[2]);
     });
 
     [Fact]

@@ -22,7 +22,7 @@ internal static partial class XamlChromeGuard
     /// <summary>Colour channel spread above which a colour is chromatic (2.35 rule 3).</summary>
     public const int NeutralSpread = 40;
 
-    /// <summary>The exemptions of the App as it is: the notice template (WP-A16) and the report's click ring (WP-A17); the tour pill (WP-B10) adds its key prefix.</summary>
+    /// <summary>The exemptions of the App as it is: the notice template (WP-A16), the report's click ring (WP-A17) and the capture pill (WP-B7); the tour pill (WP-B10) adds its key prefix.</summary>
     public static Exemptions Real { get; } = new(
         Files:
         [
@@ -31,6 +31,7 @@ internal static partial class XamlChromeGuard
         KeyPrefixes:
         [
             new("Notice.", "The notice's 8 DIP corners and drop shadow are notice.css's own, not tokens: a notice looks the same under every brand and appearance (06 2.21)."),
+            new("Pill.", "The capture pill's colours and its 7 and 5 DIP corners are toolbar.css's own, not tokens: the pill looks the same under every brand and appearance, as Electron's toolbar page did (03 2.4.8)."),
         ],
         CodeFiles:
         [

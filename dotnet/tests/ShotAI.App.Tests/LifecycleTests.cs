@@ -2,27 +2,32 @@ using System.Diagnostics;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
 using ShotAI.App.Threading;
+using ShotAI.Core.Capture;
 using ShotAI.Core.Store;
 using ShotAI.Core.Threading;
+using ShotAI.Platform.Capture;
 using ShotAI.Platform.Shell;
 using Xunit;
 
 namespace ShotAI.App.Tests;
 
 /// <summary>
-/// The exit order of ARCHITECTURE 4.5 and spec 11 7.10 (AC-MODEL-36's second clause), the
-/// startup's background work (step 13), and INV-SHELL-4 on the real exe. The capture teardown
-/// (exit step 2) joins this test with the capture engine.
+/// The exit order of ARCHITECTURE 4.5 and spec 11 7.10 (AC-MODEL-36's second clause), with the
+/// capture teardown at step 2 (INV-SHELL-19), the session's end, the pill's close veto
+/// (EDGE-SHELL-23, EDGE-SHELL-51), the startup's background work (step 13), and INV-SHELL-4 on
+/// the real exe.
 /// </summary>
 [Collection(AppProcessCollection.Name)]
 public sealed class LifecycleTests
 {
     /// <summary>
-    /// Fakes record the order: <c>Stopping</c> canceled, the flush (before the container is
-    /// disposed, AC-MODEL-36), the activation listener, then the instance lock, the container
-    /// disposed, then the exit line.
+    /// Fakes record the order: <c>Stopping</c> canceled, the capture teardown, the flush (before
+    /// the container is disposed, AC-MODEL-36), the activation listener, then the instance lock,
+    /// the container disposed, then the exit line.
     /// </summary>
     [Fact]
     public Task ExitOrderMatchesSpec11() => Sta.RunAsync(() =>
@@ -34,6 +39,7 @@ public sealed class LifecycleTests
                 order.Add("flush");
                 return Task.CompletedTask;
             }))
+            .AddSingleton<ICaptureService>(new FakeCaptureService { OnCall = c => order.Add(c) })
             // Made by the container, which disposes only what it made.
             .AddSingleton(_ => new DisposalRecorder(order)));
         c.Provider.GetRequiredService<IAppLifetime>().Stopping.Register(() => order.Add("stopping"));
@@ -42,9 +48,66 @@ public sealed class LifecycleTests
 
         App.RunExitOrder(c.Provider, new DisposalRecorder(order, "listener disposed"), new DisposalRecorder(order, "lock disposed"), c.Logs.CreateLogger("ShotAI.App.App"), 3);
 
-        Assert.Equal(["stopping", "flush", "listener disposed", "lock disposed", "container disposed", "exiting (code 3)"], order);
+        Assert.Equal(["stopping", "teardown", "flush", "listener disposed", "lock disposed", "container disposed", "exiting (code 3)"], order);
         var exit = c.Logs.Entries.Single(e => e.Message == "exiting (code 3)");
         Assert.Equal(LogLevel.Information, exit.Level);
+    });
+
+    /// <summary>INV-SHELL-19: the exit releases the hook and the hotkey once, synchronously, on the UI thread.</summary>
+    [Fact]
+    public Task ExitCallsCaptureTeardown() => Sta.RunAsync(() =>
+    {
+        var capture = new FakeCaptureService();
+        using var c = new TestContainer(Dispatcher.CurrentDispatcher, s => s.AddSingleton<ICaptureService>(capture));
+        App.RunExitOrder(c.Provider, null, null, null, 0);
+        Assert.Equal(["teardown"], capture.Calls);
+        Assert.Same(Thread.CurrentThread, Assert.Single(capture.Threads));
+    });
+
+    /// <summary>D18: a logoff or shutdown releases the triggers first, and lets the pill close (EDGE-SHELL-51).</summary>
+    [Fact]
+    public void SessionEndingCallsTeardown()
+    {
+        var capture = new FakeCaptureService();
+        var shutdown = new ShellShutdown();
+        App.EndSession(shutdown, capture);
+        Assert.True(shutdown.IsShuttingDown);
+        Assert.Equal(["teardown"], capture.Calls);
+    }
+
+    /// <summary>EDGE-SHELL-23, D2: a close that is not the app's shutdown (Alt+F4 would be one) leaves the pill open.</summary>
+    [Fact]
+    public Task PillCloseCancelledWhileRunning() => Sta.RunAsync(async () =>
+    {
+        var shutdown = new ShellShutdown();
+        var pill = NewPill(shutdown);
+        var closed = false;
+        pill.Closed += (_, _) => closed = true;
+        pill.Show();
+        pill.Close();
+        await Dispatcher.Yield(DispatcherPriority.Background);
+        Assert.False(closed);
+        Assert.True(pill.IsVisible);
+        shutdown.Begin();
+        pill.Close();
+        Assert.True(closed);
+    });
+
+    /// <summary>EDGE-SHELL-2 and EDGE-SHELL-51: closing the main window closes the pill, whose veto the main window's flag lifts first.</summary>
+    [Fact]
+    public Task MainWindowCloseClosesPillDespiteVeto() => Sta.RunAsync(() =>
+    {
+        var shutdown = new ShellShutdown();
+        var main = TestMainWindow.Create(shutdown: shutdown);
+        var pill = NewPill(shutdown);
+        App.ClosePillWithMain(main, pill);
+        var closed = false;
+        pill.Closed += (_, _) => closed = true;
+        main.Show();
+        pill.Show();
+        main.Close();
+        Assert.True(shutdown.IsShuttingDown);
+        Assert.True(closed);
     });
 
     /// <summary>After a self-test, which builds no container but holds the lock, the exit releases the lock and logs its line.</summary>
@@ -170,6 +233,12 @@ public sealed class LifecycleTests
         Assert.True(lifetime.Stopping.IsCancellationRequested);
         Assert.Equal(1, calls);
     }
+
+    private static CapturePillWindow NewPill(ShellShutdown shutdown) =>
+        new(
+            new WindowRegistration(new OwnWindowRegistry(NullLogger<OwnWindowRegistry>.Instance)),
+            new CapturePillViewModel(new FakeCaptureService(), new WpfUiDispatcher(Dispatcher.CurrentDispatcher), NullLogger<CapturePillViewModel>.Instance),
+            shutdown);
 
     private sealed class DisposalRecorder(List<string> order, string name = "container disposed") : IDisposable
     {

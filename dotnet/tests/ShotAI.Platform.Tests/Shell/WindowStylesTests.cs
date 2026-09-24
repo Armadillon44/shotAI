@@ -58,6 +58,21 @@ public sealed class WindowStylesTests
         Assert.Equal(User32.WsExTopmost, w.ExStyle & User32.WsExTopmost);
     }
 
+    /// <summary>Spec 03 7.4.3: the pill's hook answers WM_MOUSEACTIVATE with MA_NOACTIVATE, so a click is delivered and does not activate, and leaves every other message alone.</summary>
+    [Fact]
+    public void NoActivateOnClickAnswersOnlyTheMouseActivation()
+    {
+        const int WmMouseActivate = 0x0021;
+        const int WmLButtonDown = 0x0201;
+        const nint MaNoActivate = 3;
+        var handled = false;
+        Assert.Equal(MaNoActivate, WindowStyles.NoActivateOnClick(0, WmMouseActivate, 0, 0, ref handled));
+        Assert.True(handled);
+        handled = false;
+        Assert.Equal(0, WindowStyles.NoActivateOnClick(0, WmLButtonDown, 0, 0, ref handled));
+        Assert.False(handled);
+    }
+
     [Fact]
     public void GetWindowRectOfADestroyedWindowThrows()
     {

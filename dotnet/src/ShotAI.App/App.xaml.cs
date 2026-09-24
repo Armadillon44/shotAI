@@ -32,8 +32,7 @@ namespace ShotAI.App;
 /// </summary>
 /// <remarks>
 /// Steps 1 to 4, 5b and 6 to 13 run (step 0 is <see cref="Program"/>). Steps 1b and 13's update
-/// check join in WP-E1, 2a in WP-E5, 5 in WP-D2 and the pill of step 8 in WP-B7; the exit order's
-/// capture teardown joins with the capture engine.
+/// check join in WP-E1, 2a in WP-E5 and 5 in WP-D2.
 /// </remarks>
 public partial class App : Application
 {
@@ -113,14 +112,23 @@ public partial class App : Application
         // navigation state the menu and the theme manager read (06 7.7).
         var shell = _services.GetRequiredService<ShellViewModel>();
         _services.GetRequiredService<NavigationState>().Follow(shell);
+        var registration = _services.GetRequiredService<WindowRegistration>();
+        var shutdown = _services.GetRequiredService<ShellShutdown>();
         var main = new MainWindow(
-            _services.GetRequiredService<WindowRegistration>(),
+            registration,
             _services.GetRequiredService<AppMenuViewModel>(),
             _services.GetRequiredService<MainWindowSizer>(),
             _services.GetRequiredService<IAppInfo>(),
             shell,
-            _services.GetRequiredService<ReportImageLoader>());
+            _services.GetRequiredService<ReportImageLoader>(),
+            shutdown);
         MainWindow = main;
+        // The pill (spec 03 2.4.1): made once, hidden until a recording, its HWND made now so it is
+        // registered and excluded, and styled not to activate, from the start.
+        var pill = new CapturePillWindow(registration, _services.GetRequiredService<CapturePillViewModel>(), shutdown);
+        _ = pill.Handle;
+        ClosePillWithMain(main, pill);
+        _services.GetRequiredService<RecordingVisibilityController>().Attach(new RecordingWindows(main, pill));
         _crash.AttachNotices(_services.GetRequiredService<INoticeService>(), () => main.IsVisible);
         main.ContentRendered += LogFirstRender;
         ShowThemed(_services.GetRequiredService<ThemeManager>(), Resources, main);
@@ -171,7 +179,9 @@ public partial class App : Application
         {
             // 1. Every token linked to Stopping cancels.
             services.GetRequiredService<AppLifetime>().Stop();
-            // 2. ICaptureService.Teardown() joins with the capture engine.
+            // 2. The hook and the hotkey are released synchronously, and the poll and UI Automation
+            // threads stop, so none can keep the process alive (INV-SHELL-19).
+            services.GetRequiredService<ICaptureService>().Teardown();
             // 3. The one blocking wait, 5 s for both queues.
             services.GetRequiredService<ShutdownFlush>().Run(ShutdownFlush.Bound);
         }
@@ -182,6 +192,42 @@ public partial class App : Application
         services?.Dispose();
         // 6. The exit line; OnExit then flushes the sink.
         if (log is not null) Exiting(log, exitCode);
+    }
+
+    /// <summary>
+    /// The Windows session ends (logoff or shutdown, ARCHITECTURE 4.5, spec 03 D18): the capture
+    /// triggers are released first, and WPF goes on to close the windows and to <see cref="OnExit"/>;
+    /// nothing vetoes.
+    /// </summary>
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        if (_services is not null) EndSession(_services.GetRequiredService<ShellShutdown>(), _services.GetRequiredService<ICaptureService>());
+        base.OnSessionEnding(e);
+    }
+
+    /// <summary>
+    /// The session's end, before WPF closes the windows: the app is shutting down, so the pill may
+    /// close (EDGE-SHELL-51), and the capture triggers are released (INV-SHELL-19).
+    /// </summary>
+    internal static void EndSession(ShellShutdown shutdown, ICaptureService capture)
+    {
+        ArgumentNullException.ThrowIfNull(shutdown);
+        ArgumentNullException.ThrowIfNull(capture);
+        shutdown.Begin();
+        capture.Teardown();
+    }
+
+    /// <summary>
+    /// EDGE-SHELL-2: closing the main window closes the pill, which would otherwise outlive it
+    /// unseen. The main window sets the shutdown flag before its <see cref="Window.Closed"/>
+    /// handlers run, so the pill does not refuse (EDGE-SHELL-51).
+    /// </summary>
+    internal static void ClosePillWithMain(Window main, Window pill)
+    {
+        ArgumentNullException.ThrowIfNull(main);
+        ArgumentNullException.ThrowIfNull(pill);
+        main.Closed += (_, _) => pill.Close();
     }
 
     /// <summary>

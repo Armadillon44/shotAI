@@ -21,6 +21,7 @@ public partial class MainWindow : ShotAIWindow
 {
     private readonly MainWindowSizer _sizer;
     private readonly IAppInfo _appInfo;
+    private readonly ShellShutdown _shutdown;
     private FullScreenRestore? _restore;
     private bool _closed;
 
@@ -31,7 +32,9 @@ public partial class MainWindow : ShotAIWindow
     /// <param name="appInfo">What About shows.</param>
     /// <param name="shell">The content's view model: the header, the views and the overlay layer.</param>
     /// <param name="images">The report's image loader, which every figure in the window inherits (05 7.10).</param>
-    public MainWindow(WindowRegistration registration, AppMenuViewModel menu, MainWindowSizer sizer, IAppInfo appInfo, ShellViewModel shell, ReportImageLoader images)
+    /// <param name="shutdown">Set when this window closes or File, Exit runs, before any other window closes (EDGE-SHELL-51).</param>
+    public MainWindow(
+        WindowRegistration registration, AppMenuViewModel menu, MainWindowSizer sizer, IAppInfo appInfo, ShellViewModel shell, ReportImageLoader images, ShellShutdown shutdown)
         : base(registration)
     {
         ArgumentNullException.ThrowIfNull(menu);
@@ -39,8 +42,10 @@ public partial class MainWindow : ShotAIWindow
         ArgumentNullException.ThrowIfNull(appInfo);
         ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(images);
+        ArgumentNullException.ThrowIfNull(shutdown);
         _sizer = sizer;
         _appInfo = appInfo;
+        _shutdown = shutdown;
         ReportFigure.SetLoader(this, images);
         InitializeComponent();
         DataContext = menu;
@@ -53,7 +58,12 @@ public partial class MainWindow : ShotAIWindow
         {
             if (e.Key == Key.Escape && !e.Handled && shell.OnEscape()) e.Handled = true;
         };
-        CommandBindings.Add(new CommandBinding(ShellCommands.Exit, (_, _) => Application.Current?.Shutdown()));
+        // EDGE-SHELL-51: the flag first, so the pill lets the shutdown close it.
+        CommandBindings.Add(new CommandBinding(ShellCommands.Exit, (_, _) =>
+        {
+            _shutdown.Begin();
+            Application.Current?.Shutdown();
+        }));
         CommandBindings.Add(new CommandBinding(ShellCommands.ToggleFullScreen, (_, _) => ToggleFullScreen()));
         CommandBindings.Add(new CommandBinding(ShellCommands.Minimize, (_, _) => WindowState = WindowState.Minimized));
         CommandBindings.Add(new CommandBinding(ShellCommands.Close, (_, _) => Close()));
@@ -118,10 +128,14 @@ public partial class MainWindow : ShotAIWindow
         _sizer.PlaceInitially(new WindowInteropHelper(this).Handle);
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// The app is shutting down from here (INV-SHELL-4): the flag is set before the
+    /// <see cref="Window.Closed"/> handlers run, so the pill they close does not refuse (EDGE-SHELL-51).
+    /// </summary>
     protected override void OnClosed(EventArgs e)
     {
         _closed = true;
+        _shutdown.Begin();
         base.OnClosed(e);
     }
 

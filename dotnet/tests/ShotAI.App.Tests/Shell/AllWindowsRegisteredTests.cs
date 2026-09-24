@@ -9,6 +9,8 @@ using System.Windows.Threading;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
+using ShotAI.App.Threading;
+using ShotAI.Core.Shell;
 using ShotAI.Platform.Capture;
 using Xunit;
 
@@ -62,6 +64,52 @@ public sealed partial class AllWindowsRegisteredTests
         {
             about.Close();
             main.Close();
+        }
+    });
+
+    /// <summary>The pill: its HWND is made at startup, hidden, and is excluded before its first show (2.4.1).</summary>
+    [Fact]
+    public Task PillIsExcludedBeforeItIsShown() => Sta.RunAsync(() =>
+    {
+        var registry = NewRegistry();
+        using var probe = ShowProbe.Install();
+        var shutdown = new ShellShutdown();
+        var pill = NewPill(registry, shutdown);
+        var hwnd = pill.Handle;
+        Assert.True(registry.IsRegistered(hwnd));
+        try
+        {
+            pill.Show();
+            AssertExcludedBeforeShown(registry, probe, hwnd);
+        }
+        finally
+        {
+            shutdown.Begin();
+            pill.Close();
+        }
+        Assert.False(registry.IsRegistered(hwnd));
+    });
+
+    /// <summary>The Discard confirmation, a dialog of the pill, never a message box (spec 02 D20, EDGE-SHELL-37).</summary>
+    [Fact]
+    public Task DiscardConfirmationIsExcludedBeforeItIsShown() => Sta.RunAsync(() =>
+    {
+        var registry = NewRegistry();
+        using var probe = ShowProbe.Install();
+        var shutdown = new ShellShutdown();
+        var pill = NewPill(registry, shutdown);
+        pill.Show();
+        var dialog = new DiscardConfirmWindow(new WindowRegistration(registry), ShellStrings.DiscardSessionSteps) { Owner = pill };
+        try
+        {
+            dialog.Show();
+            AssertExcludedBeforeShown(registry, probe, new WindowInteropHelper(dialog).Handle);
+        }
+        finally
+        {
+            dialog.Close();
+            shutdown.Begin();
+            pill.Close();
         }
     });
 
@@ -195,6 +243,9 @@ public sealed partial class AllWindowsRegisteredTests
     internal static bool UsesMessageBox(string code) => MessageBoxUse().IsMatch(Comments().Replace(code, ""));
 
     private static OwnWindowRegistry NewRegistry() => new(NullLogger<OwnWindowRegistry>.Instance);
+
+    private static CapturePillWindow NewPill(OwnWindowRegistry registry, ShellShutdown shutdown) =>
+        new(new WindowRegistration(registry), new CapturePillViewModel(new FakeCaptureService(), new WpfUiDispatcher(Dispatcher.CurrentDispatcher), NullLogger<CapturePillViewModel>.Instance), shutdown);
 
     private static Border Swatch() => new() { Width = 60, Height = 30, Background = Brushes.White };
 

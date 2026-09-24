@@ -16,6 +16,12 @@ internal static unsafe partial class User32
     public const int SwMaximize = 3;
     public const int SwShowNoActivate = 4;
     public const int WsPopup = unchecked((int)0x80000000);
+    public const int GwlExStyle = -20;
+    public const int WsExTopmost = 0x00000008;
+    public const int WsExToolWindow = 0x00000080;
+    public const int WsExAppWindow = 0x00040000;
+    public const int WsExNoActivate = 0x08000000;
+    public const uint GwOwner = 4;
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -86,6 +92,18 @@ internal static unsafe partial class User32
     [LibraryImport("kernel32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     public static partial uint GetCurrentThreadId();
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial int GetWindowLong(nint hwnd, int index);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindow")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint GetWindow(nint hwnd, uint command);
 
     /// <summary>The display affinity of a window, or <see cref="uint.MaxValue"/> when Windows cannot read it.</summary>
     public static uint Affinity(nint hwnd) => GetWindowDisplayAffinity(hwnd, out var affinity) ? affinity : uint.MaxValue;
