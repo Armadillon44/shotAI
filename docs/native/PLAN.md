@@ -614,12 +614,12 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 |---|---|
 | Goal | A low-level mouse hook that is allocation-free, never trips `LowLevelHooksTimeout`, and is reinstalled if Windows removes it; the Ctrl+Shift+S hotkey |
 | Spec inputs | 02 7.3, 7.4, 7.14 (hook and hotkey names), D14, D19, INV-CAP-17, risk R1; ARCHITECTURE 6.1, DL7, PB-1, PB-2; feasibility "Hook timing under .NET"; Q-CAP-2, Q-CAP-3, Q-CAP-5, Q-CAP-19, Q-CAP-23 |
-| Deliverables | Platform `ShotAI.Platform.Capture.Win32TriggerSource : ITriggerSource` (dedicated `shotAI.InputHook` thread with its own `GetMessageW` loop, `WH_MOUSE_LL` proc that copies into a preallocated 256-entry ring and signals a kernel event, `RegisterHotKey` with `MOD_NOREPEAT`, the cursor-movement watchdog, `Detach` posting to the thread and joining for 2000 ms, 32-bit coordinates); the `NativeMethods.txt` entries of 02 7.14 for hooks, messages and hotkeys; `PlatformCaptureRegistration` (first part) |
-| Tests | No Electron file. New: Platform `Capture/MouseHookTests` (`SyntheticClickIsDelivered`, `InjectedClicksAreDelivered`, `EveryButtonMaps`, `CallbackIsAllocationFree`, `WatchdogReinstallsRemovedHook`, `DetachIsIdempotentAndJoins`), `HotkeyTests`, `DpiAwarenessTests`, and a `Category=Perf` hook-latency test for PB-1 |
+| Deliverables | Platform `ShotAI.Platform.Capture.Win32TriggerSource : ITriggerSource` (dedicated `shotAI.InputHook` thread with its own `GetMessageW` loop, `WH_MOUSE_LL` proc that copies into a preallocated 256-entry ring and signals a kernel event, `RegisterHotKey` with `MOD_NOREPEAT`, the cursor-movement watchdog, `Detach` posting to the thread and joining for 2000 ms, 32-bit coordinates); the `NativeMethods.txt` entries of 02 7.14 for hooks, messages and hotkeys; `PlatformCaptureRegistration` (first part). As built in WP-B4: the ring and the dispatcher are Core's (`InputRecord`, `InputRing`, `TriggerDispatcher`), so their order, drops and failures are tested on Linux; `Win32TriggerSource` makes one of each per attach and owns only the hook thread, the hotkey and the watchdog. One source is attached in the process at a time, because the hook procedure is static. `PlatformCaptureRegistration` registers `ITriggerSource` |
+| Tests | No Electron file. New: Platform `Capture/MouseHookTests` (`SyntheticClickIsDelivered`, `InjectedClicksAreDelivered`, `EveryButtonMaps`, `CallbackIsAllocationFree`, `WatchdogReinstallsRemovedHook`, `DetachIsIdempotentAndJoins`), `HotkeyTests`, `DpiAwarenessTests`, and a `Category=Perf` hook-latency test for PB-1. As built in WP-B4: `MouseHookTests` (12), `HotkeyTests` (4), `DpiAwarenessTests` (2) and the explicit `HookLatencyTests` (1) share one collection that runs alone and makes the test process Per-Monitor V2 (a manifest and a fixture); every click lands on a topmost window of the test's own; Core `InputRingTests` (7) and `TriggerDispatcherTests` (13); `AddShotAIPlatformTests` has the new registration (the full list is in 02 8.4) |
 | Acceptance criteria | none owned (the hook's manual criteria run end to end in WP-B9) |
 | Depends on | WP-B1, WP-A5 |
 | Size | M |
-| Risks and de-risking | Silent hook removal (02 R1): allocation-free proc proven by `CallbackIsAllocationFree`, watchdog proven by `WatchdogReinstallsRemovedHook`, every reinstall logged so pilot logs reveal it; Raw Input stays the documented fallback (Q-CAP-5). `SetCursorPos` bypassing the hook could make the watchdog misfire (UNVERIFIED): the test moves the cursor with `SendInput` |
+| Risks and de-risking | Silent hook removal (02 R1): allocation-free proc proven by `CallbackIsAllocationFree`, watchdog proven by `WatchdogReinstallsRemovedHook`, every reinstall logged so pilot logs reveal it; Raw Input stays the documented fallback (Q-CAP-5). `SetCursorPos` bypassing the hook could make the watchdog misfire (UNVERIFIED): the test moves the cursor with `SendInput`. Outcome in WP-B4: the hosted runners deliver `SendInput` clicks, moves and the hotkey chord, and every hook test passed on x64 and arm64 from the first run; the hook thread allocated nothing across a thousand clicks on both. 48 mutations of Core's ring and dispatcher, all caught, 6 of them rewritten because their first text did not build; one ends the test host, since a callback's exception that escapes the dispatcher thread ends the process. The first pass found one gap (a drain that dropped nothing still logged a warning), closed with a test. The Platform code runs only on Windows and was not mutation-checked |
 | Demo | the Windows job log shows the hook tests passing on x64 and arm64 |
 
 #### WP-B5. Screen capture, display affinity and the protection probe
@@ -1524,10 +1524,10 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q | Topic | Owner | Decision or mitigation |
 |---|---|---|---|
 | Q-CAP-1 | port `captureSingle` | WP-B2 | no (D16) (decided in WP-B2) |
-| Q-CAP-2 | hotkey rebinding | WP-B4 | none in 2.0.0 |
-| Q-CAP-3 | `MOD_NOREPEAT` | WP-B4 | use it |
+| Q-CAP-2 | hotkey rebinding | WP-B4 | none in 2.0.0 (decided in WP-B4) |
+| Q-CAP-3 | `MOD_NOREPEAT` | WP-B4 | use it (decided in WP-B4) |
 | Q-CAP-4 | inactive-window clicks | WP-B11 | parity first; the `WindowFromPoint` fallback if AC-CAP-27 fails |
-| Q-CAP-5 | Raw Input | WP-B4, WP-E7 | hook plus watchdog; Raw Input only if pilot logs show reinstalls |
+| Q-CAP-5 | Raw Input | WP-B4, WP-E7 | hook plus watchdog; Raw Input only if pilot logs show reinstalls (decided in WP-B4; the pilot's logs are WP-E7's) |
 | Q-CAP-6 | screenshot caption wording | WP-B2 | Electron parity (decided in WP-B2) |
 | Q-CAP-7 | grab-failure wording | WP-B2 | the recommended sentence (decided in WP-B2) |
 | Q-CAP-8 | window rect source | WP-B11 | `DWMWA_EXTENDED_FRAME_BOUNDS`; switch if crops differ by 14 to 16 px |
@@ -1541,11 +1541,11 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-CAP-16 | resize interpolation | WP-B11 | WIC Fant; compare legibility |
 | Q-CAP-17 | element names in logs | WP-B2 | Debug only (decided in WP-B2) |
 | Q-CAP-18 | PNG pixel format | WP-B5 | RGBA |
-| Q-CAP-19 | GC pauses on the hook thread | WP-B4 | allocation-free proc, pooled frames, watchdog |
+| Q-CAP-19 | GC pauses on the hook thread | WP-B4 | allocation-free proc, pooled frames, watchdog (decided in WP-B4; the pooled frames are WP-B5's) |
 | Q-CAP-20 | `lastLeftClick` across sessions | WP-B3 | reset on start (decided in WP-B3) |
 | Q-CAP-21 | monitor names | WP-B11 | DisplayConfig friendly name; compare |
 | Q-CAP-22 | cross-thread affinity and the shield lock | WP-B5 | DL1 plus `ShieldDeadlockTests` |
-| Q-CAP-23 | why Electron dropped clicks | WP-B4 | no action; reinstalls logged |
+| Q-CAP-23 | why Electron dropped clicks | WP-B4 | no action; reinstalls logged (decided in WP-B4) |
 | Q-CAP-24 | incomplete targets | WP-B9 | the picker cannot submit incomplete; D23 warning |
 
 #### 03 Windows and shell
@@ -2449,7 +2449,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-B1. Capture Core: rules, captions and the shield (#143)
 - [x] WP-B2. Capture engine: sessions and the capture pipeline (#144)
 - [x] WP-B3. Capture engine: click decisions and menus (#145)
-- [ ] WP-B4. Input hook and hotkey
+- [x] WP-B4. Input hook and hotkey (#146)
 - [ ] WP-B5. Screen capture, display affinity and the protection probe
 - [ ] WP-B6. Window information and UI Automation
 - [ ] WP-B7. Capture pill and recording visibility

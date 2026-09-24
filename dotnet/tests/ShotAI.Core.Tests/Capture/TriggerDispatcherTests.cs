@@ -134,8 +134,13 @@ public sealed class TriggerDispatcherTests : IDisposable
         var deadline = DateTime.UtcNow + Timeout;
         while (Lines(LogLevel.Warning).Count == 0 && DateTime.UtcNow < deadline) await Task.Delay(5, TestContext.Current.CancellationToken);
 
+        // Two more drains, the second after the first has ended: a drain that dropped nothing logs nothing.
+        Write(d, Click(-1));
+        await SeenAsync(_ring.Capacity + 1);
+        Write(d, Click(-2));
+        await SeenAsync(_ring.Capacity + 2);
+
         Assert.Equal(["input ring full: 3 events dropped; the capture dispatcher was stalled"], Lines(LogLevel.Warning));
-        Assert.Equal(_ring.Capacity, _seen.Count);
     }
 
     /// <summary>PB-2: each pickup is logged at debug with its latency from the hook's stamp.</summary>

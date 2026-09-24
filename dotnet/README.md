@@ -16,8 +16,8 @@ engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP
 with its fonts (WP-A14), the main window with its menu and About (WP-A15), the Home list
 (WP-A16), the read-only report (WP-A17), View, Brand (WP-A18), Home's row operations
 (WP-A19a), the external link allowlist (WP-A19b), the capture rules with the capture shield
-(WP-B1), the capture engine's sessions and pipeline (WP-B2) and its click decisions and context
-menus (WP-B3): analyzers, supply-chain rules, Core's
+(WP-B1), the capture engine's sessions and pipeline (WP-B2), its click decisions and context
+menus (WP-B3) and the input hook with the hotkey (WP-B4): analyzers, supply-chain rules, Core's
 error, threading and composition types, `JsJson` (reads what `JSON.parse` reads, writes the
 bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron
 for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite
@@ -104,8 +104,11 @@ this session's steps (or the project made for it), and the report's no-click scr
 step. A capture that fails is reported and the next one still runs. A double-click is one step. A
 right-click arms the context menu: the next click near it within 30 s is a menu selection, captured
 from a frame taken while the menu was still open (polled every 400 ms, or grabbed at the
-mousedown), with at most four selections per right-click. The app registers the engine
-once its Windows pieces arrive (WP-B4 to WP-B6).
+mousedown), with at most four selections per right-click. On Windows, a low-level mouse hook on
+its own thread copies each mousedown into a small ring for the engine's dispatcher thread and does
+nothing else, so Windows has no reason to remove it; a watchdog reinstalls it if Windows does, and
+Ctrl+Shift+S is the capture hotkey. The app registers the engine once its last Windows pieces
+arrive (WP-B5 and WP-B6).
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.
 
