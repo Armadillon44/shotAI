@@ -41,6 +41,22 @@ public sealed class JsHelpersTests
         Assert.Equal(expected, JsMath.ClampIndex(atIndex, length));
 
     [Fact]
+    public void ToWellFormedReplacesLoneSurrogatesOnly()
+    {
+        const string plain = "abc \ud83d\ude00 d";
+        Assert.Same(plain, JsString.ToWellFormed(plain));
+        Assert.Equal("", JsString.ToWellFormed(""));
+        Assert.Equal("a\ufffdb", JsString.ToWellFormed("a\ud800b"));
+        Assert.Equal("\ufffd", JsString.ToWellFormed("\udc00"));
+        Assert.Equal("a\ufffd", JsString.ToWellFormed("a\ud800"));
+        Assert.Equal("\ufffd\ufffd", JsString.ToWellFormed("\ude00\ud83d"));
+        Assert.Equal("\ufffd\ud83d\ude00", JsString.ToWellFormed("\ud83d\ud83d\ude00"));
+        Assert.Equal("\ud83d\ude00\ufffd", JsString.ToWellFormed("\ud83d\ude00\ude00"));
+        Assert.Equal("\ufffd\ufffd\ufffd", JsString.ToWellFormed("\udfff\udfff\udbff"));
+        Assert.Throws<ArgumentNullException>(() => JsString.ToWellFormed(null!));
+    }
+
+    [Fact]
     public void TrimRemovesJavaScriptWhitespaceOnly()
     {
         Assert.Equal("a", JsString.Trim("\ufeff\u3000 a\t\u2028"));

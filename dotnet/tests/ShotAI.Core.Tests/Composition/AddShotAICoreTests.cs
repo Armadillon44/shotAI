@@ -101,6 +101,25 @@ public sealed class AddShotAICoreTests
         Assert.DoesNotContain(services, d => d.ServiceType == typeof(IMonitorCapture));
     }
 
+    /// <summary>
+    /// The engine is registered once, as the capture service, so the container disposes it at exit
+    /// step 5, synchronously (spec 02 7.13, AC-CAP-35); its clock is the system time.
+    /// </summary>
+    [Fact]
+    public void RegistersTheEngineAndItsClock()
+    {
+        var services = new ServiceCollection().AddShotAICore();
+
+        var engine = Assert.Single(services, d => d.ServiceType == typeof(ICaptureService));
+        Assert.Equal(ServiceLifetime.Singleton, engine.Lifetime);
+        Assert.Equal(typeof(CaptureEngine), engine.ImplementationType);
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(CaptureEngine));
+        var clock = Assert.Single(services, d => d.ServiceType == typeof(ICaptureClock));
+        Assert.Equal(ServiceLifetime.Singleton, clock.Lifetime);
+        Assert.Equal(typeof(TimeProviderCaptureClock), clock.ImplementationType);
+        Assert.Single(typeof(CaptureEngine).GetConstructors());
+    }
+
     private sealed class OneServiceProvider(Type type, object instance) : IServiceProvider
     {
         public object? GetService(Type serviceType) => serviceType == type ? instance : null;

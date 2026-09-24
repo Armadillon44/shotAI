@@ -18,6 +18,7 @@ internal static partial class User32
     public const int WsExAppWindow = 0x00040000;
     public const int WsExNoActivate = 0x08000000;
     public const int GwlExStyle = -20;
+    public const int GwlStyle = -16;
     public const int SwHide = 0;
     public const int SwShowNoActivate = 4;
     public const int SwMinimize = 6;
@@ -82,6 +83,19 @@ internal static partial class User32
     public static partial uint GetDpiForWindow(nint hwnd);
 
     /// <summary>The display affinity of a window, or null when Windows cannot read it.</summary>
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EnableWindow(nint hwnd, [MarshalAs(UnmanagedType.Bool)] bool enable);
+
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial int SetWindowLong(nint hwnd, int index, int value);
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint GetForegroundWindow();
+
     public static uint? Affinity(nint hwnd) => GetWindowDisplayAffinity(hwnd, out var affinity) ? affinity : null;
 
     /// <summary><c>MSG</c>.</summary>

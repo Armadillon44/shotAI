@@ -22,6 +22,8 @@ public sealed class AddShotAIPlatformTests
     [InlineData(typeof(IWindowProtection), typeof(DisplayAffinityProtection))]
     [InlineData(typeof(IOwnWindows), typeof(OwnWindows))]
     [InlineData(typeof(IImageCodec), typeof(WicImageCodec))]
+    [InlineData(typeof(IWindowInfoProvider), typeof(Win32WindowInfoProvider))]
+    [InlineData(typeof(IElementLocator), typeof(UiaElementLocator))]
     public void RegistersTheSeams(Type service, Type implementation)
     {
         var descriptor = Assert.Single(new ServiceCollection().AddShotAIPlatform(), d => d.ServiceType == service);
