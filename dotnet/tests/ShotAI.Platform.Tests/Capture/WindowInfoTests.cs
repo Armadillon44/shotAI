@@ -54,39 +54,59 @@ public sealed class WindowInfoTests
         Assert.Null(_facts.ImagePath(0));
     }
 
+    /// <summary>
+    /// A window of this process describes with this process's id, its title and its app, the
+    /// derivation the foreground read uses. The test never takes the foreground: the App's tests
+    /// run keyboard and focus tests in another process at the same time.
+    /// </summary>
     [Fact]
     public void ForegroundOfOwnWindowHasOwnPid()
     {
-        using var ui = new UiThread("window info foreground");
+        using var ui = new UiThread("window info own window");
         var (window, hwnd) = ui.Invoke(() =>
         {
-            var w = new Window { Title = "shotAI foreground test", Left = 200, Top = 200, Width = 400, Height = 300, Topmost = true };
+            var w = new Window { Title = "shotAI own window test", Left = 200, Top = 200, Width = 400, Height = 300, ShowActivated = false };
             w.Show();
-            w.Activate();
             return (w, new WindowInteropHelper(w).Handle);
         });
         try
         {
-            if (User32.GetForegroundWindow() != hwnd)
-            {
-                var (left, top, right, bottom) = Dwm.FrameBounds(hwnd) ?? throw new InvalidOperationException("The window has no frame bounds.");
-                SyntheticInput.Click((left + right) / 2, (top + bottom) / 2);
-            }
-            WaitFor(() => User32.GetForegroundWindow() == hwnd);
-
-            var foreground = Assert.IsType<ForegroundInfo>(_provider.Foreground());
-            Assert.Equal(hwnd, foreground.Hwnd);
-            Assert.Equal(Environment.ProcessId, foreground.Pid);
-            Assert.Equal("shotAI foreground test", foreground.Title);
-            Assert.Equal(ExpectedOwnApp(), foreground.App);
-            Assert.False(foreground.Minimized);
-            Assert.NotNull(foreground.WindowRect);
-            Assert.Equal(_facts.FrameBounds(hwnd), foreground.FrameBounds);
+            var own = Assert.IsType<ForegroundInfo>(new WindowDescriber(_facts).Describe(hwnd));
+            Assert.Equal(hwnd, own.Hwnd);
+            Assert.Equal(Environment.ProcessId, own.Pid);
+            Assert.Equal("shotAI own window test", own.Title);
+            Assert.Equal(ExpectedOwnApp(), own.App);
+            Assert.False(own.Minimized);
+            Assert.NotNull(own.WindowRect);
+            Assert.Equal(_facts.FrameBounds(hwnd), own.FrameBounds);
         }
         finally
         {
             ui.Invoke(window.Close);
         }
+    }
+
+    /// <summary>The foreground read describes whatever window is in the foreground, as get-windows' activeWindow() does.</summary>
+    [Fact]
+    public void TheForegroundIsTheForegroundWindowDescribed()
+    {
+        var describer = new WindowDescriber(_facts);
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var before = User32.GetForegroundWindow();
+            var foreground = _provider.Foreground();
+            if (User32.GetForegroundWindow() != before) continue;
+            if (before == 0)
+            {
+                Assert.Null(foreground);
+                return;
+            }
+            var expected = describer.Describe(before);
+            if (expected?.Title != foreground?.Title) continue;
+            Assert.Equal(expected, foreground);
+            return;
+        }
+        Assert.Fail("The foreground window kept changing.");
     }
 
     [Fact]
@@ -228,13 +248,4 @@ public sealed class WindowInfoTests
         return description.Length > 0 ? description : Path.GetFileName(path);
     }
 
-    private static void WaitFor(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow + Bound;
-        while (!condition())
-        {
-            if (DateTime.UtcNow > deadline) throw new TimeoutException("The window did not come to the foreground.");
-            Thread.Sleep(20);
-        }
-    }
 }

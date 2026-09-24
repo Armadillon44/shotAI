@@ -83,25 +83,29 @@ public sealed class UiaElementLocatorTests
     }
 
     /// <summary>
-    /// D15: while one query thread waits on a hung app, the other answers the next click. Both
-    /// threads have answered the button once first, since each thread's first read on a cold
-    /// runner can pass the cap; the reads are recorded for the failure message.
+    /// D15: while one query thread waits on a hung app, the other answers a click in another app.
+    /// Both apps are processes of their own, as in a recording (within one process, UI Automation
+    /// holds up a read of one window while another read waits on a hung one, 7.6 as built). Both
+    /// threads have answered the healthy app first, since a cold runner's first reads can pass the
+    /// cap; the hung app stops pumping just before its read. The reads are recorded for the
+    /// failure message.
     /// </summary>
     [Fact]
-    public async Task AHungProviderLeavesTheOtherThread()
+    public async Task AHungAppLeavesTheOtherThread()
     {
-        using var window = new ControlsWindow(left: 60);
-        using var hung = new HungWindow(left: 520);
+        using var healthy = await ChildFormWindow.StartAsync("Save", left: 40, hung: false);
         var reads = new ReadLog();
         using var locator = new UiaElementLocator(() => new RecordingReader(new UiaElementReader(), reads), TimeProvider.System, _log);
-        await WarmBothThreadsAsync(locator, window.SaveText, reads);
+        await WarmBothThreadsAsync(locator, healthy.ButtonCenter, reads);
+        using var hung = await ChildFormWindow.StartAsync("Hung", left: 440, hung: true);
 
-        var stuck = locator.ElementAtAsync(hung.Center.X, hung.Center.Y);
-        await reads.WaitForStart(hung.Center);
-        var element = await locator.ElementAtAsync(window.SaveText.X, window.SaveText.Y).WaitAsync(Bound, TestContext.Current.CancellationToken);
+        var stuck = locator.ElementAtAsync(hung.ButtonCenter.X, hung.ButtonCenter.Y);
+        await reads.WaitForStart(hung.ButtonCenter);
+        var element = await locator.ElementAtAsync(healthy.ButtonCenter.X, healthy.ButtonCenter.Y).WaitAsync(Bound, TestContext.Current.CancellationToken);
 
-        Assert.True(element?.Name == "Save", "the other thread did not answer: " + reads);
-        Assert.Null(await stuck.WaitAsync(Bound, TestContext.Current.CancellationToken));
+        Assert.True(element?.Name == "Save" && element.ControlType == "Button", "the other thread did not answer: " + reads);
+        Assert.True(reads.FinishedFirst(healthy.ButtonCenter, hung.ButtonCenter), "the hung app's read ended first: " + reads);
+        await stuck.WaitAsync(Bound, TestContext.Current.CancellationToken);
     }
 
     /// <summary>D15: the automation object is IUIAutomation2 with both timeouts at 500 ms, far under the defaults of 2 s and 20 s.</summary>
@@ -234,6 +238,17 @@ public sealed class UiaElementLocatorTests
         public void Add(Read read)
         {
             lock (_reads) _reads.Add(read);
+        }
+
+        // Whether the last read of `first` ended while the last read of `second` was still running.
+        public bool FinishedFirst((int X, int Y) first, (int X, int Y) second)
+        {
+            lock (_reads)
+            {
+                var a = _reads.LastOrDefault(r => r.Point == first);
+                var b = _reads.LastOrDefault(r => r.Point == second);
+                return a is { Ms: { } ms } && b is not null && (b.Ms is null || b.StartMs + b.Ms > a.StartMs + ms);
+            }
         }
 
         public bool AnsweredInTime((int X, int Y) point, string thread)
