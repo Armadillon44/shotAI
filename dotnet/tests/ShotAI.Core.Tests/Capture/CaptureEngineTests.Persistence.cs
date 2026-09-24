@@ -167,6 +167,33 @@ public sealed partial class CaptureEngineTests
         Assert.Contains(h.Logs.Entries, e => e.Message == "capture failed:" && e.Exception is InvalidOperationException { Message: "internal detail" });
     }
 
+    /// <summary>2.2.2 step 6: every entry of <c>shots/</c> seeds the counter, as <c>readdir</c> lists them, a folder named like a shot included.</summary>
+    [Fact]
+    public async Task AFolderNamedLikeAShotSeedsTheCounter()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        Directory.CreateDirectory(Path.Combine(p, "shots", "step-0020.png"));
+        await h.StartAsync(p);
+        await h.ClickAsync(100, 100);
+
+        Assert.Equal("shots/step-0021.png", Assert.Single(h.Landed).Step.Screenshot);
+    }
+
+    /// <summary>2.2.2 step 6: when <c>shots/</c> cannot be listed, the step count alone seeds the counter, and the start goes on.</summary>
+    [Fact]
+    public async Task AnUnlistableShotsFolderSeedsFromTheStepCount()
+    {
+        var probe = new VanishingShots();
+        await using var h = new EngineHarness(probe: probe);
+        var p = h.Project(steps: EngineHarness.OldSteps(2));
+        Store.StoreHarness.WriteFile(p, "shots/step-0009.png");
+        probe.Shots = Path.GetFullPath(Path.Combine(p, "shots"));
+
+        Assert.Equal(CaptureStatus.Recording, (await h.StartAsync(p)).Status);
+        Assert.Contains($"recording started: \"T\" [mode=auto] (2 existing steps, next #3) at {p}", h.LogLines());
+    }
+
     /// <summary>7.3: a cancellation outside teardown is a failure like any other in the log, but shows nothing (UserMessage.From), and the queue goes on.</summary>
     [Fact]
     public async Task ACancelledJobIsLoggedButNotRaised()
@@ -307,6 +334,25 @@ public sealed partial class CaptureEngineTests
 
         public override Task<ProjectManifest> AddStepAsync(string projectPath, ProjectStep step) =>
             Interlocked.Increment(ref _calls) == 1 ? Task.FromException<ProjectManifest>(failure) : base.AddStepAsync(projectPath, step);
+    }
+
+    // Deletes shots/ the second time it is probed (the re-check after the create), so the listing that follows fails.
+    private sealed class VanishingShots : IPathProbe
+    {
+        private readonly ManagedPathProbe _inner = new();
+        private int _shotsProbes;
+
+        public string? Shots { get; set; }
+
+        public PathKind Probe(string fullPath)
+        {
+            if (Shots is not null && string.Equals(fullPath, Shots, StringComparison.Ordinal) && Interlocked.Increment(ref _shotsProbes) == 2)
+            {
+                Directory.Delete(fullPath, recursive: true);
+                return PathKind.Directory;
+            }
+            return _inner.Probe(fullPath);
+        }
     }
 
     // AddStepAsync waits for the test, then throws what a store call cancelled under it throws.

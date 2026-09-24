@@ -55,6 +55,8 @@ public sealed partial class CaptureEngineTests
     [InlineData(5000, 5000, 10, 10)]
     [InlineData(-300, 0, 300, 100)]
     [InlineData(0, 1080, 100, 100)]
+    [InlineData(1920, 0, 100, 100)]
+    [InlineData(0, -100, 100, 100)]
     public async Task ScreenshotValidatesAreaBeforeHiding(double x, double y, double width, double height)
     {
         await using var h = new EngineHarness();

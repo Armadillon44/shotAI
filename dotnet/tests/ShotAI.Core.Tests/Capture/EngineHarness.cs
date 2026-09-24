@@ -19,11 +19,11 @@ internal sealed class EngineHarness : IAsyncDisposable
 
     private readonly List<EngineEvent> _events = [];
 
-    public EngineHarness(Func<IProjectService, IProjectService>? wrap = null)
+    public EngineHarness(Func<IProjectService, IProjectService>? wrap = null, IPathProbe? probe = null)
     {
         Screen.Displays.Add(FakeMonitorCapture.Monitor(1, 0, 0, 1920, 1080, primary: true));
         Projects = wrap is null ? Store.Store : wrap(Store.Store);
-        Engine = new CaptureEngine(Projects, new ManagedPathProbe(), Triggers, Screen, Windows, Elements, Own, Codec, Settings, Clock, Logs.CreateLogger<CaptureEngine>());
+        Engine = new CaptureEngine(Projects, probe ?? new ManagedPathProbe(), Triggers, Screen, Windows, Elements, Own, Codec, Settings, Clock, Logs.CreateLogger<CaptureEngine>());
         Engine.StateChanged += (_, e) => Record(new EngineEvent("state", e));
         Engine.StepLanded += (_, e) => Record(new EngineEvent("step", e));
         Engine.CaptureFailed += (_, e) => Record(new EngineEvent("failed", e.Message));

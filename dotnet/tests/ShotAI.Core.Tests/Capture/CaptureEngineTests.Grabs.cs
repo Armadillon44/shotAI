@@ -297,6 +297,22 @@ public sealed partial class CaptureEngineTests
         Assert.Equal("""{"id":1,"bounds":{"x":0,"y":0,"width":1920,"height":1080},"scaleFactor":1}""", step.Raw["monitor"]!.ToJsonString());
     }
 
+    /// <summary>2.6 step 15: the step records the monitor it grabbed, with its scale factor, and the click in that monitor's pixels.</summary>
+    [Fact]
+    public async Task TheStepRecordsTheMonitorItGrabbed()
+    {
+        await using var h = new EngineHarness();
+        h.Screen.Displays.Add(new MonitorDescriptor(2, "Second", new Rect(1920, 0, 2560, 1440), 1.5, false));
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(2000, 100);
+
+        var step = Assert.Single(h.Landed).Step;
+        Assert.Equal("""{"id":2,"bounds":{"x":1920,"y":0,"width":2560,"height":1440},"scaleFactor":1.5}""", step.Raw["monitor"]!.ToJsonString());
+        Assert.Equal(new Point(80, 100), step.Click!.Image);
+        Assert.Equal((2560, 1440), EngineHarness.ShotSize(p, step.Screenshot));
+    }
+
     /// <summary>INV-CAP-6, D1: a click on shotAI's own window is dropped at mousedown, before any element query.</summary>
     [Fact]
     public async Task PillClicksCreateNoSteps()

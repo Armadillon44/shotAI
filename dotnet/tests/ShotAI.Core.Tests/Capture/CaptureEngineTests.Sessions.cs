@@ -539,13 +539,16 @@ public sealed partial class CaptureEngineTests
             new ListedWindow(9, 15, "\u0085", "Nel", frame, false, false),
         ]);
         h.Screen.Displays.Add(new MonitorDescriptor(7, "DELL U2720Q", new Rect(1920, 0, 2560, 1440), 1.5, false));
+        h.Screen.Displays.Add(new MonitorDescriptor(8, "", new Rect(-1280, 0, 1280, 1024), 1, false));
 
         var targets = await h.Engine.ListTargetsAsync(TestContext.Current.CancellationToken).Bounded();
 
         // JavaScript's trim blanks U+FEFF and keeps U+0085, the reverse of .NET's (2.10.2).
         Assert.Equal([new WindowInfo(4, 12, "Doc", "Word"), new WindowInfo(6, 13, "Doc", ""), new WindowInfo(9, 15, "\u0085", "Nel")], targets.Windows);
-        Assert.Equal([new MonitorInfo(1, "Display 1", 1920, 1080, true), new MonitorInfo(7, "DELL U2720Q", 2560, 1440, false)], targets.Monitors);
-        Assert.Contains("listTargets: 3 windows, 2 monitors", h.LogLines());
+        Assert.Equal(
+            [new MonitorInfo(1, "Display 1", 1920, 1080, true), new MonitorInfo(7, "DELL U2720Q", 2560, 1440, false), new MonitorInfo(8, "Display 8", 1280, 1024, false)],
+            targets.Monitors);
+        Assert.Contains("listTargets: 3 windows, 3 monitors", h.LogLines());
     }
 
     /// <summary>EDGE-IPC-17: a negative insert index is 0, and one past the end appends.</summary>
