@@ -554,6 +554,21 @@ public sealed partial class CaptureEngineTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => h.ScreenshotAsync(p, new CaptureTarget("screen"), 0));
     }
 
+    /// <summary>7.13, D2: a mousedown already on its way when teardown ran starts no element query and captures nothing.</summary>
+    [Fact]
+    public async Task AClickAfterTeardownQueriesNothing()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        await h.StartAsync(p);
+        h.Engine.Teardown();
+        h.Triggers.LateClick(100, 100);
+        await h.SettleAsync();
+
+        Assert.Empty(h.Elements.Queries);
+        Assert.Empty(h.Landed);
+    }
+
     [Fact]
     public async Task ListTargetsFiltersAndNames()
     {
