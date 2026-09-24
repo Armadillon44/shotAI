@@ -186,6 +186,38 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(0, h.Triggers.Attaches);
     }
 
+    /// <summary>D10: a <c>shots/</c> link to a folder that does not exist is refused before the create, so nothing is made outside.</summary>
+    [Fact]
+    public async Task ADanglingShotsLinkRefusesStart()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        var missing = Path.Combine(h.Store.Temp.Root, "missing");
+        Symlinks.Directory(Path.Combine(p, "shots"), missing);
+
+        var e = await Assert.ThrowsAsync<CaptureException>(() => h.StartAsync(p));
+
+        Assert.Equal(CaptureMessages.ShotsOutsideProject, e.Message);
+        Assert.False(Directory.Exists(missing));
+        Assert.Equal(0, h.Triggers.Attaches);
+    }
+
+    /// <summary>D10: <c>shots/</c> is checked again after the create, because a link can appear in between.</summary>
+    [Fact]
+    public async Task AShotsLinkThatAppearsAtTheCreateRefusesStart()
+    {
+        var probe = new LinkAfterCreate();
+        await using var h = new EngineHarness(probe: probe);
+        var p = h.Project();
+        probe.Shots = Path.GetFullPath(Path.Combine(p, "shots"));
+
+        var e = await Assert.ThrowsAsync<CaptureException>(() => h.StartAsync(p));
+
+        Assert.Equal(CaptureMessages.ShotsOutsideProject, e.Message);
+        Assert.Equal(CaptureState.Idle, h.Engine.GetState());
+        Assert.Equal(0, h.Triggers.Attaches);
+    }
+
     /// <summary>INV-CAP-23: every shot path is confined again at the write, so a <c>shots/</c> swapped for a link mid-session writes nothing.</summary>
     [Fact]
     public async Task ShotsSwappedMidSessionRefusesWrite()
@@ -581,6 +613,20 @@ public sealed partial class CaptureEngineTests
             await Open.Task.ConfigureAwait(false);
             return await base.OpenProjectAsync(projectPath).ConfigureAwait(false);
         }
+    }
+
+    // Reports shots/ as a link from its second probe on: the re-check after the create.
+    private sealed class LinkAfterCreate : IPathProbe
+    {
+        private readonly ManagedPathProbe _inner = new();
+        private int _shotsProbes;
+
+        public string? Shots { get; set; }
+
+        public PathKind Probe(string fullPath) =>
+            Shots is not null && string.Equals(fullPath, Shots, StringComparison.Ordinal) && Interlocked.Increment(ref _shotsProbes) >= 2
+                ? PathKind.Link
+                : _inner.Probe(fullPath);
     }
 
     private sealed class FailingDelete(IProjectService inner) : ForwardingProjectService(inner)
