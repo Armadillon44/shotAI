@@ -14,6 +14,9 @@ internal sealed class SelfTestStore(IProjectService projects, params IAsyncDispo
     /// <summary>The store the test drives.</summary>
     public IProjectService Projects { get; } = projects;
 
+    /// <summary>What <see cref="DisposeAsync"/> disposes, in order.</summary>
+    internal IReadOnlyList<IAsyncDisposable> Owned => owned;
+
     /// <summary>
     /// Disposes each owned service in order, each waiting for its queued writes; a failure does
     /// not stop the rest, and the first one is rethrown at the end.

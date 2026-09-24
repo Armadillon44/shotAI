@@ -5,6 +5,7 @@ using Microsoft.Extensions.Time.Testing;
 using ShotAI.Core.Json;
 using ShotAI.Core.Model;
 using ShotAI.Core.SelfTest;
+using ShotAI.Core.Settings;
 using ShotAI.Core.Store;
 using ShotAI.Core.Tests.Support;
 using Xunit;
@@ -528,6 +529,22 @@ public sealed class StoreSelfTestTests : IDisposable
         var e = await Assert.ThrowsAsync<IOException>(async () => await store.DisposeAsync());
         Assert.Equal("a", e.Message);
         Assert.Equal(["a", "b", "c"], order);
+    }
+
+    /// <summary>Step 7 disposes the store, then the settings service, so neither is left with a queue.</summary>
+    [Fact]
+    public async Task TheCleanUpDisposesTheStoreAndTheSettings()
+    {
+        SelfTestStore? made = null;
+        await RunAsync(new ProjectStoreFactory(p => made = ProjectStoreFactory.Build(p, TimeProvider.System, NullLoggerFactory.Instance)));
+        Assert.NotNull(made);
+        Assert.Equal(2, made.Owned.Count);
+        var store = Assert.IsType<ProjectStore>(made.Owned[0]);
+        var settings = Assert.IsType<SettingsService>(made.Owned[1]);
+        Assert.Same(store, made.Projects);
+        // A create writes outside the queue, so a queued call is the one a disposed store refuses.
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => store.RenameProjectAsync("none", "after"));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => settings.UpdateAsync(s => s, TestContext.Current.CancellationToken));
     }
 
     /// <summary><c>path.basename</c> ignores a trailing separator, so a store path that ends in one still names the UUID folder.</summary>
