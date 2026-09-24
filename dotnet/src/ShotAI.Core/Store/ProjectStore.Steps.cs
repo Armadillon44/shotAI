@@ -13,7 +13,7 @@ public sealed partial class ProjectStore
 {
     /// <inheritdoc/>
     /// <remarks>The step is copied at the call, so a later change by the caller does not reach the queued write.</remarks>
-    public Task AddStepAsync(string projectPath, ProjectStep step)
+    public Task<ProjectManifest> AddStepAsync(string projectPath, ProjectStep step)
     {
         ArgumentNullException.ThrowIfNull(step);
         var copy = step.DeepClone();
@@ -25,7 +25,7 @@ public sealed partial class ProjectStore
     }
 
     /// <inheritdoc/>
-    public Task InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex)
+    public Task<ProjectManifest> InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex)
     {
         ArgumentNullException.ThrowIfNull(step);
         var copy = step.DeepClone();

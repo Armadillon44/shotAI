@@ -15,8 +15,8 @@ engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP
 (WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13), the theme
 with its fonts (WP-A14), the main window with its menu and About (WP-A15), the Home list
 (WP-A16), the read-only report (WP-A17), View, Brand (WP-A18), Home's row operations
-(WP-A19a), the external link allowlist (WP-A19b) and the capture rules with the capture shield
-(WP-B1): analyzers, supply-chain rules, Core's
+(WP-A19a), the external link allowlist (WP-A19b), the capture rules with the capture shield
+(WP-B1) and the capture engine's sessions and pipeline (WP-B2): analyzers, supply-chain rules, Core's
 error, threading and composition types, `JsJson` (reads what `JSON.parse` reads, writes the
 bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron
 for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite
@@ -94,6 +94,14 @@ element may name itself in a caption. Every screen read goes through one funnel,
 `ShieldedScreenCapture`, which excludes shotAI's windows from capture for exactly the read and then
 restores what the remote visibility setting says, even when the read throws or two reads overlap;
 source and reflection tests fail CI if anything else reads screen pixels.
+The capture engine runs on those rules, tested with a fake for everything Windows provides: one
+recording at a time, started atomically, appending or inserting at a rolling cursor. Each click or
+hotkey is queued and captured in order, cropped to the window, area, region or monitor, written to
+`shots/` as a new file that never overwrites one or goes through a link, and added to the project
+through the store. Pause drops the queued backlog, stop lets it finish, discard removes exactly
+this session's steps (or the project made for it), and the report's no-click screenshot inserts one
+step. A capture that fails is reported and the next one still runs. The app registers the engine
+once its Windows pieces arrive (WP-B4 to WP-B6).
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.
 

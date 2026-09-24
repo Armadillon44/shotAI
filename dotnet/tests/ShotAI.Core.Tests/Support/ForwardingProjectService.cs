@@ -47,9 +47,9 @@ internal class ForwardingProjectService(IProjectService inner) : IProjectService
     public virtual Task<ProjectManifest> MutateAsync(string projectPath, Func<ProjectManifest, ValueTask<MutateResult>> fn) =>
         inner.MutateAsync(projectPath, fn);
 
-    public virtual Task AddStepAsync(string projectPath, ProjectStep step) => inner.AddStepAsync(projectPath, step);
+    public virtual Task<ProjectManifest> AddStepAsync(string projectPath, ProjectStep step) => inner.AddStepAsync(projectPath, step);
 
-    public virtual Task InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex) =>
+    public virtual Task<ProjectManifest> InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex) =>
         inner.InsertStepAtAsync(projectPath, step, atIndex);
 
     public virtual Task<ProjectManifest> DeleteStepAsync(string projectPath, string stepId) => inner.DeleteStepAsync(projectPath, stepId);

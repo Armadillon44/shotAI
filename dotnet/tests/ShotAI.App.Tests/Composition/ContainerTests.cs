@@ -30,6 +30,14 @@ public sealed partial class ContainerTests
     // The view models spec 11 INV-IPC-22 names as singletons.
     private static readonly HashSet<string> SingletonViewModels = ["AppMenuViewModel", "CapturePillViewModel", "CaptureModePickerViewModel"];
 
+    // A catalog interface that exists before the work package that makes it resolvable, with that
+    // package. The entry fails the test once the interface resolves, so that package removes it.
+    private static readonly Dictionary<string, string> ResolvableFrom = new(StringComparer.Ordinal)
+    {
+        // CaptureEngine needs every Platform capture seam, the last of which lands in WP-B6 (spec 02 7.1).
+        ["ICaptureService"] = "WP-B6",
+    };
+
     /// <summary>The production path of startup step 6 builds, with both validations on.</summary>
     [Fact]
     public Task BuildsWithValidateOnBuild() => Sta.RunAsync(() =>
@@ -59,14 +67,16 @@ public sealed partial class ContainerTests
 
     /// <summary>
     /// Every interface of ARCHITECTURE 4.4 and spec 11 7.3 that exists in the build resolves. The
-    /// ones later work packages add are listed in the output; <c>IProjectSession</c> is made by
-    /// its factory, never resolved (INV-IPC-22).
+    /// ones later work packages add are listed in the output, as is one that exists before its
+    /// dependencies do (<c>ResolvableFrom</c>); <c>IProjectSession</c> is made by its factory,
+    /// never resolved (INV-IPC-22).
     /// </summary>
     [Fact]
     public Task EveryCatalogInterfaceResolves() => Sta.RunAsync(() =>
     {
         using var c = new TestContainer(Dispatcher.CurrentDispatcher);
         var names = CatalogNames();
+        Assert.Subset(names.ToHashSet(StringComparer.Ordinal), ResolvableFrom.Keys.ToHashSet(StringComparer.Ordinal)); // no entry outlives a rename
         var resolved = new List<string>();
         var pending = new List<string>();
         foreach (var name in names)
@@ -80,6 +90,12 @@ public sealed partial class ContainerTests
             if (type is null)
             {
                 pending.Add(name);
+                continue;
+            }
+            if (ResolvableFrom.TryGetValue(name, out var workPackage))
+            {
+                Assert.True(c.Provider.GetService(type) is null, $"{name} resolves now: remove its ResolvableFrom entry ({workPackage})");
+                pending.Add($"{name} (until {workPackage})");
                 continue;
             }
             Assert.True(c.Provider.GetService(type) is not null, $"{name} does not resolve");
