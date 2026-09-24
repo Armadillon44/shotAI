@@ -413,7 +413,7 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 | Acceptance criteria | AC-INFRA-15 |
 | Depends on | WP-A1 |
 | Size | S |
-| Risks and de-risking | Log volume on the hook thread: the sink only formats on the caller and never waits (PB-17). Outcome in WP-A11: `WritesNeverWaitForTheWriter` holds the writer inside a batch and every write still returns; `TwelveMegabytesLeaveTwoFilesUnderTheBound` is the demo and AC-INFRA-15; in the mutation check, a batch bounded by its first line's size times the line count survived, because it equals the byte bound when every line has one size and no report is in the batch, and `ABatchCountsBytesAndTheReport` now catches it |
+| Risks and de-risking | Log volume on the hook thread: the sink only formats on the caller and never waits (PB-17). Outcome in WP-A11: `WritesNeverWaitForTheWriter` holds the writer inside a batch and every write still returns; `TwelveMegabytesLeaveTwoFilesUnderTheBound` is the demo and AC-INFRA-15; 109 mutations of the formatter, the categories, the options, the sink, the provider and the boundary line, and two planted leaks, were each caught by a failing test, none by a hang. The first pass found two that no test caught (a batch bounded by its first line's size times the line count, which equals the byte bound when every line has one size and no report is in the batch, and a null line counted as dropped) and one caught only by a hang (an open retried forever); `ABatchCountsBytesAndTheReport`, `ANullLineIsIgnored` and a 10 s bound on the two flushes that run while the log is held now catch them |
 | Demo | a test writes 12 MB of Debug lines and exactly `shotai.log` and `shotai.old.log` remain |
 
 #### WP-A12. App host and composition root
