@@ -207,7 +207,11 @@ public partial class App : Application
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (_services is not null) EndSession(_services.GetRequiredService<ShellShutdown>(), _services.GetRequiredService<ICaptureService>());
+        if (_services is not null)
+        {
+            EndSession(_services.GetRequiredService<ShellShutdown>(), _services.GetRequiredService<ICaptureService>());
+            if (_log is not null) SessionEnded(_log, e.ReasonSessionEnding);
+        }
         base.OnSessionEnding(e);
     }
 
@@ -357,4 +361,7 @@ public partial class App : Application
 
     [LoggerMessage(Level = LogLevel.Information, Message = "exiting (code {Code})")]
     private static partial void Exiting(ILogger logger, int code);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "session ending ({Reason}): capture triggers released")]
+    private static partial void SessionEnded(ILogger logger, ReasonSessionEnding reason);
 }

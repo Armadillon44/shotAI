@@ -1388,6 +1388,7 @@ The shell persists nothing: no window bounds, no pill position (per run only), n
 | debug | `menu: brand state open=<b> project=<rawTheme or null> app=<appBrand>` (spec 11 L3) |
 | info | `debug: navigation state raised every 1 s (SHOTAI_DEBUG_NAV_PULSE=1)` (Debug builds only, added in WP-A18 for AC-SHELL-21) |
 | info | `debug: two failed captures 3 s apart in each recording (SHOTAI_DEBUG_CAPTURE_FAILED=1)` (Debug builds only, added in WP-B9a for AC-SHELL-12's test hook: 3 s after each recording starts the pill is given a failed capture with no message, and 3 s later one reading `Disk full`, as the engine's `CaptureFailed` reaches it) |
+| info | `session ending (<Logoff or Shutdown>): capture triggers released` (added in WP-B9a: logged at `SessionEnding` after D18's teardown, before the exit line, for AC-SHELL-27) |
 | warn | `startup auto-archive failed (non-fatal):` (Electron wording kept) |
 | info | `legacy shotAI 1.x is running (pid <pid>, <path>); exiting.` (spec 12 `LegacyInstanceGuard`) |
 | info | `personal copy of shotAI; opening the copy installed for all users (<path>).` and, in a self-test mode, `personal copy of shotAI; a copy for all users exists (<path>); the self-test runs this copy.` (spec 12 `PersonalCopyGuard`) |
