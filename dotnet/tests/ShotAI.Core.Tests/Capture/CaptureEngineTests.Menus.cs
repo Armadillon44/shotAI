@@ -118,14 +118,15 @@ public sealed partial class CaptureEngineTests
         h.Triggers.Click(1800, 1000);
         await gate.EnteredAsync();
         h.Triggers.Click(700, 500, MouseButton.Right); // no foreground yet: the arm has no owner
-        h.Windows.Current = FakeWindows.App("Notepad", "N", new Rect(100, 80, 1700, 950));
+        h.Windows.Current = new ForegroundInfo(1, 100, "Notepad", "N", new Rect(92, 80, 1716, 958), new Rect(100, 80, 1700, 950), false);
         gate.Open();
         await h.SettleAsync();
         h.Clock.Advance(200);
         h.Triggers.Click(1200, 700);
         await h.SettleAsync();
 
-        // The owner (100,80,1700,950) reaches left of the box around (1200,700), which alone would give (580,80,1240,1000).
+        // The owner, the frame bounds (100,80,1700,950) before the window rect, reaches left of
+        // the box around (1200,700), which alone would give (580,80,1240,1000).
         Assert.Equal(new PixelRect(100, 80, 1720, 1000), h.Codec.Crops[^1]);
     }
 
@@ -401,9 +402,9 @@ public sealed partial class CaptureEngineTests
 
     /// <summary>D12, EDGE-CAP-33: in screen mode a selection keeps to the chosen monitor, grabbing it afresh when the click-time grab was of another.</summary>
     [Theory]
-    [InlineData(420, new uint[] { 2, 1, 2 })]
-    [InlineData(2000, new uint[] { 2, 2 })]
-    public async Task ScreenModeMenuUsesChosenMonitor(int x, uint[] grabs)
+    [InlineData(420, new uint[] { 2, 1, 2 }, -1500)]
+    [InlineData(2000, new uint[] { 2, 2 }, 80)]
+    public async Task ScreenModeMenuUsesChosenMonitor(int x, uint[] grabs, int imageX)
     {
         await using var h = new EngineHarness();
         h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1920, 0, 2560, 1440));
@@ -419,6 +420,24 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(2, selection.Raw["monitor"]!["id"]!.GetValue<double>());
         Assert.Equal((2560, 1440), EngineHarness.ShotSize(p, selection.Screenshot));
         Assert.Equal(grabs, h.Screen.Grabs.Select(g => g.Id));
+        Assert.Equal(new Point(imageX, 310), selection.Click!.Image); // from the chosen monitor's origin
+    }
+
+    /// <summary>2.8 path A: in screen mode with a monitor id that no longer exists, a selection keeps to the click's monitor.</summary>
+    [Fact]
+    public async Task AStaleMonitorIdSelectionUsesTheClickMonitor()
+    {
+        await using var h = new EngineHarness();
+        h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1920, 0, 2560, 1440));
+        var p = h.Project();
+        await h.StartAsync(p, new CaptureStartOptions(new CaptureTarget("screen", MonitorId: 9)));
+        h.Triggers.Click(2000, 300, MouseButton.Right);
+        await h.SettleAsync();
+        h.Triggers.Click(2010, 310);
+        await h.SettleAsync();
+
+        Assert.Equal("Select from context menu in screen", h.Landed[^1].Step.Caption);
+        Assert.Equal([2u, 2u], h.Screen.Grabs.Select(g => g.Id));
     }
 
     /// <summary>D1, EDGE-CAP-54: a click on shotAI's own window queries nothing, arms nothing, disarms nothing and is no half of a double-click.</summary>

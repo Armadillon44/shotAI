@@ -394,6 +394,23 @@ public sealed class MenuPollTests
         Assert.Equal("Click in screen", h.Landed[^1].Step.Caption);
     }
 
+    /// <summary>A right-click whose engine is torn down between its gate and its arm arms nothing, so nothing polls after teardown.</summary>
+    [Fact]
+    public async Task AnArmDuringTeardownIsDropped()
+    {
+        await using var h = new EngineHarness();
+        await h.StartAsync(h.Project());
+        h.Elements.OnQuery = (_, _) =>
+        {
+            h.Engine.Teardown();
+            return Task.FromResult<StepElement?>(null);
+        };
+        h.Triggers.Click(400, 300, MouseButton.Right);
+
+        Assert.Null(h.Engine.ArmForTest);
+        Assert.Equal(0, h.Clock.PendingOf(CaptureConstants.MenuPollMs));
+    }
+
     /// <summary>Holds the first grab that starts after it is made until <see cref="Release"/>; the grabs after it run.</summary>
     private sealed class HeldGrab : IDisposable
     {
