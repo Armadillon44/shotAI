@@ -14,12 +14,13 @@ the project store's project and step operations and imports (WP-A6, WP-A7), the 
 engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP-A10), logging
 (WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13), the theme
 with its fonts (WP-A14), the main window with its menu and About (WP-A15), the Home list
-(WP-A16), the read-only report (WP-A17) and View, Brand (WP-A18): analyzers, supply-chain
-rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
-reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
-same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
-shared conformance suite runs its round trips: every `agreed` case passes, and the one
-`open` case is reported (see `dotnet test ... --output Detailed` below). `BrandPalette` is
+(WP-A16), the read-only report (WP-A17), View, Brand (WP-A18) and Home's row operations
+(WP-A19a): analyzers, supply-chain rules, Core's error, threading and composition types,
+`JsJson` (reads what `JSON.parse` reads, writes the bytes `JSON.stringify` writes), and
+`ManifestCodec`, which writes the same bytes as Electron for every golden in
+`tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite runs its round trips:
+every `agreed` case passes, and the one `open` case is reported (see
+`dotnet test ... --output Detailed` below). `BrandPalette` is
 generated from `contract/brand.json` by `tools/ShotAI.GenBrand` and carries the same
 contract stamp as the Electron and macOS tables. `AtomicFile`, `SerialWriteQueue` and
 `PathConfine` are the primitives every writer uses; the junction and reparse-tag cases run
@@ -74,6 +75,13 @@ With a project open, View, Brand offers App default and every brand, ticks the p
 nothing for a pin this build does not know, and a choice pins the brand or clears the pin at once:
 the project view repaints and the write goes through the session, which rolls it back with a notice
 if the disk refuses it.
+On Home a row's checkbox selects it, with Shift adding the rows from the last one clicked, and its
+overflow menu renames it in place, reveals it in Explorer, archives or restores it, or deletes it after
+asking. Each change shows at once and is written through the store's queue; if the store refuses it,
+the row goes back and the notice gives the store's message. With rows selected, the bulk bar
+archives, restores or deletes them one at a time, counting as it goes. A reveal runs on its own
+thread, so a folder on an unreachable share never freezes the window, and a rename made just before
+the app exits reaches the disk.
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.
 
