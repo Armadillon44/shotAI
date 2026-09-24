@@ -554,6 +554,20 @@ public sealed class SettingsServiceTests : IAsyncLifetime
         await Within(service.FlushAsync(TimeSpan.FromSeconds(1)));
     }
 
+    /// <summary>The container's synchronous Dispose alone refuses later changes: nothing is applied and nothing is raised.</summary>
+    [Fact]
+    public async Task ASynchronousDisposeRefusesLaterChanges()
+    {
+        var service = Load();
+
+        DisposeTwice(service);
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => service.UpdateAsync(s => s with { UserName = "late" }, Ct));
+        Assert.Empty(Events());
+        Assert.Equal("", service.Current.UserName);
+        Assert.False(File.Exists(_h.File));
+    }
+
     /// <summary>A change that throws on Current queues nothing, changes nothing and raises nothing.</summary>
     [Fact]
     public async Task AChangeThatThrowsQueuesNothing()
