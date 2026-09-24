@@ -36,6 +36,7 @@ public static class PlatformServiceCollectionExtensions
         services.AddSingleton<IImageSizeProbe, WicImageSizeProbe>();
         services.AddSingleton<IShellReveal, ShellReveal>();
         services.AddSingleton<IUrlLauncher, ShellUrlLauncher>();
+        PlatformCaptureRegistration.Register(services);
         return services;
     }
 }
