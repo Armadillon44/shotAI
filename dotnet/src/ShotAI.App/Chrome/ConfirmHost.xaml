@@ -8,7 +8,8 @@
     views: a scrim that takes every click, so nothing behind is hit, and the card, centred, at
     most 420 DIP wide. The card is its own focus scope, Tab cycles inside it, and the confirm
     button has the focus when it opens, so Enter confirms (EDGE-HOME-27). Collapsed while no
-    question is shown. The data context is the ConfirmService.
+    question is shown, and before the binding has a service to read. The data context is the
+    ConfirmService.
   -->
   <!-- The fixed colours are merged here, as Controls.xaml merges them, so the reads resolve wherever the host is made. -->
   <UserControl.Resources>
@@ -19,7 +20,7 @@
       <BooleanToVisibilityConverter x:Key="Visible" />
     </ResourceDictionary>
   </UserControl.Resources>
-  <Grid x:Name="Root" Visibility="{Binding IsOpen, Converter={StaticResource Visible}}"
+  <Grid x:Name="Root" Visibility="{Binding IsOpen, Converter={StaticResource Visible}, FallbackValue=Collapsed}"
         FocusManager.IsFocusScope="True" KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Contained"
         AutomationProperties.Name="{x:Static corehome:HomeText.ConfirmName}">
     <Border x:Name="Scrim" Background="{StaticResource FixedColors.ConfirmScrim}" />

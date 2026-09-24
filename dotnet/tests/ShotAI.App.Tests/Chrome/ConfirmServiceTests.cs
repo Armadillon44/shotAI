@@ -140,26 +140,34 @@ public sealed class ConfirmServiceTests
     });
 
     /// <summary>The page behind takes no click while a question is shown; the focus goes back to it when the question closes.</summary>
+    /// <remarks>
+    /// A click goes where <see cref="UIElement.InputHitTest"/> says. A bare visual hit test would
+    /// not do: it skips no collapsed element, and a collapsed scrim keeps what it last drew.
+    /// </remarks>
     [Fact]
     public Task ThePageBehindIsNotHit() => Sta.RunAsync(async () =>
     {
         var (service, host, behind, window) = await Shown();
         try
         {
+            var page = (UIElement)window.Content;
+            var overlay = (UIElement)host.Content;
             behind.Focus();
-            var point = behind.TranslatePoint(new Point(10, 10), (UIElement)window.Content);
-            Assert.Same(behind, Ancestor<Button>(VisualTreeHelper.HitTest((Visual)window.Content, point)?.VisualHit));
+            var point = behind.TranslatePoint(new Point(10, 10), page);
+            Assert.False(overlay.IsVisible);
+            Assert.Same(behind, Ancestor<Button>(page.InputHitTest(point) as DependencyObject));
 
             var answer = service.ConfirmAsync("Sure?");
             await TestShell.Settle();
-            Assert.Null(Ancestor<Button>(VisualTreeHelper.HitTest((Visual)window.Content, point)?.VisualHit));
-            Assert.Same(VisualTree.Named<Border>(host, "Scrim"), VisualTreeHelper.HitTest((Visual)window.Content, point)?.VisualHit);
+            Assert.True(overlay.IsVisible);
+            Assert.Same(VisualTree.Named<Border>(host, "Scrim"), page.InputHitTest(point));
 
             service.CancelCommand.Execute(null);
             Assert.False(await answer);
             await TestShell.Settle();
+            Assert.False(overlay.IsVisible);
             Assert.True(behind.IsFocused);
-            Assert.Same(behind, Ancestor<Button>(VisualTreeHelper.HitTest((Visual)window.Content, point)?.VisualHit));
+            Assert.Same(behind, Ancestor<Button>(page.InputHitTest(point) as DependencyObject));
         }
         finally
         {
