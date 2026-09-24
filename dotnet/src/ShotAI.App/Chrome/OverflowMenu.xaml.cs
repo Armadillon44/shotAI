@@ -225,7 +225,7 @@ public partial class OverflowMenu : UserControl
             case Key.Down or Key.Up or Key.Home or Key.End:
                 var items = EnabledItems();
                 if (items.Count == 0) break;
-                var at = items.FindIndex(b => b.IsKeyboardFocused);
+                var at = items.FindIndex(b => b.IsFocused);
                 var next = e.Key switch
                 {
                     Key.Home => 0,

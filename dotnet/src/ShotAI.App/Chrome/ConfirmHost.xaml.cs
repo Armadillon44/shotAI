@@ -64,7 +64,8 @@ public partial class ConfirmHost : UserControl
             return;
         }
         ConfirmButton.SetResourceReference(StyleProperty, request.Danger ? "Button.Danger" : "Button.Primary");
-        if (_focusBefore is null && !IsKeyboardFocusWithin) _focusBefore = Keyboard.FocusedElement;
+        if (_focusBefore is null && !IsKeyboardFocusWithin)
+            _focusBefore = Keyboard.FocusedElement ?? FocusManager.GetFocusedElement(FocusManager.GetFocusScope(this));
         // The button is focusable once the host has been laid out visible.
         LayoutUpdated -= FocusConfirm;
         LayoutUpdated += FocusConfirm;
