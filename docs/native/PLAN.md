@@ -656,12 +656,12 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 |---|---|
 | Goal | The non-activating pill with Electron's rendering, error, flash and Discard rules; the controller that hides the main window and shows the pill in event order |
 | Spec inputs | 03 2.4 (2.4.1 to 2.4.8), 2.6, 7.2 (`PillDocking`, `PillPresenter`, `RecordingVisibilityPlanner`), 7.4.3, 7.4.6, 7.6 (7.6.1 to 7.6.3), D1 to D5, D8, INV-SHELL-6 to INV-SHELL-12, risk R2; 02 D20; 11 7.6, 7.7; ARCHITECTURE R-ARCH-11; Q-SHELL-2, Q-SHELL-3, Q-SHELL-4, Q-SHELL-7, Q-SHELL-8, Q-SHELL-21, Q-IPC-15, Q-IPC-20 |
-| Deliverables | Core `PillDocking`, `PillPresenter`, `PillViewState`, `PillStatusRow`, `RecordingVisibilityPlanner`, `ShellAction`, pill strings in `ShellStrings`; App `CapturePillWindow` (`WS_EX_NOACTIVATE`, `WS_EX_TOOLWINDOW`, `MA_NOACTIVATE`, manual drag, controls not focusable, closing cancelled unless shutting down), `CapturePillViewModel`, `DiscardConfirmWindow` (`Discard` and `Cancel`, Cancel default, registered and topmost), `RecordingVisibilityController` (the single ordered `IUiDispatcher.Post` path for capture events); `Pause` and `Resume` through `Task.Run`; File, Exit sets `App.IsShuttingDown` before `Shutdown()` (EDGE-SHELL-51; the Exit binding itself landed in WP-A15) |
-| Tests | No Electron file. New: Core `Shell/PillDockingTests`, `PillPresenterTests`, `RecordingVisibilityPlannerTests`; App `CapturePillWindowTests` (`ShowDoesNotActivate` including a show after `Hide()`, `ClickDoesNotActivate`, `DragMovesWithoutActivating`, `ErrorTooltipShowsWhileInactive`, `DiscardConfirmCallsServiceOnce`), `LifecycleTests.PillCloseCancelledWhileRunning`, `MainWindowCloseClosesPillDespiteVeto`, `ShellEventOrderingTests`, `RecordingChangedHidesAndShows` (against a fake `ICaptureService`) |
+| Deliverables | Core `PillDocking`, `PillPresenter`, `PillViewState`, `PillStatusRow`, `RecordingVisibilityPlanner`, `ShellAction`, pill strings in `ShellStrings`; App `CapturePillWindow` (`WS_EX_NOACTIVATE`, `WS_EX_TOOLWINDOW`, `MA_NOACTIVATE`, manual drag, controls not focusable, closing cancelled unless shutting down), `CapturePillViewModel`, `DiscardConfirmWindow` (`Discard` and `Cancel`, Cancel default, registered and topmost), `RecordingVisibilityController` (the single ordered `IUiDispatcher.Post` path for capture events); `Pause` and `Resume` through `Task.Run`; File, Exit sets `App.IsShuttingDown` before `Shutdown()` (EDGE-SHELL-51; the Exit binding itself landed in WP-A15). As built in WP-B7: `App.IsShuttingDown` is the App singleton `ShellShutdown`, which the main window's `OnClosed` and `SessionEnding` set too; exit step 2's `Teardown()` and `SessionEnding`'s (D18) landed here; the controller acts on the windows through the seam `IRecordingWindows` (`RecordingWindows`); `PillAnimations` runs the flash and the pulse; `PillViewState` carries the engine's `CaptureStatus`, so there is no `PillStatus`; Platform's `WindowStyles.NoActivateOnClick` is the `WM_MOUSEACTIVATE` hook; the drag measures from the press's own position and follows every `WM_MOUSEMOVE` through Platform's `WindowMessages.MouseMove` (03 7.4.3, corrected) |
+| Tests | No Electron file. New: Core `Shell/PillDockingTests`, `PillPresenterTests`, `RecordingVisibilityPlannerTests`; App `CapturePillWindowTests` (`ShowDoesNotActivate` including a show after `Hide()`, `ClickDoesNotActivate`, `DragMovesWithoutActivating`, `ErrorTooltipShowsWhileInactive`, `DiscardConfirmCallsServiceOnce`), `LifecycleTests.PillCloseCancelledWhileRunning`, `MainWindowCloseClosesPillDespiteVeto`, `ShellEventOrderingTests`, `RecordingChangedHidesAndShows` (against a fake `ICaptureService`). As built in WP-B7: 108 tests, 67 Core (`PillDockingTests` 20, `PillPresenterTests` 33, `RecordingVisibilityPlannerTests` 7, five `ShellStringsTests` cases and the two new XAML files' `XamlChromeGuardTests` cases), 40 App (`CapturePillWindowTests` 15, `CapturePillViewModelTests` 7, `ShellEventOrderingTests` 8, `RecordingVisibilityTests` 4 with `RecordingChangedHidesAndShows`, four `LifecycleTests` and two `AllWindowsRegisteredTests`) and 1 Platform (`NoActivateOnClickAnswersOnlyTheMouseActivation`); App.Tests holds `RealInputLock` for its whole run against the Platform input hook collection, and the pill's window tests run alone (03 8.3 as built) |
 | Acceptance criteria | none owned (the pill's manual criteria run with real recordings in WP-B9) |
 | Depends on | WP-B3, WP-B5, WP-A15 |
 | Size | M |
-| Risks and de-risking | WPF re-activating the pill through a tooltip or a template `Focus()` (03 R2, Q-SHELL-3, Q-SHELL-21): the foreground assertions in `CapturePillWindowTests` are written first; if a later `Show()` activates, switch to `ShowWindow(SW_SHOWNOACTIVATE)` only |
+| Risks and de-risking | WPF re-activating the pill through a tooltip or a template `Focus()` (03 R2, Q-SHELL-3, Q-SHELL-21): the foreground assertions in `CapturePillWindowTests` are written first; if a later `Show()` activates, switch to `ShowWindow(SW_SHOWNOACTIVATE)` only. Outcome in WP-B7: on both runners no show (after a hide too), click, drag or tooltip activated the pill, and WPF opens the error's tooltip on it (Q-SHELL-3, Q-SHELL-21), so neither fallback is built. The first runs found two test problems and two product bugs: the pill tests' real input collided with the Platform input hook tests running at the same time, whose clicks also closed App popups (a mutex of the session now keeps the App tests and those Platform tests apart); WPF gives a window whose `ShowInTaskbar` is false a hidden owner (EDGE-SHELL-46 holds, and the test was corrected); and the drag measured from the cursor when the UI thread took the press, so a press taken late made the pill trail the cursor, and it followed WPF's `MouseMove`, which a second equal step does not raise (it measures from the press and follows every `WM_MOUSEMOVE` now). 103 mutations of the Core changes: 101 caught (2 after new tests closed gaps, 4 after rewrites), 1 that cannot be built because Core bans `Math.Round`, 1 equivalent |
 | Demo | an App test run shows the pill driven by a fake engine: `Capturing · 3`, the green ring, the error row |
 
 #### WP-B8. Area-select overlay
@@ -1440,7 +1440,7 @@ Built from every spec's risk statements (the `Risk` entries of each section 11 a
 | X6 | One unshielded screen read puts the pill in a finished SOP (02 R2) | L / H | WP-B1, WP-B5 | type-level funnel, source scans, mutation check (AC-CAP-3) |
 | X7 | A popup, tooltip or dialog shown before its capture exclusion (03 R1) | M / H | WP-A13 | `ShotAIWindow`, `PopupExclusion`, the HWND sweep test, the `WH_CALLWNDPROC` fallback |
 | X8 | Display affinity fails on layered windows or from worker threads (02 Q-CAP-15) | M / H | WP-B5 | probe before WP-B7 and WP-B8; DL2 fail-closed marshaling. Outcome in WP-B5: neither fails on the runners; no marshaling |
-| X9 | The pill re-activates and steals the first click (03 R2) | M / M | WP-B7 | non-activating styles, foreground assertions in tests, the `SW_SHOWNOACTIVATE` fallback |
+| X9 | The pill re-activates and steals the first click (03 R2) | M / M | WP-B7 | non-activating styles, foreground assertions in tests, the `SW_SHOWNOACTIVATE` fallback. Outcome in WP-B7: no activation on either runner; no fallback built |
 | X10 | Mixed-DPI placement errors (03 R3) | M / M | WP-B7, WP-B8, WP-B11 | physical-px positioning after `SourceInitialized`; the 100% plus 150% rig |
 | X11 | Timing differences change the foreground window at capture (02 R3) | M / M | WP-B11 | AC-CAP-6, AC-CAP-7, AC-CAP-27; the Q-CAP-4 fallback |
 | X12 | App-name derivation drift changes captions and prompts (02 R4) | M / M | WP-B6 | `WindowInfoTests`, AC-CAP-30. Outcome in WP-B6: the derivation is Core's, tested against get-windows' source |
@@ -1553,13 +1553,13 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q | Topic | Owner | Decision or mitigation |
 |---|---|---|---|
 | Q-SHELL-1 | single-instance scope | WP-A13 | `Local\` plus SID |
-| Q-SHELL-2 | pill corners | WP-B7 | rectangle |
-| Q-SHELL-3 | tooltips and popups in the pill | WP-A13, WP-B7 | tests first; `ShotAIPopup` on hover or the hook fallback. Decided in WP-A13 for popups visible before registration: the `WH_CALLWNDPROC` catch-all (`WindowShowHook`); tooltips on the never-active pill stay with WP-B7 |
-| Q-SHELL-4 | drag of a no-activate window | WP-B7 | manual drag |
+| Q-SHELL-2 | pill corners | WP-B7 | rectangle (decided in WP-B7) |
+| Q-SHELL-3 | tooltips and popups in the pill | WP-A13, WP-B7 | tests first; `ShotAIPopup` on hover or the hook fallback. Decided in WP-A13 for popups visible before registration: the `WH_CALLWNDPROC` catch-all (`WindowShowHook`); tooltips on the never-active pill stay with WP-B7. Decided in WP-B7: WPF opens them on the never-active pill, so no `ShotAIPopup` replaces them |
+| Q-SHELL-4 | drag of a no-activate window | WP-B7 | manual drag (decided in WP-B7; AC-SHELL-8 in WP-B9) |
 | Q-SHELL-5 | `DIPToScreenRect` rounding | WP-B11 | implement as written; compare log lines |
 | Q-SHELL-6 | clamp cross-monitor drags | WP-B8 | no clamp (parity) |
-| Q-SHELL-7 | Discard dialog buttons | WP-B7 | `Discard` and `Cancel`, Cancel default |
-| Q-SHELL-8 | keyboard access to the pill | WP-B7, WP-E6 | accept; revisit in the accessibility pass |
+| Q-SHELL-7 | Discard dialog buttons | WP-B7 | `Discard` and `Cancel`, Cancel default (decided in WP-B7) |
+| Q-SHELL-8 | keyboard access to the pill | WP-B7, WP-E6 | accept; revisit in the accessibility pass (accepted in WP-B7) |
 | Q-SHELL-9 | window click-pick | WP-B9 | not added |
 | Q-SHELL-10 | macOS menu extras | WP-A15 | not in 2.0.0 (decided in WP-A15) |
 | Q-SHELL-11 | full-screen details | WP-A15 | cover the monitor, keep the menu (decided in WP-A15; a maximized window is maximized again after) |
@@ -1572,7 +1572,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-SHELL-18 | second launch while recording | WP-B9 | parity (surfaces the main window) |
 | Q-SHELL-19 | the legacy guard's `MessageBox` | WP-E5 | keep until S5, allowlisted |
 | Q-SHELL-20 | widths and invisible borders | WP-A20 | outer widths; measure once (the default taken in WP-A15; the measurement is in #137's manual script) |
-| Q-SHELL-21 | `ShowActivated` after `Hide` | WP-B7 | test; `SW_SHOWNOACTIVATE` path if needed |
+| Q-SHELL-21 | `ShowActivated` after `Hide` | WP-B7 | test; `SW_SHOWNOACTIVATE` path if needed (decided in WP-B7: not needed) |
 
 #### 04 Editor and redaction
 
@@ -1782,7 +1782,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-12 | `ShotAIException` everywhere | WP-A1 | foundation first; each spec derives |
 | Q-IPC-13 | recents on a folder change | WP-B10 | parity |
 | Q-IPC-14 | where `IExternalLinks` lives | WP-A19b | 11's algorithm, 10's registration (taken in WP-A19b: Core `ShotAI.Core.Links`, registered by `AddShotAICore`) |
-| Q-IPC-15 | Pause and Resume off the UI thread | WP-B7 | `Task.Run` |
+| Q-IPC-15 | Pause and Resume off the UI thread | WP-B7 | `Task.Run` (decided in WP-B7) |
 | Q-IPC-16 | image decoding in-process | WP-A17 | closed by R-ARCH-21 (ARCHITECTURE 15.4): explicit decoders after magic bytes; WP-A17 implements it |
 | Q-IPC-17 | subscriber that forgets to marshal | WP-A12 | `VerifyAccess` in Debug, affinity tests (done in WP-A12: `ViewModelBase.CheckAffinity`, on in Debug builds; `Threading/ViewModelAffinityTests`) |
 | Q-IPC-18 | singleton keeping a view alive | WP-A12 | `SubscriberDisposalTests` (done in WP-A12, over the two events that exist so far) |
@@ -2452,7 +2452,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-B4. Input hook and hotkey (#146)
 - [x] WP-B5. Screen capture, display affinity and the protection probe (#147)
 - [x] WP-B6. Window information and UI Automation (#148)
-- [ ] WP-B7. Capture pill and recording visibility
+- [x] WP-B7. Capture pill and recording visibility (#149)
 - [ ] WP-B8. Area-select overlay
 - [ ] WP-B9. Recording from Home and the project view
 - [ ] WP-B10. Settings view (non-AI groups) and the onboarding tour

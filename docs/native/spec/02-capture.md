@@ -1235,7 +1235,7 @@ As built in WP-B5: the queries are Platform's internal `OwnWindows : IOwnWindows
 | D17 | No koffi, no Rust DLL, no DLL path search, no `process.platform` check | ELECTRON-ONLY | Replaced by in-process UIA COM (7.6). |
 | D18 | No IPC target parsing | ELECTRON-ONLY | The engine validates its own inputs: `CaptureScreenshotAsync` throws `A screenshot needs an explicit target (screen, window, or area).` for `Auto`; a `Window` target without a window or an `Area` target without an area goes through the normal validation messages. |
 | D19 | 32-bit hook coordinates | IMPROVEMENT | EDGE-CAP-47. |
-| D20 | Own dialogs (Discard confirm) are registered windows | IMPROVEMENT | EDGE-CAP-39 (spec 03 builds them). |
+| D20 | Own dialogs (Discard confirm) are registered windows | IMPROVEMENT | EDGE-CAP-39 (spec 03 builds them). As built in WP-B7: `DiscardConfirmWindow` is a `ShotAIWindow`, excluded before its first show (spec 03 `AllWindowsRegisteredTests.DiscardConfirmationIsExcludedBeforeItIsShown`). |
 | D21 | While `CaptureScreenshotAsync` is in flight, `StartAsync` throws `A recording is already in progress` for any path, and `Pause`, `Resume`, `StopAsync`, `DiscardAsync` do not touch the screenshot session (they return the idle state) | IMPROVEMENT | EDGE-CAP-51: Electron returns a phantom `recording` state or aborts the grab. |
 | D22 | Orphan parse ignores (not clamps) numbers that overflow `long`, ASCII digits only | IMPROVEMENT | EDGE-CAP-27: Electron's float parse makes every capture after a 20-digit orphan collide; macOS parity. |
 | D23 | `StartAsync` logs one warning when the target is `Window` without a window or `Area` without an area | IMPROVEMENT (log only) | EDGE-CAP-60. |
