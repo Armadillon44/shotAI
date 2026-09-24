@@ -107,8 +107,11 @@ from a frame taken while the menu was still open (polled every 400 ms, or grabbe
 mousedown), with at most four selections per right-click. On Windows, a low-level mouse hook on
 its own thread copies each mousedown into a small ring for the engine's dispatcher thread and does
 nothing else, so Windows has no reason to remove it; a watchdog reinstalls it if Windows does, and
-Ctrl+Shift+S is the capture hotkey. The app registers the engine once its last Windows pieces
-arrive (WP-B5 and WP-B6).
+Ctrl+Shift+S is the capture hotkey. The screen is read with GDI into reused buffers, so polling a
+menu does not churn memory. Every shotAI window is excluded from capture as it is registered and
+relaxed only when the remote visibility setting allows and no read is in progress, and a change of
+that setting reaches the open windows at once, off the UI thread. The app registers the engine once
+its last Windows pieces arrive (WP-B6).
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.
 
@@ -120,10 +123,11 @@ WP-B10.
 | `src/ShotAI.Platform` | `net10.0-windows10.0.19041.0` | Windows services: hooks, capture, UI Automation, display affinity, DPAPI, policy registry, OCR, WebView2 PDF host, libavif. |
 | `src/ShotAI.App` | `net10.0-windows10.0.19041.0` | The WPF app (`shotAI.exe`): windows, views, view models, composition root. |
 | `tests/ShotAI.Core.Tests` | `net10.0` | xunit.v3 tests for Core, including the shared `contract/conformance` suite. Runs on Linux and Windows. |
-| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search, the single-instance lock, window styles, the show hook, the own-window registry, WIC, the app-mode monitor, the monitor queries, the WebView2 version probe. Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search, the single-instance lock, window styles, the show hook, the own-window registry, WIC, the app-mode monitor, the monitor queries, the WebView2 version probe, the input hook and hotkey, the screen read, display affinity and the capture codec. Builds everywhere, runs on Windows only. |
 | `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, the theme manager, resources and styles, the fonts as packaged and as WPF resolves them, the main window's size, placement and full screen, the menu and its chords, About, View, Brand and the brand choice's pass-through, Home, the report's view models, layout, images, automation and theme edit, the one WebView2 reference, and the real exe run as a process (the self-test, a second launch, closing the main window, the theme before the first show). Builds everywhere, runs on Windows only. |
 | `assets/fonts/static` | | The upstream Archivo static instances WPF renders, their `OFL.txt` and `SOURCES.md` (the upstream commit and each file's sha256). |
 | `tools/ShotAI.GenBrand` | `net10.0` | The brand generator: writes `src/ShotAI.Core/Brand/BrandPalette.Generated.cs` from `contract/brand.json`; `--check` fails when it is stale. BCL only, so it builds when the table does not. |
+| `tools/ShotAI.ProtectionProbe` | `net10.0-windows10.0.19041.0` | The protection probe (spec 02 8.4, AC-CAP-13): how soon display affinity takes a WPF window, normal and layered, out of a screen read and back. Run by hand on a desktop; not shipped, not in CI. |
 
 Windows 10 2004 (10.0.19041) is the minimum because it is the first build with
 `WDA_EXCLUDEFROMCAPTURE`, which keeps shotAI's windows out of its own screenshots.
