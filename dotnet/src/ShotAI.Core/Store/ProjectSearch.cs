@@ -40,10 +40,16 @@ public static class ProjectSearch
     /// <c>a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })</c>: case, accents,
     /// width and kana type ignored, in <paramref name="culture"/> (the current culture by default).
     /// </summary>
-    public static Comparison<ProjectSummary> ByTitle(CultureInfo? culture = null)
+    public static Comparison<ProjectSummary> ByTitle(CultureInfo? culture = null) => ByTitle((culture ?? CultureInfo.CurrentCulture).CompareInfo);
+
+    /// <summary>
+    /// The same order in <paramref name="collation"/>, the collation spec 06's list pipeline is
+    /// given (added in WP-A16).
+    /// </summary>
+    public static Comparison<ProjectSummary> ByTitle(CompareInfo collation)
     {
-        var compare = (culture ?? CultureInfo.CurrentCulture).CompareInfo;
-        return (a, b) => compare.Compare(a.Title, b.Title, BaseSensitivity);
+        ArgumentNullException.ThrowIfNull(collation);
+        return (a, b) => collation.Compare(a.Title, b.Title, BaseSensitivity);
     }
 
     /// <summary><c>query.trim().toLowerCase()</c>; the empty string means no search.</summary>

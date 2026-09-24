@@ -8,9 +8,9 @@ namespace ShotAI.App.Shell;
 /// </summary>
 /// <remarks>
 /// WP-A14 landed the theme manager's half; WP-A15 added the open project for the menu (03's
-/// <see cref="IShellNavigationState"/>). The shell sets it from its current view and the open
-/// project once there is a project view (WP-A17); until then nothing sets it, so no project is
-/// open and the app brand shows.
+/// <see cref="IShellNavigationState"/>); WP-A16 made it <see cref="Follow"/> the shell's view
+/// model, which a view model may not take as a dependency (INV-ARCH-3). Until the project view
+/// opens a project (WP-A17) no project is open, and the app brand shows.
 /// </remarks>
 public sealed class NavigationState : IShellNavigationState
 {
@@ -35,6 +35,19 @@ public sealed class NavigationState : IShellNavigationState
     /// <summary>Raised on the UI thread when any of the facts changes.</summary>
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// From now on, after each of <paramref name="shell"/>'s transitions, the facts are its own:
+    /// the project view is visible only while it is the view on screen, so Settings over a
+    /// project reports it hidden (06 8.3), and the open project and its raw theme are the shell's.
+    /// The composition root calls it once, with the one shell.
+    /// </summary>
+    public void Follow(ShellViewModel shell)
+    {
+        ArgumentNullException.ThrowIfNull(shell);
+        shell.NavigationChanged += (_, _) => From(shell);
+        From(shell);
+    }
+
     /// <summary>Sets every fact at once; raises <see cref="Changed"/> once, and only when one of them changed.</summary>
     /// <param name="projectViewVisible">The project view is on screen.</param>
     /// <param name="openProjectPath">The open project's folder, or null with none open.</param>
@@ -54,4 +67,7 @@ public sealed class NavigationState : IShellNavigationState
         ProjectPinnedBrand = BrandPalette.PinnedBrand(rawProjectTheme);
         Changed?.Invoke(this, EventArgs.Empty);
     }
+
+    private void From(ShellViewModel shell) =>
+        Set(shell.CurrentView == ShellViewKind.Project, shell.OpenProjectPath, shell.RawProjectTheme);
 }

@@ -21,8 +21,22 @@ public static class UserMessage
         ArgumentNullException.ThrowIfNull(e);
         if (e is AggregateException { InnerExceptions.Count: 1 } a) return From(a.InnerExceptions[0]);
         if (e is OperationCanceledException) return null;
-        if (e is ShotAIException or IOException or UnauthorizedAccessException)
-            return string.IsNullOrWhiteSpace(e.Message) ? Generic : e.Message;
+        if (IsUserText(e)) return string.IsNullOrWhiteSpace(e.Message) ? Generic : e.Message;
         return Generic;
     }
+
+    /// <summary>
+    /// Whether <see cref="From"/> shows <see cref="Generic"/> because <paramref name="e"/> is not
+    /// an expected failure: the case the caller logs at Error (11 L7). False for a cancellation,
+    /// which shows nothing, and for an expected failure whose message is blank (added in WP-A16,
+    /// for 06's notice center).
+    /// </summary>
+    public static bool IsUnexpected(Exception e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        if (e is AggregateException { InnerExceptions.Count: 1 } a) return IsUnexpected(a.InnerExceptions[0]);
+        return e is not OperationCanceledException && !IsUserText(e);
+    }
+
+    private static bool IsUserText(Exception e) => e is ShotAIException or IOException or UnauthorizedAccessException;
 }

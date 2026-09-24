@@ -1,0 +1,14 @@
+<UserControl x:Class="ShotAI.App.Chrome.NoticeHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False" IsTabStop="False">
+  <!--
+    The notice stack (spec 06 7.10, 03 7.4.10): in the overlay layer, 0.6rem below the top of the
+    content area, centred, as wide as its widest notice up to min(92% of the area, 680 DIP). It
+    floats over the view without moving it and scrolls with nothing (D-HOME-4). The host has no
+    background, so a click between notices reaches the view below. The data context is the notice
+    source: Notices and DismissCommand.
+  -->
+  <ItemsControl x:Name="Stack" ItemsSource="{Binding Notices}" ItemTemplate="{DynamicResource Notice.Template}"
+                HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,9.6,0,0" Focusable="False" IsTabStop="False" />
+</UserControl>

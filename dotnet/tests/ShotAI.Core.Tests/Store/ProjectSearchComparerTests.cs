@@ -85,6 +85,37 @@ public sealed class ProjectSearchComparerTests
         Assert.Equal(["early1", "early2", "late"], ProjectSearch.Sort([early1, late, early2], ProjectSearch.ByCreated, descending: false).Select(p => p.Id));
     }
 
+    /// <summary>The collation overload (spec 06 7.2) orders exactly as the culture's own.</summary>
+    [Theory]
+    [MemberData(nameof(Cultures))]
+    public void TheCollationOverloadIsTheCultures(string culture)
+    {
+        var byCulture = ProjectSearch.ByTitle(Culture(culture));
+        var byCollation = ProjectSearch.ByTitle(Culture(culture).CompareInfo);
+        string[] titles = ["a", "A", "\u00e1", "B", "b", "", "z", "10", "9"];
+        foreach (var x in titles)
+        {
+            foreach (var y in titles) Assert.Equal(Math.Sign(byCulture(Titled(x), Titled(y))), Math.Sign(byCollation(Titled(x), Titled(y))));
+        }
+    }
+
+    /// <summary>
+    /// The name sort is the given culture's: Swedish puts U+00E4 (<c>a-diaeresis</c>) after
+    /// <c>z</c>, as its own letter, where the invariant culture reads it as an accented <c>a</c>
+    /// (spec 06 Q-HOME-4, the user's culture).
+    /// </summary>
+    [Fact]
+    public void TheNameSortIsTheCulturesOwn()
+    {
+        var aUmlaut = Titled(((char)0x00E4).ToString());
+        var z = Titled("z");
+        var swedish = CultureInfo.GetCultureInfo("sv-SE");
+        Assert.True(ProjectSearch.ByTitle(swedish)(aUmlaut, z) > 0);
+        Assert.True(ProjectSearch.ByTitle(swedish.CompareInfo)(aUmlaut, z) > 0);
+        Assert.True(ProjectSearch.ByTitle(CultureInfo.InvariantCulture)(aUmlaut, z) < 0);
+        Assert.True(ProjectSearch.ByTitle(CultureInfo.InvariantCulture.CompareInfo)(aUmlaut, z) < 0);
+    }
+
     [Fact]
     public void TheUpdatedComparerReadsUpdatedAt()
     {

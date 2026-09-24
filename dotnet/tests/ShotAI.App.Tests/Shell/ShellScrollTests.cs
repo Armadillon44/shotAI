@@ -1,0 +1,118 @@
+using System.Windows.Controls;
+using ShotAI.App.Shell;
+using ShotAI.App.Tests.Support;
+using Xunit;
+using static ShotAI.App.Tests.Support.ListingProjects;
+
+namespace ShotAI.App.Tests.Shell;
+
+/// <summary>
+/// Spec 06 8.4, INV-HOME-19, 2.19 and 7.7: Home keeps its offset across the other views. The
+/// project and Settings views, which start at the top, join with them (WP-A17, WP-B10).
+/// </summary>
+public sealed class ShellScrollTests
+{
+    /// <summary>Home's offset is restored after a project and after Settings.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task HomeOffsetRestored(bool viaProject) => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        t.Projects.Listing = [.. Enumerable.Range(0, 40).Select(i => Project($@"C:\p\{i:D2}", $"Project {i:D2}", "2026-07-22T09:00:00.000Z"))];
+        var view = new ShellView { DataContext = t.Shell };
+        var window = TestShell.Host(view);
+        window.Show();
+        try
+        {
+            t.Shell.Start();
+            await TestShell.Settle();
+            var scroller = view.HomeView.ScrollViewer;
+            scroller.ScrollToVerticalOffset(350);
+            await TestShell.Settle();
+            Assert.Equal(350, scroller.VerticalOffset, 3);
+
+            if (viaProject) t.Shell.ShowProject(@"C:\p\05", null);
+            else t.Shell.OpenSettings();
+            await TestShell.Settle();
+            Assert.False(view.HomeView.IsVisible);
+
+            if (viaProject) t.Shell.CloseProject();
+            else t.Shell.CloseSettings();
+            await TestShell.Settle();
+            Assert.True(view.HomeView.IsVisible);
+            Assert.Equal(350, scroller.VerticalOffset, 3);
+            Assert.Equal(350, view.HomeView.ScrollMemory.Saved, 3);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>
+    /// 2.19: the offset is recorded as the view scrolls, never after it is left, when shorter
+    /// content may already have clamped it; the return restores it, then records again.
+    /// </summary>
+    [Fact]
+    public Task WhatScrollsAfterTheLeaveIsNotRecorded() => Sta.RunAsync(async () =>
+    {
+        var scroller = new ScrollViewer { Content = new Border { Height = 3000 } };
+        var memory = new ScrollMemory(scroller);
+        var window = TestShell.Host(scroller);
+        window.Show();
+        try
+        {
+            memory.Enter();
+            await TestShell.Settle();
+            scroller.ScrollToVerticalOffset(400);
+            await TestShell.Settle();
+            Assert.Equal(400, memory.Saved, 3);
+
+            memory.Leave();
+            scroller.ScrollToVerticalOffset(0);
+            await TestShell.Settle();
+            Assert.Equal(0, scroller.VerticalOffset, 3);
+            Assert.Equal(400, memory.Saved, 3);
+
+            memory.Enter();
+            await TestShell.Settle();
+            Assert.Equal(400, scroller.VerticalOffset, 3);
+            scroller.ScrollToVerticalOffset(120);
+            await TestShell.Settle();
+            Assert.Equal(120, memory.Saved, 3);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>The restore is clamped to the content as it is on the return (2.19, WPF clamps).</summary>
+    [Fact]
+    public Task TheRestoreIsClamped() => Sta.RunAsync(async () =>
+    {
+        var content = new Border { Height = 3000 };
+        var scroller = new ScrollViewer { Content = content };
+        var memory = new ScrollMemory(scroller);
+        var window = TestShell.Host(scroller, height: 500);
+        window.Show();
+        try
+        {
+            memory.Enter();
+            await TestShell.Settle();
+            scroller.ScrollToVerticalOffset(2000);
+            await TestShell.Settle();
+            memory.Leave();
+            content.Height = 800;
+            memory.Enter();
+            await TestShell.Settle();
+            Assert.Equal(scroller.ScrollableHeight, scroller.VerticalOffset, 3);
+            Assert.True(scroller.VerticalOffset < 2000);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+}

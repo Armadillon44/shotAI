@@ -22,13 +22,16 @@ internal static partial class XamlChromeGuard
     /// <summary>Colour channel spread above which a colour is chromatic (2.35 rule 3).</summary>
     public const int NeutralSpread = 40;
 
-    /// <summary>The exemptions of the App as it is. The tour pill (WP-B10) and the report markers (05) add their key prefixes.</summary>
+    /// <summary>The exemptions of the App as it is: the notice template (WP-A16); the tour pill (WP-B10) and the report markers (05) add their key prefixes.</summary>
     public static Exemptions Real { get; } = new(
         Files:
         [
             new("Themes/FixedColors.xaml", "The colours that are not tokens: the notice fills and text, the scrims and the neutral shadows, which look the same under every brand and appearance (06 2.21, 2.23, 7.5)."),
         ],
-        KeyPrefixes: [],
+        KeyPrefixes:
+        [
+            new("Notice.", "The notice's 8 DIP corners and drop shadow are notice.css's own, not tokens: a notice looks the same under every brand and appearance (06 2.21)."),
+        ],
         CodeFiles:
         [
             new("Chrome/ThemeResources.cs", "Builds every theme colour from ThemeTokenSet, which reads 10's generated brand table; the numbers are the contract's, not the App's (INV-HOME-26)."),

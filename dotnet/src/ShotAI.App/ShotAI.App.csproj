@@ -57,6 +57,8 @@
   -->
   <ItemGroup>
     <Resource Include="$(RepoRoot)assets/shotAI_icon.ico" Link="Assets/shotAI_icon.ico" />
+    <!-- The header's logo (06 2.2), the image Electron's header shows. -->
+    <Resource Include="$(RepoRoot)assets/shotAI_icon.png" Link="Assets/shotAI_icon.png" />
   </ItemGroup>
   <!-- The App.Tests project reaches the composition root's internals. -->
   <ItemGroup>

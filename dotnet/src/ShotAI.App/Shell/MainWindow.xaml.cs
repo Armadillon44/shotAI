@@ -28,16 +28,21 @@ public partial class MainWindow : ShotAIWindow
     /// <param name="menu">The menu's view model, the window's data context.</param>
     /// <param name="sizer">The sizer, which places this window and later resizes it.</param>
     /// <param name="appInfo">What About shows.</param>
-    public MainWindow(WindowRegistration registration, AppMenuViewModel menu, MainWindowSizer sizer, IAppInfo appInfo)
+    /// <param name="shell">The content's view model: the header, the views and the overlay layer.</param>
+    public MainWindow(WindowRegistration registration, AppMenuViewModel menu, MainWindowSizer sizer, IAppInfo appInfo, ShellViewModel shell)
         : base(registration)
     {
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(sizer);
         ArgumentNullException.ThrowIfNull(appInfo);
+        ArgumentNullException.ThrowIfNull(shell);
         _sizer = sizer;
         _appInfo = appInfo;
         InitializeComponent();
         DataContext = menu;
+        ShellContent.DataContext = shell;
+        // 06 2.18 row 3: the window's activation re-lists Home while Home shows.
+        Activated += (_, _) => shell.OnWindowActivated();
         CommandBindings.Add(new CommandBinding(ShellCommands.Exit, (_, _) => Application.Current?.Shutdown()));
         CommandBindings.Add(new CommandBinding(ShellCommands.ToggleFullScreen, (_, _) => ToggleFullScreen()));
         CommandBindings.Add(new CommandBinding(ShellCommands.Minimize, (_, _) => WindowState = WindowState.Minimized));
@@ -45,6 +50,9 @@ public partial class MainWindow : ShotAIWindow
         CommandBindings.Add(new CommandBinding(ShellCommands.About, (_, _) => ShowAbout()));
         sizer.Attach(this);
     }
+
+    /// <summary>The content: the shell's header, views and overlay layer.</summary>
+    internal ShellView Shell => ShellContent;
 
     /// <summary>View, Toggle Full Screen is on: the window covers its monitor (Q-SHELL-11), and the detail resize leaves it alone (D6).</summary>
     public bool IsFullScreen => _restore is not null;

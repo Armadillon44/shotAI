@@ -10,8 +10,8 @@ namespace ShotAI.App.Tests.Composition;
 
 /// <summary>
 /// INV-ARCH-3, spec 11 8.2: a view model's constructor takes catalog interfaces, the C6
-/// factories, <see cref="IUiDispatcher"/>, <see cref="ILogger{TCategoryName}"/>, value types or
-/// other view models, never a concrete service or a Platform type.
+/// factories, <see cref="IUiDispatcher"/>, <see cref="TimeProvider"/>, <see cref="ILogger{TCategoryName}"/>,
+/// value types or other view models, never a concrete service or a Platform type.
 /// </summary>
 public sealed class ViewModelDependencyTests
 {
@@ -26,6 +26,8 @@ public sealed class ViewModelDependencyTests
         "IUiDispatcher", "INoticeService", "IConfirmService",
         "IProjectSessionFactory", "EditorFactory", "SopPanelViewModelFactory", "ReportViewModelFactory", "DocScaleEditorFactory",
         "ICaptureTargetSelection",
+        // The registered clock (ARCHITECTURE 4.3), for a view model that reads the time (06's HomeViewModel; added in WP-A16).
+        "TimeProvider",
     ];
 
     // EditorViewModel's named extras (04 7.10.1).
