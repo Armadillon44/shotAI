@@ -45,9 +45,9 @@ internal class FakeProjectService : IProjectService
 
     public virtual Task<ProjectManifest> MutateAsync(string projectPath, Func<ProjectManifest, ValueTask<MutateResult>> fn) => throw new NotSupportedException();
 
-    public virtual Task AddStepAsync(string projectPath, ProjectStep step) => throw new NotSupportedException();
+    public virtual Task<ProjectManifest> AddStepAsync(string projectPath, ProjectStep step) => throw new NotSupportedException();
 
-    public virtual Task InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex) => throw new NotSupportedException();
+    public virtual Task<ProjectManifest> InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex) => throw new NotSupportedException();
 
     public virtual Task<ProjectManifest> DeleteStepAsync(string projectPath, string stepId) => throw new NotSupportedException();
 

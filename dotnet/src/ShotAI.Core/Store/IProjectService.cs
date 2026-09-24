@@ -79,11 +79,11 @@ public interface IProjectService
     /// </summary>
     Task<ProjectManifest> MutateAsync(string projectPath, Func<ProjectManifest, ValueTask<MutateResult>> fn);
 
-    /// <summary>Appends a captured step (02).</summary>
-    Task AddStepAsync(string projectPath, ProjectStep step);
+    /// <summary>Appends a captured step (02); the manifest as written, where the capture finds the step's landed index.</summary>
+    Task<ProjectManifest> AddStepAsync(string projectPath, ProjectStep step);
 
-    /// <summary>Inserts a built step at <paramref name="atIndex"/>, clamped; null appends (02).</summary>
-    Task InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex);
+    /// <summary>Inserts a built step at <paramref name="atIndex"/>, clamped; null appends (02). Returns the manifest as written.</summary>
+    Task<ProjectManifest> InsertStepAtAsync(string projectPath, ProjectStep step, double? atIndex);
 
     /// <summary>Removes one step; its files stay on disk (S3).</summary>
     /// <exception cref="StepNotFoundException">No step has the id.</exception>
