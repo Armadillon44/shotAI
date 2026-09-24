@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Tests of ShotAI.App that need Windows and WPF: the composition root, the dispatcher
+    contract, the exit order and flush, crash logging, the paths and the self-test process.
+    The project builds on Linux like the rest of the solution; only a Windows runner can run
+    it (docs/native/ARCHITECTURE.md 12.1). Support/Sta.cs is the STA harness (Q-HOME-15).
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(ShotAIWindowsTfm)</TargetFramework>
+    <SupportedOSPlatformVersion>$(ShotAIMinWindows)</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <!-- xunit.v3 test projects are executables. -->
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>ShotAI.App.Tests</RootNamespace>
+  </PropertyGroup>
+  <!-- A WPF project's implicit usings leave System.IO out. -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ShotAI.App\ShotAI.App.csproj" />
+    <ProjectReference Include="..\..\src\ShotAI.Platform\ShotAI.Platform.csproj" />
+    <ProjectReference Include="..\..\src\ShotAI.Core\ShotAI.Core.csproj" />
+  </ItemGroup>
+</Project>

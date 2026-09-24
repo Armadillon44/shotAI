@@ -116,7 +116,7 @@ In priority order (section 9 has the owner, mechanism and tests of each):
 | INV-ARCH-1 | `ShotAI.Core` references no Windows, WPF, WinRT or Win32 assembly and no Windows-only package, and every interface that Core logic consumes is declared in Core. | Linux test run (G6); the fixed placement rule | `Architecture.CoreReferencesTests` (INV-IPC-19, AC-IPC-16), `CA1416` as error, the Core package allowlist (3.2) |
 | INV-ARCH-2 | Dependencies point one way: App to Platform and Core; Platform to Core; Core to nothing of ours. Platform never references App. Tools reference Core at most (the probes also Platform). | no cycles; the one near-cycle (12's first `IProcessSnapshot` draft) was moved into Platform (12 7.10.3) | project references; `Composition.ViewModelDependencyTests` |
 | INV-ARCH-3 | View models depend only on catalog interfaces (11 7.3 and 4.4, including `ICaptureTargetSelection`, R-ARCH-26), 06's chrome services, the factories of 4.1 C6 (`EditorFactory`, the `ReportViewModel` and `DocScaleEditor` factories, `SopPanelViewModelFactory`), `IUiDispatcher`, `ILogger<T>`, value types and other view models; never on `ProjectStore`, `EntraSession`, `IApiKeyStore`, `MsalGateway`, `CaptureEngine`, `SettingsService` (concrete) or any Platform type. One named addition: 04's `EditorViewModel`, which `EditorFactory` constructs, also receives the Core types `Flattener`, `IRenderCodec` and `IPathProbe` (none holds a secret; 04 7.10.1), and App interfaces such as 04's `IColorPicker` whose implementation wraps a Platform helper. | secrets never reach the UI (INV-IPC-1); fakes for tests | `Composition.ViewModelDependencyTests` (11 8.2) |
-| INV-ARCH-4 | A Platform type that implements a Core seam is `internal sealed` and registered only as its Core interface. Platform helpers the App calls directly (03's `SingleInstanceLock`, `ExistingInstance`, `WindowStyles`, `MonitorQueries`, `Foreground`, the registration surface of `OwnWindowRegistry`, 12's `DllSearchHardening`, `ProcessSnapshot`, `ProcessStarter` and `InstallInfoReader`, the existing `CaptureExclusion`, the `AddShotAIPlatform` extension) are public and have no Core counterpart; `InstallInfoReader.Read` returns 12's internal `InstallInfo` typed as the Core interface `IInstallInfo`. | the shield funnel depends on `GdiMonitorCapture` being reachable only through `ShieldedScreenCapture` (02 7.7) | `CaptureFunnelSourceTests` (02 8.4); reflection test in `Composition.ContainerTests` |
+| INV-ARCH-4 | A Platform type that implements a Core seam is `internal sealed` and registered only as its Core interface. Platform helpers the App calls directly (03's `SingleInstanceLock`, `ExistingInstance`, `WindowStyles`, `MonitorQueries`, `Foreground`, `ProcessMachine`, the registration surface of `OwnWindowRegistry`, 10's `ConsoleAttach`, 12's `DllSearchHardening`, `ProcessSnapshot`, `ProcessStarter` and `InstallInfoReader`, the existing `CaptureExclusion`, the `AddShotAIPlatform` extension) are public and have no Core counterpart; `InstallInfoReader.Read` returns 12's internal `InstallInfo` typed as the Core interface `IInstallInfo`. | the shield funnel depends on `GdiMonitorCapture` being reachable only through `ShieldedScreenCapture` (02 7.7) | `CaptureFunnelSourceTests` (02 8.4); reflection test in `Composition.ContainerTests` |
 | INV-ARCH-5 | Exactly one assembly references `Microsoft.Web.WebView2.Core`: `ShotAI.Platform`, in `ShotAI.Platform.Export`. The App has no WebView2 package reference at all. | the only hosted web engine keeps renderer-grade hardening (INV-IPC-20, INV-EXP-20) | `Architecture.SingleWebViewTests` |
 | INV-ARCH-6 | `InternalsVisibleTo` names only the matching test project (Core to Core.Tests, Platform to Platform.Tests, App to App.Tests). | keep `internal` meaningful | code review |
 
@@ -155,7 +155,7 @@ Folder equals namespace, one public type per file, file named after the type (`C
 | Core | `ShotAI.Core.Store` | 01, 11 | `ProjectStore`, `IProjectService`, `IProjectSession`, `IProjectSessionFactory`, `ProjectSessionFactory`, `IProjectSettle`, `OpenedProject`, `ImportFile`, `ProjectOperation`, `MutateResult`, `ManifestChangeKind`, `ManifestChangedEventArgs`, `PersistFailedEventArgs`, `SerialWriteQueue`, `AtomicFile`, `PathConfine`, `IPathProbe`, `ReparseSafeDelete`, `ArchiveEngine`, `ImportLimits`, the store exceptions of 01 7.13 (`ProjectNotKnownException`, `StepNotFoundException`, `MergeIntoItselfException`, `UnsupportedImageException`, `ImportRejectedException`, `ArchiveException`, `ManifestCorruptException`); the full list is 01 7.1 |
 | Core | `ShotAI.Core.Geometry` | 05 (01 uses `DocScale.Clamp`) | `DocScale`, `DocWidths`, `ReportGeometry` |
 | Core | `ShotAI.Core.Capture` | 02 | `CaptureEngine`, `ICaptureService`, `CaptureShield`, `ShieldedScreenCapture`, seams, `CaptureGeometry`, `ClickCaptions` |
-| Core | `ShotAI.Core.Shell` | 03, 11 | `WindowLayout`, `PillPresenter`, `RecordingVisibilityPlanner`, `AreaSelectionMath`, `BrandMenuModel`, `ShellStrings`, `IShellReveal` |
+| Core | `ShotAI.Core.Shell` | 03, 11 | `WindowLayout`, `PillPresenter`, `RecordingVisibilityPlanner`, `AreaSelectionMath`, `BrandMenuModel`, `ShellStrings`, `IShellReveal`, `Machine`, `RuntimeDiagnostics`, `RenderModePolicy` |
 | Core | `ShotAI.Core.Editor` | 04 | `EditorDocument`, annotation views, `AnnotationFactory`, `TransformMath`, `HitTesting` |
 | Core | `ShotAI.Core.Rendering` | 04 | `Flattener`, `RedactionBaker`, `StepPatch`, `StepPatchValidator`, `StepPatchApplier`, `IStepRenderWriter`, `IStepFlattener` (R-ARCH-7) |
 | Core | `ShotAI.Core.Redaction` | 04 | `RenderGate`, `IRenderGate`, `RenderGateException`, `SensitiveTextDetector`, `ISensitiveRegionScanner`, `IOcrEngine` |
@@ -164,22 +164,22 @@ Folder equals namespace, one public type per file, file named after the type (`C
 | Core | `ShotAI.Core.Sop`, `.Sop.Transport` | 07 | `IClaudeService`, `ClaudeService`, `SopPrompt`, `SopEditSchema`, `ApplySopPlanOperation`, `SopErrorMapper` |
 | Core | `ShotAI.Core.Auth`, `ShotAI.Core.Net` | 08 | `IAuthService`, `AuthService`, `FederationConfigProvider`, `EntraSession`, `IAnthropicClientFactory`, `ApiKeyStore`, `ISharedHttp` |
 | Core | `ShotAI.Core.Export`, `.Export.Office`, `.Export.Package` | 09 | `ExportEngine`, `StepCollector`, `HtmlDocumentBuilder`, `DocxBuilder`, `PptxBuilder`, `PackageReader` |
-| Core | `ShotAI.Core.Brand`, `.Settings`, `.Logging`, `.Updates`, `.Links`, `.SelfTest`, `.Paths` | 10 (11 for `Links` algorithm) | `BrandPalette`, `SettingsService`, `FileLoggerProvider`, `UpdateService`, `ExternalLinks`, `IAppPaths` |
+| Core | `ShotAI.Core.Brand`, `.Settings`, `.Logging`, `.Updates`, `.Links`, `.SelfTest`, `.Paths` | 10 (11 for `Links` algorithm) | `BrandPalette`, `SettingsService`, `FileLoggerProvider`, `UpdateService`, `AppVersion`, `ExternalLinks`, `StartupModeParser`, `StoreSelfTest`, `ProjectStoreFactory`, `IAppPaths` |
 | Core | `ShotAI.Core.Install` | 12 | `InstallScope`, `IInstallInfo`, `InstallScopeRules` (12 7.10.4) |
 | Core | `ShotAI.Core.Threading`, `.Errors`, `.Diagnostics`, `.Composition` | 11 | `IUiDispatcher`, `EventRaiser`, `IAppLifetime`, `ShotAIException`, `UserMessage`, `CoreServiceCollectionExtensions` |
 | Platform | `ShotAI.Platform.FileSystem` | 01 | `WindowsPathProbe`, `WindowsRenameRetryClassifier` |
 | Platform | `ShotAI.Platform.Capture` | 02 (04 extends the codec) | hook, capture, UIA, affinity, own-window registry, `WicImageCodec` (including the `IRenderCodec` members 04 adds; it stays in this namespace, 02 7.1, 04 7.1) |
-| Platform | `ShotAI.Platform.Shell` | 03, 10, 11 | `SingleInstanceLock`, `WindowStyles`, `MonitorQueries`, `ShellReveal`, `ShellUrlLauncher`, `StaThread`, `ConsoleAttach` |
+| Platform | `ShotAI.Platform.Shell` | 03, 10, 11 | `SingleInstanceLock`, `WindowStyles`, `MonitorQueries`, `ProcessMachine`, `ShellReveal`, `ShellUrlLauncher`, `StaThread`, `ConsoleAttach` |
 | Platform | `ShotAI.Platform.Imaging`, `.Ocr`, `.Dialogs` | 02, 04, 05 | `WicFactory` (the one MTA `IWICImagingFactory`, 02 7.1), `ReportImageDecoder` and `WicImageSizeProbe` (in `.Imaging`, 05 7.1), `WindowsOcrEngine` (`.Ocr`), `Win32ColorDialog` (`.Dialogs`, 04 7.1) |
 | Platform | `ShotAI.Platform.Auth` | 08 | `RegistryPolicySource`, MSAL gateway and cache, `DpapiSecretProtector` |
 | Platform | `ShotAI.Platform.Export` | 09, 11 | `WebView2PdfRenderer`, `PdfHostWindow`, `LibavifEncoder`, `NativeAvif`, `WebView2RuntimeInfo` |
 | Platform | `ShotAI.Platform.Theme`, `.Processes`, `.Install`, `.Composition` | 06, 12, 11 | `SystemAppearanceMonitor`, `ProcessSnapshot`, `ProcessStarter`, `InstallInfoReader` (and its internal `InstallInfo`), `PlatformServiceCollectionExtensions` |
 | Platform | root | 12, scaffold | `NativeMethods.txt`, `CaptureExclusion` (existing), `DllSearchHardening` |
-| App | `ShotAI.App` | 03 | `Program` (explicit `Main`), `App` (composition root), `AppPaths` |
+| App | `ShotAI.App` | 03, 10, 11 | `Program` (explicit `Main`), `App` (composition root), `AppPaths`, `SelfTestHost` (10), `ViewModelBase` (11) |
 | App | `ShotAI.App.Shell`, `.Capture`, `.Startup` | 03, 02, 12 | windows, `AreaSelectionService`, `RecordingVisibilityController`, `AppMenuViewModel`, `PopupExclusion`, `LegacyInstanceGuard`, `PersonalCopyGuard` |
 | App | `ShotAI.App.Home`, `.Settings`, `.Tour`, `.Chrome` | 06 | view models, `NoticeCenter`, `ConfirmService`, `ThemeManager`, `Themes/*.xaml` |
 | App | `ShotAI.App.Report`, `.Editor`, `.Sop`, `.Export`, `.Auth` | 05, 04, 07, 09, 08 | views, view models, `ReportImageLoader`, `StaRenderThread`, `EditorFactory`, `IColorPicker` and `Win32ColorPicker` (in `.Editor`, 04 7.1), `SopPanelViewModelFactory`, `ExportService`, `EmbeddedBakedFederationSource` |
-| App | `ShotAI.App.Threading`, `.Services`, `.Composition` | 11 (04 for `UiDeferral`) | `WpfUiDispatcher`, `UiDeferral` (in `.Threading`, beside the dispatcher; R-ARCH-18), `AppLifetime`, `ShutdownFlush`, `IFileDialogs`, `IAppInfo`, `AppServiceCollectionExtensions` |
+| App | `ShotAI.App.Threading`, `.Services`, `.Composition` | 11 (04 for `UiDeferral`) | `WpfUiDispatcher`, `UiDeferral` (in `.Threading`, beside the dispatcher; R-ARCH-18), `AppLifetime`, `ShutdownFlush`, `IFileDialogs`, `IAppInfo`, `IAppStartup`, `AppServiceCollectionExtensions`, `ServiceProviderFactory`, `AppLogging` (10's step 1 factory and banner) |
 
 Test projects mirror the namespace of what they test (`ShotAI.Core.Tests.Store.AtomicFileTests` tests `ShotAI.Core.Store.AtomicFile`); cross-cutting guard tests live under `Architecture`, `ServiceBoundary`, `Threading` and `SourceGuards` (11 8.2, Q-HOME-1).
 
@@ -290,7 +290,7 @@ Transitive packages worth knowing: `Anthropic` 12.50.0 brings `System.Text.Json`
 
 | # | Principle | Source |
 |---|---|---|
-| C1 | `Microsoft.Extensions.DependencyInjection`, one container per process, built once in `App.OnStartup` and disposed in `App.OnExit`. | fixed decision; 11 7.10 |
+| C1 | `Microsoft.Extensions.DependencyInjection`, one container per process, built once in `App.OnStartup` and disposed in `App.OnExit`. The provider of 4.2 step 5b holds only the stateless Platform seams, lends one to the settings load and is disposed before step 6; it is not a container of the app's services (corrected in WP-A12). | fixed decision; 11 7.10 |
 | C2 | Constructor injection only. Nothing resolves services through a static locator; the composition root (`App`) is the one place that calls `GetRequiredService`. | 11 7.10 rule 4 |
 | C3 | `ValidateOnBuild = true` and `ValidateScopes = true`; there are no scopes, and `ValidateScopes` still catches a singleton that captures a transient view model. | 11 7.10 rule 1 |
 | C4 | Services are singletons, view models are transient, per-project state lives in an `IProjectSession` made by a factory (INV-IPC-22). | 11 7.10 |
@@ -312,14 +312,14 @@ Some work must happen before any service exists. The order is 03 7.4.1 with 12 a
 | 3 | same | self-test switches (`--selftest`, `--capture-selftest`, `--update-selftest`, and the `SHOTAI_SELFTEST` and `SHOTAI_CAPTURE_TEST` variables): build isolated instances, run, `Shutdown(exitCode)` | self-tests never touch the user's settings or open a window | 10 7.8, INV-INFRA-30 |
 | 4 | same | `SHOTAI_ENABLE_GPU=0` forces WPF software rendering | must precede the first window | 03 D17 |
 | 5 | same | environment sanitization: remove `ANTHROPIC_CUSTOM_HEADERS` from the process environment (INV-AUTH-35); remove the proxy variables per Q-ARCH-3 (default: remove `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lower-case spellings), logging the NAMES removed at Warning, never the values | the SDK reads `ANTHROPIC_CUSTOM_HEADERS` once in a static constructor; `HttpClient.DefaultProxy` reads the proxy variables on first use | INV-AUTH-35, Q-AUTH-17, Q-SOP-20 |
-| 5b | same | `SettingsService.Load(paths, atomic, time, log)`, synchronous; primes `ICaptureSettings` | windows need `RemoteVisible` and the theme before the first frame | 10 7.4.3, 03 step 5 |
+| 5b | same | `SettingsService.Load(paths, atomic, time, log)`, synchronous; primes `ICaptureSettings`. `atomic` is an `AtomicFile` over Platform's rename classifier, which is internal and reachable only as its Core interface (INV-ARCH-4), so the App reads it from a provider of `AddShotAIPlatform()` alone and disposes that provider at once (corrected in WP-A12) | windows need `RemoteVisible` and the theme before the first frame | 10 7.4.3, 03 step 5 |
 | 6 | same | build the container (4.3): `AddShotAILogging(loggerFactory).AddShotAICore().AddShotAIPlatform().AddShotAIApp(Dispatcher.CurrentDispatcher, settings, installInfo)`, where `settings` is the `SettingsService` loaded at step 5b and `installInfo` the `IInstallInfo` read at step 1b | | 11 7.10 |
 | 7 | same | `PopupExclusion.Install()` | before any window | INV-SHELL-1 |
 | 8 | same | create `MainWindow`, create the pill and `EnsureHandle()` it (registered and excluded, not shown); `ThemeManager.ApplyInitial` | fail-closed exclusion; theme before first frame (D-HOME-10) | INV-SHELL-2 |
 | 9 | same | `main.Show()`; resolve `IEnumerable<IAppStartup>` and call `Start()` on each in registration order | `Start()` subscribes only, no IO | 11 7.10 rule 3 |
 | 10 | same | `CaptureShield.ApplyRemoteVisibility(settings.Current.RemoteVisible)`, the only startup application of the setting, called synchronously on the UI thread: the one reasoned exception to DL1 (6.4) | protected first, relaxed after | INV-SHELL-2, 02 7.8 rule 2 |
 | 11 | same | `ActivationListener.Start(sid)` | second launches can reach us | 03 7.4.8 |
-| 12 | same | runtime diagnostic line; the startup timing line of PB-9 | | 03 7.9, 11 |
+| 12 | same | runtime diagnostic line, once `main.Show()` has returned (the window has its HWND, so the render tier is known); the startup timing line of PB-9 on the first `ContentRendered` | | 03 7.9, 11 |
 | 13 | same | fire and forget on the pool, both under `IAppLifetime.Stopping`: `IProjectService.AutoArchiveStaleAsync` (raises `ProjectsChanged`) and `IUpdateService.RunStartupCheckAsync` | nothing blocks the first frame; failures logged, never shown | 03 7.4.1 step 13, INV-INFRA-23 |
 
 ### 4.3 Registrations
@@ -389,7 +389,7 @@ The 87 Electron channels map onto these members exactly once (INV-IPC-4); `chann
 |---|---|---|
 | 1 | `AppLifetime` cancels `Stopping`; every linked operation token cancels | none |
 | 2 | `ICaptureService.Teardown()`: detach hook and hotkey synchronously, stop the poll and UIA threads | bounded by the 2000 ms hook-thread join (02 7.13), INV-SHELL-19 |
-| 3 | `ShutdownFlush.Run(TimeSpan.FromSeconds(5))`: `Task.WhenAll(projects.FlushAsync(t), settings.FlushAsync(t)).Wait(t)`; on timeout log Warning `exit: pending writes not flushed within 5 s` and continue | 5 s total, the one allowlisted blocking wait (INV-IPC-21, Q-IPC-10) |
+| 3 | `ShutdownFlush.Run(TimeSpan.FromSeconds(5))`: `Task.WhenAll(projects.FlushAsync(Timeout.InfiniteTimeSpan), settings.FlushAsync(Timeout.InfiniteTimeSpan)).Wait(t)`; on timeout log Warning `exit: pending writes not flushed within 5 s` and continue; a flush that faults logs Warning `exit: flushing pending writes failed:` and continues. Corrected in WP-A12: the drains are unbounded and the wait bounds them, because a drain given `t` completes at `t` without faulting (01 7.7), so the wait would never time out and the warning never be logged | 5 s total, the one allowlisted blocking wait (INV-IPC-21, Q-IPC-10) |
 | 4 | `ActivationListener.Dispose()`, then the instance lock (on the acquiring UI thread) | none |
 | 5 | `provider.Dispose()` | each `Dispose` bounded by its spec (log provider drains with a 2 s cap, 10 7.10) |
 | 6 | log `exiting (code <n>)`, flush the log sink | 10 |
@@ -480,7 +480,7 @@ Every view model that listens to a singleton uses the one template of 11 7.7: su
 | UIA workers `shotAI.Uia.0`, `.1` | `UiaElementLocator.WarmUp` | MTA | UI Automation COM calls, 500 ms connection and transaction timeouts, 600 ms overall cap | touch WPF | awaited task | 02 7.6 |
 | `StaRenderThread` `shotAI render` | lazily, 04 | STA with its own `Dispatcher` | `RenderTargetBitmap` overlay rasterization for the bake | touch the UI thread's objects | awaited task | 04 7.10.6 |
 | Short-lived STA threads | `StaThread.RunAsync` | STA | `SHOpenFolderAndSelectItems`, `ShellExecute` for URLs and folders | outlive the call | awaited task | 11 7.3.3 |
-| Log writer | `RotatingFileSink` (`LongRunning` task) | MTA | batched file appends, rotation | block a caller | none | 10 7.5.4 |
+| Log writer | `RotatingFileSink` (an async loop on the pool, corrected after WP-A11) | MTA pool | batched file appends, rotation | block a caller | none | 10 7.5.4 |
 | Thread pool | BCL | MTA | file reads, WIC decode and encode, redaction bake, OCR recognition (serialized by a semaphore), export building, AVIF (multi-threaded inside libavif), zip, SDK calls, token acquisition, update check | touch UI objects | awaited tasks; `IProgress<T>` created on the UI thread | all |
 | WebView2 browser processes | WebView2 runtime | out of process | print copy rendering | | WebView2 events on the UI thread | 09 7.7 |
 
@@ -730,7 +730,7 @@ No transport prefix is ever added (`Error invoking remote method ...` is ELECTRO
 
 | Source | Handler | Behavior |
 |---|---|---|
-| UI thread | `Application.DispatcherUnhandledException` | log Error, `Handled = true`, show the generic notice if the main window is visible (Q-SHELL-16); an exception from `OnStartup` is not handled and terminates with a log line |
+| UI thread | `Application.DispatcherUnhandledException`, hooked as the UI dispatcher's own `Dispatcher.UnhandledException`, which it is raised from (corrected in WP-A12, so the tests raise it without an `Application`) | log Error, `Handled = true`, show the generic notice if the main window is visible (Q-SHELL-16; the notice joins with `INoticeService`, WP-A16); an exception from `OnStartup` is not handled and terminates with a log line |
 | any thread | `AppDomain.CurrentDomain.UnhandledException` | log Error with `terminating=`, flush the log synchronously |
 | tasks | `TaskScheduler.UnobservedTaskException` | log Warning, `SetObserved()` |
 | WebView2 | `CoreWebView2.ProcessFailed` | log Error with kind, reason, exit code |
