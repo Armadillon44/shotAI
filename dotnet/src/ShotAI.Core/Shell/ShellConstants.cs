@@ -3,7 +3,7 @@ namespace ShotAI.Core.Shell;
 /// <summary>
 /// The shell's sizes in DIP and the pill's times in ms (spec 03 3, 7.2). Each work package adds the constants of the
 /// windows it builds: the main window's with WP-A15, the pill's with WP-B7, the overlay's with
-/// the area selection.
+/// WP-B8.
 /// </summary>
 public static class ShellConstants
 {
@@ -36,4 +36,16 @@ public static class ShellConstants
 
     /// <summary>How long the pointer rests on a pill control before its tooltip opens, in ms (7.6.2; Chromium's value is UNVERIFIED).</summary>
     public const int PillTooltipDelayMs = 400;
+
+    /// <summary><c>MIN_DRAG</c>: the smallest drag, on each side, that is a selection rather than a stray click (<c>src/renderer/overlay/App.tsx:4</c>, <c>src/main/RegionService.ts:21</c>).</summary>
+    public const double MinDrag = 4;
+
+    /// <summary>The narrowest selection that shows its size badge (<c>App.tsx:81</c>).</summary>
+    public const double BadgeMinWidth = 40;
+
+    /// <summary>The shortest selection that shows its size badge (<c>App.tsx:81</c>).</summary>
+    public const double BadgeMinHeight = 22;
+
+    /// <summary>The overlay's hint box starts this far down the overlay, as a fraction of its height (<c>overlay.css:30</c>).</summary>
+    public const double OverlayHintTopFraction = 0.14;
 }

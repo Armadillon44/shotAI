@@ -5,8 +5,8 @@ namespace ShotAI.Core.Shell;
 /// <summary>
 /// The shell's user-visible strings (spec 03 2.11, INV-SHELL-22), exactly as Electron shows
 /// them. Each work package adds the strings of the windows it builds: the menu's and About's
-/// with WP-A15, the Brand submenu's with WP-A18, the pill's with WP-B7, the overlay's with the
-/// area selection.
+/// with WP-A15, the Brand submenu's with WP-A18, the pill's with WP-B7, the overlay's with
+/// WP-B8.
 /// </summary>
 public static class ShellStrings
 {
@@ -176,4 +176,25 @@ public static class ShellStrings
 
     /// <summary>The confirmation's other button, the default (7.6.3).</summary>
     public const string Cancel = "Cancel";
+
+    // The area-select overlay (2.5, src/renderer/overlay/App.tsx).
+
+    /// <summary>The overlay's window title, its page's title (<c>overlay.html:6</c>).</summary>
+    public const string OverlayTitle = "shotAI \u2014 Select area";
+
+    /// <summary>The hint's first line, shown until the drag starts (<c>overlay/App.tsx:67</c>).</summary>
+    public const string OverlayHint = "Drag to select a capture area";
+
+    /// <summary>The hint's second line (<c>:68</c>).</summary>
+    public const string OverlayHintSub = "Press Esc to cancel";
+
+    /// <summary>
+    /// The selection's size badge (<c>:83-84</c>): the width and height in physical pixels of
+    /// the rectangle the selection resolves to (EDGE-SHELL-39).
+    /// </summary>
+    /// <param name="width">The width in physical pixels.</param>
+    /// <param name="height">The height in physical pixels.</param>
+    /// <returns><c>1280 \u00D7 720px</c>.</returns>
+    public static string Badge(int width, int height) =>
+        string.Create(CultureInfo.InvariantCulture, $"{width} \u00D7 {height}px");
 }

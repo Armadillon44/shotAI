@@ -153,6 +153,39 @@ public sealed class ShellStringsTests
             Assert.Contains($"aria-label=\"{name}\"", pill, StringComparison.Ordinal);
     }
 
+    /// <summary>2.11's overlay rows.</summary>
+    [Fact]
+    public void OverlayStringsAreTheTableOf211()
+    {
+        Assert.Equal("shotAI \u2014 Select area", ShellStrings.OverlayTitle);
+        Assert.Equal("Drag to select a capture area", ShellStrings.OverlayHint);
+        Assert.Equal("Press Esc to cancel", ShellStrings.OverlayHintSub);
+        Assert.Equal("1280 \u00D7 720px", ShellStrings.Badge(1280, 720));
+    }
+
+    /// <summary>The overlay's strings as its page and its title write them; JSX joins the badge's parts with one space each side of the sign.</summary>
+    [Fact]
+    public void OverlayStringsMatchTheElectronSource()
+    {
+        var page = ElectronSource.Read("overlay.html").ReplaceLineEndings("\n");
+        Assert.Contains($"    <title>{ShellStrings.OverlayTitle}</title>\n", page, StringComparison.Ordinal);
+        var overlay = ElectronSource.Read("src/renderer/overlay/App.tsx").ReplaceLineEndings("\n");
+        Assert.Contains($"<div className=\"ov__hint\">\n          {ShellStrings.OverlayHint}\n", overlay, StringComparison.Ordinal);
+        Assert.Contains($"<span className=\"ov__hint-sub\">{ShellStrings.OverlayHintSub}</span>", overlay, StringComparison.Ordinal);
+        Assert.Contains(
+            "{Math.round(rect.width * window.devicePixelRatio)} \u00D7{' '}\n              {Math.round(rect.height * window.devicePixelRatio)}px\n",
+            overlay,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>The overlay's title carries U+2014 exactly once and no U+2013 (INV-SHELL-22).</summary>
+    [Fact]
+    public void TheOverlayTitleHasOneEmDashAndNoEnDash()
+    {
+        Assert.Single(ShellStrings.OverlayTitle, c => c == '\u2014');
+        Assert.DoesNotContain('\u2013', ShellStrings.OverlayTitle);
+    }
+
     /// <summary>The pill's em-dash strings carry U+2014 exactly once and no U+2013 (INV-SHELL-22).</summary>
     [Fact]
     public void ThePillsEmDashStringsHaveOneEmDashAndNoEnDash()

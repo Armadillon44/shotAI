@@ -90,6 +90,21 @@ public sealed partial class AllWindowsRegisteredTests
         Assert.False(registry.IsRegistered(hwnd));
     });
 
+    /// <summary>Every overlay of an area selection, and none left in the registry once the selection ends (spec 03 7.4.4).</summary>
+    [Fact]
+    public Task OverlaysAreExcludedBeforeTheyAreShown() => Sta.RunAsync(async () =>
+    {
+        using var probe = ShowProbe.Install();
+        using var h = new AreaSelectionHarness([AreaSelectionHarness.OffScreen(0), AreaSelectionHarness.OffScreen(1)]);
+        var selection = await h.OpenAsync();
+        var handles = h.Service.PendingOverlays.Select(o => o.Handle).ToList();
+        Assert.Equal(2, handles.Count);
+        foreach (var hwnd in handles) AssertExcludedBeforeShown(h.Registry, probe, hwnd);
+        h.Service.Finish(h.Service.PendingGeneration, null);
+        Assert.Null(await AreaSelectionHarness.ResultAsync(selection));
+        Assert.All(handles, hwnd => Assert.False(h.Registry.IsRegistered(hwnd)));
+    });
+
     /// <summary>The Discard confirmation, a dialog of the pill, never a message box (spec 02 D20, EDGE-SHELL-37).</summary>
     [Fact]
     public Task DiscardConfirmationIsExcludedBeforeItIsShown() => Sta.RunAsync(() =>

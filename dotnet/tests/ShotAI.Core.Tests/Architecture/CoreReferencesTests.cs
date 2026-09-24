@@ -1,13 +1,16 @@
 using System.Reflection;
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
 using ShotAI.Core.Errors;
+using ShotAI.Core.Tests.SourceGuards;
+using ShotAI.Core.Tests.Support;
 using Xunit;
 
 namespace ShotAI.Core.Tests.Architecture;
 
 /// <summary>
 /// ShotAI.Core stays free of Windows so it builds and runs on Linux (INV-ARCH-1, INV-IPC-19,
-/// AC-IPC-16, AC-MODEL-26).
+/// AC-IPC-16, AC-MODEL-26, AC-SHELL-29).
 /// </summary>
 public sealed class CoreReferencesTests
 {
@@ -46,6 +49,24 @@ public sealed class CoreReferencesTests
         // A Windows target framework would stamp a TargetPlatformAttribute on the assembly.
         Assert.Null(Core.GetCustomAttribute<TargetPlatformAttribute>());
         Assert.Equal(".NETCoreApp,Version=v10.0", Core.GetCustomAttribute<TargetFrameworkAttribute>()?.FrameworkName);
+    }
+
+    /// <summary>
+    /// AC-SHELL-29: the shell's rules name no Windows namespace. Core's framework has some of
+    /// them (<c>System.Windows.Input</c>, <c>Microsoft.Win32</c>), so the build alone does not
+    /// keep them out; each file of the folder is read without its comments, which may name them.
+    /// </summary>
+    [Fact]
+    public void TheShellFolderNamesNoWindowsNamespace()
+    {
+        var folder = Path.Combine(RepoFiles.Root, "dotnet", "src", "ShotAI.Core", "Shell");
+        var files = Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories);
+        Assert.NotEmpty(files);
+        var offenders = files
+            .Where(f => Regex.IsMatch(CSharpText.StripComments(File.ReadAllText(f)), @"\b(System\.Windows|Windows\.Win32|Microsoft\.Win32)\b"))
+            .Select(Path.GetFileName)
+            .ToList();
+        Assert.Empty(offenders);
     }
 
     [Fact]

@@ -22,6 +22,7 @@ internal static unsafe partial class User32
     public const int WsExToolWindow = 0x00000080;
     public const int WsExAppWindow = 0x00040000;
     public const int WsExNoActivate = 0x08000000;
+    public const int WsExLayered = 0x00080000;
     public const uint GwOwner = 4;
 
     [LibraryImport("user32.dll", SetLastError = true)]
