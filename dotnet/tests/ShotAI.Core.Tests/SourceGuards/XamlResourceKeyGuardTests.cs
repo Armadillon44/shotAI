@@ -23,20 +23,20 @@ public sealed class XamlResourceKeyGuardTests
             PaletteRoles.All.Select(r => ThemeTokenKeys.Color(r.Token)).ToArray()
         ),
         (
-            "Status, callout and derived colours of views that do not exist yet: Home rows and the bulk bar (WP-A16), the report's callouts (WP-A17).",
+            "Status, callout and derived colours of views that do not exist yet: the selected row and the bulk bar (WP-A19), the report's callouts (WP-A17).",
             [
                 .. new[] { "accent-soft", "ok", "draft", "note-bg", "note-bd", "note-fg", "caut-bg", "caut-bd", "caut-fg", "warn-bg", "warn-bd", "warn-fg" }.Select(ThemeTokenKeys.Brush),
-                ThemeTokenKeys.ItemHoverBorder, ThemeTokenKeys.ItemSelectedBackground, ThemeTokenKeys.BulkBorder,
+                ThemeTokenKeys.ItemSelectedBackground, ThemeTokenKeys.BulkBorder,
             ]
         ),
         (
-            "Radii, sizes, weights and shadows of views that do not exist yet: the Home header and rows (WP-A16), the report cards (WP-A17), menus (WP-A19).",
+            "Radii, sizes, weights and shadows of views that do not exist yet: the hero (WP-B9), the report cards (WP-A17), menus (WP-A19).",
             [
                 ThemeTokenKeys.Radius("card"), ThemeTokenKeys.Radius("figure"), ThemeTokenKeys.Radius("micro"),
                 ThemeTokenKeys.RadiusValue("panel"), ThemeTokenKeys.RadiusValue("card"), ThemeTokenKeys.RadiusValue("figure"),
                 ThemeTokenKeys.RadiusValue("control"), ThemeTokenKeys.RadiusValue("control-sm"),
-                ThemeTokenKeys.FsDisplay, ThemeTokenKeys.FsSection, ThemeTokenKeys.FsMeta, ThemeTokenKeys.FsLabel, ThemeTokenKeys.FwDisplay,
-                ThemeTokenKeys.ShadowSm, ThemeTokenKeys.Shadow, ThemeTokenKeys.MenuShadow,
+                ThemeTokenKeys.FsDisplay, ThemeTokenKeys.FwDisplay,
+                ThemeTokenKeys.Shadow, ThemeTokenKeys.MenuShadow,
             ]
         ),
         (

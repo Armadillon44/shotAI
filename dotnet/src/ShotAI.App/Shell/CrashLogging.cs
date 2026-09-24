@@ -1,5 +1,7 @@
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
+using ShotAI.App.Chrome;
+using ShotAI.Core.Errors;
 
 namespace ShotAI.App.Shell;
 
@@ -15,8 +17,8 @@ namespace ShotAI.App.Shell;
 /// is raised from, so the tests can raise it without an <c>Application</c>.
 /// </para>
 /// <para>
-/// The generic notice of Q-SHELL-16 for a UI-thread exception joins with <c>INoticeService</c>
-/// (WP-A16); until then the exception is logged and handled.
+/// Once startup has completed, a UI-thread exception is also shown as the generic notice of
+/// Q-SHELL-16 while the main window is visible (<see cref="AttachNotices"/>, WP-A16).
 /// </para>
 /// </remarks>
 public sealed partial class CrashLogging : IDisposable
@@ -27,6 +29,8 @@ public sealed partial class CrashLogging : IDisposable
     private Dispatcher? _dispatcher;
     private ILogger? _log;
     private Func<TimeSpan, bool>? _flush;
+    private INoticeService? _notices;
+    private Func<bool>? _mainWindowVisible;
     private volatile bool _started;
 
     /// <summary>Hooks the UI thread's dispatcher, the app domain and the task scheduler.</summary>
@@ -51,6 +55,18 @@ public sealed partial class CrashLogging : IDisposable
     }
 
     /// <summary>
+    /// The notices a handled UI-thread exception shows the generic sentence in (startup step 8),
+    /// while <paramref name="mainWindowVisible"/> says the main window is on screen.
+    /// </summary>
+    public void AttachNotices(INoticeService notices, Func<bool> mainWindowVisible)
+    {
+        ArgumentNullException.ThrowIfNull(notices);
+        ArgumentNullException.ThrowIfNull(mainWindowVisible);
+        _mainWindowVisible = mainWindowVisible;
+        _notices = notices;
+    }
+
+    /// <summary>
     /// Startup finished: from now on a UI-thread exception is handled and the app carries on, as
     /// Electron's main process did after <c>uncaughtException</c>.
     /// </summary>
@@ -67,14 +83,16 @@ public sealed partial class CrashLogging : IDisposable
     }
 
     /// <summary>
-    /// A UI-thread exception: logged at Error, and handled once startup has completed. One from
-    /// <c>OnStartup</c> is not handled, so it ends the process, and the any-thread handler logs
-    /// it again with <c>terminating=true</c> and flushes.
+    /// A UI-thread exception: logged at Error, and handled once startup has completed, when the
+    /// generic notice also shows if the main window is visible. One from <c>OnStartup</c> is not
+    /// handled, so it ends the process, and the any-thread handler logs it again with
+    /// <c>terminating=true</c> and flushes.
     /// </summary>
     /// <returns>Whether the exception is handled.</returns>
     internal bool OnUiThreadException(Exception exception)
     {
         if (_log is { } log) UiThreadException(log, exception);
+        if (_started && _notices is { } notices && _mainWindowVisible?.Invoke() == true) notices.ShowError(UserMessage.Generic);
         return _started;
     }
 

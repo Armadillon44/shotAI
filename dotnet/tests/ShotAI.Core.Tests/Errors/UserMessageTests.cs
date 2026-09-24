@@ -70,5 +70,23 @@ public sealed class UserMessageTests
     public void GenericTextIsExact() =>
         Assert.Equal("Something went wrong. See the log for details.", UserMessage.Generic);
 
+    /// <summary>Unexpected is exactly "the generic sentence stands in for a message that is not user text".</summary>
+    [Fact]
+    public void UnexpectedIsTheGenericCaseOnly()
+    {
+        Assert.True(UserMessage.IsUnexpected(new ArgumentException("internal detail")));
+        Assert.True(UserMessage.IsUnexpected(new NullReferenceException()));
+        Assert.True(UserMessage.IsUnexpected(new AggregateException(new ShotAIException("a"), new ShotAIException("b"))));
+        Assert.True(UserMessage.IsUnexpected(new AggregateException(new InvalidOperationException())));
+
+        Assert.False(UserMessage.IsUnexpected(new ShotAIException("text")));
+        Assert.False(UserMessage.IsUnexpected(new ShotAIException("")));
+        Assert.False(UserMessage.IsUnexpected(new IOException("os")));
+        Assert.False(UserMessage.IsUnexpected(new UnauthorizedAccessException("os")));
+        Assert.False(UserMessage.IsUnexpected(new OperationCanceledException()));
+        Assert.False(UserMessage.IsUnexpected(new AggregateException(new TaskCanceledException())));
+        Assert.False(UserMessage.IsUnexpected(new AggregateException(new ShotAIException("inner"))));
+    }
+
     private sealed class DerivedException(string message) : ShotAIException(message);
 }

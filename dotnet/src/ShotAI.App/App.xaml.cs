@@ -107,16 +107,23 @@ public partial class App : Application
         _services.GetRequiredService<PopupExclusion>().Install();
 
         // Steps 8 and 9: the main window registers, and so is excluded, before it is shown, and
-        // the theme is merged before its first frame (D-HOME-10).
+        // the theme is merged before its first frame (D-HOME-10). The one shell drives the
+        // navigation state the menu and the theme manager read (06 7.7).
+        var shell = _services.GetRequiredService<ShellViewModel>();
+        _services.GetRequiredService<NavigationState>().Follow(shell);
         var main = new MainWindow(
             _services.GetRequiredService<WindowRegistration>(),
             _services.GetRequiredService<AppMenuViewModel>(),
             _services.GetRequiredService<MainWindowSizer>(),
-            _services.GetRequiredService<IAppInfo>());
+            _services.GetRequiredService<IAppInfo>(),
+            shell);
         MainWindow = main;
+        _crash.AttachNotices(_services.GetRequiredService<INoticeService>(), () => main.IsVisible);
         main.ContentRendered += LogFirstRender;
         ShowThemed(_services.GetRequiredService<ThemeManager>(), Resources, main);
         StartAll(_services.GetServices<IAppStartup>());
+        // Home lists the projects once the window is up (06 2.18 row 1).
+        shell.Start();
 
         // Step 11: from here a second launch surfaces this window.
         _activation = new ActivationListener(main.ShowFromSecondInstance, _loggers.CreateLogger<ActivationListener>());

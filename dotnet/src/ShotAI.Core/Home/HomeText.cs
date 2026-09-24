@@ -14,6 +14,12 @@ namespace ShotAI.Core.Home;
 /// </remarks>
 public static class HomeText
 {
+    /// <summary>A notice's dismiss button (2.21, <c>Notice.tsx</c>).</summary>
+    public const string NoticeDismiss = "\u00d7";
+
+    /// <summary>Its accessible name and tooltip.</summary>
+    public const string NoticeDismissName = "Dismiss";
+
     /// <summary>The header's Settings button (2.2).</summary>
     public const string SettingsButton = "\u2699 Settings";
 
@@ -52,6 +58,15 @@ public static class HomeText
 
     /// <summary>The label before the sort chips.</summary>
     public const string SortLabel = "Sort:";
+
+    /// <summary>The Name chip.</summary>
+    public const string SortName = "Name";
+
+    /// <summary>The Created chip.</summary>
+    public const string SortCreated = "Created";
+
+    /// <summary>The Modified chip.</summary>
+    public const string SortModified = "Modified";
 
     /// <summary>The direction button's accessible name (7.13, native: Electron's button had only a tooltip).</summary>
     public const string SortDirectionName = "Sort direction";
@@ -110,6 +125,9 @@ public static class HomeText
     /// <summary>The empty Archive tab's sub-line.</summary>
     public const string NoArchivedSub = "Projects you haven\u2019t touched in a while land here (or archive them yourself). Opening one restores it automatically.";
 
+    /// <summary>A tab's accessible name, its text and its count as Electron's button reads them: <c>Projects 9</c>.</summary>
+    public static string TabName(HomeTab tab, int count) => Heading(tab) + " " + count.ToString(CultureInfo.InvariantCulture);
+
     /// <summary>The heading: the tab's name.</summary>
     public static string Heading(HomeTab tab) => tab == HomeTab.Archive ? ArchiveTab : ProjectsTab;
 
@@ -120,9 +138,9 @@ public static class HomeText
     /// <exception cref="ArgumentOutOfRangeException">Not a sort key.</exception>
     public static string SortChip(HomeSortKey key) => key switch
     {
-        HomeSortKey.Name => "Name",
-        HomeSortKey.Created => "Created",
-        HomeSortKey.Modified => "Modified",
+        HomeSortKey.Name => SortName,
+        HomeSortKey.Created => SortCreated,
+        HomeSortKey.Modified => SortModified,
         _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Not a sort key."),
     };
 

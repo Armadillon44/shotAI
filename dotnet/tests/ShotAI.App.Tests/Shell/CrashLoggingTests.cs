@@ -1,8 +1,11 @@
 using System.Runtime.CompilerServices;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using ShotAI.App.Chrome;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
+using ShotAI.Core.Errors;
 using Xunit;
 
 namespace ShotAI.App.Tests.Shell;
@@ -46,6 +49,50 @@ public sealed class CrashLoggingTests
         crash.StartupCompleted();
         Assert.True(crash.OnUiThreadException(new InvalidOperationException("later")));
         Assert.Equal(2, logs.Entries.Count(e => e.Message == "unhandled exception on the UI thread:"));
+    }
+
+    /// <summary>
+    /// Q-SHELL-16: after startup, a handled UI-thread exception also shows the generic notice while
+    /// the main window is visible; not during startup, when it ends the process, and not while the
+    /// window is hidden.
+    /// </summary>
+    [Fact]
+    public Task GenericNoticeAfterStartupWhileVisible() => Sta.RunAsync(() =>
+    {
+        using var logs = new CapturingLoggerProvider();
+        using var crash = new CrashLogging();
+        var notices = new NoticeCenter(NullLogger<NoticeCenter>.Instance);
+        var visible = true;
+        crash.Attach(logs.CreateLogger("crash"), _ => true);
+        crash.AttachNotices(notices, () => visible);
+
+        Assert.False(crash.OnUiThreadException(new InvalidOperationException("startup")));
+        Assert.Null(notices.Error);
+
+        crash.StartupCompleted();
+        visible = false;
+        Assert.True(crash.OnUiThreadException(new InvalidOperationException("hidden")));
+        Assert.Null(notices.Error);
+
+        visible = true;
+        Assert.True(crash.OnUiThreadException(new InvalidOperationException("Sequence contains no elements")));
+        Assert.Equal(UserMessage.Generic, notices.Error?.Text);
+        Assert.Equal(3, logs.Entries.Count(e => e.Message == "unhandled exception on the UI thread:"));
+        Assert.DoesNotContain(logs.Entries, e => e.Message.StartsWith("notice:", StringComparison.Ordinal));
+    });
+
+    /// <summary>With no notices attached, a handled exception is only logged (the startup steps before step 8).</summary>
+    [Fact]
+    public void WithoutNoticesOnlyTheLog()
+    {
+        using var logs = new CapturingLoggerProvider();
+        using var crash = new CrashLogging();
+        crash.Attach(logs.CreateLogger("crash"), _ => true);
+        crash.StartupCompleted();
+        Assert.True(crash.OnUiThreadException(new InvalidOperationException("later")));
+        Assert.Single(logs.Entries);
+        Assert.Throws<ArgumentNullException>(() => crash.AttachNotices(null!, () => true));
+        Assert.Throws<ArgumentNullException>(() => crash.AttachNotices(new NoticeCenter(NullLogger<NoticeCenter>.Instance), null!));
     }
 
     /// <summary>A faulted task nobody observes is logged at Warning when it is collected, and marked observed.</summary>

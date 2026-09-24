@@ -1,0 +1,63 @@
+<UserControl x:Class="ShotAI.App.Shell.ShellView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:home="clr-namespace:ShotAI.App.Home"
+             xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
+             xmlns:corehome="clr-namespace:ShotAI.Core.Home;assembly=ShotAI.Core"
+             xmlns:coreshell="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
+             Focusable="False" IsTabStop="False">
+  <!--
+    The main window's content (spec 06 2.2, 7.6, 03 7.4.10): the shotAI header, the Home, project
+    and Settings hosts, one shown at a time, and above them the overlay layer, which holds the
+    notices. Home is made once and kept, so its scroller keeps its place (7.7). The project view
+    fills its host in WP-A17, Settings in WP-B10.
+  -->
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="Visible" />
+  </UserControl.Resources>
+  <Grid Grid.IsSharedSizeScope="True">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" SharedSizeGroup="ShellHeader" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- 2.2: logo, name and Settings; hidden while a project is open, Settings over it included. -->
+    <Border x:Name="Header" Padding="32,8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.hair}"
+            Background="{DynamicResource Brush.surface}" Visibility="{Binding HeaderVisible, Converter={StaticResource Visible}}">
+      <DockPanel LastChildFill="False">
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+          <Border Width="30" Height="30" CornerRadius="{DynamicResource Radius.control-sm}">
+            <Border.Background>
+              <ImageBrush ImageSource="/shotAI;component/Assets/shotAI_icon.png" Stretch="Uniform" />
+            </Border.Background>
+          </Border>
+          <TextBlock Margin="6.4,0,0,0" VerticalAlignment="Center" Text="{x:Static coreshell:ShellStrings.AppName}"
+                     FontSize="15.2" FontWeight="650" AutomationProperties.HeadingLevel="Level1" />
+        </StackPanel>
+        <Button x:Name="SettingsButton" DockPanel.Dock="Right" VerticalAlignment="Center" Style="{DynamicResource Button.Small}"
+                Content="{x:Static corehome:HomeText.SettingsButton}" ToolTip="{x:Static corehome:HomeText.SettingsButtonTitle}"
+                Command="{Binding Menu.OpenSettingsCommand}" Visibility="{Binding SettingsButtonVisible, Converter={StaticResource Visible}}" />
+      </DockPanel>
+    </Border>
+
+    <!-- The views. -->
+    <Grid Grid.Row="1">
+      <Grid Visibility="{Binding HomeVisible, Converter={StaticResource Visible}}">
+        <home:HomeView x:Name="Home" DataContext="{Binding Home}" />
+      </Grid>
+      <ContentControl x:Name="ProjectHost" Focusable="False" IsTabStop="False"
+                      Visibility="{Binding ProjectVisible, Converter={StaticResource Visible}}" />
+      <ContentControl x:Name="SettingsHost" Focusable="False" IsTabStop="False"
+                      Visibility="{Binding SettingsVisible, Converter={StaticResource Visible}}" />
+    </Grid>
+
+    <!-- 03 7.4.10: the overlay layer, over the header and the views; the notices sit at the top of the content area. -->
+    <Grid x:Name="OverlayLayer" Grid.RowSpan="2">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" SharedSizeGroup="ShellHeader" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+      <chrome:NoticeHost x:Name="Notices" Grid.Row="1" DataContext="{Binding Notices}" />
+    </Grid>
+  </Grid>
+</UserControl>

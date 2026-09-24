@@ -67,14 +67,15 @@
         <MenuItem Header="{x:Static core:ShellStrings.About}" Command="{x:Static shell:ShellCommands.About}" />
       </MenuItem>
     </Menu>
-    <!-- View's zoom scales the content only, as Chromium scaled the page and never the menu bar (Q-SHELL-12). -->
+    <!--
+      View's zoom scales the content only, as Chromium scaled the page and never the menu bar
+      (Q-SHELL-12); the overlay layer is inside it, so it scales with the views (03 7.4.10).
+    -->
     <Grid x:Name="ContentRoot">
       <Grid.LayoutTransform>
         <ScaleTransform ScaleX="{Binding ZoomFactor}" ScaleY="{Binding ZoomFactor}" />
       </Grid.LayoutTransform>
-      <TextBlock Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap">
-        shotAI native (scaffold). Not a working app yet: see docs/native/PLAN.md.
-      </TextBlock>
+      <shell:ShellView x:Name="ShellContent" />
     </Grid>
   </DockPanel>
 </shell:ShotAIWindow>

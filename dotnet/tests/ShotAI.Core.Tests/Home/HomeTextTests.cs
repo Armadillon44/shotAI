@@ -22,6 +22,10 @@ public sealed class HomeTextTests
         Assert.Equal("Project sections", HomeText.TabsName);
         Assert.Equal("Projects", HomeText.ProjectsTab);
         Assert.Equal("Archive", HomeText.ArchiveTab);
+        // A tab's name is its text with the count, as the browser computes it from the button's content.
+        Assert.Equal("Projects 3", HomeText.TabName(HomeTab.Active, 3));
+        Assert.Equal("Archive 0", HomeText.TabName(HomeTab.Archive, 0));
+        Assert.Equal("Projects 1234", HomeText.TabName(HomeTab.Active, 1234));
     }
 
     [Fact]
@@ -39,6 +43,7 @@ public sealed class HomeTextTests
         Assert.Equal("Clear search", HomeText.SearchClearName);
         Assert.Equal("Sort projects", HomeText.SortGroupName);
         Assert.Equal("Sort:", HomeText.SortLabel);
+        Assert.Equal(("Name", "Created", "Modified"), (HomeText.SortName, HomeText.SortCreated, HomeText.SortModified));
         Assert.Equal(["Name", "Created", "Modified"], new[] { HomeSortKey.Name, HomeSortKey.Created, HomeSortKey.Modified }.Select(HomeText.SortChip));
         Assert.Equal(("\u25b2", "\u25bc"), (HomeText.SortDirection(true), HomeText.SortDirection(false)));
         Assert.Equal(("Ascending", "Descending"), (HomeText.SortDirectionTitle(true), HomeText.SortDirectionTitle(false)));
@@ -82,6 +87,17 @@ public sealed class HomeTextTests
         Assert.Equal(
             "Projects you haven\u2019t touched in a while land here (or archive them yourself). Opening one restores it automatically.",
             HomeText.NoArchivedSub);
+    }
+
+    /// <summary>2.21: the notice's dismiss button, as Notice.tsx writes it.</summary>
+    [Fact]
+    public void NoticeDismiss()
+    {
+        Assert.Equal(("\u00d7", "Dismiss"), (HomeText.NoticeDismiss, HomeText.NoticeDismissName));
+        var notice = ElectronSource.Read("src/renderer/Notice.tsx");
+        Assert.Contains($"aria-label=\"{HomeText.NoticeDismissName}\"", notice, StringComparison.Ordinal);
+        Assert.Contains($"title=\"{HomeText.NoticeDismissName}\"", notice, StringComparison.Ordinal);
+        Assert.Contains(">\n        " + HomeText.NoticeDismiss + "\n      </button>", notice.ReplaceLineEndings("\n"), StringComparison.Ordinal);
     }
 
     /// <summary>The one-literal strings as ProjectList.tsx and App.tsx write them.</summary>

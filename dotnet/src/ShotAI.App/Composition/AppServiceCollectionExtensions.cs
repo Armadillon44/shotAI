@@ -2,6 +2,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ShotAI.App.Chrome;
+using ShotAI.App.Home;
 using ShotAI.App.Services;
 using ShotAI.App.Shell;
 using ShotAI.App.Threading;
@@ -57,6 +58,10 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<MainWindowSizer>();
         services.AddSingleton<IMainWindowLayout>(sp => sp.GetRequiredService<MainWindowSizer>());
         services.AddSingleton<AppMenuViewModel>();
+        services.AddSingleton<NoticeCenter>();
+        services.AddSingleton<INoticeService>(sp => sp.GetRequiredService<NoticeCenter>());
+        services.AddTransient<HomeViewModel>();
+        services.AddTransient<ShellViewModel>();
         services.AddSingleton<ThemeManager>();
         // Step 9 starts these in this order (ARCHITECTURE 4.3): RemoteVisibilityApplier (WP-B5)
         // and RecordingVisibilityController (WP-B7) are registered before the theme manager.
