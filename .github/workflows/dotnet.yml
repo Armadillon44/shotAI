@@ -57,7 +57,7 @@ jobs:
     name: build all · test core (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -96,7 +96,7 @@ jobs:
       - name: Check out with CRLF conversion
         working-directory: .
         run: git config --global core.autocrlf true
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
