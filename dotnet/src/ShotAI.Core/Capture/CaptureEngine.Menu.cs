@@ -40,7 +40,7 @@ public sealed partial class CaptureEngine
         if (e.Button == MouseButton.Right)
         {
             // The owner is read now, while it is still the focused window (2.4.2).
-            var owner = ForegroundRect(_windows.Foreground());
+            var owner = FocusedOwnerBounds();
             if (Arm(new MenuArm(now + CaptureConstants.MenuFollowupWindowMs, owner, point, 0, generation))) MenuArmed(_log, e.X, e.Y);
             Enqueue(new CaptureJob(StepTrigger.Click, point, MouseButton.Right, MenuPopup: false, null, null, null, element, Broadcast: true, SkipOwnWindowGuard: false, generation));
             return;
@@ -233,6 +233,20 @@ public sealed partial class CaptureEngine
         }
     }
 
+    // focusedWindowBounds (2.4.2): the foreground window's bounds, off-screen or failed reads
+    // giving null.
+    private Rect? FocusedOwnerBounds()
+    {
+        try
+        {
+            return ForegroundRect(_windows.Foreground());
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     // nearMenuPoint (2.3.1): within 640 x 680 logical pixels, at the new click's monitor scale.
     private bool NearMenuPoint((int X, int Y) point, (int X, int Y) last)
     {
@@ -240,8 +254,19 @@ public sealed partial class CaptureEngine
         return WithinBox(point, last, CaptureConstants.MenuProximityX * scale, CaptureConstants.MenuProximityY * scale);
     }
 
-    // The scale factor of the monitor under the point, 1 off every monitor (2.3.1).
-    private double ScaleAt((int X, int Y) point) => _screen.FromPoint(point.X, point.Y)?.ScaleFactor is double f && f > 0 ? f : 1;
+    // The scale factor of the monitor under the point (2.3.1): Electron's `?? 1`, so 1 off every
+    // monitor or when the lookup throws, and a factor of 0 is kept (the click box's `|| 1` is 2.8.2's).
+    private double ScaleAt((int X, int Y) point)
+    {
+        try
+        {
+            return _screen.FromPoint(point.X, point.Y)?.ScaleFactor ?? 1;
+        }
+        catch (Exception)
+        {
+            return 1;
+        }
+    }
 
     private static bool WithinBox((int X, int Y) a, (int X, int Y) b, double maxX, double maxY) =>
         Math.Abs((long)a.X - b.X) <= maxX && Math.Abs((long)a.Y - b.Y) <= maxY;

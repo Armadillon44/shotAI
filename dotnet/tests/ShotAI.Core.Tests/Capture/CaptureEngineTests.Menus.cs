@@ -40,13 +40,14 @@ public sealed partial class CaptureEngineTests
 
     /// <summary>
     /// 2.3.1, AC-CAP-21: the 6 px are logical, so 8 px apart is a double-click at 150% and not at
-    /// 100%; a scale of 0 counts as 1; only left clicks collapse.
+    /// 100%; a factor of 0 is kept, as Electron's <c>?? 1</c> keeps it; only left clicks collapse.
     /// </summary>
     [Theory]
     [InlineData(1.0, MouseButton.Left, 8, 2)]
     [InlineData(1.5, MouseButton.Left, 8, 1)]
     [InlineData(1.5, MouseButton.Middle, 8, 2)]
-    [InlineData(0.0, MouseButton.Left, 5, 1)]
+    [InlineData(0.0, MouseButton.Left, 0, 1)]
+    [InlineData(0.0, MouseButton.Left, 1, 2)]
     public async Task DoubleClickDistanceScalesWithTheMonitor(double scale, MouseButton button, int dx, int steps)
     {
         await using var h = new EngineHarness();
@@ -224,13 +225,52 @@ public sealed partial class CaptureEngineTests
         if (!selection) Assert.Contains($"menu: disarmed \u2014 click at ({1000 + dx},{1000 + dy}) not a selection (too far from (1000,1000))", h.LogLines(LogLevel.Debug));
     }
 
-    /// <summary>2.3.1: the reach is logical pixels at the new click's monitor scale; a scale of 0 counts as 1.</summary>
+    /// <summary>2.3.1: a scale lookup that throws counts as 1, so the double-click and the reach still work.</summary>
+    [Fact]
+    public async Task AFailedScaleLookupCountsAsOne()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        await h.StartAsync(p);
+        h.Screen.FailLookups = true;
+        h.Triggers.Click(100, 100);
+        h.Clock.Advance(100);
+        h.Triggers.Click(106, 106); // 6 px at 1x: the second half of a double-click
+        h.Triggers.Click(400, 300, MouseButton.Right);
+        h.Triggers.Click(1040, 980); // 640 x 680 at 1x: a selection
+        h.Screen.FailLookups = false;
+        await h.SettleAsync();
+
+        Assert.Equal([(100, 100), (400, 300), (1040, 980)], h.Elements.Queries);
+        Assert.Contains("menu: selection at (1040,980) \u2014 NO frame available; the menu will probably be missing from this step", h.LogLines(LogLevel.Warning));
+    }
+
+    /// <summary>2.4.2: an owner read that throws arms without an owner, so the selection is framed by the box alone.</summary>
+    [Fact]
+    public async Task AFailedOwnerReadArmsWithoutAnOwner()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        await h.StartAsync(p);
+        h.Windows.FailForeground = true;
+        h.Triggers.Click(700, 500, MouseButton.Right);
+        await h.SettleAsync(); // its capture fails too, so no late fill either
+        h.Windows.FailForeground = false;
+        h.Windows.Current = FakeWindows.App("Notepad", "N", new Rect(100, 80, 1700, 950));
+        h.Triggers.Click(1200, 700);
+        await h.SettleAsync();
+
+        Assert.Equal("Select from context menu in Notepad", h.Landed[^1].Step.Caption);
+        Assert.Equal(new PixelRect(580, 80, 1240, 1000), h.Codec.Crops[^1]);
+    }
+
+    /// <summary>2.3.1: the reach is logical pixels at the new click's monitor scale; a factor of 0 is kept, as Electron's <c>?? 1</c> keeps it.</summary>
     [Theory]
     [InlineData(1.5, 960, 1020, true)]
     [InlineData(1.5, 961, 0, false)]
     [InlineData(1.5, 0, 1021, false)]
-    [InlineData(0.0, 640, 680, true)]
-    [InlineData(0.0, 641, 0, false)]
+    [InlineData(0.0, 0, 0, true)]
+    [InlineData(0.0, 1, 0, false)]
     public async Task ProximityScalesWithMonitorFactor(double scale, int dx, int dy, bool selection)
     {
         await using var h = new EngineHarness();

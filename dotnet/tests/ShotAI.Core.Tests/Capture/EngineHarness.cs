@@ -333,9 +333,12 @@ internal sealed class FakeWindows : IWindowInfoProvider
 {
     public ForegroundInfo? Current { get; set; }
 
+    /// <summary>When set, reading the foreground throws.</summary>
+    public bool FailForeground { get; set; }
+
     public List<ListedWindow> Listed { get; } = [];
 
-    public ForegroundInfo? Foreground() => Current;
+    public ForegroundInfo? Foreground() => FailForeground ? throw new InvalidOperationException("GetForegroundWindow failed") : Current;
 
     public IReadOnlyList<ListedWindow> ListWindows() => [.. Listed];
 
