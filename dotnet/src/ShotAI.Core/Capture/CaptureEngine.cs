@@ -18,7 +18,7 @@ namespace ShotAI.Core.Capture;
 /// lock through <see cref="EventRaiser"/>, <c>StepLanded</c> before <c>StateChanged</c>
 /// (INV-IPC-5). Stop and discard block new trigger input while they drain, but the queued
 /// captures still run against the live session (2.2.6); only <see cref="Teardown"/> stops them.
-/// WP-B3 adds the click decisions (double-click collapse, the menu arm and its poll).
+/// The mousedown decisions and the context-menu machinery are in <c>CaptureEngine.Menu.cs</c>.
 /// </remarks>
 public sealed partial class CaptureEngine : ICaptureService, IDisposable
 {
@@ -44,6 +44,9 @@ public sealed partial class CaptureEngine : ICaptureService, IDisposable
     private int _stopping;
     private bool _tornDown;
     private bool _lastGrabFailed;
+    private MenuArm? _menuArm;
+    private (long At, (int X, int Y) Point)? _lastLeftClick;
+    private Task? _lastPoll;
 
     /// <summary>An engine over its seams (spec 02 7.2); the worker starts at once and idles until a capture is queued.</summary>
     public CaptureEngine(
@@ -115,6 +118,7 @@ public sealed partial class CaptureEngine : ICaptureService, IDisposable
             _tornDown = true;
         }
         _triggers.Detach();
+        Disarm();
     }
 
     /// <summary>

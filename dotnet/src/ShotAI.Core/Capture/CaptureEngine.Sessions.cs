@@ -172,7 +172,7 @@ public sealed partial class CaptureEngine
             try
             {
                 await _clock.DelayAsync(CaptureConstants.HideSettleMs, ct).ConfigureAwait(false);
-                var job = new CaptureJob(StepTrigger.Hotkey, null, MouseButton.Left, at, null, Broadcast: false, SkipOwnWindowGuard: true, session.Generation);
+                var job = new CaptureJob(StepTrigger.Hotkey, null, MouseButton.Left, MenuPopup: false, null, null, at, null, Broadcast: false, SkipOwnWindowGuard: true, session.Generation);
                 if (await CaptureStepAsync(job).ConfigureAwait(false) is null) throw new CaptureException(CaptureMessages.ScreenNotCaptured);
             }
             finally
@@ -220,6 +220,7 @@ public sealed partial class CaptureEngine
             session = new CaptureSession(SessionKind.Recording, projectPath, opened.Dir, manifest.Title, target, count, counter, options.CreatedThisSession, cursor, ++_generation);
             _session = session;
             _lastGrabFailed = false;
+            _lastLeftClick = null; // Q-CAP-20: a click of the last session never collapses into this one's
         }
         try
         {
@@ -262,6 +263,7 @@ public sealed partial class CaptureEngine
         try
         {
             _triggers.Detach();
+            Disarm();
             await DrainAsync().ConfigureAwait(false);
         }
         finally
@@ -289,26 +291,11 @@ public sealed partial class CaptureEngine
             if (_session is { } s) s.Paused = paused;
             state = StateOf(_session);
         }
+        Disarm();
         if (paused) RecordingPaused(_log);
         else RecordingResumed(_log);
         Raise(StateChanged, state, nameof(StateChanged));
         return state;
-    }
-
-    // The dispatcher's mousedown (2.3, 7.11): the own-window gate first (D1), then the element
-    // query (D2) and a plain capture. WP-B3 puts the double-click collapse and the menu arm
-    // between the two.
-    private void OnMouseDown(MouseDown e)
-    {
-        int generation;
-        lock (_gate)
-        {
-            if (_session is not { Kind: SessionKind.Recording, Paused: false } s || _stopping > 0 || _tornDown) return;
-            generation = s.Generation;
-        }
-        if (_own.PointHitsOwnWindow(e.X, e.Y)) return;
-        var element = _elements.ElementAtAsync(e.X, e.Y);
-        Enqueue(new CaptureJob(StepTrigger.Click, (e.X, e.Y), e.Button, null, element, Broadcast: true, SkipOwnWindowGuard: false, generation));
     }
 
     // The hotkey (2.5): a capture of the foreground window, with no point.
@@ -320,7 +307,7 @@ public sealed partial class CaptureEngine
             if (_session is not { Kind: SessionKind.Recording, Paused: false } s || _stopping > 0 || _tornDown) return;
             generation = s.Generation;
         }
-        Enqueue(new CaptureJob(StepTrigger.Hotkey, null, MouseButton.Left, null, null, Broadcast: true, SkipOwnWindowGuard: false, generation));
+        Enqueue(new CaptureJob(StepTrigger.Hotkey, null, MouseButton.Left, MenuPopup: false, null, null, null, null, Broadcast: true, SkipOwnWindowGuard: false, generation));
     }
 
     // shots/ is confined and never a link (D10, INV-CAP-23): checked, created, then checked

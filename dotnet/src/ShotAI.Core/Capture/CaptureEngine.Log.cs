@@ -82,4 +82,37 @@ public sealed partial class CaptureEngine
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "capture worker did not stop within 5 s")]
     private static partial void WorkerDidNotStop(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "double-click: ignoring 2nd click at ({X},{Y})")]
+    private static partial void DoubleClickIgnored(ILogger logger, int x, int y);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "menu: armed by right-click at ({X},{Y})")]
+    private static partial void MenuArmed(ILogger logger, int x, int y);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "menu: selection at ({X},{Y}) \u2014 using polled frame")]
+    private static partial void MenuSelectionPolled(ILogger logger, int x, int y);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "menu: selection at ({X},{Y}) \u2014 no polled frame yet, using click-time grab")]
+    private static partial void MenuSelectionGrabbed(ILogger logger, int x, int y);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "menu: selection at ({X},{Y}) \u2014 NO frame available; the menu will probably be missing from this step")]
+    private static partial void MenuSelectionWithoutFrame(ILogger logger, int x, int y);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "menu: chain limit ({Limit}) reached \u2014 disarming")]
+    private static partial void MenuChainLimit(ILogger logger, int limit);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "menu: disarmed \u2014 click at ({X},{Y}) not a selection ({Reason})")]
+    private static partial void MenuDisarmed(ILogger logger, int x, int y, string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "menu poll capture failed:")]
+    private static partial void MenuPollFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "synchronous menu grab failed:")]
+    private static partial void SyncMenuGrabFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "menu-popup capture failed:")]
+    private static partial void MenuPopupCaptureFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "menu-popup crop failed:")]
+    private static partial void MenuPopupCropFailed(ILogger logger, Exception exception);
 }
