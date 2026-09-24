@@ -1,13 +1,16 @@
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
+using ShotAI.Core.Threading;
 
 namespace ShotAI.Platform.Capture;
 
 /// <summary>
 /// The set of shotAI's own top-level windows (spec 02 7.9): what the shield excludes from
 /// capture and what the hit test skips. This is the registration surface, public because the
-/// App's window base and popup handlers call it (INV-SHELL-1); the query side, <c>IOwnWindows</c>,
-/// comes with the shield in WP-B5.
+/// App's window base and popup handlers call it (INV-SHELL-1). The Core seams over it are
+/// internal: <see cref="DisplayAffinityProtection"/> walks it for the shield, and
+/// <see cref="OwnWindows"/> is the hit test, since a public type may implement no Core seam
+/// (INV-ARCH-4).
 /// </summary>
 /// <remarks>
 /// Thread-safe. The set has its own lock, never held across a Win32 call (02 7.8 rule 1).
@@ -29,10 +32,18 @@ public sealed class OwnWindowRegistry
     }
 
     /// <summary>
-    /// Excludes a window from capture, then adds it. The exclusion comes first and takes no
-    /// other lock, so the window is protected before anything could relax it (fail closed,
-    /// INV-SHELL-2). A window already in the set is left as it is: its exclusion may since have
-    /// been relaxed on purpose.
+    /// Raised on the registering thread after a window joined the set, already excluded; the
+    /// shield reconciles it with the setting on the pool (7.8 rule 1). A throwing handler is
+    /// logged and cannot fail the registration.
+    /// </summary>
+    internal event EventHandler<nint>? Added;
+
+    /// <summary>
+    /// Excludes a window from capture, then adds it, then announces it. The exclusion comes
+    /// first and takes no other lock, so the window is protected before anything could relax it
+    /// (fail closed, INV-SHELL-2); the shield relaxes it later, on the pool, when the setting
+    /// allows and no grab holds the shield. A window already in the set is left as it is: its
+    /// exclusion may since have been relaxed on purpose.
     /// </summary>
     /// <param name="hwnd">A top-level window of this process that has not been shown yet.</param>
     /// <returns>Whether the window was added.</returns>
@@ -45,10 +56,13 @@ public sealed class OwnWindowRegistry
             if (_windows.Contains(hwnd)) return false;
         }
         if (!CaptureExclusion.Apply(hwnd, excluded: true)) ExclusionRefused(_log, hwnd, Marshal.GetLastPInvokeError(), null);
+        bool added;
         lock (_gate)
         {
-            return _windows.Add(hwnd);
+            added = _windows.Add(hwnd);
         }
+        if (added) EventRaiser.Raise(Added, this, hwnd, _log, nameof(Added));
+        return added;
     }
 
     /// <summary>Removes a window, when it is closed or destroyed.</summary>
@@ -70,7 +84,7 @@ public sealed class OwnWindowRegistry
         }
     }
 
-    /// <summary>The windows now in the set, for the shield's walk (WP-B5).</summary>
+    /// <summary>The windows now in the set, for the shield's walk and the hit test.</summary>
     internal nint[] Snapshot()
     {
         lock (_gate)

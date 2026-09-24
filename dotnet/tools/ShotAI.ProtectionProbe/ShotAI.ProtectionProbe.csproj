@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The protection probe (docs/native/spec/02-capture.md 2.16 and 8.4, AC-CAP-13, Q-CAP-15): a
+    port of scripts/protection-probe.cjs that measures how soon display affinity takes a WPF
+    window, normal and AllowsTransparency, out of a GDI screen read and puts it back, set from the
+    window's own thread and from a worker. A diagnostic run by hand on an interactive desktop: not
+    shipped and not run in CI. It reads raw pixels itself, which the capture funnel's source test
+    allows for this folder alone.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(ShotAIWindowsTfm)</TargetFramework>
+    <SupportedOSPlatformVersion>$(ShotAIMinWindows)</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>ShotAI.ProtectionProbe</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Per-Monitor V2, as the app runs, so the read is in physical pixels (spec 02 INV-CAP-26). -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <!-- A WPF project's implicit usings leave System.IO out. -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ShotAI.Platform\ShotAI.Platform.csproj" />
+  </ItemGroup>
+</Project>

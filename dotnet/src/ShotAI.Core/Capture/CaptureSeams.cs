@@ -27,7 +27,7 @@ public interface IMonitorCapture
     /// <summary>The monitors, enumerated afresh on every call (displays change mid-session).</summary>
     IReadOnlyList<MonitorDescriptor> Monitors();
 
-    /// <summary>The monitor's pixels, read synchronously.</summary>
+    /// <summary>The monitor's pixels, read synchronously; the caller disposes the frame (D24).</summary>
     PixelFrame Capture(MonitorDescriptor monitor);
 }
 
@@ -43,7 +43,7 @@ public interface IScreenCapture
     /// <summary>The monitor that holds the point, by a half-open test, or null off every monitor.</summary>
     MonitorDescriptor? FromPoint(int x, int y);
 
-    /// <summary>The monitor's pixels, with shotAI's windows excluded for exactly the read.</summary>
+    /// <summary>The monitor's pixels, with shotAI's windows excluded for exactly the read; the caller disposes the frame (D24).</summary>
     PixelFrame Grab(MonitorDescriptor monitor);
 }
 
@@ -88,9 +88,22 @@ public interface IWindowProtection
 {
     /// <summary>Excludes every live own window from screen capture, or lets it be captured; destroyed windows are skipped.</summary>
     void SetAllExcluded(bool excluded);
+
+    /// <summary>The same for one own window; a window that is gone or no longer registered is skipped.</summary>
+    void SetExcluded(nint hwnd, bool excluded);
+
+    /// <summary>
+    /// Raised on the registering thread, which may be the UI thread, after a window joined the set
+    /// already excluded (7.8 rule 1). A handler must not take a lock a capture thread holds across
+    /// a Win32 call there, so the shield's handler only posts its reconcile to the thread pool.
+    /// </summary>
+    event EventHandler<nint>? WindowAdded;
 }
 
-/// <summary>The image work of a capture (spec 02 7.12, Platform's <c>WicImageCodec</c>).</summary>
+/// <summary>
+/// The image work of a capture (spec 02 7.12, Platform's <c>WicImageCodec</c>). It never disposes
+/// a frame it is given, and each frame it returns is new, for the caller to dispose (D24).
+/// </summary>
 public interface IImageCodec
 {
     /// <summary>A copy of the rectangle of <paramref name="frame"/>.</summary>

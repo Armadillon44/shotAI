@@ -37,7 +37,8 @@ public static class DownscalePolicy
     /// <summary>
     /// The shot as stored: resized by <see cref="Compute"/> and encoded, with the width ratio
     /// actually applied. If the resize or its encode throws or yields no bytes, the frame as
-    /// grabbed is encoded at scale 1 instead; a failure of that encode is the capture's own.
+    /// grabbed is encoded at scale 1 instead; a failure of that encode is the capture's own. The
+    /// resized frame is disposed here; <paramref name="frame"/> stays the caller's.
     /// </summary>
     public static EncodedShot Encode(PixelFrame frame, double captureScale, IImageCodec codec)
     {
@@ -47,7 +48,7 @@ public static class DownscalePolicy
         {
             try
             {
-                var resized = codec.Resize(frame, target.Width, target.Height);
+                using var resized = codec.Resize(frame, target.Width, target.Height);
                 var png = codec.EncodePng(resized);
                 if (png.Length > 0) return new EncodedShot(png, resized.Width, resized.Height, (double)resized.Width / frame.Width);
             }

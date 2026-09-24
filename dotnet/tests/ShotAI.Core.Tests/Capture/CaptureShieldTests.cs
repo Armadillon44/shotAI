@@ -239,6 +239,114 @@ public sealed class CaptureShieldTests
         for (var i = 0; i < history.Count; i++) Assert.Equal(i % 2 == 0, history[i]);
     }
 
+    /// <summary>The shield hears of every window that joins the set (7.8 rule 1).</summary>
+    [Fact]
+    public void TheShieldListensForNewWindows()
+    {
+        NewShield();
+        Assert.Equal(1, _protection.Subscribers);
+    }
+
+    /// <summary>
+    /// 7.8 rule 1: a window joins already excluded; with remote visibility applied and no grab
+    /// in progress, the reconcile lets it be captured.
+    /// </summary>
+    [Fact]
+    public async Task ANewWindowIsRelaxedWhenTheSettingAllows()
+    {
+        _settings.RemoteVisible = true;
+        var shield = NewShield();
+        shield.ApplyRemoteVisibility(true);
+        var w = _protection.Register();
+
+        await CaptureEngineTests.UntilAsync(() => _protection.Single.Count == 1);
+        Assert.Equal([(w.Hwnd, false)], _protection.Single);
+        Assert.Equal([false], w.Calls);
+    }
+
+    /// <summary>Before the setting is first applied the restore value is excluded, so a new window stays excluded (fail closed).</summary>
+    [Fact]
+    public async Task ANewWindowStaysExcludedBeforeTheSettingIsApplied()
+    {
+        _settings.RemoteVisible = true;
+        NewShield();
+        var w = _protection.Register();
+
+        await CaptureEngineTests.UntilAsync(() => _protection.Single.Count == 1);
+        Assert.Equal([(w.Hwnd, true)], _protection.Single);
+    }
+
+    /// <summary>A reconcile while a grab holds the shield changes nothing; the grab's release covers the new window.</summary>
+    [Fact]
+    public void AReconcileDuringAGrabWaitsForTheRelease()
+    {
+        _settings.RemoteVisible = true;
+        var shield = NewShield();
+        shield.ApplyRemoteVisibility(true);
+        var release = shield.Take();
+        var w = _protection.Add();
+        shield.Reconcile(w.Hwnd);
+        Assert.Empty(_protection.Single);
+
+        release.Dispose();
+        Assert.Equal([false], w.Calls);
+    }
+
+    /// <summary>
+    /// DL1, INV-CAP-29: the registering thread (the UI thread in the app) never waits for the
+    /// shield's lock. While a take holds it across a slow exclude, a registration returns at once;
+    /// its reconcile runs on the pool after the lock is free, and the take's release covers it.
+    /// </summary>
+    [Fact]
+    public async Task RegisteringNeverWaitsForTheShieldsLock()
+    {
+        _settings.RemoteVisible = true;
+        var shield = NewShield();
+        shield.ApplyRemoteVisibility(true);
+        using var inside = new ManualResetEventSlim();
+        using var proceed = new ManualResetEventSlim();
+        _protection.OnSetAll = excluded =>
+        {
+            if (!excluded) return;
+            inside.Set();
+            proceed.Wait(EngineHarness.Timeout);
+        };
+        var take = Task.Run(shield.Take, TestContext.Current.CancellationToken);
+        Assert.True(inside.Wait(EngineHarness.Timeout, TestContext.Current.CancellationToken));
+
+        // The registration returns while the take still holds the lock.
+        var w = await Task.Run(_protection.Register, TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        Assert.False(take.IsCompleted);
+        Assert.Empty(_protection.Single);
+
+        _protection.OnSetAll = null;
+        proceed.Set();
+        var release = await take.Bounded();
+        release.Dispose();
+        Assert.False(w.Calls[^1]);
+    }
+
+    /// <summary>The reconcile runs on a pool thread, never on the thread that registered.</summary>
+    [Fact]
+    public async Task TheReconcileRunsOnThePool()
+    {
+        NewShield();
+        int? thread = null;
+        var pool = false;
+        _protection.OnSetExcluded = (_, _) =>
+        {
+            pool = Thread.CurrentThread.IsThreadPoolThread;
+            thread = Environment.CurrentManagedThreadId;
+        };
+        var registering = new Thread(() => _protection.Register());
+        registering.Start();
+        registering.Join();
+
+        await CaptureEngineTests.UntilAsync(() => thread is not null);
+        Assert.True(pool);
+        Assert.NotEqual(registering.ManagedThreadId, thread);
+    }
+
     [Fact]
     public void ArgumentsAreChecked()
     {

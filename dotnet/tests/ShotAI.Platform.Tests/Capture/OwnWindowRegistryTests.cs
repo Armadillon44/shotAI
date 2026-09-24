@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using ShotAI.Core.Capture;
 using ShotAI.Platform.Capture;
 using ShotAI.Platform.Tests.Support;
 using Xunit;
@@ -77,6 +78,85 @@ public sealed class OwnWindowRegistryTests
         var (level, message) = Assert.Single(log.Entries);
         Assert.Equal(LogLevel.Warning, level);
         Assert.StartsWith($"own window 0x{desktop:x}: capture exclusion refused (Win32 error ", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A window that joins is announced once, on the registering thread; a second registration announces nothing.</summary>
+    [Fact]
+    public void ARegistrationIsAnnounced()
+    {
+        var registry = new OwnWindowRegistry(new ListLogger<OwnWindowRegistry>());
+        var heard = new List<(nint Hwnd, int Thread, uint? Affinity)>();
+        registry.Added += (_, hwnd) => heard.Add((hwnd, Environment.CurrentManagedThreadId, User32.Affinity(hwnd)));
+        using var w = TestWindow.Popup();
+
+        registry.Register(w.Handle);
+        registry.Register(w.Handle);
+
+        // Announced already excluded (7.8 rule 1), from the thread that registered.
+        Assert.Equal([(w.Handle, Environment.CurrentManagedThreadId, User32.WdaExcludeFromCapture)], heard);
+    }
+
+    /// <summary>A throwing listener is logged and cannot fail the registration of the window.</summary>
+    [Fact]
+    public void AThrowingListenerCannotFailTheRegistration()
+    {
+        var log = new ListLogger<OwnWindowRegistry>();
+        var registry = new OwnWindowRegistry(log);
+        registry.Added += (_, _) => throw new InvalidOperationException("listener failed");
+        using var w = TestWindow.Popup();
+
+        Assert.True(registry.Register(w.Handle));
+        Assert.True(registry.IsRegistered(w.Handle));
+        Assert.Contains(log.Entries, e => e.Level == LogLevel.Warning && e.Message == "event handler failed: Added");
+    }
+
+    /// <summary>
+    /// The registry's half of INV-CAP-7 with the real shield: a window registered while a grab
+    /// holds the shield stays excluded, even with remote visibility on, until the release.
+    /// </summary>
+    [Fact]
+    public async Task RegisterWhileShieldHeldStartsExcluded()
+    {
+        var (registry, shield) = Shielded(remoteVisible: true);
+        shield.ApplyRemoteVisibility(true);
+        using var w = TestWindow.Popup();
+        var release = shield.Take();
+
+        registry.Register(w.Handle);
+        await Task.Delay(300, TestContext.Current.CancellationToken); // time for the reconcile, which must change nothing
+        Assert.Equal(User32.WdaExcludeFromCapture, User32.Affinity(w.Handle));
+
+        release.Dispose();
+        Assert.Equal(User32.WdaNone, User32.Affinity(w.Handle));
+    }
+
+    /// <summary>
+    /// INV-CAP-7, 7.8 rule 1: a new window starts excluded and is then relaxed on the pool when
+    /// the setting allows; while it does not, the window stays excluded.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RegisterSeedsFromSetting(bool remoteVisible)
+    {
+        var (registry, shield) = Shielded(remoteVisible);
+        shield.ApplyRemoteVisibility(remoteVisible);
+        using var w = TestWindow.Popup();
+
+        registry.Register(w.Handle);
+        var expected = remoteVisible ? User32.WdaNone : User32.WdaExcludeFromCapture;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (User32.Affinity(w.Handle) != expected && DateTime.UtcNow < deadline) await Task.Delay(20, TestContext.Current.CancellationToken);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, User32.Affinity(w.Handle));
+    }
+
+    private static (OwnWindowRegistry Registry, CaptureShield Shield) Shielded(bool remoteVisible)
+    {
+        var registry = new OwnWindowRegistry(new ListLogger<OwnWindowRegistry>());
+        var protection = new DisplayAffinityProtection(registry, new ListLogger<DisplayAffinityProtection>());
+        return (registry, new CaptureShield(protection, new FixedCaptureSettings(remoteVisible)));
     }
 
     [Fact]

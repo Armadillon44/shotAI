@@ -243,6 +243,7 @@ internal sealed class FakeTriggerSource : ITriggerSource
 internal sealed class FakeScreen : IScreenCapture
 {
     private readonly List<MonitorDescriptor> _grabs = [];
+    private readonly List<PixelFrame> _frames = [];
 
     public List<MonitorDescriptor> Displays { get; } = [];
 
@@ -260,6 +261,15 @@ internal sealed class FakeScreen : IScreenCapture
         }
     }
 
+    /// <summary>Every frame a grab returned, in the order returned, to check who disposed what (D24).</summary>
+    public IReadOnlyList<PixelFrame> Frames
+    {
+        get
+        {
+            lock (_grabs) return [.. _frames];
+        }
+    }
+
     /// <summary>When set, the monitor lookups throw.</summary>
     public bool FailLookups { get; set; }
 
@@ -274,7 +284,9 @@ internal sealed class FakeScreen : IScreenCapture
         lock (_grabs) _grabs.Add(monitor);
         OnGrab?.Invoke(monitor);
         if (Failing.Contains(monitor.Id)) throw new InvalidOperationException("BitBlt failed");
-        return FakeCodec.Frame((int)monitor.Bounds.Width, (int)monitor.Bounds.Height);
+        var frame = FakeCodec.Frame((int)monitor.Bounds.Width, (int)monitor.Bounds.Height);
+        lock (_grabs) _frames.Add(frame);
+        return frame;
     }
 }
 
@@ -282,12 +294,32 @@ internal sealed class FakeScreen : IScreenCapture
 internal sealed class FakeCodec : IImageCodec
 {
     private readonly List<PixelRect> _crops = [];
+    private readonly List<PixelFrame> _made = [];
+    private readonly List<bool> _encodedLive = [];
 
     public IReadOnlyList<PixelRect> Crops
     {
         get
         {
             lock (_crops) return [.. _crops];
+        }
+    }
+
+    /// <summary>Every frame a crop or a resize returned, in order.</summary>
+    public IReadOnlyList<PixelFrame> Made
+    {
+        get
+        {
+            lock (_crops) return [.. _made];
+        }
+    }
+
+    /// <summary>Whether each frame given to an encode was still live then, in order.</summary>
+    public IReadOnlyList<bool> EncodedLive
+    {
+        get
+        {
+            lock (_crops) return [.. _encodedLive];
         }
     }
 
@@ -300,23 +332,38 @@ internal sealed class FakeCodec : IImageCodec
     public PixelFrame Crop(PixelFrame frame, int x, int y, int width, int height)
     {
         if (FailCrops) throw new InvalidOperationException("crop failed");
-        lock (_crops) _crops.Add(new PixelRect(x, y, width, height));
-        return Frame(width, height);
+        Assert.False(frame.IsDisposed, "a disposed frame was cropped");
+        return Record(Frame(width, height), new PixelRect(x, y, width, height));
     }
 
     /// <summary>When larger than the fake PNG, the PNG is padded to this many bytes (for the log's size).</summary>
     public int PngBytes { get; set; }
 
-    public PixelFrame Resize(PixelFrame frame, int width, int height) => Frame(width, height);
+    public PixelFrame Resize(PixelFrame frame, int width, int height)
+    {
+        Assert.False(frame.IsDisposed, "a disposed frame was resized");
+        return Record(Frame(width, height), null);
+    }
 
     /// <summary>Runs at the start of every encode (to move the clock).</summary>
     public Action? OnEncode { get; set; }
 
     public byte[] EncodePng(PixelFrame frame)
     {
+        lock (_crops) _encodedLive.Add(!frame.IsDisposed);
         OnEncode?.Invoke();
         var png = FakePng.Of(frame.Width, frame.Height);
         return PngBytes > png.Length ? [.. png, .. new byte[PngBytes - png.Length]] : png;
+    }
+
+    private PixelFrame Record(PixelFrame frame, PixelRect? crop)
+    {
+        lock (_crops)
+        {
+            if (crop is { } c) _crops.Add(c);
+            _made.Add(frame);
+        }
+        return frame;
     }
 }
 

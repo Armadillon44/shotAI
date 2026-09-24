@@ -83,6 +83,24 @@ public sealed class AddShotAICoreTests
         }
     }
 
+    /// <summary>
+    /// One shield for the whole app, and the engine's screen capture is the shielded funnel, never
+    /// the raw read (spec 02 7.7, 7.8, INV-CAP-1).
+    /// </summary>
+    [Fact]
+    public void RegistersTheShieldAndTheFunnel()
+    {
+        var services = new ServiceCollection().AddShotAICore();
+
+        var shield = Assert.Single(services, d => d.ServiceType == typeof(CaptureShield));
+        Assert.Equal(ServiceLifetime.Singleton, shield.Lifetime);
+        Assert.Equal(typeof(CaptureShield), shield.ImplementationType);
+        var funnel = Assert.Single(services, d => d.ServiceType == typeof(IScreenCapture));
+        Assert.Equal(ServiceLifetime.Singleton, funnel.Lifetime);
+        Assert.Equal(typeof(ShieldedScreenCapture), funnel.ImplementationType);
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(IMonitorCapture));
+    }
+
     private sealed class OneServiceProvider(Type type, object instance) : IServiceProvider
     {
         public object? GetService(Type serviceType) => serviceType == type ? instance : null;

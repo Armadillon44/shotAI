@@ -92,10 +92,12 @@ public sealed partial class CaptureEngine
 
     // Installs an arm and starts its poll, replacing any earlier arm. An arm whose session has
     // ended, paused or started stopping in the meantime is dropped, so no arm outlives its
-    // recording or lives in a paused one.
+    // recording or lives in a paused one. The replaced arm's frame is taken under the lock, so
+    // no selection can take it too, and disposed after it (7.7).
     private bool Arm(MenuArm arm)
     {
         MenuArm? replaced;
+        MonitorFrame? frame;
         lock (_gate)
         {
             if (_session is not { Kind: SessionKind.Recording, Paused: false } s || s.Generation != arm.Generation || _stopping > 0 || _tornDown)
@@ -107,24 +109,37 @@ public sealed partial class CaptureEngine
                 replaced = _menuArm;
                 _menuArm = arm;
             }
+            frame = TakeFrame(replaced);
         }
         replaced?.Dispose();
+        frame?.Frame.Dispose();
         if (ReferenceEquals(replaced, arm)) return false;
         var poll = PollAsync(arm);
         lock (_gate) _lastPoll = poll;
         return true;
     }
 
-    // disarmMenu: the arm goes, and its poll with it.
+    // disarmMenu: the arm goes, and its poll and its frame with it.
     private void Disarm()
     {
         MenuArm? arm;
+        MonitorFrame? frame;
         lock (_gate)
         {
             arm = _menuArm;
             _menuArm = null;
+            frame = TakeFrame(arm);
         }
         arm?.Dispose();
+        frame?.Frame.Dispose();
+    }
+
+    // The arm's frame, which the arm no longer holds; under the lock.
+    private static MonitorFrame? TakeFrame(MenuArm? arm)
+    {
+        var frame = arm?.Frame;
+        if (arm is not null) arm.Frame = null;
+        return frame;
     }
 
     /// <summary>The poll of the latest arm, for the tests.</summary>
@@ -192,16 +207,27 @@ public sealed partial class CaptureEngine
         }
     }
 
-    // One poll grab: the frame lands only on the arm that asked for it (INV-CAP-19).
+    // One poll grab: the frame lands only on the arm that asked for it (INV-CAP-19). The frame
+    // it replaces, or the frame itself when its arm is gone, is disposed outside the lock (7.7).
     private async Task PollGrabAsync(MenuArm arm, MonitorDescriptor monitor)
     {
         try
         {
             var frame = await Task.Run(() => _screen.Grab(monitor), arm.Token).ConfigureAwait(false);
+            PixelFrame? drop;
             lock (_gate)
             {
-                if (ReferenceEquals(_menuArm, arm)) arm.Frame = new MonitorFrame(frame, monitor);
+                if (ReferenceEquals(_menuArm, arm))
+                {
+                    drop = arm.Frame?.Frame;
+                    arm.Frame = new MonitorFrame(frame, monitor);
+                }
+                else
+                {
+                    drop = frame;
+                }
             }
+            drop?.Dispose();
         }
         catch (OperationCanceledException)
         {

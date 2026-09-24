@@ -11,6 +11,9 @@ internal sealed class FakeOwnWindow
 
     /// <summary>A destroyed window is skipped, as Platform's protection skips a dead HWND.</summary>
     public bool Destroyed { get; set; }
+
+    /// <summary>A made-up handle, unique in its protection.</summary>
+    public nint Hwnd { get; init; }
 }
 
 /// <summary>
@@ -23,7 +26,9 @@ internal sealed class FakeWindowProtection : IWindowProtection
     private readonly object _lock = new();
     private readonly List<FakeOwnWindow> _windows = [];
     private readonly List<bool> _history = [];
+    private readonly List<(nint Hwnd, bool Excluded)> _single = [];
     private bool? _excluded;
+    private nint _next = 0x1000;
 
     /// <summary>
     /// Spin iterations to wait before a relax (a false) takes effect, outside the fake's lock: a
@@ -32,14 +37,44 @@ internal sealed class FakeWindowProtection : IWindowProtection
     /// </summary>
     public int SpinBeforeRelax { get; set; }
 
+    /// <summary>Raised by <see cref="Register"/> on the thread that calls it, as Platform's registry raises it.</summary>
+    public event EventHandler<nint>? WindowAdded;
+
+    /// <summary>Runs inside each <see cref="SetExcluded"/>, before it records (to block it or to note its thread).</summary>
+    public Action<nint, bool>? OnSetExcluded { get; set; }
+
+    /// <summary>Runs inside each <see cref="SetAllExcluded"/>, before it records (to block it).</summary>
+    public Action<bool>? OnSetAll { get; set; }
+
     /// <summary>A new live window.</summary>
     public FakeOwnWindow Add()
     {
         lock (_lock)
         {
-            var w = new FakeOwnWindow();
+            _next += 4;
+            var w = new FakeOwnWindow { Hwnd = _next };
             _windows.Add(w);
             return w;
+        }
+    }
+
+    /// <summary>A new window, added as the registry adds one: already excluded, then announced on this thread.</summary>
+    public FakeOwnWindow Register()
+    {
+        var w = Add();
+        WindowAdded?.Invoke(this, w.Hwnd);
+        return w;
+    }
+
+    /// <summary>The handlers of <see cref="WindowAdded"/>.</summary>
+    public int Subscribers => WindowAdded?.GetInvocationList().Length ?? 0;
+
+    /// <summary>Every <see cref="SetExcluded"/> call, in order.</summary>
+    public IReadOnlyList<(nint Hwnd, bool Excluded)> Single
+    {
+        get
+        {
+            lock (_lock) return [.. _single];
         }
     }
 
@@ -63,6 +98,7 @@ internal sealed class FakeWindowProtection : IWindowProtection
 
     public void SetAllExcluded(bool excluded)
     {
+        OnSetAll?.Invoke(excluded);
         if (!excluded && SpinBeforeRelax > 0) Thread.SpinWait(SpinBeforeRelax);
         lock (_lock)
         {
@@ -72,6 +108,16 @@ internal sealed class FakeWindowProtection : IWindowProtection
             {
                 if (!w.Destroyed) w.Calls.Add(excluded);
             }
+        }
+    }
+
+    public void SetExcluded(nint hwnd, bool excluded)
+    {
+        OnSetExcluded?.Invoke(hwnd, excluded);
+        lock (_lock)
+        {
+            _single.Add((hwnd, excluded));
+            if (_windows.Find(w => w.Hwnd == hwnd) is { Destroyed: false } window) window.Calls.Add(excluded);
         }
     }
 }

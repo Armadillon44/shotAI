@@ -106,5 +106,14 @@ jobs:
         run: dotnet run --project tools/ShotAI.GenBrand -c Release --no-restore -- --check
       - name: Build
         run: dotnet build ShotAI.slnx -c Release --no-restore
+      # The windows-11-arm image opens a full-screen "Microsoft account" prompt (WWAHost, a
+      # CoreWindow above every desktop window, topmost ones included), so the capture tests' own
+      # windows never reach the screen they read (docs/native/spec/02-capture.md 8.4, found in
+      # WP-B5). Nothing in the job needs it; it is closed before the tests, and named in the log.
+      - name: Clear the desktop for the capture tests
+        run: |
+          $prompts = @(Get-Process WWAHost -ErrorAction SilentlyContinue)
+          foreach ($p in $prompts) { Write-Host "stopping $($p.ProcessName) $($p.Id): '$($p.MainWindowTitle)'" }
+          $prompts | Stop-Process -Force
       - name: Test
         run: dotnet test --solution ShotAI.slnx -c Release --no-build

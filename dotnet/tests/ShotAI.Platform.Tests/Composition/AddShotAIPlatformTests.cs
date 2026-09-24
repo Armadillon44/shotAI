@@ -18,6 +18,10 @@ public sealed class AddShotAIPlatformTests
     [InlineData(typeof(IRenameRetryClassifier), typeof(WindowsRenameRetryClassifier))]
     [InlineData(typeof(IImageSizeProbe), typeof(WicImageSizeProbe))]
     [InlineData(typeof(ITriggerSource), typeof(Win32TriggerSource))]
+    [InlineData(typeof(IMonitorCapture), typeof(GdiMonitorCapture))]
+    [InlineData(typeof(IWindowProtection), typeof(DisplayAffinityProtection))]
+    [InlineData(typeof(IOwnWindows), typeof(OwnWindows))]
+    [InlineData(typeof(IImageCodec), typeof(WicImageCodec))]
     public void RegistersTheSeams(Type service, Type implementation)
     {
         var descriptor = Assert.Single(new ServiceCollection().AddShotAIPlatform(), d => d.ServiceType == service);

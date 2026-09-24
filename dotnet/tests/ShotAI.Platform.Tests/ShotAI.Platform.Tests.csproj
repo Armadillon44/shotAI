@@ -15,7 +15,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Per-Monitor V2, as the app runs (spec 02 INV-CAP-26); see Support/InputHookCollection.cs. -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The capture tests show WPF windows, normal and layered, as the app's pill and overlay are (spec 02 8.4). -->
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
+  <!-- A WPF project's implicit usings leave System.IO out. -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
   </ItemGroup>

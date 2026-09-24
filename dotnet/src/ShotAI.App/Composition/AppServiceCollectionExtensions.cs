@@ -68,9 +68,11 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<ReportViewModelFactory>();
         services.AddTransient<ProjectDetailViewModel>();
         services.AddTransient<ShellViewModel>();
+        services.AddSingleton<RemoteVisibilityApplier>();
         services.AddSingleton<ThemeManager>();
-        // Step 9 starts these in this order (ARCHITECTURE 4.3): RemoteVisibilityApplier (WP-B5)
-        // and RecordingVisibilityController (WP-B7) are registered before the theme manager.
+        // Step 9 starts these in this order (ARCHITECTURE 4.3): the remote-visibility applier, then
+        // RecordingVisibilityController (WP-B7), then the theme manager.
+        services.AddSingleton<IAppStartup>(sp => sp.GetRequiredService<RemoteVisibilityApplier>());
         services.AddSingleton<IAppStartup>(sp => sp.GetRequiredService<ThemeManager>());
         return services;
     }

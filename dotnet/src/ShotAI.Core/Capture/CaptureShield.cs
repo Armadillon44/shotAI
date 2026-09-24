@@ -16,7 +16,8 @@ namespace ShotAI.Core.Capture;
 /// is held waits for the final release (INV-CAP-3, INV-CAP-5). The protection is changed under
 /// the lock on purpose, so two overlapping takes never interleave a relax after an exclude. No
 /// UI-thread code may take the lock (INV-CAP-29): the setting reaches
-/// <see cref="ApplyRemoteVisibility"/> through the thread pool.
+/// <see cref="ApplyRemoteVisibility"/> through the thread pool, and a window registered on the
+/// UI thread is reconciled on the pool (7.8 rule 1).
 /// </remarks>
 public sealed class CaptureShield
 {
@@ -33,6 +34,7 @@ public sealed class CaptureShield
         ArgumentNullException.ThrowIfNull(settings);
         _protection = protection;
         _settings = settings;
+        _protection.WindowAdded += OnWindowAdded;
     }
 
     /// <summary>
@@ -88,6 +90,23 @@ public sealed class CaptureShield
             lock (_lock) return _depth;
         }
     }
+
+    /// <summary>
+    /// A window that joined the set, already excluded, gets what the setting says when no shield
+    /// is held; a held shield's last release covers it instead. Under the lock, so a grab's take
+    /// cannot land between the check and the change.
+    /// </summary>
+    internal void Reconcile(nint hwnd)
+    {
+        lock (_lock)
+        {
+            if (_depth == 0) _protection.SetExcluded(hwnd, _restore);
+        }
+    }
+
+    // 7.8 rule 1: raised on the registering thread, often the UI thread, so the reconcile goes to
+    // the pool, where waiting for the lock holds nothing up (DL1).
+    private void OnWindowAdded(object? sender, nint hwnd) => _ = Task.Run(() => Reconcile(hwnd));
 
     private void Release()
     {

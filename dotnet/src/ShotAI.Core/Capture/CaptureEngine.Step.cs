@@ -55,7 +55,16 @@ public sealed partial class CaptureEngine
         }
         var grabMs = _clock.NowMs() - grabStart;
         var downStart = _clock.NowMs();
-        var shot = DownscalePolicy.Encode(grabbed.Frame, _settings.CaptureScaleNow(), _codec);
+        EncodedShot shot;
+        try
+        {
+            shot = DownscalePolicy.Encode(grabbed.Frame, _settings.CaptureScaleNow(), _codec);
+        }
+        finally
+        {
+            // The PNG is all the step needs from here on: the pixels go back at once (7.7).
+            grabbed.Frame.Dispose();
+        }
         var downMs = _clock.NowMs() - downStart;
         if (grabMs + downMs > CaptureConstants.TimingLogThresholdMs) CaptureTiming(_log, grabMs, downMs);
 
@@ -209,6 +218,8 @@ public sealed partial class CaptureEngine
         }
         else
         {
+            // A pre-grab of a monitor the user did not pick is dropped now, not at the job's end.
+            job.PreGrab?.Frame.Dispose();
             if (monitor is null) return null;
             try
             {
@@ -233,9 +244,9 @@ public sealed partial class CaptureEngine
             region = baseRect;
         }
 
+        if (region is not { } r) return new Grabbed(full, monitor.Bounds.X, monitor.Bounds.Y, monitor);
         try
         {
-            if (region is not { } r) return new Grabbed(full, monitor.Bounds.X, monitor.Bounds.Y, monitor);
             var crop = CaptureGeometry.CropRect(monitor.Bounds, r);
             return new Grabbed(_codec.Crop(full, crop.X, crop.Y, crop.Width, crop.Height), monitor.Bounds.X + crop.X, monitor.Bounds.Y + crop.Y, monitor);
         }
@@ -244,11 +255,16 @@ public sealed partial class CaptureEngine
             MenuPopupCropFailed(_log, e);
             return null;
         }
+        finally
+        {
+            full.Dispose();
+        }
     }
 
+    // The monitor's frame is dropped once its crop is copied out (7.7).
     private Grabbed GrabCropped(MonitorDescriptor monitor, PixelRect crop)
     {
-        var frame = _screen.Grab(monitor);
+        using var frame = _screen.Grab(monitor);
         var cropped = _codec.Crop(frame, crop.X, crop.Y, crop.Width, crop.Height);
         return new Grabbed(cropped, monitor.Bounds.X + crop.X, monitor.Bounds.Y + crop.Y, monitor);
     }

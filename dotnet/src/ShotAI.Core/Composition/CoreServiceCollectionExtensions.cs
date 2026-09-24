@@ -21,7 +21,8 @@ public static class CoreServiceCollectionExtensions
     /// <see cref="ISettingsService"/>, <see cref="IProjectStoreSettings"/> (which
     /// <see cref="ProjectStore"/> needs) and <see cref="ICaptureSettings"/> to it (spec 10 7.4.3,
     /// 11 7.10). <see cref="ExternalLinks"/> needs an <see cref="IUrlLauncher"/>, which
-    /// <c>AddShotAIPlatform</c> registers (spec 10 7.7).
+    /// <c>AddShotAIPlatform</c> registers (spec 10 7.7). The capture shield and the shielded
+    /// screen funnel need Platform's window protection and raw monitor read (spec 02 7.7, 7.8).
     /// </remarks>
     public static IServiceCollection AddShotAICore(this IServiceCollection services)
     {
@@ -41,6 +42,9 @@ public static class CoreServiceCollectionExtensions
         // No federation configuration yet: the SupportUrl admits nothing until WP-D4 (spec 08 7.13).
         services.AddSingleton<ISupportUrlAllowlist, NoFederationSupportUrlAllowlist>();
         services.AddSingleton<IExternalLinks, ExternalLinks>();
+        // The one shield, which the funnel and the remote-visibility applier share (ARCHITECTURE 4.3).
+        services.AddSingleton<CaptureShield>();
+        services.AddSingleton<IScreenCapture, ShieldedScreenCapture>();
         return services;
     }
 }

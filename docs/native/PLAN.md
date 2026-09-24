@@ -628,12 +628,12 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 |---|---|
 | Goal | Pixels are read only through the shielded funnel; shotAI's windows, including layered ones, are proven absent from its captures before the pill and overlay are built |
 | Spec inputs | 02 2.7, 2.11, 7.7, 7.8, 7.9, 7.12, D24, INV-CAP-1 to INV-CAP-7, INV-CAP-25, INV-CAP-29, 8.4 (Platform rows and the probe); 03 2.7, INV-SHELL-2; 11 `RemoteVisibilityApplier`, INV-IPC-13, D-IPC-8; ARCHITECTURE 4.2 step 10, DL1, DL2; Q-CAP-11, Q-CAP-13, Q-CAP-14, Q-CAP-15, Q-CAP-16, Q-CAP-18, Q-CAP-21, Q-CAP-22, Q-ARCH-6 |
-| Deliverables | Platform `GdiMonitorCapture : IMonitorCapture` (`internal sealed`, `BitBlt` with `SRCCOPY \| CAPTUREBLT`, alpha forced to 255, pooled buffers), `DisplayAffinityProtection : IWindowProtection` (over the existing `CaptureExclusion.Apply`), `OwnWindowRegistry : IOwnWindows` (query side), `WicImageCodec : IImageCodec`, which uses WP-A13's `WicFactory` (crop, Fant resize, PNG RGBA encode), the remaining 02 7.14 `NativeMethods.txt` entries for capture and WIC; `dotnet/tools/ShotAI.ProtectionProbe` (port of `scripts/protection-probe.cjs` with the same delays, repetitions, tolerance and verdict text, for a normal and an `AllowsTransparency` window; not shipped, not in CI); App `RemoteVisibilityApplier : IAppStartup`, which applies `CaptureShield.ApplyRemoteVisibility` through `Task.Run` with a serialized latest-wins loop and never on the UI thread (DL1, 11 7.3.6, 02 7.8), and startup step 10 (protected first, relaxed after the setting loads) |
-| Tests | No Electron file. New: Platform `GdiMonitorCaptureTests` (`FrameMatchesMonitorSize`, `AlphaIsOpaque`, `ExcludedWindowContributesZeroPixels`, `LayeredWindowAcceptsAffinity`), `ShieldDeadlockTests`, `DisplayAffinityProtectionTests.SkipsDestroyedHwnd`, `WicImageCodecTests`; App `StartupOrderTests.WindowsExcludedBeforeSettingApplied`, `Settings/RemoteVisibilityApplierTests` (including that the apply call runs off the UI thread); Core `Capture/MenuPollTests.StaleFrameIsDisposed` (moved from WP-B3: once frames are disposable, the frame an arm replaces and a frame that lands for a replaced arm are disposed, 02 7.7) |
-| Acceptance criteria | AC-CAP-13 |
+| Deliverables | Platform `GdiMonitorCapture : IMonitorCapture` (`internal sealed`, `BitBlt` with `SRCCOPY \| CAPTUREBLT`, alpha forced to 255, pooled buffers), `DisplayAffinityProtection : IWindowProtection` (over the existing `CaptureExclusion.Apply`), `OwnWindowRegistry : IOwnWindows` (query side), `WicImageCodec : IImageCodec`, which uses WP-A13's `WicFactory` (crop, Fant resize, PNG RGBA encode), the remaining 02 7.14 `NativeMethods.txt` entries for capture and WIC; `dotnet/tools/ShotAI.ProtectionProbe` (port of `scripts/protection-probe.cjs` with the same delays, repetitions, tolerance and verdict text, for a normal and an `AllowsTransparency` window; not shipped, not in CI); App `RemoteVisibilityApplier : IAppStartup`, which applies `CaptureShield.ApplyRemoteVisibility` through `Task.Run` with a serialized latest-wins loop and never on the UI thread (DL1, 11 7.3.6, 02 7.8), and startup step 10 (protected first, relaxed after the setting loads). As built in WP-B5: Core `PixelFrame : IDisposable` with `CopyRect`, `FramePool` and `Opaque`, and the engine disposes every frame at its one owner's end (D24, 02 7.7); the shield reconciles a new window on the pool from `IWindowProtection.WindowAdded`, which gains it and `SetExcluded` (02 7.8 rule 1); Core registers `CaptureShield` and `IScreenCapture`. The query side is the internal `OwnWindows : IOwnWindows` over the public registry, since a public type may implement no Core seam (corrected). The probe runs four times, both windows from the window's thread and from a worker. The Windows CI job closes the arm64 image's full-screen Microsoft account prompt before the tests |
+| Tests | No Electron file. New: Platform `GdiMonitorCaptureTests` (`FrameMatchesMonitorSize`, `AlphaIsOpaque`, `ExcludedWindowContributesZeroPixels`, `LayeredWindowAcceptsAffinity`), `ShieldDeadlockTests`, `DisplayAffinityProtectionTests.SkipsDestroyedHwnd`, `WicImageCodecTests`; App `StartupOrderTests.WindowsExcludedBeforeSettingApplied`, `Settings/RemoteVisibilityApplierTests` (including that the apply call runs off the UI thread); Core `Capture/MenuPollTests.StaleFrameIsDisposed` (moved from WP-B3: once frames are disposable, the frame an arm replaces and a frame that lands for a replaced arm are disposed, 02 7.7). As built in WP-B5: 119 tests, 62 Core (`PixelFrameTests`, `FramePoolTests`, `OpaqueTests`, `CaptureEngineTests.Frames.cs`, `StaleFrameIsDisposed` and `TheArmsFrameIsDisposedWithTheArm`, six `CaptureShieldTests`, one registration), 45 Platform (`GdiMonitorCaptureTests` 8, `DisplayAffinityProtectionTests` 6, new `OwnWindowsTests` 15, four `OwnWindowRegistryTests` methods, `ShieldDeadlockTests` 1, `WicImageCodecTests` 6, four registrations) and 12 App (`RemoteVisibilityApplierTests` 10, `WindowsExcludedBeforeSettingApplied` 2); the Platform test project now uses WPF for the magenta windows (the full list is in 02 8.4) |
+| Acceptance criteria | AC-CAP-13 (the probe is built; its run on the reference machines is manual, in #147's script); AC-CAP-2 is met in full with `StaleFrameIsDisposed` |
 | Depends on | WP-B1, WP-A13, WP-B3 (the menu poll that `StaleFrameIsDisposed` drives) |
 | Size | M |
-| Risks and de-risking | Whether `SetWindowDisplayAffinity` works on WPF layered windows and from a non-UI thread is undocumented (Q-CAP-15, Q-CAP-22): run the probe and `LayeredWindowAcceptsAffinity` first; record the answer in 02 section 11; if calls must run on the UI thread, implement DL2's bounded, fail-closed marshaling (Q-ARCH-6) before WP-B7 starts |
+| Risks and de-risking | Whether `SetWindowDisplayAffinity` works on WPF layered windows and from a non-UI thread is undocumented (Q-CAP-15, Q-CAP-22): run the probe and `LayeredWindowAcceptsAffinity` first; record the answer in 02 section 11; if calls must run on the UI thread, implement DL2's bounded, fail-closed marshaling (Q-ARCH-6) before WP-B7 starts. Outcome in WP-B5: on both Windows runners the call returns without the window's thread and a normal or layered WPF window is out of the very next read, so no marshaling is built (02 Q-CAP-15). The windows-11-arm image covers its screen with a full-screen Microsoft account prompt above topmost windows; the CI job closes it. 57 mutations of the Core changes: 55 caught, 2 equivalent (a negative crop row is refused by the copy itself; the vector loop's last chunk falls to the tail loop); the first pass found one gap (a negative x below the first row), closed with a test |
 | Demo | `ShotAI.ProtectionProbe` prints `CLEAN` for both windows at +0 ms |
 
 #### WP-B6. Window information and UI Automation
@@ -1439,7 +1439,7 @@ Built from every spec's risk statements (the `Risk` entries of each section 11 a
 | X5 | The low-level hook silently removed by Windows (02 R1) | M / H | WP-B4 | allocation-free proc, watchdog, reinstall logging, Raw Input fallback (Q-CAP-5) |
 | X6 | One unshielded screen read puts the pill in a finished SOP (02 R2) | L / H | WP-B1, WP-B5 | type-level funnel, source scans, mutation check (AC-CAP-3) |
 | X7 | A popup, tooltip or dialog shown before its capture exclusion (03 R1) | M / H | WP-A13 | `ShotAIWindow`, `PopupExclusion`, the HWND sweep test, the `WH_CALLWNDPROC` fallback |
-| X8 | Display affinity fails on layered windows or from worker threads (02 Q-CAP-15) | M / H | WP-B5 | probe before WP-B7 and WP-B8; DL2 fail-closed marshaling |
+| X8 | Display affinity fails on layered windows or from worker threads (02 Q-CAP-15) | M / H | WP-B5 | probe before WP-B7 and WP-B8; DL2 fail-closed marshaling. Outcome in WP-B5: neither fails on the runners; no marshaling |
 | X9 | The pill re-activates and steals the first click (03 R2) | M / M | WP-B7 | non-activating styles, foreground assertions in tests, the `SW_SHOWNOACTIVATE` fallback |
 | X10 | Mixed-DPI placement errors (03 R3) | M / M | WP-B7, WP-B8, WP-B11 | physical-px positioning after `SourceInitialized`; the 100% plus 150% rig |
 | X11 | Timing differences change the foreground window at capture (02 R3) | M / M | WP-B11 | AC-CAP-6, AC-CAP-7, AC-CAP-27; the Q-CAP-4 fallback |
@@ -1533,18 +1533,18 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-CAP-8 | window rect source | WP-B11 | `DWMWA_EXTENDED_FRAME_BOUNDS`; switch if crops differ by 14 to 16 px |
 | Q-CAP-9 | window list filter | WP-B11 | get-windows filter; compare chooser lists |
 | Q-CAP-10 | ComboBox and Edit names | WP-B1 | parity (kept on the allowlist) (decided in WP-B1) |
-| Q-CAP-11 | monitor id | WP-B5 | `(uint)HMONITOR`, never compared across launches (R-ARCH-22) |
+| Q-CAP-11 | monitor id | WP-B5 | `(uint)HMONITOR`, never compared across launches (R-ARCH-22; implemented in WP-B5) |
 | Q-CAP-12 | `captureSettings` | WP-B2 | never written natively; preserved by the codec (decided in WP-B2) |
 | Q-CAP-13 | `CAPTUREBLT` | WP-B11 | keep unless flicker without a menu benefit |
-| Q-CAP-14 | DXGI Desktop Duplication | WP-B5 | not in 2.0.0 |
-| Q-CAP-15 | affinity on layered windows and from workers | WP-B5 | probe first; DL2 if needed |
+| Q-CAP-14 | DXGI Desktop Duplication | WP-B5 | not in 2.0.0 (decided in WP-B5) |
+| Q-CAP-15 | affinity on layered windows and from workers | WP-B5 | probe first; DL2 if needed (decided in WP-B5: both work, no DL2) |
 | Q-CAP-16 | resize interpolation | WP-B11 | WIC Fant; compare legibility |
 | Q-CAP-17 | element names in logs | WP-B2 | Debug only (decided in WP-B2) |
-| Q-CAP-18 | PNG pixel format | WP-B5 | RGBA |
+| Q-CAP-18 | PNG pixel format | WP-B5 | RGBA (decided in WP-B5) |
 | Q-CAP-19 | GC pauses on the hook thread | WP-B4 | allocation-free proc, pooled frames, watchdog (decided in WP-B4; the pooled frames are WP-B5's) |
 | Q-CAP-20 | `lastLeftClick` across sessions | WP-B3 | reset on start (decided in WP-B3) |
 | Q-CAP-21 | monitor names | WP-B11 | DisplayConfig friendly name; compare |
-| Q-CAP-22 | cross-thread affinity and the shield lock | WP-B5 | DL1 plus `ShieldDeadlockTests` |
+| Q-CAP-22 | cross-thread affinity and the shield lock | WP-B5 | DL1 plus `ShieldDeadlockTests` (decided in WP-B5) |
 | Q-CAP-23 | why Electron dropped clicks | WP-B4 | no action; reinstalls logged (decided in WP-B4) |
 | Q-CAP-24 | incomplete targets | WP-B9 | the picker cannot submit incomplete; D23 warning |
 
@@ -1840,7 +1840,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-ARCH-3 | proxy environment variables | WP-D2 | option (a), remove at startup |
 | Q-ARCH-4 | `ANTHROPIC_CUSTOM_HEADERS` | WP-D2 | closed (ARCHITECTURE 15.4): default adopted, removed at startup step 5 with the per-client host guard kept (R-ARCH-15, 08 Q-AUTH-17); WP-D2 implements it |
 | Q-ARCH-5 | ban `Math.Round` in Core | WP-A1 | closed (ARCHITECTURE 15.4): default adopted, banned Core-wide with only `JsMath.cs` allowlisted (14.9); WP-A1 implements it |
-| Q-ARCH-6 | affinity from worker threads | WP-B5 | the probe decides; DL2 if needed |
+| Q-ARCH-6 | affinity from worker threads | WP-B5 | the probe decides; DL2 if needed (decided in WP-B5: direct calls, no DL2) |
 | Q-ARCH-7 | watch the open project folder | WP-A17 | none in 2.0.0 |
 
 ### 6.3 This plan's open decisions
@@ -2450,7 +2450,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-B2. Capture engine: sessions and the capture pipeline (#144)
 - [x] WP-B3. Capture engine: click decisions and menus (#145)
 - [x] WP-B4. Input hook and hotkey (#146)
-- [ ] WP-B5. Screen capture, display affinity and the protection probe
+- [x] WP-B5. Screen capture, display affinity and the protection probe (#147)
 - [ ] WP-B6. Window information and UI Automation
 - [ ] WP-B7. Capture pill and recording visibility
 - [ ] WP-B8. Area-select overlay
