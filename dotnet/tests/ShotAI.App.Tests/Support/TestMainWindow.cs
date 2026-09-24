@@ -1,10 +1,13 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using ShotAI.App.Chrome;
 using ShotAI.App.Home;
+using ShotAI.App.Report;
 using ShotAI.App.Services;
 using ShotAI.App.Shell;
 using ShotAI.App.Threading;
+using ShotAI.Core.Store;
 using ShotAI.Platform.Capture;
+using ShotAI.Platform.Imaging;
 
 namespace ShotAI.App.Tests.Support;
 
@@ -20,16 +23,21 @@ internal static class TestMainWindow
             menu,
             sizer ?? new MainWindowSizer(),
             appInfo ?? new FakeAppInfo(),
-            shell ?? Shell(menu));
+            shell ?? Shell(menu),
+            new ReportImageLoader(new ReportImageDecoder(), NullLogger<ReportImageLoader>.Instance));
     }
 
     // A shell over an empty store; nothing lists until the test starts it.
     private static ShellViewModel Shell(AppMenuViewModel menu)
     {
         var notices = new NoticeCenter(NullLogger<NoticeCenter>.Instance);
+        var projects = new ListingProjects();
         var home = new HomeViewModel(
-            new ListingProjects(), notices, new WpfUiDispatcher(System.Windows.Threading.Dispatcher.CurrentDispatcher), TimeProvider.System, NullLogger<HomeViewModel>.Instance);
-        return new ShellViewModel(home, menu, notices);
+            projects, notices, new WpfUiDispatcher(System.Windows.Threading.Dispatcher.CurrentDispatcher), TimeProvider.System, NullLogger<HomeViewModel>.Instance);
+        var project = new ProjectDetailViewModel(
+            projects, new ProjectSessionFactory(projects, NullLogger<ProjectSessionFactory>.Instance), new ReportViewModelFactory(), new RecordingLayout(),
+            NullLogger<ProjectDetailViewModel>.Instance);
+        return new ShellViewModel(home, project, menu, notices);
     }
 }
 

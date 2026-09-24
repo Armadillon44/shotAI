@@ -19,25 +19,29 @@ public sealed class XamlResourceKeyGuardTests
     internal static IReadOnlyList<(string Why, IReadOnlyList<string> Keys)> NotReadYet { get; } =
     [
         (
-            "A colour as a Color is for effects and gradients; the report (WP-A17) and the tour (WP-B10) are its first readers.",
+            "A colour as a Color is for effects and gradients; the tour (WP-B10) and the report's editing states (WP-C2) are its first readers.",
             PaletteRoles.All.Select(r => ThemeTokenKeys.Color(r.Token)).ToArray()
         ),
         (
-            "Status, callout and derived colours of views that do not exist yet: the selected row and the bulk bar (WP-A19), the report's callouts (WP-A17).",
+            "Status and derived colours of views that do not exist yet: the selected row and the bulk bar (WP-A19).",
             [
-                .. new[] { "accent-soft", "ok", "draft", "note-bg", "note-bd", "note-fg", "caut-bg", "caut-bd", "caut-fg", "warn-bg", "warn-bd", "warn-fg" }.Select(ThemeTokenKeys.Brush),
+                .. new[] { "ok", "draft" }.Select(ThemeTokenKeys.Brush),
                 ThemeTokenKeys.ItemSelectedBackground, ThemeTokenKeys.BulkBorder,
             ]
         ),
         (
-            "Radii, sizes, weights and shadows of views that do not exist yet: the hero (WP-B9), the report cards (WP-A17), menus (WP-A19).",
+            "Radii, sizes, weights and shadows of views that do not exist yet: the hero (WP-B9), menus (WP-A19), the report's editors (WP-C2).",
             [
-                ThemeTokenKeys.Radius("card"), ThemeTokenKeys.Radius("figure"), ThemeTokenKeys.Radius("micro"),
-                ThemeTokenKeys.RadiusValue("panel"), ThemeTokenKeys.RadiusValue("card"), ThemeTokenKeys.RadiusValue("figure"),
+                ThemeTokenKeys.Radius("micro"),
+                ThemeTokenKeys.RadiusValue("panel"), ThemeTokenKeys.RadiusValue("card"),
                 ThemeTokenKeys.RadiusValue("control"), ThemeTokenKeys.RadiusValue("control-sm"),
                 ThemeTokenKeys.FsDisplay, ThemeTokenKeys.FwDisplay,
                 ThemeTokenKeys.Shadow, ThemeTokenKeys.MenuShadow,
             ]
+        ),
+        (
+            "Read in code, not XAML: the report figure's rounded clip follows the figure radius through a resource reference (ReportFigure, WP-A17).",
+            [ThemeTokenKeys.RadiusValue("figure")]
         ),
         (
             "Never read: a capsule has no CornerRadius, so a chip's corner is CapsuleCornerConverter over RadiusValue.chip (XamlChromeGuardTests).",

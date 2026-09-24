@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using ShotAI.App.Report;
 using ShotAI.App.Services;
 using ShotAI.Core.Shell;
 using ShotAI.Platform.Shell;
@@ -29,15 +30,18 @@ public partial class MainWindow : ShotAIWindow
     /// <param name="sizer">The sizer, which places this window and later resizes it.</param>
     /// <param name="appInfo">What About shows.</param>
     /// <param name="shell">The content's view model: the header, the views and the overlay layer.</param>
-    public MainWindow(WindowRegistration registration, AppMenuViewModel menu, MainWindowSizer sizer, IAppInfo appInfo, ShellViewModel shell)
+    /// <param name="images">The report's image loader, which every figure in the window inherits (05 7.10).</param>
+    public MainWindow(WindowRegistration registration, AppMenuViewModel menu, MainWindowSizer sizer, IAppInfo appInfo, ShellViewModel shell, ReportImageLoader images)
         : base(registration)
     {
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(sizer);
         ArgumentNullException.ThrowIfNull(appInfo);
         ArgumentNullException.ThrowIfNull(shell);
+        ArgumentNullException.ThrowIfNull(images);
         _sizer = sizer;
         _appInfo = appInfo;
+        ReportFigure.SetLoader(this, images);
         InitializeComponent();
         DataContext = menu;
         ShellContent.DataContext = shell;

@@ -40,7 +40,8 @@ public enum HomeEmptyState
 /// <remarks>
 /// The hero and the capture-mode picker join in WP-B9; the selection, rename, row operations
 /// and bulk bar in WP-A19; the import flow in WP-D15. Open and Import raise requests the shell
-/// hands on (<see cref="OpenRequested"/> to the project view, WP-A17).
+/// hands on (<see cref="OpenRequested"/> to the project view, whose failures come back as
+/// <see cref="OnOpenFailed"/>).
 /// </remarks>
 public sealed partial class HomeViewModel : ViewModelBase, IDisposable
 {
@@ -88,6 +89,17 @@ public sealed partial class HomeViewModel : ViewModelBase, IDisposable
 
     /// <summary>The Import button: the shell runs the import flow, as File, Import Project does (WP-D15).</summary>
     public event EventHandler? ImportRequested;
+
+    /// <summary>
+    /// The project view could not open a project for a reason other than its being gone (05
+    /// EDGE-REP-39): the error notice, with the store's text, so a damaged <c>project.json</c>
+    /// reads as 01 Q-MODEL-11 words it and the parser's message stays in the log (EDGE-HOME-24).
+    /// </summary>
+    public void OnOpenFailed(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        _notices.ShowError(exception);
+    }
 
     /// <summary>The tab shown (2.7).</summary>
     [ObservableProperty]

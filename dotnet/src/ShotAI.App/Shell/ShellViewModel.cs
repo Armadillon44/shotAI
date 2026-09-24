@@ -1,5 +1,6 @@
 using ShotAI.App.Chrome;
 using ShotAI.App.Home;
+using ShotAI.App.Report;
 
 namespace ShotAI.App.Shell;
 
@@ -10,10 +11,10 @@ namespace ShotAI.App.Shell;
 /// manager. UI thread only.
 /// </summary>
 /// <remarks>
-/// The inputs land with their views: the project view calls <see cref="ShowProject"/> and
-/// <see cref="CloseProject"/> (WP-A17), Settings and its Back call <see cref="OpenSettings"/> and
-/// <see cref="CloseSettings"/> (WP-B10), and the capture state adds Recording (WP-B9). Until then
-/// the window shows Home, and the header's Settings button raises the menu's request.
+/// The inputs land with their views: Home's Open opens the project view, whose successful open
+/// shows it and whose Back closes it (WP-A17); Settings and its Back call <see cref="OpenSettings"/>
+/// and <see cref="CloseSettings"/> (WP-B10), and the capture state adds Recording (WP-B9). Until
+/// then the header's Settings button raises the menu's request.
 /// </remarks>
 public sealed class ShellViewModel : ViewModelBase
 {
@@ -23,15 +24,21 @@ public sealed class ShellViewModel : ViewModelBase
     private string? _rawProjectTheme;
     private bool _started;
 
-    /// <summary>The shell over Home, the menu's requests and the notices.</summary>
-    public ShellViewModel(HomeViewModel home, AppMenuViewModel menu, INoticeService notices)
+    /// <summary>The shell over Home, the project view, the menu's requests and the notices.</summary>
+    public ShellViewModel(HomeViewModel home, ProjectDetailViewModel project, AppMenuViewModel menu, INoticeService notices)
     {
         ArgumentNullException.ThrowIfNull(home);
+        ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(notices);
         Home = home;
+        Project = project;
         Menu = menu;
         Notices = notices;
+        // Both live as long as the shell, so neither subscription outlives what it holds.
+        home.OpenRequested += (_, path) => _ = OpenProjectAsync(path);
+        project.OpenFailed += (_, e) => home.OnOpenFailed(e);
+        project.Closed += (_, _) => CloseProject();
     }
 
     /// <summary>Raised once after each transition, when every fact of it is set; <see cref="NavigationState"/> follows it.</summary>
@@ -39,6 +46,9 @@ public sealed class ShellViewModel : ViewModelBase
 
     /// <summary>The Home view's model.</summary>
     public HomeViewModel Home { get; }
+
+    /// <summary>The project view's model.</summary>
+    public ProjectDetailViewModel Project { get; }
 
     /// <summary>The menu, whose Settings request the header's button raises too.</summary>
     public AppMenuViewModel Menu { get; }
@@ -137,6 +147,23 @@ public sealed class ShellViewModel : ViewModelBase
     {
         SettingsOpen = false;
         Derive();
+    }
+
+    /// <summary>
+    /// Opens <paramref name="path"/> in the project view and shows it once it opened (2.1: Home
+    /// stays until then, so a failed open never leaves it). Any failure the view did not report
+    /// itself is a defect, shown as the generic notice and logged.
+    /// </summary>
+    internal async Task OpenProjectAsync(string path)
+    {
+        try
+        {
+            if (await Project.OpenAsync(path)) ShowProject(Project.OpenProjectPath!, Project.RawProjectTheme);
+        }
+        catch (Exception e)
+        {
+            Notices.ShowError(e);
+        }
     }
 
     /// <summary>The project view opened <paramref name="path"/>; a successful open also closes Settings (D-HOME-19).</summary>

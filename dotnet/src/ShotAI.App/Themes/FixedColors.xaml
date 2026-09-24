@@ -33,4 +33,11 @@
 
   <!-- The settings switch knob's shadow, 0 1px 2px rgba(0, 0, 0, 0.25) (2.24): neutral; the 0.25 is the effect's opacity. -->
   <Color x:Key="FixedColors.KnobShadow">#FF000000</Color>
+
+  <!--
+    The report's click ring halo, box-shadow 0 0 0 2px rgba(255, 255, 255, 0.7) (05 2.11): white at
+    0.7 alpha (0xB3). The ring itself draws the step's stored colour, which must match the ring
+    baked into the render, so it is no token either (project.css:1791-1797).
+  -->
+  <SolidColorBrush x:Key="FixedColors.MarkerHalo" Color="#B3FFFFFF" po:Freeze="True" />
 </ResourceDictionary>

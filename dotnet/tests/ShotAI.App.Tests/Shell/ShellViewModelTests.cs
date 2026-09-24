@@ -201,13 +201,53 @@ public sealed class ShellViewModelTests
         Assert.True(t.Home.TimersRunning);
     });
 
+    /// <summary>
+    /// 05 7.3, 2.1: Home's Open opens the project; once it opened, the project view shows with
+    /// its path and raw theme, and the window widens; Back returns to Home and the list width.
+    /// </summary>
+    [Fact]
+    public Task HomesOpenShowsTheProjectAndBackReturns() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        var manifest = Manifests.Of("Handbook", Manifests.Shot("s1"));
+        manifest.Theme = "neon";
+        t.Projects.CanOpen(Handbook, manifest);
+        t.Projects.Listing = [ListingProjects.Project(Handbook, "Handbook", "2026-07-22T09:00:00.000Z")];
+        t.Shell.Start();
+        t.Home.OpenCommand.Execute(t.Home.Items.OfType<ShotAI.App.Home.ProjectRowViewModel>().Single());
+        Assert.True(await TestShell.UntilAsync(() => t.Shell.CurrentView == ShellViewKind.Project));
+        Assert.Equal((Handbook, "neon"), (t.Shell.OpenProjectPath, t.Shell.RawProjectTheme));
+        Assert.Equal((false, true, false), Shown(t.Shell));
+        Assert.False(t.Home.TimersRunning);
+        Assert.Equal([(true, 1.0)], t.Layout.Calls);
+
+        t.Project.BackCommand.Execute(null);
+        Assert.Equal(ShellViewKind.Home, t.Shell.CurrentView);
+        Assert.Equal((null, null), (t.Shell.OpenProjectPath, t.Shell.RawProjectTheme));
+        Assert.True(t.Home.TimersRunning);
+        Assert.Equal([(true, 1.0), (false, 1.0)], t.Layout.Calls);
+    });
+
+    /// <summary>A failed open stays on Home, with its notice, and leaves the window as it was.</summary>
+    [Fact]
+    public Task AFailedOpenStaysOnHome() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        t.Shell.Start();
+        await t.Shell.OpenProjectAsync(@"C:\Projects\Unknown");
+        Assert.Equal(ShellViewKind.Home, t.Shell.CurrentView);
+        Assert.Equal(ShotAI.Core.Store.ProjectNotKnownException.Text, t.Notices.Error?.Text);
+        Assert.Empty(t.Layout.Calls);
+    });
+
     [Fact]
     public Task ArgumentsAreChecked() => Sta.RunAsync(() =>
     {
         using var t = new TestShell();
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Menu, t.Notices));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Notices));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Menu, (INoticeService)null!));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Menu, t.Notices));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Menu, t.Notices));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Notices));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, (INoticeService)null!));
         Assert.Throws<ArgumentNullException>(() => t.Shell.ShowProject(null!, null));
     });
 }

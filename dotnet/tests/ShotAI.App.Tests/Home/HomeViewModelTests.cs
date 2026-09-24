@@ -1,10 +1,12 @@
 using System.Collections.Specialized;
 using Microsoft.Extensions.Logging;
 using ShotAI.App.Home;
+using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
 using ShotAI.Core.Errors;
 using ShotAI.Core.Home;
 using ShotAI.Core.Model;
+using ShotAI.Core.Store;
 using Xunit;
 using static ShotAI.App.Tests.Support.ListingProjects;
 
@@ -288,6 +290,33 @@ public sealed class HomeViewModelTests
         t.Home.OpenRequested += (_, path) => asked = path;
         t.Home.OpenCommand.Execute(Assert.Single(t.Home.Items.OfType<ProjectRowViewModel>()));
         Assert.Equal(@"C:\p\a", asked);
+    });
+
+    /// <summary>
+    /// 05 EDGE-REP-39, EDGE-HOME-24: a project that cannot be opened for a reason other than its
+    /// being gone shows the error notice in the store's words (01 Q-MODEL-11), and Home stays; a
+    /// project gone from disk shows nothing.
+    /// </summary>
+    [Fact]
+    public Task OpenFailedShowsNotice() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        t.Projects.Listing = [Project(@"C:\p\bad", "Bad", Today), Project(@"C:\p\gone", "Gone", Today)];
+        t.Projects.OpenFails(@"C:\p\bad", new ManifestCorruptException("not JSON", new System.Text.Json.JsonException("'x' is an invalid start of a value.")));
+        t.Projects.OpenFails(@"C:\p\gone", new ManifestCorruptException("missing", new FileNotFoundException("gone")));
+        t.Shell.Start();
+        var rows = t.Home.Items.OfType<ProjectRowViewModel>().ToList();
+
+        t.Home.OpenCommand.Execute(rows.Single(r => r.Path == @"C:\p\gone"));
+        await TestShell.Settle();
+        Assert.Null(t.Notices.Error);
+        Assert.Equal(ShellViewKind.Home, t.Shell.CurrentView);
+
+        t.Home.OpenCommand.Execute(rows.Single(r => r.Path == @"C:\p\bad"));
+        await TestShell.Settle();
+        Assert.Equal(ManifestCorruptException.UserText, t.Notices.Error?.Text);
+        Assert.Equal(ShellViewKind.Home, t.Shell.CurrentView);
+        Assert.True(t.Home.TimersRunning);
     });
 
     [Fact]

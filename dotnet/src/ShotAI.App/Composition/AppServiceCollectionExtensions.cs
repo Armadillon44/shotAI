@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ShotAI.App.Chrome;
 using ShotAI.App.Home;
+using ShotAI.App.Report;
 using ShotAI.App.Services;
 using ShotAI.App.Shell;
 using ShotAI.App.Threading;
@@ -61,6 +62,9 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<NoticeCenter>();
         services.AddSingleton<INoticeService>(sp => sp.GetRequiredService<NoticeCenter>());
         services.AddTransient<HomeViewModel>();
+        services.AddSingleton<ReportImageLoader>();
+        services.AddSingleton<ReportViewModelFactory>();
+        services.AddTransient<ProjectDetailViewModel>();
         services.AddTransient<ShellViewModel>();
         services.AddSingleton<ThemeManager>();
         // Step 9 starts these in this order (ARCHITECTURE 4.3): RemoteVisibilityApplier (WP-B5)
