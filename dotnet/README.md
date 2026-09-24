@@ -16,7 +16,8 @@ engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP
 with its fonts (WP-A14), the main window with its menu and About (WP-A15), the Home list
 (WP-A16), the read-only report (WP-A17), View, Brand (WP-A18), Home's row operations
 (WP-A19a), the external link allowlist (WP-A19b), the capture rules with the capture shield
-(WP-B1) and the capture engine's sessions and pipeline (WP-B2): analyzers, supply-chain rules, Core's
+(WP-B1), the capture engine's sessions and pipeline (WP-B2) and its click decisions and context
+menus (WP-B3): analyzers, supply-chain rules, Core's
 error, threading and composition types, `JsJson` (reads what `JSON.parse` reads, writes the
 bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron
 for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite
@@ -100,7 +101,10 @@ hotkey is queued and captured in order, cropped to the window, area, region or m
 `shots/` as a new file that never overwrites one or goes through a link, and added to the project
 through the store. Pause drops the queued backlog, stop lets it finish, discard removes exactly
 this session's steps (or the project made for it), and the report's no-click screenshot inserts one
-step. A capture that fails is reported and the next one still runs. The app registers the engine
+step. A capture that fails is reported and the next one still runs. A double-click is one step. A
+right-click arms the context menu: the next click near it within 30 s is a menu selection, captured
+from a frame taken while the menu was still open (polled every 400 ms, or grabbed at the
+mousedown), with at most four selections per right-click. The app registers the engine
 once its Windows pieces arrive (WP-B4 to WP-B6).
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.

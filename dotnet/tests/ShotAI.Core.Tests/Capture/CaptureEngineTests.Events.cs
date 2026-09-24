@@ -265,7 +265,7 @@ public sealed partial class CaptureEngineTests
     }
 
     // Blocks the funnel's grab until the test opens it, so a capture can be caught in flight.
-    private sealed class GrabGate : IDisposable
+    internal sealed class GrabGate : IDisposable
     {
         private readonly ManualResetEventSlim _open = new(false);
         private readonly SemaphoreSlim _entered = new(0);
@@ -284,7 +284,7 @@ public sealed partial class CaptureEngineTests
         public void Dispose() => _open.Set();
     }
 
-    private static async Task UntilAsync(Func<bool> condition)
+    internal static async Task UntilAsync(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow + EngineHarness.Timeout;
         while (!condition())

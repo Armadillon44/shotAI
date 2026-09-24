@@ -95,9 +95,14 @@ internal sealed class EngineHarness : IAsyncDisposable
     public Task<ProjectManifest> ScreenshotAsync(string project, CaptureTarget? target, int insertAt) =>
         Engine.CaptureScreenshotAsync(project, target, insertAt, TestContext.Current.CancellationToken);
 
-    /// <summary>A mousedown through the trigger source, then waits until the queue has run it.</summary>
+    /// <summary>
+    /// A mousedown through the trigger source a second after the last, so it is never the second
+    /// half of a double-click, then waits until the queue has run it. The menu tests click through
+    /// <see cref="FakeTriggerSource.Click"/> to control the time.
+    /// </summary>
     public async Task ClickAsync(int x, int y, MouseButton button = MouseButton.Left)
     {
+        Clock.Advance(1000);
         Triggers.Click(x, y, button);
         await SettleAsync().ConfigureAwait(false);
     }
@@ -255,10 +260,14 @@ internal sealed class FakeScreen : IScreenCapture
         }
     }
 
-    public IReadOnlyList<MonitorDescriptor> Monitors() => [.. Displays];
+    /// <summary>When set, the monitor lookups throw.</summary>
+    public bool FailLookups { get; set; }
 
-    public MonitorDescriptor? FromPoint(int x, int y) =>
-        Displays.FirstOrDefault(m => m.Bounds.X <= x && x < m.Bounds.X + m.Bounds.Width && m.Bounds.Y <= y && y < m.Bounds.Y + m.Bounds.Height);
+    public IReadOnlyList<MonitorDescriptor> Monitors() => FailLookups ? throw new InvalidOperationException("EnumDisplayMonitors failed") : [.. Displays];
+
+    public MonitorDescriptor? FromPoint(int x, int y) => FailLookups
+        ? throw new InvalidOperationException("MonitorFromPoint failed")
+        : Displays.FirstOrDefault(m => m.Bounds.X <= x && x < m.Bounds.X + m.Bounds.Width && m.Bounds.Y <= y && y < m.Bounds.Y + m.Bounds.Height);
 
     public PixelFrame Grab(MonitorDescriptor monitor)
     {
@@ -285,8 +294,12 @@ internal sealed class FakeCodec : IImageCodec
     // The pixels are never read, so a frame carries none.
     public static PixelFrame Frame(int width, int height) => new() { Width = width, Height = height, Bgra = [] };
 
+    /// <summary>When set, every crop throws.</summary>
+    public bool FailCrops { get; set; }
+
     public PixelFrame Crop(PixelFrame frame, int x, int y, int width, int height)
     {
+        if (FailCrops) throw new InvalidOperationException("crop failed");
         lock (_crops) _crops.Add(new PixelRect(x, y, width, height));
         return Frame(width, height);
     }
@@ -320,9 +333,12 @@ internal sealed class FakeWindows : IWindowInfoProvider
 {
     public ForegroundInfo? Current { get; set; }
 
+    /// <summary>When set, reading the foreground throws.</summary>
+    public bool FailForeground { get; set; }
+
     public List<ListedWindow> Listed { get; } = [];
 
-    public ForegroundInfo? Foreground() => Current;
+    public ForegroundInfo? Foreground() => FailForeground ? throw new InvalidOperationException("GetForegroundWindow failed") : Current;
 
     public IReadOnlyList<ListedWindow> ListWindows() => [.. Listed];
 
@@ -372,11 +388,15 @@ internal sealed class FakeOwnWindows : IOwnWindows
     public bool IsOwnWindow(nint hwnd) => false;
 }
 
-/// <summary>A clock the test moves. By default a delay completes at once and moves the time; <see cref="Hold"/> keeps delays pending until <see cref="Advance"/>.</summary>
+/// <summary>
+/// A clock the test moves. By default a delay completes at once and moves the time;
+/// <see cref="Hold"/> keeps delays pending until <see cref="Advance"/>. The menu poll's delay
+/// always waits for <see cref="Advance"/>, so a right-click never polls on its own.
+/// </summary>
 internal sealed class ManualClock : ICaptureClock
 {
     private readonly object _lock = new();
-    private readonly List<(long Due, TaskCompletionSource Done)> _pending = [];
+    private readonly List<(long Due, int Ms, TaskCompletionSource Done)> _pending = [];
     private readonly List<int> _requested = [];
     private long _now = 1_000_000;
 
@@ -408,16 +428,22 @@ internal sealed class ManualClock : ICaptureClock
         lock (_lock)
         {
             _requested.Add(ms);
-            if (!Hold)
+            if (!Hold && ms != CaptureConstants.MenuPollMs)
             {
                 _now += ms;
                 return Task.CompletedTask;
             }
             var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             ct.Register(() => done.TrySetCanceled(ct));
-            _pending.Add((_now + ms, done));
+            _pending.Add((_now + ms, ms, done));
             return done.Task;
         }
+    }
+
+    /// <summary>Delays requested and not yet due or cancelled.</summary>
+    public int PendingOf(int ms)
+    {
+        lock (_lock) return _pending.Count(p => p.Ms == ms && !p.Done.Task.IsCompleted);
     }
 
     public void Advance(long ms)

@@ -600,12 +600,12 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 |---|---|
 | Goal | The mousedown decisions in Electron's order: own-window gate, button mapping, double-click collapse, right-click arming, proximity, chains, submenus, the 400 ms menu poll |
 | Spec inputs | 02 2.3 (2.3.1), 2.4 (2.4.1 to 2.4.3), 3, 7.3 (poll task), 7.10 D1, D2, D3, D12, D13, INV-CAP-14, INV-CAP-15; Q-CAP-20 |
-| Deliverables | the decision path in `CaptureEngine` on the `shotAI.CaptureDispatcher` thread; internal `MenuArm` with its `PeriodicTimer` poll (first frame at 400 ms, at most 32 frames, per-arm in-flight flag, cancelled on disarm, re-arm, pause and expiry); pooled frame ownership handed to the selection capture |
-| Tests | Complete `Capture/CaptureEngineTests` (`DoubleClickCollapsesChained`, `RightClickThenNearbyLeftIsMenuSelection`, `FarLeftClickDisarms`, `MiddleClickDisarms`, `MenuChainIsBoundedAtFour`, `ExpiredMenuWindowIsNotASelection`, `SubmenuWindowIsSixSeconds`, `ProximityScalesWithMonitorFactor`, `ScreenModeMenuUsesChosenMonitor`, `OwnWindowClickDoesNotQueryElement`, `MenuSelectionTakesPolledFrameOwnership`), `Capture/MenuPollTests` |
-| Acceptance criteria | AC-CAP-2 |
+| Deliverables | the decision path in `CaptureEngine` on the `shotAI.CaptureDispatcher` thread; internal `MenuArm` with its `PeriodicTimer` poll (first frame at 400 ms, at most 32 frames, per-arm in-flight flag, cancelled on disarm, re-arm, pause and expiry); pooled frame ownership handed to the selection capture. As built in WP-B3: the decisions, the arm and its poll are `CaptureEngine.Menu.cs`, with the late owner fill and path A of 2.8 (`GrabMenuSelection`, D12) in the capture step. The poll is a loop over `ICaptureClock.DelayAsync(400)`, not a `PeriodicTimer`, which the clock seam cannot drive, and each tick's grab is not awaited, so the cadence stays Electron's (02 7.3, corrected). `MenuArm` holds the owner, the point, the chain, the session generation, the polled `MonitorFrame` and its own `Polling` flag; disposing it cancels its poll. The selection takes the frame under the lock; disposing frames waits for WP-B5 (D24). The re-arm reads the clock after the click-time grab, as Electron does, and `Arm` refuses an arm whose recording ended, paused, or started stopping or tearing down in the meantime |
+| Tests | Complete `Capture/CaptureEngineTests` (`DoubleClickCollapsesChained`, `RightClickThenNearbyLeftIsMenuSelection`, `FarLeftClickDisarms`, `MiddleClickDisarms`, `MenuChainIsBoundedAtFour`, `ExpiredMenuWindowIsNotASelection`, `SubmenuWindowIsSixSeconds`, `ProximityScalesWithMonitorFactor`, `ScreenModeMenuUsesChosenMonitor`, `OwnWindowClickDoesNotQueryElement`, `MenuSelectionTakesPolledFrameOwnership`), `Capture/MenuPollTests`. As built in WP-B3: the menu cases are `CaptureEngineTests.Menus.cs` (32 methods, 48 cases, every 8.4 name and 21 more); `MenuPollTests` (22 methods, 25 cases) has every 8.4 case but `StaleFrameIsDisposed`, which needs D24's disposable frames and moves to WP-B5; new `Capture/MenuArmTests`; the harness clock never ends a poll delay on its own, so each tick is explicit and no test sleeps on the engine's time (the full list is in 02 8.4) |
+| Acceptance criteria | AC-CAP-2 (met, but for `MenuPollTests.StaleFrameIsDisposed`, which moves to WP-B5 with D24's disposable frames) |
 | Depends on | WP-B2 |
 | Size | M |
-| Risks and de-risking | Timing-dependent logic: every delay comes from `ICaptureClock`; no test sleeps |
+| Risks and de-risking | Timing-dependent logic: every delay comes from `ICaptureClock`; no test sleeps. Outcome in WP-B3: the poll waits on the harness clock only, and the races (a pause, a stop, an end or a teardown between the gate and the arm; a poll grab that ends after its arm was replaced) are pinned by `AnArmForAPausedSessionIsDropped`, `AnArmForAStoppingSessionIsDropped`, `AnArmFromAnEndedSessionIsDropped`, `AnArmDuringTeardownIsDropped` and `LateFrameDoesNotLandOnNewArm`; the engine, poll and arm classes (210 cases) passed 15 runs in a row with all four cores held busy by other processes. 129 mutations of the decisions, the arm, the poll, path A, the log lines and the session changes: 123 caught, 7 of them rewritten because their first text did not build, and 6 equivalent (redundant guards in the poll, reachable only through thread interleavings the deterministic harness cannot produce). Writing the mutants and the first pass found 17 gaps in the tests, each closed with a test, and 5 flaws in the code, each fixed: the re-arm's clock read and the distance helpers' `?? 1` (both Electron parity), the owner read's null on error, a monitor lookup that could fault the poll, and an arm that a pause could leave in a paused session |
 | Demo | tests |
 
 #### WP-B4. Input hook and hotkey
@@ -629,9 +629,9 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 | Goal | Pixels are read only through the shielded funnel; shotAI's windows, including layered ones, are proven absent from its captures before the pill and overlay are built |
 | Spec inputs | 02 2.7, 2.11, 7.7, 7.8, 7.9, 7.12, D24, INV-CAP-1 to INV-CAP-7, INV-CAP-25, INV-CAP-29, 8.4 (Platform rows and the probe); 03 2.7, INV-SHELL-2; 11 `RemoteVisibilityApplier`, INV-IPC-13, D-IPC-8; ARCHITECTURE 4.2 step 10, DL1, DL2; Q-CAP-11, Q-CAP-13, Q-CAP-14, Q-CAP-15, Q-CAP-16, Q-CAP-18, Q-CAP-21, Q-CAP-22, Q-ARCH-6 |
 | Deliverables | Platform `GdiMonitorCapture : IMonitorCapture` (`internal sealed`, `BitBlt` with `SRCCOPY \| CAPTUREBLT`, alpha forced to 255, pooled buffers), `DisplayAffinityProtection : IWindowProtection` (over the existing `CaptureExclusion.Apply`), `OwnWindowRegistry : IOwnWindows` (query side), `WicImageCodec : IImageCodec`, which uses WP-A13's `WicFactory` (crop, Fant resize, PNG RGBA encode), the remaining 02 7.14 `NativeMethods.txt` entries for capture and WIC; `dotnet/tools/ShotAI.ProtectionProbe` (port of `scripts/protection-probe.cjs` with the same delays, repetitions, tolerance and verdict text, for a normal and an `AllowsTransparency` window; not shipped, not in CI); App `RemoteVisibilityApplier : IAppStartup`, which applies `CaptureShield.ApplyRemoteVisibility` through `Task.Run` with a serialized latest-wins loop and never on the UI thread (DL1, 11 7.3.6, 02 7.8), and startup step 10 (protected first, relaxed after the setting loads) |
-| Tests | No Electron file. New: Platform `GdiMonitorCaptureTests` (`FrameMatchesMonitorSize`, `AlphaIsOpaque`, `ExcludedWindowContributesZeroPixels`, `LayeredWindowAcceptsAffinity`), `ShieldDeadlockTests`, `DisplayAffinityProtectionTests.SkipsDestroyedHwnd`, `WicImageCodecTests`; App `StartupOrderTests.WindowsExcludedBeforeSettingApplied`, `Settings/RemoteVisibilityApplierTests` (including that the apply call runs off the UI thread) |
+| Tests | No Electron file. New: Platform `GdiMonitorCaptureTests` (`FrameMatchesMonitorSize`, `AlphaIsOpaque`, `ExcludedWindowContributesZeroPixels`, `LayeredWindowAcceptsAffinity`), `ShieldDeadlockTests`, `DisplayAffinityProtectionTests.SkipsDestroyedHwnd`, `WicImageCodecTests`; App `StartupOrderTests.WindowsExcludedBeforeSettingApplied`, `Settings/RemoteVisibilityApplierTests` (including that the apply call runs off the UI thread); Core `Capture/MenuPollTests.StaleFrameIsDisposed` (moved from WP-B3: once frames are disposable, the frame an arm replaces and a frame that lands for a replaced arm are disposed, 02 7.7) |
 | Acceptance criteria | AC-CAP-13 |
-| Depends on | WP-B1, WP-A13 |
+| Depends on | WP-B1, WP-A13, WP-B3 (the menu poll that `StaleFrameIsDisposed` drives) |
 | Size | M |
 | Risks and de-risking | Whether `SetWindowDisplayAffinity` works on WPF layered windows and from a non-UI thread is undocumented (Q-CAP-15, Q-CAP-22): run the probe and `LayeredWindowAcceptsAffinity` first; record the answer in 02 section 11; if calls must run on the UI thread, implement DL2's bounded, fail-closed marshaling (Q-ARCH-6) before WP-B7 starts |
 | Demo | `ShotAI.ProtectionProbe` prints `CLEAN` for both windows at +0 ms |
@@ -1542,7 +1542,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-CAP-17 | element names in logs | WP-B2 | Debug only (decided in WP-B2) |
 | Q-CAP-18 | PNG pixel format | WP-B5 | RGBA |
 | Q-CAP-19 | GC pauses on the hook thread | WP-B4 | allocation-free proc, pooled frames, watchdog |
-| Q-CAP-20 | `lastLeftClick` across sessions | WP-B3 | reset on start |
+| Q-CAP-20 | `lastLeftClick` across sessions | WP-B3 | reset on start (decided in WP-B3) |
 | Q-CAP-21 | monitor names | WP-B11 | DisplayConfig friendly name; compare |
 | Q-CAP-22 | cross-thread affinity and the shield lock | WP-B5 | DL1 plus `ShieldDeadlockTests` |
 | Q-CAP-23 | why Electron dropped clicks | WP-B4 | no action; reinstalls logged |
@@ -1906,7 +1906,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC | WP | Criterion (abridged; the spec text is normative) |
 |---|---|---|
 | AC-CAP-1 | WP-B1 | CaptureGeometryTests, AutoClassifierTests, ClickCaptionsTests, CaptureShieldTests pass on ... |
-| AC-CAP-2 | WP-B3 | CaptureEngineTests and MenuPollTests pass on Linux (every case in 8.4). |
+| AC-CAP-2 | WP-B3 | CaptureEngineTests and MenuPollTests pass on Linux (every case in 8.4; `MenuPollTests.StaleFrameIsDisposed` lands in WP-B5). |
 | AC-CAP-3 | WP-B1 | CaptureFunnelSourceTests passes, and introducing a direct IMonitorCapture.Capture call in ... |
 | AC-CAP-4 | WP-B1 | JsMathTests passes; no Math.Round( call exists in ShotAI.Core/Capture (source scan in the same ... |
 | AC-CAP-5 | WP-B6 | All ShotAI.Platform.Tests capture classes pass on a Windows x64 runner and on a Windows ARM64 ... |
@@ -2448,7 +2448,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 
 - [x] WP-B1. Capture Core: rules, captions and the shield (#143)
 - [x] WP-B2. Capture engine: sessions and the capture pipeline (#144)
-- [ ] WP-B3. Capture engine: click decisions and menus
+- [x] WP-B3. Capture engine: click decisions and menus (#145)
 - [ ] WP-B4. Input hook and hotkey
 - [ ] WP-B5. Screen capture, display affinity and the protection probe
 - [ ] WP-B6. Window information and UI Automation

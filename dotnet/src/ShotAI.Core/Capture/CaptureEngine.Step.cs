@@ -30,6 +30,14 @@ public sealed partial class CaptureEngine
             Observe(job.Element);
             return null;
         }
+        if (job.Button == MouseButton.Right)
+        {
+            // The late owner fill: into whatever arm is current, which may be a newer one (2.4.2).
+            lock (_gate)
+            {
+                if (_menuArm is { OwnerBounds: null } arm) arm.OwnerBounds = foreground?.FrameBounds ?? foreground?.WindowRect;
+            }
+        }
 
         var element = job.Element ?? (point is { } p ? _elements.ElementAtAsync(p.X, p.Y) : Task.FromResult<StepElement?>(null));
         var mode = s.Target.Mode;
@@ -37,7 +45,7 @@ public sealed partial class CaptureEngine
         AutoMode? autoMode = mode == "auto" ? AutoClassifier.Classify(foreground) : null;
 
         var grabStart = _clock.NowMs();
-        var grabbed = Grab(s.Target, mode, autoMode, foreground, clickMonitor, point);
+        var grabbed = job.MenuPopup ? GrabMenuSelection(s.Target, mode, job, clickMonitor, point) : Grab(s.Target, mode, autoMode, foreground, clickMonitor, point);
         if (grabbed is null)
         {
             // Electron returns at once: the query's result is dropped, and its fault observed.
@@ -65,7 +73,7 @@ public sealed partial class CaptureEngine
         var window = foreground is null ? null : new CapturedWindow(foreground.App, foreground.Title, foreground.Pid, foreground.WindowRect);
         var el = await ElementOrUnavailableAsync(element).ConfigureAwait(false);
         var appName = ClickCaptions.AppName(window?.App);
-        var caption = job.Trigger == StepTrigger.Click ? ClickCaptions.Build(job.Button, false, appName, el) : ClickCaptions.Hotkey(window?.Title);
+        var caption = job.Trigger == StepTrigger.Click ? ClickCaptions.Build(job.Button, job.MenuPopup, appName, el) : ClickCaptions.Hotkey(window?.Title);
         var id = Guid.NewGuid().ToString("D");
         var step = BuildStep(id, order, screenshot, job, grabbed, shot.Scale, window, el, caption);
 
@@ -111,8 +119,8 @@ public sealed partial class CaptureEngine
         return landed;
     }
 
-    // The grab cascade of 2.8, first match wins: window, area, then on the resolved monitor the
-    // auto region and the whole monitor. The menu selection path is WP-B3's.
+    // The grab cascade of 2.8 after path A, first match wins: window, area, then on the resolved
+    // monitor the auto region and the whole monitor.
     private Grabbed? Grab(CaptureTarget target, string mode, AutoMode? autoMode, ForegroundInfo? foreground, MonitorDescriptor? clickMonitor, (int X, int Y)? point)
     {
         if (mode == "window" || autoMode == AutoMode.Window)
@@ -178,6 +186,62 @@ public sealed partial class CaptureEngine
         catch (Exception e)
         {
             MonitorCaptureFailed(_log, e);
+            return null;
+        }
+    }
+
+    // Path A of 2.8, a menu selection: the frame taken while the menu was painted, else a grab
+    // now, cropped to the owner, the picked window or the area unioned with a box around the
+    // click; the whole monitor in screen mode. A failure here has no fallback. D12: in screen
+    // mode the pre-grab serves only when it is the chosen monitor.
+    private Grabbed? GrabMenuSelection(CaptureTarget target, string mode, CaptureJob job, MonitorDescriptor? clickMonitor, (int X, int Y)? point)
+    {
+        var winRect = mode == "window" ? PickedWindowRect(target.Window) : null;
+        MonitorDescriptor? monitor = clickMonitor;
+        if (mode == "screen" && target.MonitorId is { } monitorId) monitor = _screen.Monitors().FirstOrDefault(m => m.Id == monitorId) ?? clickMonitor;
+        else if (winRect is { } w) monitor = _screen.FromPoint((int)w.X, (int)w.Y) ?? clickMonitor;
+
+        PixelFrame full;
+        if (job.PreGrab is { } pre && (mode != "screen" || pre.Monitor.Id == monitor?.Id))
+        {
+            monitor = pre.Monitor;
+            full = pre.Frame;
+        }
+        else
+        {
+            if (monitor is null) return null;
+            try
+            {
+                full = _screen.Grab(monitor);
+            }
+            catch (Exception e)
+            {
+                MenuPopupCaptureFailed(_log, e);
+                return null;
+            }
+        }
+
+        Rect? region = null;
+        if (mode != "screen")
+        {
+            var baseRect = mode == "window" ? winRect : mode == "area" ? target.Area : job.MenuOwnerBounds;
+            if (point is { } p)
+            {
+                var box = CaptureGeometry.ClickBox(new Point(p.X, p.Y), monitor.ScaleFactor);
+                baseRect = baseRect is { } b ? CaptureGeometry.UnionRect(b, box) : box;
+            }
+            region = baseRect;
+        }
+
+        try
+        {
+            if (region is not { } r) return new Grabbed(full, monitor.Bounds.X, monitor.Bounds.Y, monitor);
+            var crop = CaptureGeometry.CropRect(monitor.Bounds, r);
+            return new Grabbed(_codec.Crop(full, crop.X, crop.Y, crop.Width, crop.Height), monitor.Bounds.X + crop.X, monitor.Bounds.Y + crop.Y, monitor);
+        }
+        catch (Exception e)
+        {
+            MenuPopupCropFailed(_log, e);
             return null;
         }
     }
@@ -282,7 +346,7 @@ public sealed partial class CaptureEngine
     {
         var trigger = job.Trigger == StepTrigger.Click ? "click" : "hotkey";
         var how = autoMode is { } auto ? "auto:" + AutoModeWire(auto) : mode;
-        var right = job.Button == MouseButton.Right ? " right" : "";
+        var right = job.Button == MouseButton.Right ? " right" : job.MenuPopup ? " menu-select" : "";
         var insert = job.InsertAt is { } at ? " (insert@" + at.ToString(CultureInfo.InvariantCulture) + ")" : "";
         var elementType = element.Name is { Length: > 0 } ? " el=(" + (element.ControlType ?? "null") + ")" : "";
         var kb = JsMath.Round(shot.Png.Length / 1024.0).ToString(CultureInfo.InvariantCulture);
