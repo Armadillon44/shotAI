@@ -379,6 +379,23 @@ public sealed class MenuPollTests
         Assert.Equal("Click in screen", h.Landed[^1].Step.Caption);
     }
 
+    /// <summary>A right-click whose session is paused between its gate and its arm arms nothing, so no arm lives in a paused session.</summary>
+    [Fact]
+    public async Task AnArmForAPausedSessionIsDropped()
+    {
+        await using var h = new EngineHarness();
+        await h.StartAsync(h.Project());
+        h.Elements.OnQuery = (_, _) =>
+        {
+            h.Engine.Pause();
+            return Task.FromResult<StepElement?>(null);
+        };
+        h.Triggers.Click(400, 300, MouseButton.Right);
+
+        Assert.Null(h.Engine.ArmForTest);
+        Assert.Equal(0, h.Clock.PendingOf(CaptureConstants.MenuPollMs));
+    }
+
     /// <summary>
     /// A right-click whose session ended, and a new one started, between its gate and its arm arms
     /// nothing in the new session.

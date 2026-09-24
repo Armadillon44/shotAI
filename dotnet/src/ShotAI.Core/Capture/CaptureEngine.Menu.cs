@@ -90,14 +90,15 @@ public sealed partial class CaptureEngine
         Enqueue(new CaptureJob(StepTrigger.Click, point, e.Button, MenuPopup: false, null, null, null, element, Broadcast: true, SkipOwnWindowGuard: false, generation));
     }
 
-    // Installs an arm and starts its poll, replacing any earlier arm; an arm whose session has
-    // ended or started stopping in the meantime is dropped, so it can never outlive its recording.
+    // Installs an arm and starts its poll, replacing any earlier arm. An arm whose session has
+    // ended, paused or started stopping in the meantime is dropped, so no arm outlives its
+    // recording or lives in a paused one.
     private bool Arm(MenuArm arm)
     {
         MenuArm? replaced;
         lock (_gate)
         {
-            if (_session is not { Kind: SessionKind.Recording } s || s.Generation != arm.Generation || _stopping > 0 || _tornDown)
+            if (_session is not { Kind: SessionKind.Recording, Paused: false } s || s.Generation != arm.Generation || _stopping > 0 || _tornDown)
             {
                 replaced = arm;
             }
