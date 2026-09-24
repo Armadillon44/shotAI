@@ -29,19 +29,37 @@ public sealed class GdiMonitorCaptureTests
         return Magenta.Count(frame.Bgra);
     }
 
-    // WPF draws in its own time: the count once two reads a little apart agree (0 if it never shows).
+    // WPF draws in its own time: the count once two reads a little apart agree (0 if it never
+    // shows). The first window of a process can take seconds to draw, so the wait is long.
     private int SettledMagenta()
     {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         var last = -1;
-        while (DateTime.UtcNow < deadline)
+        while (watch.Elapsed < TimeSpan.FromSeconds(30))
         {
             var count = MagentaNow();
-            if (count > 0 && count == last) return count;
+            if (count > 0 && count == last)
+            {
+                TestContext.Current.TestOutputHelper?.WriteLine($"settled at {count} px after {watch.ElapsedMilliseconds} ms");
+                return count;
+            }
             last = count;
             Thread.Sleep(100);
         }
         return Math.Max(last, 0);
+    }
+
+    // The baseline, or a failure that says what the runner's screen showed instead.
+    private int Baseline(MagentaWindow window)
+    {
+        var baseline = SettledMagenta();
+        TestContext.Current.TestOutputHelper?.WriteLine($"baseline (unprotected, visible): {baseline} px");
+        if (baseline == 0)
+        {
+            var primary = Primary();
+            Assert.Fail("the magenta window is not in a grab even unprotected: " + ScreenDiagnostics.Describe(window, primary, () => _capture.Capture(primary)));
+        }
+        return baseline;
     }
 
     [Fact]
@@ -120,8 +138,7 @@ public sealed class GdiMonitorCaptureTests
     public async Task AffinityDoesNotWaitForTheWindowsThread(bool layered)
     {
         using var window = new MagentaWindow(layered);
-        var baseline = SettledMagenta();
-        Assert.True(baseline > 0, "the magenta window is not in a grab even unprotected");
+        Baseline(window);
 
         TimeSpan elapsed;
         int leak;
@@ -144,9 +161,7 @@ public sealed class GdiMonitorCaptureTests
     private void ExclusionHolds(bool layered)
     {
         using var window = new MagentaWindow(layered);
-        var baseline = SettledMagenta();
-        TestContext.Current.TestOutputHelper?.WriteLine($"baseline (unprotected, visible): {baseline} px");
-        Assert.True(baseline > 0, "the magenta window is not in a grab even unprotected");
+        var baseline = Baseline(window);
 
         for (var i = 0; i < Reps; i++)
         {

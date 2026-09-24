@@ -65,8 +65,10 @@ public sealed class PixelFrameTests
         Assert.False(frame.IsDisposed);
     }
 
+    /// <summary>Each rectangle reaches outside the 4 x 3 frame; (-1, 1) would read the end of row 0 if only the copy's offsets were checked.</summary>
     [Theory]
     [InlineData(-1, 0, 1, 1)]
+    [InlineData(-1, 1, 1, 1)]
     [InlineData(0, -1, 1, 1)]
     [InlineData(0, 0, 0, 1)]
     [InlineData(0, 0, 1, 0)]
