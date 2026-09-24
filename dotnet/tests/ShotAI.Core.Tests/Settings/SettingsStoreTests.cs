@@ -35,6 +35,7 @@ public sealed class SettingsStoreTests : IAsyncLifetime
         var after = _h.OnDisk();
         Assert.Equal("lfi", after["brand"]!.GetValue<string>());
         Assert.Equal("""{"a":[1,2]}""", JsJson.Stringify(after["somethingFuture"], 0));
+        Assert.Empty(_h.Lines());
     }
 
     /// <summary>A wrong type for a known key is coerced, not carried (INV-INFRA-15).</summary>

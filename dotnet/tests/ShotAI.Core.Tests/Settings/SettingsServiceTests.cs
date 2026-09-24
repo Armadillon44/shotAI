@@ -669,6 +669,7 @@ public sealed class SettingsServiceTests : IAsyncLifetime
         Assert.Equal(dir, await store.GetProjectsDirAsync());
         Assert.Equal(["/x", "/y"], await store.GetRecentsAsync());
         Assert.Equal(dir, _h.OnDisk()["projectsDir"]!.GetValue<string>());
+        Assert.Empty(_h.Lines());
     }
 
     /// <summary>Q-INFRA-3 holds for a write too: a folder that is not fully qualified is stored as the default.</summary>
