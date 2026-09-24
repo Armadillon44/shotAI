@@ -54,12 +54,16 @@
                       Visibility="{Binding SettingsVisible, Converter={StaticResource Visible}}" />
     </Grid>
 
-    <!-- 03 7.4.10: the overlay layer, over the header and the views; the notices sit at the top of the content area. -->
+    <!--
+      03 7.4.10: the overlay layer, over the header and the views: the confirm dialog's scrim over
+      both, and above it the notices at the top of the content area (Electron's z 50 and 60).
+    -->
     <Grid x:Name="OverlayLayer" Grid.RowSpan="2">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" SharedSizeGroup="ShellHeader" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
+      <chrome:ConfirmHost x:Name="Confirm" Grid.RowSpan="2" DataContext="{Binding Confirm}" />
       <chrome:NoticeHost x:Name="Notices" Grid.Row="1" DataContext="{Binding Notices}" />
     </Grid>
   </Grid>

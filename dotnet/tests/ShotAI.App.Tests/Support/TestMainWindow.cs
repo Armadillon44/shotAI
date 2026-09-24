@@ -43,12 +43,13 @@ internal static class TestMainWindow
     {
         var notices = new NoticeCenter(NullLogger<NoticeCenter>.Instance);
         var projects = new ListingProjects();
-        var home = new HomeViewModel(
-            projects, notices, new WpfUiDispatcher(System.Windows.Threading.Dispatcher.CurrentDispatcher), TimeProvider.System, NullLogger<HomeViewModel>.Instance);
+        var ui = new WpfUiDispatcher(System.Windows.Threading.Dispatcher.CurrentDispatcher);
+        var confirm = new ConfirmService(ui);
+        var home = new HomeViewModel(projects, new FakeShellReveal(), notices, confirm, ui, TimeProvider.System, NullLogger<HomeViewModel>.Instance);
         var project = new ProjectDetailViewModel(
             projects, new ProjectSessionFactory(projects, NullLogger<ProjectSessionFactory>.Instance), new ReportViewModelFactory(), new RecordingLayout(),
             NullLogger<ProjectDetailViewModel>.Instance);
-        return new ShellViewModel(home, project, menu, notices);
+        return new ShellViewModel(home, project, menu, notices, confirm);
     }
 }
 

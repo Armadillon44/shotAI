@@ -14,9 +14,9 @@ namespace ShotAI.App.Tests.Support;
 
 /// <summary>
 /// The shell, Home, the project view and the menu as the container and startup make them, over a
-/// <see cref="ListingProjects"/> store, a <see cref="FakeSettingsService"/> and a
-/// <see cref="TestClock"/>, on the calling UI thread: the navigation state follows the shell and
-/// the menu follows the navigation state (06 7.7).
+/// <see cref="ListingProjects"/> store, a <see cref="FakeSettingsService"/>, a
+/// <see cref="FakeShellReveal"/> and a <see cref="TestClock"/>, on the calling UI thread: the
+/// navigation state follows the shell and the menu follows the navigation state (06 7.7).
 /// </summary>
 internal sealed class TestShell : IDisposable
 {
@@ -33,13 +33,14 @@ internal sealed class TestShell : IDisposable
         Settings = settings ?? new FakeSettingsService();
         var ui = new WpfUiDispatcher(Dispatcher.CurrentDispatcher);
         Notices = new NoticeCenter(new Logger<NoticeCenter>(Logs));
-        Home = new HomeViewModel(Projects, Notices, ui, Clock, new Logger<HomeViewModel>(Logs));
+        Confirm = new ConfirmService(ui);
+        Home = new HomeViewModel(Projects, Reveal, Notices, Confirm, ui, Clock, new Logger<HomeViewModel>(Logs));
         Navigation = new NavigationState(new Logger<NavigationState>(Logs));
         Menu = new AppMenuViewModel(Navigation, Settings, ui, new Logger<AppMenuViewModel>(Logs));
         IProjectSessionFactory real = new ProjectSessionFactory(Projects, new Logger<ProjectSessionFactory>(Logs));
         Sessions = sessions?.Invoke(real) ?? real;
         Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, new Logger<ProjectDetailViewModel>(Logs));
-        Shell = new ShellViewModel(Home, Project, Menu, Notices);
+        Shell = new ShellViewModel(Home, Project, Menu, Notices, Confirm);
         Navigation.Follow(Shell);
     }
 
@@ -54,6 +55,12 @@ internal sealed class TestShell : IDisposable
     public CapturingLoggerProvider Logs { get; } = new();
 
     public NoticeCenter Notices { get; }
+
+    /// <summary>The confirm dialog's service; a test answers it with its commands.</summary>
+    public ConfirmService Confirm { get; }
+
+    /// <summary>The shell reveal, recording each reveal.</summary>
+    public FakeShellReveal Reveal { get; } = new();
 
     public HomeViewModel Home { get; }
 

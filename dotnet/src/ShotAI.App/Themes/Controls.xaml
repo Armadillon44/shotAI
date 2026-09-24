@@ -122,6 +122,12 @@
     </Style.Triggers>
   </Style>
 
+  <!-- btn btn-small btn-danger: the bulk bar's delete (06 2.16). -->
+  <Style x:Key="Button.SmallDanger" TargetType="ButtonBase" BasedOn="{StaticResource Button.Danger}">
+    <Setter Property="Padding" Value="11.2,4.8" />
+    <Setter Property="FontSize" Value="12.8" />
+  </Style>
+
   <!-- btn ghost: transparent border and fill, ink-2; hover accent-tint fill and ink. -->
   <Style x:Key="Button.Ghost" TargetType="ButtonBase" BasedOn="{StaticResource Button.Base}">
     <Setter Property="Background" Value="Transparent" />
@@ -270,6 +276,45 @@
   </Style>
 
   <!--
+    project__rename-input (06 2.13): weight 600, 0.25rem 0.4rem, a 1px accent border,
+    radius-control-sm, the row's full width; field-bg and ink as every field (D-HOME-30), and
+    the focus ring of a focused field.
+  -->
+  <Style x:Key="RenameInput" TargetType="TextBox">
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.field-bg}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.ink}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource Brush.ink}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource Brush.accent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.accent}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="6.4,4" />
+    <Setter Property="FontWeight" Value="{DynamicResource Fw.title}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TextBox">
+          <Grid>
+            <Border x:Name="Ring" Margin="-2" BorderThickness="2" BorderBrush="{DynamicResource Brush.focus-ring}"
+                    CornerRadius="{DynamicResource Radius.control-sm}" Visibility="Collapsed" />
+            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource Radius.control-sm}">
+              <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" Focusable="False"
+                            HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+            </Border>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+              <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
     project__search-clear (06 2.8): inside the search box, transparent, ink-3, 0.85rem, line-height 1,
     padding 0.25rem, radius-control-sm; hover ink on control-bd.
   -->
@@ -404,6 +449,75 @@
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.55" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ===== Selection ===== -->
+
+  <!--
+    project__check (06 2.12): a 1.05rem checkbox in the accent colour, ticked with a white check.
+    Chromium draws the box; natively it is field-bg with a control-bd edge, and accent with an
+    on-accent tick when checked, at radius-micro.
+  -->
+  <Style x:Key="RowCheck" TargetType="CheckBox">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Width" Value="16.8" />
+    <Setter Property="Height" Value="16.8" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="CheckBox">
+          <Border x:Name="Box" Background="{DynamicResource Brush.field-bg}" BorderBrush="{DynamicResource Brush.control-bd}"
+                  BorderThickness="1" CornerRadius="{DynamicResource Radius.micro}" SnapsToDevicePixels="True">
+            <TextBlock x:Name="Tick" Text="{x:Static corehome:HomeText.SelectAllTick}" FontSize="11.2" Visibility="Collapsed"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource Brush.on-accent}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Box" Property="Background" Value="{DynamicResource Brush.accent}" />
+              <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Brush.accent}" />
+              <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.55" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+    project__bulk-all (06 2.16): no border or fill, fs-meta, 600, accent-ink; its box
+    (project__check-box) 1rem, radius-micro, a 1.5px accent edge; filled accent with an
+    on-accent tick at 0.7rem when every row shown is selected (the toggle's IsChecked).
+  -->
+  <Style x:Key="BulkToggle" TargetType="ToggleButton">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.accent-ink}" />
+    <Setter Property="FontSize" Value="{DynamicResource Fs.meta}" />
+    <Setter Property="FontWeight" Value="{DynamicResource Fw.title}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <StackPanel Background="{TemplateBinding Background}" Orientation="Horizontal">
+            <Border x:Name="Box" Width="16" Height="16" Margin="0,0,6.4,0" VerticalAlignment="Center" BorderThickness="1.5"
+                    BorderBrush="{DynamicResource Brush.accent}" CornerRadius="{DynamicResource Radius.micro}" SnapsToDevicePixels="True">
+              <TextBlock x:Name="Tick" Text="{x:Static corehome:HomeText.SelectAllTick}" FontSize="11.2" Visibility="Collapsed"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource Brush.on-accent}" />
+            </Border>
+            <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
+          </StackPanel>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Box" Property="Background" Value="{DynamicResource Brush.accent}" />
+              <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>

@@ -25,17 +25,19 @@ public sealed class ShellViewModel : ViewModelBase
     private string? _rawProjectTheme;
     private bool _started;
 
-    /// <summary>The shell over Home, the project view, the menu's requests and the notices.</summary>
-    public ShellViewModel(HomeViewModel home, ProjectDetailViewModel project, AppMenuViewModel menu, INoticeService notices)
+    /// <summary>The shell over Home, the project view, the menu's requests, the notices and the confirm dialog.</summary>
+    public ShellViewModel(HomeViewModel home, ProjectDetailViewModel project, AppMenuViewModel menu, INoticeService notices, IConfirmService confirm)
     {
         ArgumentNullException.ThrowIfNull(home);
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(notices);
+        ArgumentNullException.ThrowIfNull(confirm);
         Home = home;
         Project = project;
         Menu = menu;
         Notices = notices;
+        Confirm = confirm;
         // Both live as long as the shell, so neither subscription outlives what it holds; the menu
         // lives as long as the app, which has the one shell.
         home.OpenRequested += (_, path) => _ = OpenProjectAsync(path);
@@ -62,6 +64,9 @@ public sealed class ShellViewModel : ViewModelBase
 
     /// <summary>The notice source the overlay layer shows.</summary>
     public INoticeService Notices { get; }
+
+    /// <summary>The confirm dialog the overlay layer shows (06 7.11).</summary>
+    public IConfirmService Confirm { get; }
 
     /// <summary>The view on screen.</summary>
     public ShellViewKind CurrentView
@@ -135,6 +140,13 @@ public sealed class ShellViewModel : ViewModelBase
         _started = true;
         if (CurrentView == ShellViewKind.Home) Home.OnEnter();
     }
+
+    /// <summary>
+    /// Escape that nothing inside the window took: Home, if it is the view on screen, ends its
+    /// rename or clears its selection (06 D-HOME-11).
+    /// </summary>
+    /// <returns>Whether the key did something.</returns>
+    public bool OnEscape() => CurrentView == ShellViewKind.Home && Home.OnEscape();
 
     /// <summary>The main window was activated; Home re-lists if it is the view on screen.</summary>
     public void OnWindowActivated()

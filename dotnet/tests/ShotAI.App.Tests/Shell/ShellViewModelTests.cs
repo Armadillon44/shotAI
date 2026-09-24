@@ -244,10 +244,11 @@ public sealed class ShellViewModelTests
     public Task ArgumentsAreChecked() => Sta.RunAsync(() =>
     {
         using var t = new TestShell();
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Menu, t.Notices));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Menu, t.Notices));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Notices));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, (INoticeService)null!));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Menu, t.Notices, t.Confirm));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Menu, t.Notices, t.Confirm));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Notices, t.Confirm));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, (INoticeService)null!, t.Confirm));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, t.Notices, null!));
         Assert.Throws<ArgumentNullException>(() => t.Shell.ShowProject(null!, null));
     });
 }

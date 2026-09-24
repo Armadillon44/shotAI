@@ -31,6 +31,9 @@
   <SolidColorBrush x:Key="FixedColors.ConfirmScrim" Color="#8C111318" po:Freeze="True" />
   <SolidColorBrush x:Key="FixedColors.TourDim" Color="#8C11131B" po:Freeze="True" />
 
+  <!-- The confirm card's shadow, 0 12px 40px rgba(0, 0, 0, 0.25) (2.23): neutral; the 0.25 is the effect's opacity. -->
+  <Color x:Key="FixedColors.ConfirmShadow">#FF000000</Color>
+
   <!-- The settings switch knob's shadow, 0 1px 2px rgba(0, 0, 0, 0.25) (2.24): neutral; the 0.25 is the effect's opacity. -->
   <Color x:Key="FixedColors.KnobShadow">#FF000000</Color>
 

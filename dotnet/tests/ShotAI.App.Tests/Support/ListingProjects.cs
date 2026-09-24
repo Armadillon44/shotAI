@@ -97,6 +97,64 @@ internal sealed class ListingProjects : FakeProjectService, IProjectService
         return next;
     }
 
+    /// <summary>Each rename, archive, restore and delete asked for, in order: <c>rename C:\p\a New title</c>, <c>archive C:\p\a</c>.</summary>
+    public List<string> Writes { get; } = [];
+
+    /// <summary>When set, a rename, archive, restore or delete throws it and changes nothing.</summary>
+    public Exception? WriteFailure { get; set; }
+
+    /// <summary>The <c>updatedAt</c> a rename, archive or restore stamps, as the store stamps the time of the write.</summary>
+    public string WriteStamp { get; set; } = "2026-07-22T09:59:00.000Z";
+
+    private readonly Queue<TaskCompletionSource> _writeGates = new();
+
+    /// <summary>The next rename, archive, restore or delete waits for the returned source, which the test completes.</summary>
+    public TaskCompletionSource GateWrite()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _writeGates.Enqueue(gate);
+        return gate;
+    }
+
+    public override async Task<ProjectSummary> RenameProjectAsync(string projectPath, string title)
+    {
+        var project = await WriteAsync($"rename {projectPath} {title}", projectPath);
+        return Replace(project with { Title = title, UpdatedAt = WriteStamp });
+    }
+
+    public override async Task<ProjectSummary> ArchiveProjectAsync(string projectPath)
+    {
+        var project = await WriteAsync($"archive {projectPath}", projectPath);
+        return Replace(project with { Archived = true, UpdatedAt = WriteStamp });
+    }
+
+    public override async Task<ProjectSummary> UnarchiveProjectAsync(string projectPath)
+    {
+        var project = await WriteAsync($"restore {projectPath}", projectPath);
+        return Replace(project with { Archived = false, UpdatedAt = WriteStamp });
+    }
+
+    public override async Task DeleteProjectAsync(string projectPath)
+    {
+        await WriteAsync($"delete {projectPath}", projectPath);
+        Listing = [.. Listing.Where(p => !string.Equals(p.Path, projectPath, StringComparison.Ordinal))];
+    }
+
+    // The store's queued write: waits on a gate the test set, then fails as told, or finds the project in the listing.
+    private async Task<ProjectSummary> WriteAsync(string write, string projectPath)
+    {
+        Writes.Add(write);
+        if (_writeGates.TryDequeue(out var gate)) await gate.Task;
+        if (WriteFailure is { } failure) throw failure;
+        return Listing.FirstOrDefault(p => string.Equals(p.Path, projectPath, StringComparison.Ordinal)) ?? throw new ProjectNotKnownException();
+    }
+
+    private ProjectSummary Replace(ProjectSummary project)
+    {
+        Listing = [.. Listing.Select(p => string.Equals(p.Path, project.Path, StringComparison.Ordinal) ? project : p)];
+        return project;
+    }
+
     /// <summary>An open of <paramref name="path"/> throws <paramref name="failure"/>.</summary>
     public void OpenFails(string path, Exception failure) => Openable[path] = () => throw failure;
 

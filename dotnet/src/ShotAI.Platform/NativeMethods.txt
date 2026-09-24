@@ -71,3 +71,6 @@ WICBitmapDitherType
 WICBitmapPaletteType
 WICColorContextType
 PropVariantClear
+SHParseDisplayName
+SHOpenFolderAndSelectItems
+ILFree

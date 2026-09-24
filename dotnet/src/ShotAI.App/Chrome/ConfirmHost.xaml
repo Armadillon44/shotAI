@@ -1,0 +1,38 @@
+<UserControl x:Class="ShotAI.App.Chrome.ConfirmHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:corehome="clr-namespace:ShotAI.Core.Home;assembly=ShotAI.Core"
+             Focusable="False" IsTabStop="False">
+  <!--
+    The confirm and alert (spec 06 2.23, 7.11), in the overlay layer over the header and the
+    views: a scrim that takes every click, so nothing behind is hit, and the card, centred, at
+    most 420 DIP wide. The card is its own focus scope, Tab cycles inside it, and the confirm
+    button has the focus when it opens, so Enter confirms (EDGE-HOME-27). Collapsed while no
+    question is shown. The data context is the ConfirmService.
+  -->
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="Visible" />
+  </UserControl.Resources>
+  <Grid x:Name="Root" Visibility="{Binding IsOpen, Converter={StaticResource Visible}}"
+        FocusManager.IsFocusScope="True" KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Contained"
+        AutomationProperties.Name="{x:Static corehome:HomeText.ConfirmName}">
+    <Border x:Name="Scrim" Background="{StaticResource FixedColors.ConfirmScrim}" />
+    <Border x:Name="Card" MaxWidth="420" Margin="24" Padding="24,20" HorizontalAlignment="Center" VerticalAlignment="Center"
+            Background="{DynamicResource Brush.surface}" CornerRadius="{DynamicResource Radius.panel}">
+      <Border.Effect>
+        <DropShadowEffect ShadowDepth="12" Direction="270" BlurRadius="40" Opacity="0.25" Color="{StaticResource FixedColors.ConfirmShadow}" />
+      </Border.Effect>
+      <StackPanel>
+        <TextBlock x:Name="Message" Margin="0,0,0,17.6" Text="{Binding Current.Message}" TextWrapping="Wrap" FontSize="16"
+                   LineHeight="24" LineStackingStrategy="BlockLineHeight" Foreground="{DynamicResource Brush.ink}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button x:Name="CancelButton" Margin="0,0,9.6,0" Style="{DynamicResource Button.Base}"
+                  Content="{x:Static corehome:HomeText.ConfirmCancel}" Command="{Binding CancelCommand}"
+                  Visibility="{Binding Current.HasCancel, Converter={StaticResource Visible}, FallbackValue=Collapsed}" />
+          <Button x:Name="ConfirmButton" Style="{DynamicResource Button.Primary}" Content="{Binding Current.ConfirmLabel}"
+                  Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>
