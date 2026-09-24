@@ -283,6 +283,24 @@ public sealed partial class CaptureEngineTests
         Assert.Contains("monitor capture failed:", h.LogLines(Microsoft.Extensions.Logging.LogLevel.Warning));
     }
 
+    /// <summary>D6: a grab that fails after teardown ended its session is not reported.</summary>
+    [Fact]
+    public async Task AFailedGrabAfterTeardownIsNotReported()
+    {
+        await using var h = new EngineHarness();
+        using var gate = new GrabGate(h.Screen);
+        h.Screen.Failing.Add(1);
+        var p = h.Project();
+        await h.StartAsync(p);
+        h.Triggers.Click(100, 100);
+        await gate.EnteredAsync();
+        h.Engine.Teardown();
+        gate.Open();
+        await h.SettleAsync();
+
+        Assert.Empty(h.Failures);
+    }
+
     /// <summary>2.6 step 6, D6: with no monitor at all there is nothing to grab, which is a failed grab, not an error.</summary>
     [Fact]
     public async Task NoMonitorIsAFailedGrab()

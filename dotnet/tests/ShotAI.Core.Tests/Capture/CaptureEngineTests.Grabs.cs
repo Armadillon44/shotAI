@@ -248,6 +248,7 @@ public sealed partial class CaptureEngineTests
         var step = Assert.Single(h.Landed).Step;
         Assert.Equal([new PixelRect(550, 220, 820, 640)], h.Codec.Crops);
         Assert.Equal(new Point(410, 320), step.Click!.Image);
+        Assert.Contains("step #1 [click/auto:region] SearchHost -> step-0001.png (0 KB)", h.LogLines());
     }
 
     /// <summary>The desktop (Explorer's Program Manager) is captured whole.</summary>
@@ -262,6 +263,7 @@ public sealed partial class CaptureEngineTests
 
         Assert.Empty(h.Codec.Crops);
         Assert.Equal((1920, 1080), EngineHarness.ShotSize(p, Assert.Single(h.Landed).Step.Screenshot));
+        Assert.Contains("step #1 [click/auto:fullscreen] Windows Explorer -> step-0001.png (0 KB)", h.LogLines());
     }
 
     /// <summary>EDGE-CAP-32: a hotkey has no point, so a region classification captures the primary monitor whole.</summary>
@@ -318,6 +320,7 @@ public sealed partial class CaptureEngineTests
             Assert.Equal("Click in Notepad", l.Step.Caption);
             Assert.Equal(StepElement.Unavailable.ToJson().ToJsonString(), l.Step.Raw["element"]!.ToJsonString());
         });
+        Assert.Single(h.LogLines(), l => l == "element query failed; the step records the element as unavailable");
     }
 
     /// <summary>The window of a step is the foreground window as captured, with its window rectangle; no window is <c>screen</c>.</summary>
