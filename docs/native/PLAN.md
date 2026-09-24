@@ -642,12 +642,12 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 |---|---|
 | Goal | The foreground window, the window list and the element at a click point, with get-windows naming and hang-tolerant UI Automation |
 | Spec inputs | 02 2.10 (2.10.1 to 2.10.3), 2.12 (2.12.1, 2.12.2), 7.5, 7.6, D15, D17, INV-CAP-15, INV-CAP-16, risk R4; ARCHITECTURE DL3, 6.6; Q-CAP-4, Q-CAP-8, Q-CAP-9 |
-| Deliverables | Platform `Win32WindowInfoProvider : IWindowInfoProvider` (FileDescription rule, ApplicationFrameHost child walk, Widgets.exe exclusion, `DWMWA_EXTENDED_FRAME_BOUNDS`, the get-windows list filter, own-pid check), `UiaElementLocator : IElementLocator` (two MTA threads `shotAI.Uia.0` and `.1`, `IUIAutomation2` 500 ms timeouts, 600 ms overall cap, climb of 6, the 15-type allowlist, COM objects released on the reading thread); the `NativeMethods.txt` entries; `PlatformCaptureRegistration` complete; `CaptureEngine` (WP-B2) registered as `ICaptureService` in `AddShotAICore` now that every seam its constructor needs is registered (AC-CAP-35) |
-| Tests | No Electron file. New: Platform `WindowInfoTests` (including `UwpAppKeepsFrameHostPid`), `UiaElementLocatorTests` (including `HungProviderTimesOut`, `StaleRequestsAreDroppedWhenBothThreadsHang`); App `Composition/ContainerTests` passes with `CaptureEngine` resolved as `ICaptureService` (`NoAsyncOnlyDisposables`, AC-CAP-35) |
-| Acceptance criteria | AC-CAP-5, AC-CAP-35 |
+| Deliverables | Platform `Win32WindowInfoProvider : IWindowInfoProvider` (FileDescription rule, ApplicationFrameHost child walk, Widgets.exe exclusion, `DWMWA_EXTENDED_FRAME_BOUNDS`, the get-windows list filter, own-pid check), `UiaElementLocator : IElementLocator` (two MTA threads `shotAI.Uia.0` and `.1`, `IUIAutomation2` 500 ms timeouts, 600 ms overall cap, climb of 6, the 15-type allowlist, COM objects released on the reading thread); the `NativeMethods.txt` entries; `PlatformCaptureRegistration` complete; `CaptureEngine` (WP-B2) registered as `ICaptureService` in `AddShotAICore` now that every seam its constructor needs is registered (AC-CAP-35). As built in WP-B6: the rules are Core's, tested on Linux: `WindowDescriber` (get-windows' derivation, the UWP walk, the Widgets exclusion, the rectangles, the resolve order), `WindowListFilter` and `VersionInfoKeys` over the `IWindowFacts` seam, and `ElementQueryPool` (the two threads, the cap, the deadline) over the `IElementReader` seam; Platform's `Win32WindowFacts` and `UiaElementReader` make the calls, with `CUIAutomation8` for `IUIAutomation2` (corrected). `ICaptureClock` is registered with the engine, and `JsString.ToWellFormed` makes the strings read well formed |
+| Tests | No Electron file. New: Platform `WindowInfoTests` (including `UwpAppKeepsFrameHostPid`), `UiaElementLocatorTests` (including `HungProviderTimesOut`, `StaleRequestsAreDroppedWhenBothThreadsHang`); App `Composition/ContainerTests` passes with `CaptureEngine` resolved as `ICaptureService` (`NoAsyncOnlyDisposables`, AC-CAP-35). As built in WP-B6: 76 tests, 54 Core (`WindowDescriberTests` 26 with `UwpAppKeepsFrameHostPid`, `WindowListFilterTests` 11, `ElementQueryPoolTests` 15 with `StaleRequestsAreDroppedWhenBothThreadsHang`, one `ToWellFormed` case and one registration) and 22 Platform (`WindowInfoTests` 12, `UiaElementLocatorTests` 8 with `HungProviderTimesOut` and `AHungAppLeavesTheOtherThread`, two registrations); the rules moved to Core, so two of the named tests are Core's (02 8.4 as built) |
+| Acceptance criteria | AC-CAP-5, AC-CAP-35 (both met in WP-B6) |
 | Depends on | WP-B1, WP-B2 (the `CaptureEngine` it registers), WP-B4, WP-B5 |
 | Size | M |
-| Risks and de-risking | App-name drift changes captions, the classifier and SOP prompts (02 R4): `WindowInfoTests` plus AC-CAP-30 in WP-D8. CsWin32 projection shapes for `IUIAutomation2` are unverified: the build reports unknown names |
+| Risks and de-risking | App-name drift changes captions, the classifier and SOP prompts (02 R4): `WindowInfoTests` plus AC-CAP-30 in WP-D8. CsWin32 projection shapes for `IUIAutomation2` are unverified: the build reports unknown names. Outcome in WP-B6: CsWin32 projects both timeouts as settable `uint` properties; within one process UI Automation holds up a read while another waits on a hung provider there, while across processes one hung app leaves the other thread free (02 7.6 as built). 74 mutations of the Core changes: 73 caught (2 rewritten because their first text did not build), 1 equivalent (the dispose check before a query is enqueued only short-circuits the closed queue's refusal) |
 | Demo | tests on x64 and arm64 |
 
 #### WP-B7. Capture pill and recording visibility
@@ -1443,7 +1443,7 @@ Built from every spec's risk statements (the `Risk` entries of each section 11 a
 | X9 | The pill re-activates and steals the first click (03 R2) | M / M | WP-B7 | non-activating styles, foreground assertions in tests, the `SW_SHOWNOACTIVATE` fallback |
 | X10 | Mixed-DPI placement errors (03 R3) | M / M | WP-B7, WP-B8, WP-B11 | physical-px positioning after `SourceInitialized`; the 100% plus 150% rig |
 | X11 | Timing differences change the foreground window at capture (02 R3) | M / M | WP-B11 | AC-CAP-6, AC-CAP-7, AC-CAP-27; the Q-CAP-4 fallback |
-| X12 | App-name derivation drift changes captions and prompts (02 R4) | M / M | WP-B6 | `WindowInfoTests`, AC-CAP-30 |
+| X12 | App-name derivation drift changes captions and prompts (02 R4) | M / M | WP-B6 | `WindowInfoTests`, AC-CAP-30. Outcome in WP-B6: the derivation is Core's, tested against get-windows' source |
 | X13 | A redaction silently not baked while the save succeeds (04 security findings) | L / H | WP-C6, WP-C7 | fail closed on malformed geometry and unknown types (D-EDIT-2, D-EDIT-3); box-average tiles; end-to-end proofs in M-C and M-D |
 | X14 | Render and manifest disagree after a failed write (04, D-EDIT-5) | L / H | WP-C5 | render first with receipt rollback; `StoreRenderTests` |
 | X15 | Windows OCR missing or weaker than Tesseract (04 Q-EDIT-5, Q-EDIT-6) | M / M | WP-C11 | explicit notices; measured recall; Feature on Demand in the IT notes |
@@ -2451,7 +2451,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-B3. Capture engine: click decisions and menus (#145)
 - [x] WP-B4. Input hook and hotkey (#146)
 - [x] WP-B5. Screen capture, display affinity and the protection probe (#147)
-- [ ] WP-B6. Window information and UI Automation
+- [x] WP-B6. Window information and UI Automation (#148)
 - [ ] WP-B7. Capture pill and recording visibility
 - [ ] WP-B8. Area-select overlay
 - [ ] WP-B9. Recording from Home and the project view
