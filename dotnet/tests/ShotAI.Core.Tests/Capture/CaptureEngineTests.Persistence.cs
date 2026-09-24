@@ -138,6 +138,19 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(["old1", landed.Step.Id], Store.StoreHarness.StepIds(p));
     }
 
+    /// <summary>The state and the step event carry the project path as the caller gave it, not the folder the store resolved.</summary>
+    [Fact]
+    public async Task TheEventCarriesThePathAsGiven()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project() + Path.DirectorySeparatorChar;
+        var state = await h.StartAsync(p);
+        await h.ClickAsync(100, 100);
+
+        Assert.Equal(p, state.ProjectPath);
+        Assert.Equal(p, Assert.Single(h.Landed).ProjectPath);
+    }
+
     /// <summary>INV-CAP-27: the PNG and the manifest are on disk before the step event fires.</summary>
     [Fact]
     public async Task StepEventFiresAfterPersist()
