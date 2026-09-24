@@ -85,6 +85,19 @@ public sealed partial class CaptureEngineTests
         Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
     }
 
+    /// <summary>2.2.5 step 3: an area target is on screen only when it has an area, so one without is refused before hiding.</summary>
+    [Fact]
+    public async Task ScreenshotAreaTargetWithoutAnAreaIsOffScreen()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        var e = await Assert.ThrowsAsync<CaptureException>(() => h.ScreenshotAsync(p, new CaptureTarget("area"), 0));
+
+        Assert.Equal(CaptureMessages.AreaOffScreen, e.Message);
+        Assert.Empty(h.Events);
+        Assert.Empty(h.Clock.Requested);
+    }
+
     /// <summary>An area that overlaps a monitor by a pixel is on screen, and is cropped with the area formula.</summary>
     [Fact]
     public async Task ScreenshotOfAnAreaOverlappingAMonitor()
