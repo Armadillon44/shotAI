@@ -1,0 +1,88 @@
+<shell:ShotAIWindow x:Class="ShotAI.App.Shell.AreaOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:ShotAI.App.Shell"
+        xmlns:core="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
+        Title="{x:Static core:ShellStrings.OverlayTitle}"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ShowActivated="True"
+        WindowStartupLocation="Manual"
+        Focusable="True"
+        Cursor="Cross"
+        UseLayoutRounding="True"
+        Background="{DynamicResource Overlay.HitFill}">
+  <!--
+    Spec 03 2.5.2 and 2.5.5: Electron's overlay page as a window over one monitor. The colours,
+    corners and sizes are overlay.css's own, not theme tokens: the overlay looks the same under
+    every brand and appearance, as the overlay page did. The fill is black at alpha 1, never 0,
+    since a layered window lets the mouse through wherever a pixel's alpha is 0 (EDGE-SHELL-28).
+    Nothing drawn takes the mouse: every press, move and release reaches the window.
+  -->
+  <Window.Resources>
+    <SolidColorBrush x:Key="Overlay.HitFill" Color="#01000000" />
+    <SolidColorBrush x:Key="Overlay.Dim" Color="#66000000" />
+    <SolidColorBrush x:Key="Overlay.Accent" Color="#FF6366F1" />
+    <SolidColorBrush x:Key="Overlay.HintFill" Color="#D9111827" />
+    <SolidColorBrush x:Key="Overlay.HintSubText" Color="#FFC7CDDA" />
+    <SolidColorBrush x:Key="Overlay.White" Color="#FFFFFFFF" />
+    <FontFamily x:Key="Overlay.Font">Segoe UI</FontFamily>
+
+    <!-- .ov__hint (overlay.css:27-44): padding 0.85rem by 1.5rem, radius 12, shadow 0 10px 35px at 0.5. -->
+    <Style x:Key="Overlay.HintBox" TargetType="Border">
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="24,13.6" />
+      <Setter Property="Background" Value="{StaticResource Overlay.HintFill}" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Effect">
+        <Setter.Value>
+          <DropShadowEffect Color="#FF000000" Direction="270" ShadowDepth="10" BlurRadius="35" Opacity="0.5" />
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- .ov__dims (overlay.css:63-75): padding 0.12rem by 0.45rem, radius 6. -->
+    <Style x:Key="Overlay.BadgeBox" TargetType="Border">
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="7.2,1.92" />
+      <Setter Property="Background" Value="{StaticResource Overlay.Accent}" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+  </Window.Resources>
+
+  <Canvas x:Name="Surface" ClipToBounds="True">
+    <!-- The selection's 100vmax spread shadow: everything outside the selection, dimmed (overlay.css:52-61). -->
+    <Path x:Name="Dim" Fill="{StaticResource Overlay.Dim}" Visibility="Collapsed" IsHitTestVisible="False" />
+    <Rectangle x:Name="SelectionBox" Stroke="{StaticResource Overlay.Accent}" StrokeThickness="2" Visibility="Collapsed" IsHitTestVisible="False" />
+    <Border x:Name="Badge" Style="{StaticResource Overlay.BadgeBox}" Visibility="Collapsed">
+      <TextBlock x:Name="BadgeText"
+                 FontFamily="{StaticResource Overlay.Font}"
+                 FontSize="12.48"
+                 FontWeight="SemiBold"
+                 Foreground="{StaticResource Overlay.White}"
+                 TextWrapping="NoWrap"
+                 Typography.NumeralAlignment="Tabular" />
+    </Border>
+    <Border x:Name="Hint" Style="{StaticResource Overlay.HintBox}">
+      <StackPanel>
+        <TextBlock x:Name="HintText"
+                   HorizontalAlignment="Center"
+                   FontFamily="{StaticResource Overlay.Font}"
+                   FontSize="16.8"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource Overlay.White}"
+                   Text="{x:Static core:ShellStrings.OverlayHint}" />
+        <TextBlock x:Name="HintSubText"
+                   HorizontalAlignment="Center"
+                   Margin="0,4.8,0,0"
+                   FontFamily="{StaticResource Overlay.Font}"
+                   FontSize="13.12"
+                   Foreground="{StaticResource Overlay.HintSubText}"
+                   Text="{x:Static core:ShellStrings.OverlayHintSub}" />
+      </StackPanel>
+    </Border>
+  </Canvas>
+</shell:ShotAIWindow>

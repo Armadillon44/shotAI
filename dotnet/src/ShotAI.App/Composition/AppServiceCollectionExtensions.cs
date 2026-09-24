@@ -58,6 +58,7 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<IAppInfo, AppInfoProvider>();
         services.AddSingleton<MainWindowSizer>();
         services.AddSingleton<IMainWindowLayout>(sp => sp.GetRequiredService<MainWindowSizer>());
+        services.AddSingleton<IAreaSelectionService, AreaSelectionService>();
         services.AddSingleton<AppMenuViewModel>();
         services.AddSingleton<NoticeCenter>();
         services.AddSingleton<INoticeService>(sp => sp.GetRequiredService<NoticeCenter>());
