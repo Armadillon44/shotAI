@@ -64,7 +64,7 @@ public sealed class ArchiveNameRulesTests : IAsyncLifetime
     public async Task ALinkedShotsFolderRefusesTheRestore()
     {
         var outside = Directory.CreateDirectory(_h.Temp.Combine("outside")).FullName;
-        Links.Directory(Path.Join(_dir, "shots"), outside);
+        Symlinks.Directory(Path.Join(_dir, "shots"), outside);
         ZipFixture.Write(Zip, new ZipFixture.Entry("shots/a.png", "x"));
 
         var e = await Assert.ThrowsAsync<ArchiveException>(UnpackAsync);

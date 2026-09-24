@@ -14,12 +14,12 @@ the project store's project and step operations and imports (WP-A6, WP-A7), the 
 engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP-A10), logging
 (WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13), the theme
 with its fonts (WP-A14), the main window with its menu and About (WP-A15), the Home list
-(WP-A16), the read-only report (WP-A17), View, Brand (WP-A18) and Home's row operations
-(WP-A19a): analyzers, supply-chain rules, Core's error, threading and composition types,
-`JsJson` (reads what `JSON.parse` reads, writes the bytes `JSON.stringify` writes), and
-`ManifestCodec`, which writes the same bytes as Electron for every golden in
-`tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite runs its round trips:
-every `agreed` case passes, and the one `open` case is reported (see
+(WP-A16), the read-only report (WP-A17), View, Brand (WP-A18), Home's row operations
+(WP-A19a) and the external link allowlist (WP-A19b): analyzers, supply-chain rules, Core's
+error, threading and composition types, `JsJson` (reads what `JSON.parse` reads, writes the
+bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron
+for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite
+runs its round trips: every `agreed` case passes, and the one `open` case is reported (see
 `dotnet test ... --output Detailed` below). `BrandPalette` is
 generated from `contract/brand.json` by `tools/ShotAI.GenBrand` and carries the same
 contract stamp as the Electron and macOS tables. `AtomicFile`, `SerialWriteQueue` and
@@ -81,7 +81,10 @@ asking. Each change shows at once and is written through the store's queue; if t
 the row goes back and the notice gives the store's message. With rows selected, the bulk bar
 archives, restores or deletes them one at a time, counting as it goes. A reveal runs on its own
 thread, so a folder on an unreachable share never freezes the window, and a rename made just before
-the app exits reaches the disk.
+the app exits reaches the disk. A link leaves the app for the browser only through `ExternalLinks`:
+`https` to `anthropic.com`, its subdomains or exactly `github.com`, else it is refused and logged by
+origin only, and `ShellUrlLauncher` is the one piece of code that hands a URL to the shell, which an
+IL scan of the built assemblies checks.
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.
 

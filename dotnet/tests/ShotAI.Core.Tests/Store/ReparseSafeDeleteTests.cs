@@ -46,7 +46,7 @@ public sealed class ReparseSafeDeleteTests : IDisposable
     {
         var outside = _root.File("outside/keep.png");
         _root.File("tree/shots/a.png");
-        Links.Directory(_root.Combine("tree", "shots", "escape"), Path.GetDirectoryName(outside)!);
+        Symlinks.Directory(_root.Combine("tree", "shots", "escape"), Path.GetDirectoryName(outside)!);
 
         ReparseSafeDelete.DeleteTree(_root.Combine("tree"), Probe);
 
@@ -59,7 +59,7 @@ public sealed class ReparseSafeDeleteTests : IDisposable
     {
         var outside = _root.File("outside/keep.png");
         Directory.CreateDirectory(_root.Combine("tree"));
-        Links.File(_root.Combine("tree", "link.png"), outside);
+        Symlinks.File(_root.Combine("tree", "link.png"), outside);
 
         ReparseSafeDelete.DeleteTree(_root.Combine("tree"), Probe);
 
@@ -71,7 +71,7 @@ public sealed class ReparseSafeDeleteTests : IDisposable
     public void WhenThePathItselfIsALinkOnlyTheLinkGoes()
     {
         var outside = _root.File("outside/keep.png");
-        Links.Directory(_root.Combine("link"), Path.GetDirectoryName(outside)!);
+        Symlinks.Directory(_root.Combine("link"), Path.GetDirectoryName(outside)!);
 
         ReparseSafeDelete.DeleteTree(_root.Combine("link"), Probe);
 

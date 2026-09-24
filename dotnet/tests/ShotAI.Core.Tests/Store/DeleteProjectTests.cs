@@ -74,7 +74,7 @@ public sealed class DeleteProjectTests : IAsyncLifetime
     {
         var outside = Directory.CreateDirectory(_h.Temp.Combine("outside")).FullName;
         await File.WriteAllTextAsync(Path.Join(outside, "keep.txt"), "keep", TestContext.Current.CancellationToken);
-        Links.Directory(Path.Join(_project, "shots"), outside);
+        Symlinks.Directory(Path.Join(_project, "shots"), outside);
 
         await _h.Store.DeleteProjectAsync(_project);
 

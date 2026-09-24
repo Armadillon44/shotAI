@@ -538,8 +538,8 @@ Split from WP-A19 in WP-A19a (2.2 step 3).
 |---|---|
 | Goal | The one path that hands a URL to the shell, behind 10's and 11's allowlist |
 | Spec inputs | 10 7.7; 11 2.5.1, 7.3.4, 8.2 (`Links.ExternalLinkPolicyTests`, `Architecture.SingleUrlLauncherTests`), INV-IPC-3; ARCHITECTURE R-ARCH-25, S15; Q-INFRA-21, Q-INFRA-22, Q-IPC-14 |
-| Deliverables | Core `ShotAI.Core.Links` (`IExternalLinks`, `ExternalLinks`, `ExternalLinkPolicy`, `UrlOrigin`, `IUrlLauncher`) and the `ShotAI.Core.Auth.ISupportUrlAllowlist` interface with a no-federation implementation that WP-D4 replaces; Platform `ShellUrlLauncher`, which runs on WP-A19a's `StaThread` |
-| Tests | No Electron file. New: Core `Links/ExternalLinkPolicyTests` (the full 10 and 11 tables), `Links/UrlOriginTests`; App `Architecture/SingleUrlLauncherTests` |
+| Deliverables | Core `ShotAI.Core.Links` (`IExternalLinks`, `ExternalLinks`, `ExternalLinkPolicy`, `UrlOrigin`, `IUrlLauncher`) and the `ShotAI.Core.Auth.ISupportUrlAllowlist` interface with a no-federation implementation that WP-D4 replaces; Platform `ShellUrlLauncher`, which runs on WP-A19a's `StaThread`. As built in WP-A19b: the no-federation implementation is Core's internal `NoFederationSupportUrlAllowlist`; `AddShotAICore` registers it and `ExternalLinks`, and `AddShotAIPlatform` registers `ShellUrlLauncher` as `IUrlLauncher`; `ShellUrlLauncher` also refuses anything that is not an absolute `https` URI, with `ArgumentException`; the Core tests' symlink helper `Support/Links` became `Support/Symlinks`, because the new `ShotAI.Core.Links` namespace hid it |
+| Tests | No Electron file. New: Core `Links/ExternalLinkPolicyTests` (the full 10 and 11 tables), `Links/UrlOriginTests`; App `Architecture/SingleUrlLauncherTests`. As built in WP-A19b: the SupportUrl rows of the tables go through a fake `ISupportUrlAllowlist`, since the exact-origin match is spec 08's `Auth/SupportUrlAllowlistTests` (WP-D4); new Platform `Shell/ShellUrlLauncherTests` |
 | Acceptance criteria | none owned (AC-IPC-19, which runs `SingleUrlLauncherTests`, stays WP-D12's) |
 | Depends on | WP-A19a |
 | Size | S |
@@ -1760,8 +1760,8 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-INFRA-18 | pending update across launches | WP-E1 | parity (not remembered) |
 | Q-INFRA-19 | static Archivo source | WP-A14 | upstream release matching 2.001, else a documented fontTools script. Decided in WP-A14: no release tags exist; commit `555fa4a`, which built the bundled variable file, unmodified |
 | Q-INFRA-20 | a write whose re-read fails | WP-A10, WP-B10 | as specified (the service half done in WP-A10); the notice agreed with 06 in WP-B10 |
-| Q-INFRA-21 | user info in links | WP-A19b | parity (allowed) |
-| Q-INFRA-22 | does `OpenAsync` throw | WP-A19b | 11's contract (R-ARCH-25) |
+| Q-INFRA-21 | user info in links | WP-A19b | parity (allowed) (taken in WP-A19b) |
+| Q-INFRA-22 | does `OpenAsync` throw | WP-A19b | 11's contract (R-ARCH-25) (taken in WP-A19b: `LauncherExceptionPropagates`) |
 | 10 risks | JsJson layout; three generators; GitHub API dependence; users switching builds | WP-A10, WP-A4, WP-E1, WP-E5 | byte tests; parity test plus manual macOS stamp check; `--update-selftest`; pilot notes |
 
 #### 11 Service boundary
@@ -1781,7 +1781,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-11 | debug call logging volume | WP-A12 | Debug level (`ServiceLog.Call` is Debug since WP-A11) |
 | Q-IPC-12 | `ShotAIException` everywhere | WP-A1 | foundation first; each spec derives |
 | Q-IPC-13 | recents on a folder change | WP-B10 | parity |
-| Q-IPC-14 | where `IExternalLinks` lives | WP-A19b | 11's algorithm, 10's registration |
+| Q-IPC-14 | where `IExternalLinks` lives | WP-A19b | 11's algorithm, 10's registration (taken in WP-A19b: Core `ShotAI.Core.Links`, registered by `AddShotAICore`) |
 | Q-IPC-15 | Pause and Resume off the UI thread | WP-B7 | `Task.Run` |
 | Q-IPC-16 | image decoding in-process | WP-A17 | closed by R-ARCH-21 (ARCHITECTURE 15.4): explicit decoders after magic bytes; WP-A17 implements it |
 | Q-IPC-17 | subscriber that forgets to marshal | WP-A12 | `VerifyAccess` in Debug, affinity tests (done in WP-A12: `ViewModelBase.CheckAffinity`, on in Debug builds; `Threading/ViewModelAffinityTests`) |
@@ -2441,7 +2441,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [ ] WP-A17. Read-only report: merged in #139, manual pending: AC-MODEL-25, AC-REP-5, AC-REP-28, AC-REP-32, AC-REP-33
 - [ ] WP-A18. Brand submenu and navigation state: merged in #140, manual pending: AC-SHELL-20, AC-SHELL-21, AC-IPC-13, AC-IPC-14
 - [ ] WP-A19a. Home row operations: merged in #141, manual pending: AC-MODEL-31, AC-HOME-7, AC-HOME-10, AC-HOME-11, AC-HOME-31, AC-HOME-39, AC-IPC-18, AC-IPC-20, AC-ARCH-5
-- [ ] WP-A19b. External link allowlist
+- [x] WP-A19b. External link allowlist (#142)
 - [ ] WP-A20. Phase A exit (M-A)
 
 **Phase B: capture engine**

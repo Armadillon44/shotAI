@@ -27,9 +27,9 @@ public sealed class ManagedPathProbeTests : IDisposable
     {
         var folder = Directory.CreateDirectory(_root.Combine("folder")).FullName;
         var file = _root.File("file.png");
-        Links.Directory(_root.Combine("to-folder"), folder);
-        Links.File(_root.Combine("to-file"), file);
-        Links.File(_root.Combine("dangling"), _root.Combine("nothing-here"));
+        Symlinks.Directory(_root.Combine("to-folder"), folder);
+        Symlinks.File(_root.Combine("to-file"), file);
+        Symlinks.File(_root.Combine("dangling"), _root.Combine("nothing-here"));
 
         Assert.Equal(PathKind.Link, Probe.Probe(_root.Combine("to-folder")));
         Assert.Equal(PathKind.Link, Probe.Probe(_root.Combine("to-file")));

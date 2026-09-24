@@ -27,7 +27,7 @@ public sealed class ImportStepConfineTests : IAsyncLifetime
     public async Task ALinkedShotsFolderRefusesTheImportAndWritesNothingOutside()
     {
         var outside = Directory.CreateDirectory(_h.Temp.Combine("outside")).FullName;
-        Links.Directory(Path.Join(_project, "shots"), outside);
+        Symlinks.Directory(Path.Join(_project, "shots"), outside);
         var bytes = StoreHarness.Bytes(_project);
 
         var e = await Assert.ThrowsAsync<ImportRejectedException>(() => _h.Store.ImportStepAsync(_project, StoreHarness.Png, null));

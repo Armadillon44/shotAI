@@ -1300,6 +1300,8 @@ public interface ISupportUrlAllowlist { Task<bool> IsAllowedAsync(Uri candidate,
 
 `IsAllowedAsync`: `candidate.Scheme != "https"`: `false`; `cfg = await _federation.GetAsync(ct)` (cached, not invalidated; parity); `cfg?.SupportUrl` `null`: `false`; `Uri.TryCreate(cfg.SupportUrl, UriKind.Absolute, out var s)` fails: `false`; else `Origin(s) == Origin(candidate)` where `Origin(u) = (u.Scheme.ToLowerInvariant(), u.IdnHost.ToLowerInvariant(), u.Port)` (`Port` is the effective port, so an omitted 443 equals an explicit 443, as in WHATWG origins). 10 consults it only after its base rules refuse and logs the refusal line of 2.17 with the candidate's origin (`scheme://host[:port]`). REQUIRED [SECURITY].
 
+As built in WP-A19b: `ISupportUrlAllowlist` is in `ShotAI.Core.Auth`, and until WP-D4 builds `SupportUrlAllowlist` over the federation configuration, `AddShotAICore` registers Core's internal `NoFederationSupportUrlAllowlist`, which admits nothing, as on an unconfigured machine (INV-AUTH-8).
+
 ### 7.14 Networking (Core, `SharedHttp`)
 
 ```csharp

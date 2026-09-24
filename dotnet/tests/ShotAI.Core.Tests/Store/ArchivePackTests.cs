@@ -51,8 +51,8 @@ public sealed class ArchivePackTests : IAsyncLifetime
         var outside = Directory.CreateDirectory(_h.Temp.Combine("outside")).FullName;
         var kept = StoreHarness.WriteFile(outside, "keep.png");
         Directory.CreateDirectory(At("export"));
-        Links.Directory(At("shots", "folder-link"), outside);
-        Links.File(At("export", "file-link.png"), kept);
+        Symlinks.Directory(At("shots", "folder-link"), outside);
+        Symlinks.File(At("export", "file-link.png"), kept);
 
         await _h.Archive.PackAsync(_dir, TestContext.Current.CancellationToken);
 
