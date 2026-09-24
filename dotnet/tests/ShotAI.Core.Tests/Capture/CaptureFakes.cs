@@ -25,6 +25,13 @@ internal sealed class FakeWindowProtection : IWindowProtection
     private readonly List<bool> _history = [];
     private bool? _excluded;
 
+    /// <summary>
+    /// Spin iterations to wait before a relax (a false) takes effect, outside the fake's lock: a
+    /// caller that relaxes without holding the shield's lock then leaves a gap in which another
+    /// grab can take the shield, which the concurrency test would see.
+    /// </summary>
+    public int SpinBeforeRelax { get; set; }
+
     /// <summary>A new live window.</summary>
     public FakeOwnWindow Add()
     {
@@ -56,6 +63,7 @@ internal sealed class FakeWindowProtection : IWindowProtection
 
     public void SetAllExcluded(bool excluded)
     {
+        if (!excluded && SpinBeforeRelax > 0) Thread.SpinWait(SpinBeforeRelax);
         lock (_lock)
         {
             _excluded = excluded;

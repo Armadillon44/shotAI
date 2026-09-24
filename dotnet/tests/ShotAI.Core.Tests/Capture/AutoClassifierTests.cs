@@ -1,3 +1,4 @@
+using System.Globalization;
 using ShotAI.Core.Capture;
 using Xunit;
 
@@ -20,6 +21,12 @@ public sealed class AutoClassifierTests
     [InlineData("\uFEFF")]
     [InlineData("\u2028\u3000")]
     public void ExplorerWithABlankTitleIsARegion(string title) => Assert.Equal(AutoMode.Region, AutoClassifier.Classify("Windows Explorer", title));
+
+    /// <summary>Only Explorer's blank title is the taskbar; any other app with no title is framed as a window.</summary>
+    [Theory]
+    [InlineData("Notepad", "")]
+    [InlineData("Code", "   ")]
+    public void ABlankTitleOutsideExplorerIsAWindow(string app, string title) => Assert.Equal(AutoMode.Window, AutoClassifier.Classify(app, title));
 
     /// <summary>A next-line character is white space to .NET's <c>Trim</c> but not to JavaScript's, so this title is not blank.</summary>
     [Fact]
@@ -51,13 +58,30 @@ public sealed class AutoClassifierTests
 
     /// <summary>
     /// The shell host test folds ASCII case only, as a JavaScript <c>/i</c> without <c>u</c> does:
-    /// the long s (U+017F), which .NET's case-insensitive comparisons fold into <c>S</c>, and the
-    /// dotted capital I (U+0130), which .NET lower-cases to <c>i</c>, never match.
+    /// neither the long s (U+017F), which <c>ToUpperInvariant</c> turns into <c>S</c>, nor the
+    /// dotted capital I (U+0130) matches.
     /// </summary>
     [Theory]
     [InlineData("\u017FearchHost")]
     [InlineData("TEXT\u0130NPUTHOST")]
     public void OnlyAsciiCaseFolds(string app) => Assert.Equal(AutoMode.Window, AutoClassifier.Classify(app, "Search"));
+
+    /// <summary>A Turkish culture lowers <c>I</c> to a dotless i; the classifier does not use the culture.</summary>
+    [Fact]
+    public void TheCultureDoesNotMatter()
+    {
+        var saved = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("tr-TR");
+            Assert.Equal(AutoMode.Region, AutoClassifier.Classify("STARTMENUEXPERIENCEHOST", "Start"));
+            Assert.Equal(AutoMode.Region, AutoClassifier.Classify("TEXTINPUTHOST", "Input"));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = saved;
+        }
+    }
 
     [Fact]
     public void TheForegroundWindowIsClassifiedByItsAppAndTitle()

@@ -103,7 +103,8 @@ public sealed class ElementMappingTests
         {
             while (true)
             {
-                read++;
+                // Fails fast, rather than hanging, if the climb does not stop.
+                if (++read > 100) throw new InvalidOperationException("the climb did not stop");
                 yield return new("t", Text);
             }
         }

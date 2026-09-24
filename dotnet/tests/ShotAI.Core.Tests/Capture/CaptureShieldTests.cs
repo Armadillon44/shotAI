@@ -219,6 +219,7 @@ public sealed class CaptureShieldTests
     {
         _settings.RemoteVisible = true;
         _protection.Add();
+        _protection.SpinBeforeRelax = 2000;
         var shield = NewShield();
         var exposed = 0;
         Parallel.For(0, 1000, new ParallelOptions { MaxDegreeOfParallelism = 8 }, _ =>
