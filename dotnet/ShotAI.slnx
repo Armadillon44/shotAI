@@ -11,5 +11,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/ShotAI.GenBrand/ShotAI.GenBrand.csproj" />
+    <Project Path="tools/ShotAI.ProtectionProbe/ShotAI.ProtectionProbe.csproj" />
   </Folder>
 </Solution>

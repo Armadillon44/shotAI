@@ -156,7 +156,11 @@ public sealed partial class CaptureEngine : ICaptureService, IDisposable
     /// <summary>Completes when every capture queued so far has run, for the tests.</summary>
     internal Task QueueIdleForTestAsync() => DrainAsync();
 
-    private void Enqueue(CaptureJob job) => _queue.Writer.TryWrite(new QueueItem(job, null));
+    // A job the closed queue refuses drops its frame (7.7).
+    private void Enqueue(CaptureJob job)
+    {
+        if (!_queue.Writer.TryWrite(new QueueItem(job, null))) job.PreGrab?.Frame.Dispose();
+    }
 
     // Completes when every capture queued before it has run: the drain of stop and discard (7.11).
     private Task DrainAsync()
@@ -184,6 +188,11 @@ public sealed partial class CaptureEngine : ICaptureService, IDisposable
                 if (ex is OperationCanceledException && IsTornDown()) continue;
                 JobFailed(_log, ex);
                 if (UserMessage.From(ex) is { } message) Raise(CaptureFailed, new CaptureErrorEventArgs(message), nameof(CaptureFailed));
+            }
+            finally
+            {
+                // The job owns the frame taken while the menu was painted, used or not (7.7).
+                item.Job!.PreGrab?.Frame.Dispose();
             }
         }
     }

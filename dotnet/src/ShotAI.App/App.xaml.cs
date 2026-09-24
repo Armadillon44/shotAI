@@ -12,6 +12,7 @@ using ShotAI.App.Report;
 using ShotAI.App.Services;
 using ShotAI.App.Shell;
 using ShotAI.App.Threading;
+using ShotAI.Core.Capture;
 using ShotAI.Core.Logging;
 using ShotAI.Core.Paths;
 using ShotAI.Core.SelfTest;
@@ -30,9 +31,9 @@ namespace ShotAI.App;
 /// 4.2 and the exit order of 4.5, and the one place that resolves services from the container (C2).
 /// </summary>
 /// <remarks>
-/// Steps 1 to 4, 5b, 6 to 9, 11, 12 and 13 run (step 0 is <see cref="Program"/>). Steps 1b and
-/// 13's update check join in WP-E1, 2a in WP-E5, 5 in WP-D2, 10 in WP-B5 and the pill of step 8
-/// in WP-B7; the exit order's capture teardown joins with the capture engine.
+/// Steps 1 to 4, 5b and 6 to 13 run (step 0 is <see cref="Program"/>). Steps 1b and 13's update
+/// check join in WP-E1, 2a in WP-E5, 5 in WP-D2 and the pill of step 8 in WP-B7; the exit order's
+/// capture teardown joins with the capture engine.
 /// </remarks>
 public partial class App : Application
 {
@@ -124,6 +125,8 @@ public partial class App : Application
         main.ContentRendered += LogFirstRender;
         ShowThemed(_services.GetRequiredService<ThemeManager>(), Resources, main);
         StartAll(_services.GetServices<IAppStartup>());
+        // Step 10: the windows exist, excluded; only now does the setting relax them (INV-SHELL-2).
+        ApplyRemoteVisibility(_services.GetRequiredService<CaptureShield>(), settings);
         // Home lists the projects once the window is up (06 2.18 row 1).
         shell.Start();
 #if DEBUG
@@ -192,6 +195,19 @@ public partial class App : Application
         ArgumentNullException.ThrowIfNull(main);
         theme.ApplyInitial(resources);
         main.Show();
+    }
+
+    /// <summary>
+    /// Step 10 (ARCHITECTURE 4.2, spec 03 INV-SHELL-2): the one startup application of remote
+    /// visibility, after the windows were created and registered excluded, so they are protected
+    /// first and relaxed only once the setting is known. It runs on the UI thread, the one reasoned
+    /// exception to DL1: no capture session exists yet, so no grab holds the shield (02 7.8 rule 2).
+    /// </summary>
+    internal static void ApplyRemoteVisibility(CaptureShield shield, ISettingsService settings)
+    {
+        ArgumentNullException.ThrowIfNull(shield);
+        ArgumentNullException.ThrowIfNull(settings);
+        shield.ApplyRemoteVisibility(settings.Current.RemoteVisible);
     }
 
     /// <summary>Step 9: each <see cref="IAppStartup"/>, in registration order (spec 11 7.10 rule 3).</summary>

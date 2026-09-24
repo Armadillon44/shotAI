@@ -52,8 +52,17 @@ public sealed record MonitorDescriptor(uint Id, string Name, Rect Bounds, double
 /// <summary>
 /// A grabbed image: top-down BGRA32 rows with the alpha forced to 255 (spec 02 7.2, EDGE-CAP-42).
 /// </summary>
-public sealed class PixelFrame
+/// <remarks>
+/// A frame of a <see cref="FramePool"/> gives its buffer back when it is disposed, so a monitor
+/// grab every 400 ms does not churn the large object heap (D24, 7.7). Whoever holds a frame
+/// disposes it once it is done with the pixels; after that the pixels may already belong to
+/// another frame, so reading them throws. Disposing a frame that owns a plain array only marks it.
+/// </remarks>
+public sealed class PixelFrame : IDisposable
 {
+    private readonly byte[] _bgra = [];
+    private int _disposed;
+
     /// <summary>The width in pixels.</summary>
     public required int Width { get; init; }
 
@@ -61,7 +70,47 @@ public sealed class PixelFrame
     public required int Height { get; init; }
 
     /// <summary>The pixels, four bytes each, <see cref="Width"/> per row.</summary>
-    public required byte[] Bgra { get; init; }
+    /// <exception cref="ObjectDisposedException">The frame was disposed.</exception>
+    public required byte[] Bgra
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(IsDisposed, this);
+            return _bgra;
+        }
+        init => _bgra = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>Whether the frame was disposed.</summary>
+    public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
+
+    /// <summary>The pool the buffer goes back to, or null for a frame that owns a plain array.</summary>
+    internal FramePool? Pool { get; init; }
+
+    /// <summary>
+    /// A copy of the rectangle, in a frame of its own (spec 02 7.12: the crop is a row copy in
+    /// Core, so crop geometry is tested on Linux).
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The rectangle is empty or not inside the frame.</exception>
+    public PixelFrame CopyRect(int x, int y, int width, int height)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (x < 0 || y < 0 || (long)x + width > Width || (long)y + height > Height)
+            throw new ArgumentOutOfRangeException(nameof(x), $"The rectangle ({x}, {y}, {width}, {height}) is not inside the {Width} x {Height} frame.");
+        var source = Bgra;
+        var row = width * 4;
+        var copy = GC.AllocateUninitializedArray<byte>(checked(row * height));
+        for (var r = 0; r < height; r++)
+            Buffer.BlockCopy(source, ((y + r) * Width + x) * 4, copy, r * row, row);
+        return new PixelFrame { Width = width, Height = height, Bgra = copy };
+    }
+
+    /// <summary>Gives a pooled buffer back; idempotent.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0) Pool?.Return(_bgra);
+    }
 }
 
 /// <summary>The foreground window, with get-windows' semantics (spec 02 2.10.1, 7.5).</summary>

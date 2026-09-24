@@ -100,6 +100,70 @@ public sealed class MenuPollTests
         Assert.Empty(h.LogLines(LogLevel.Warning));
     }
 
+    /// <summary>
+    /// 7.7, D24 (moved from WP-B3): the frame an arm replaces with a newer one is disposed, and so
+    /// is a frame that lands for an arm replaced meanwhile; the current arm's frame stays live.
+    /// </summary>
+    [Fact]
+    public async Task StaleFrameIsDisposed()
+    {
+        await using var h = await RightClickedAsync();
+        await TickAsync(h);
+        var first = h.Engine.ArmForTest!.Frame!.Frame;
+        await TickAsync(h);
+        var second = h.Engine.ArmForTest!.Frame!.Frame;
+        Assert.True(first.IsDisposed);
+        Assert.False(second.IsDisposed);
+
+        var arm = h.Engine.ArmForTest!;
+        using var held = new HeldGrab(h.Screen);
+        h.Clock.Advance(CaptureConstants.MenuPollMs);
+        await held.EnteredAsync();
+        h.Triggers.Click(1500, 800, MouseButton.Right); // re-arms: the replaced arm's frame goes with it
+        await h.SettleAsync();
+        Assert.True(second.IsDisposed);
+        held.Release();
+        await CaptureEngineTests.UntilAsync(() => !arm.Polling);
+
+        var late = h.Screen.Frames[^1]; // the held grab returned last
+        Assert.True(late.IsDisposed);
+        Assert.Null(arm.Frame);
+        Assert.Null(h.Engine.ArmForTest!.Frame);
+    }
+
+    /// <summary>7.7: the arm's frame goes with the arm, whatever ends it.</summary>
+    [Theory]
+    [InlineData("far click")]
+    [InlineData("pause")]
+    [InlineData("stop")]
+    [InlineData("dispose")]
+    public async Task TheArmsFrameIsDisposedWithTheArm(string how)
+    {
+        await using var h = await RightClickedAsync();
+        await TickAsync(h);
+        var frame = h.Engine.ArmForTest!.Frame!.Frame;
+        if (how == "far click")
+        {
+            h.Triggers.Click(1500, 900);
+            await h.SettleAsync();
+        }
+        else if (how == "pause")
+        {
+            h.Engine.Pause();
+        }
+        else if (how == "stop")
+        {
+            await h.Engine.StopAsync().Bounded();
+        }
+        else
+        {
+            await h.Engine.DisposeAsync().AsTask().Bounded();
+        }
+
+        Assert.Null(h.Engine.ArmForTest);
+        Assert.True(frame.IsDisposed);
+    }
+
     /// <summary>EDGE-CAP-19: the in-flight flag is the arm's own, so a grab still running for a replaced arm never skips the next arm's tick.</summary>
     [Fact]
     public async Task StoppedPollDoesNotSuppressNextArm()

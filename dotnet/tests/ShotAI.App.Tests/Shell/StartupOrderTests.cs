@@ -1,9 +1,15 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Security.Principal;
+using System.Windows.Interop;
+using System.Windows.Threading;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ShotAI.App.Chrome;
+using ShotAI.App.Services;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
+using ShotAI.Core.Capture;
 using ShotAI.Core.Shell;
 using ShotAI.Platform.Shell;
 using Xunit;
@@ -49,6 +55,40 @@ public sealed class StartupOrderTests
         Assert.EndsWith("] [info]  (main)     exiting (code 0)", run[^1], StringComparison.Ordinal);
         Assert.Equal(settings, Hash(AppProcess.Settings));
         Assert.Empty(Directory.GetFileSystemEntries(temp.Root));
+    });
+
+    /// <summary>
+    /// INV-SHELL-2, EDGE-SHELL-3 (ARCHITECTURE 4.2 steps 8 to 10): with the setting known from
+    /// the start, the main window is still excluded when it is first shown, stays so through
+    /// step 9, whose startups only subscribe, and takes the setting only at step 10. Watched on
+    /// the window itself, since the protection is Platform's and internal (INV-ARCH-6).
+    /// </summary>
+    [Theory]
+    [InlineData(true, User32.WdaNone)]
+    [InlineData(false, User32.WdaExcludeFromCapture)]
+    public Task WindowsExcludedBeforeSettingApplied(bool remoteVisible, uint afterStep10) => Sta.RunAsync(async () =>
+    {
+        using var c = new TestContainer(Dispatcher.CurrentDispatcher);
+        await c.Settings.UpdateAsync(s => s with { RemoteVisible = remoteVisible });
+        using var probe = ShowProbe.Install();
+        var main = TestMainWindow.Create(c.Provider.GetRequiredService<WindowRegistration>());
+        try
+        {
+            App.ShowThemed(c.Provider.GetRequiredService<ThemeManager>(), main.Resources, main);
+            var hwnd = new WindowInteropHelper(main).Handle;
+            Assert.Equal(User32.WdaExcludeFromCapture, probe.AffinityAtFirstShow(hwnd));
+
+            App.StartAll(c.Provider.GetServices<IAppStartup>());
+            await Task.Delay(200, TestContext.Current.CancellationToken);
+            Assert.Equal(User32.WdaExcludeFromCapture, User32.Affinity(hwnd));
+
+            App.ApplyRemoteVisibility(c.Provider.GetRequiredService<CaptureShield>(), c.Settings);
+            Assert.Equal(afterStep10, User32.Affinity(hwnd));
+        }
+        finally
+        {
+            main.Close();
+        }
     });
 
     private static string? Hash(string file) => File.Exists(file) ? Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))) : null;
