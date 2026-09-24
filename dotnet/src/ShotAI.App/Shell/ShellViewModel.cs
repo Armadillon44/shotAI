@@ -271,7 +271,10 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
     /// 2.5's <c>onRecord</c>: the project is opened (restoring it from the archive), the recording
     /// starts with <paramref name="target"/>, or the Home picker's target when null, and the project
     /// is adopted into the project view, which shows it when the recording ends. A failure shows the
-    /// error notice, and nothing starts when the open or the start fails.
+    /// error notice, and nothing starts when the open or the start fails. The state is read again
+    /// once the start returns, not taken from its result (11 T7): a session the engine ended before
+    /// this ran, its events handled already, leaves no Recording view up, and the project it
+    /// recorded into is read again, as the end of any session reads it.
     /// </summary>
     /// <returns>Whether the recording started.</returns>
     internal async Task<bool> RecordAsync(string projectPath, CaptureTarget? target, bool createdThisSession, int? insertAt = null)
@@ -279,12 +282,13 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         try
         {
             var opened = await _projects.OpenProjectAsync(projectPath);
-            var state = await _capture.StartAsync(projectPath, new CaptureStartOptions(target ?? Home.Mode.BuildTarget(), createdThisSession, insertAt));
-            ApplyCaptureState(state);
+            await _capture.StartAsync(projectPath, new CaptureStartOptions(target ?? Home.Mode.BuildTarget(), createdThisSession, insertAt));
+            ApplyCaptureState(_capture.GetState());
             // Resume's project is open already: its session, which holds every edit, stays as it
             // is until the recording's end reads the project again.
             if (!Project.IsOpen(opened.Dir)) await Project.AdoptAsync(opened.Dir, opened.Manifest);
             if (Project.OpenProjectPath is { } open) ShowProject(open, Project.RawProjectTheme);
+            if (!_recording) _ = ReloadRecordedAsync();
             return true;
         }
         catch (Exception e)
@@ -345,6 +349,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         _recording = recording;
         Home.Hero.IsRecording = recording;
         OnPropertyChanged(nameof(IsRecording));
+        OnPropertyChanged(nameof(HeaderVisible));
         Derive();
         if (!recording && OpenProjectPath is not null) _ = ReloadRecordedAsync();
     }
@@ -382,7 +387,6 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
             : SettingsOpen ? ShellViewKind.Settings
             : OpenProjectPath is not null ? ShellViewKind.Project
             : ShellViewKind.Home;
-        OnPropertyChanged(nameof(HeaderVisible));
         NavigationChanged?.Invoke(this, EventArgs.Empty);
     }
 }

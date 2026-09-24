@@ -140,6 +140,33 @@ public sealed partial class ShellViewModelTests
         Assert.False(t.Project.IsLoading);
     });
 
+    /// <summary>
+    /// 11 T7: a session the engine ended before the start's continuation ran, its events posted and
+    /// handled first, leaves no Recording view up: the state is read again, and the project shows,
+    /// read again, as the end of a session shows it.
+    /// </summary>
+    [Fact]
+    public Task ASessionOverBeforeTheStartReturnedShowsTheProject() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        t.Shell.Start();
+        await TestShell.Settle();
+        var gate = new TaskCompletionSource();
+        t.Capture.StartGate = gate.Task;
+        t.Capture.EndsAtStart = true;
+        var capture = t.Shell.CaptureFromHomeAsync();
+        await TestShell.Settle();
+        var (path, _) = Assert.Single(t.Capture.Starts);
+        t.Projects.CanOpen(path, Of("New", Shot("s1"), Shot("s2")));
+        // The start finishes on another thread, so its events reach the UI thread before its continuation.
+        await Task.Run(gate.SetResult, TestContext.Current.CancellationToken);
+        await capture;
+        Assert.True(await TestShell.UntilAsync(() => t.Shell.CurrentView == ShellViewKind.Project && t.Project.StepCount == "2 steps", seconds: 5));
+        Assert.True((t.Shell.IsRecording, t.Home.Hero.IsRecording) == (false, false));
+        Assert.Equal(path, t.Shell.OpenProjectPath);
+        Assert.Null(t.Notices.Error);
+    });
+
     /// <summary>Resume needs an open project, and starts nothing while a session exists.</summary>
     [Fact]
     public Task ResumeNeedsAnOpenProjectAndNoSession() => Sta.RunAsync(async () =>

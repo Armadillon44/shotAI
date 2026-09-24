@@ -95,6 +95,12 @@ internal sealed class FakeCaptureService : ICaptureService
     /// <summary>What <see cref="StartAsync"/> awaits before it starts, so a test can hold a start open.</summary>
     public Task StartGate { get; set; } = Task.CompletedTask;
 
+    /// <summary>
+    /// When set, a session ends as soon as it started, before <see cref="StartAsync"/> returns the
+    /// recording state it started with, as a session the engine ends at once.
+    /// </summary>
+    public bool EndsAtStart { get; set; }
+
     public event EventHandler<CaptureState>? StateChanged;
 
     public event EventHandler<StepLandedEventArgs>? StepLanded;
@@ -110,7 +116,11 @@ internal sealed class FakeCaptureService : ICaptureService
 
     public CaptureState GetState() => State;
 
-    /// <summary>Records the start, then, as the engine does, raises <see cref="RecordingChanged"/> and <see cref="StateChanged"/> and returns the recording state.</summary>
+    /// <summary>
+    /// Records the start, then, as the engine does, raises <see cref="RecordingChanged"/> and
+    /// <see cref="StateChanged"/> and returns the recording state; with <see cref="EndsAtStart"/>,
+    /// ends the session before it returns.
+    /// </summary>
     public async Task<CaptureState> StartAsync(string projectPath, CaptureStartOptions options, CancellationToken ct = default)
     {
         Record("start");
@@ -121,6 +131,7 @@ internal sealed class FakeCaptureService : ICaptureService
         State = state;
         RecordingChanged?.Invoke(this, new RecordingChangedEventArgs(true, ShowPill: true));
         StateChanged?.Invoke(this, state);
+        if (EndsAtStart) RaiseEnded();
         return state;
     }
 
