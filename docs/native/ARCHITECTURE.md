@@ -480,7 +480,7 @@ Every view model that listens to a singleton uses the one template of 11 7.7: su
 | UIA workers `shotAI.Uia.0`, `.1` | `UiaElementLocator.WarmUp` | MTA | UI Automation COM calls, 500 ms connection and transaction timeouts, 600 ms overall cap | touch WPF | awaited task | 02 7.6 |
 | `StaRenderThread` `shotAI render` | lazily, 04 | STA with its own `Dispatcher` | `RenderTargetBitmap` overlay rasterization for the bake | touch the UI thread's objects | awaited task | 04 7.10.6 |
 | Short-lived STA threads | `StaThread.RunAsync` | STA | `SHOpenFolderAndSelectItems`, `ShellExecute` for URLs and folders | outlive the call | awaited task | 11 7.3.3 |
-| Log writer | `RotatingFileSink` (`LongRunning` task) | MTA | batched file appends, rotation | block a caller | none | 10 7.5.4 |
+| Log writer | `RotatingFileSink` (an async loop on the pool, corrected after WP-A11) | MTA pool | batched file appends, rotation | block a caller | none | 10 7.5.4 |
 | Thread pool | BCL | MTA | file reads, WIC decode and encode, redaction bake, OCR recognition (serialized by a semaphore), export building, AVIF (multi-threaded inside libavif), zip, SDK calls, token acquisition, update check | touch UI objects | awaited tasks; `IProgress<T>` created on the UI thread | all |
 | WebView2 browser processes | WebView2 runtime | out of process | print copy rendering | | WebView2 events on the UI thread | 09 7.7 |
 
