@@ -239,7 +239,7 @@ public sealed class RotatingFileSinkTests : IDisposable
     /// lines, so the report that finally lands counts every line lost.
     /// </summary>
     [Fact]
-    public void ADroppedCountSurvivesAFailedBatch()
+    public async Task ADroppedCountSurvivesAFailedBatch()
     {
         var sink = _h.Sink(_h.Options(capacity: 2));
         string a = Line("a"), d = Line("d");
@@ -249,7 +249,7 @@ public sealed class RotatingFileSinkTests : IDisposable
             sink.Write(Line("b"));
             sink.Write(Line("c"));
             sink.Write(Line("dropped"));
-            Assert.True(sink.Flush(Wait));
+            await FlushWithinAsync(sink);
         }
         WriteEach(sink, d);
         Assert.Equal(a + LogHarness.Stamp + " [warn]  (main)     log: 3 line(s) dropped\r\n" + d, _h.Text());
@@ -412,7 +412,7 @@ public sealed class RotatingFileSinkTests : IDisposable
     /// the lines are counted, and reported once the file opens again.
     /// </summary>
     [Fact]
-    public void AFileHeldExclusivelyDropsTheBatchAndReportsIt()
+    public async Task AFileHeldExclusivelyDropsTheBatchAndReportsIt()
     {
         var sink = _h.Sink();
         string a = Line("a"), b = Line("b"), c = Line("c"), d = Line("d");
@@ -421,7 +421,7 @@ public sealed class RotatingFileSinkTests : IDisposable
         {
             sink.Write(b);
             sink.Write(c);
-            Assert.True(sink.Flush(Wait));
+            await FlushWithinAsync(sink);
         }
         Assert.Equal(a, _h.Text());
         WriteEach(sink, d);
@@ -587,6 +587,15 @@ public sealed class RotatingFileSinkTests : IDisposable
 
     // A 100-byte line tagged with its name.
     private static string Line(string tag) => LogHarness.Line(tag, 100);
+
+    // A flush that must return while the file is held: on the pool and bounded, so a regression
+    // that retries the open forever fails in 10 s instead of hanging the run (the CI jobs set no
+    // timeout).
+    private static async Task FlushWithinAsync(RotatingFileSink sink)
+    {
+        var flush = Task.Run(() => sink.Flush(Wait), TestContext.Current.CancellationToken);
+        Assert.True(await flush.WaitAsync(Wait, TestContext.Current.CancellationToken));
+    }
 
     // Each line as its own batch.
     private static void WriteEach(RotatingFileSink sink, params string[] lines)
