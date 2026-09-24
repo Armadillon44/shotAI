@@ -143,10 +143,11 @@ public sealed class StartupModeParserTests
         Assert.Equal(2, (int)SelfTestOutcome.Error);
     }
 
+    /// <summary>Refused by name, before anything is read.</summary>
     [Fact]
     public void NullsAreRefused()
     {
-        Assert.Throws<ArgumentNullException>(() => StartupModeParser.Parse(null!, NoEnv));
-        Assert.Throws<ArgumentNullException>(() => StartupModeParser.Parse([], null!));
+        Assert.Equal("args", Assert.Throws<ArgumentNullException>(() => StartupModeParser.Parse(null!, NoEnv)).ParamName);
+        Assert.Equal("env", Assert.Throws<ArgumentNullException>(() => StartupModeParser.Parse([], null!)).ParamName);
     }
 }
