@@ -1,14 +1,19 @@
+using ShotAI.App.Tests.Support;
 using Xunit;
+
+[assembly: AssemblyFixture(typeof(RealInputLock))]
 
 namespace ShotAI.App.Tests.Support;
 
 /// <summary>
-/// The desktop's one cursor and input stream, held by one test process at a time. The pill's
-/// tests here and the input hook's tests in ShotAI.Platform.Tests both send input with
-/// <c>SendInput</c>, and <c>dotnet test</c> runs the two projects at once: in WP-B7's first run
-/// each side lost a click to the other, and the other's clicks moved the cursor off the pill's
-/// error before its tooltip opened. A mutex of the session serializes them; ShotAI.Platform.Tests
-/// has the same class under the same name.
+/// The desktop's one cursor and input stream, held by one test process at a time, and by this
+/// assembly for its whole run. The pill's tests here and the input hook's tests in
+/// ShotAI.Platform.Tests both send input with <c>SendInput</c>, and <c>dotnet test</c> runs the
+/// two projects at once: in WP-B7's runs each side lost a click to the other, the other's clicks
+/// moved the cursor off the pill's error before its tooltip opened, and they closed the overflow
+/// menu's popup under its own tests here. A mutex of the session serializes them;
+/// ShotAI.Platform.Tests has the same class under the same name, which its input hook
+/// collection holds.
 /// </summary>
 /// <remarks>
 /// A mutex is released by the thread that took it, and xunit makes and disposes a collection
@@ -69,11 +74,11 @@ public sealed class RealInputLock : IDisposable
 }
 
 /// <summary>
-/// The tests that send real input: they run alone, after this assembly's other collections, and
-/// hold the desktop's input against the Platform tests' input hook collection.
+/// The tests that send real input: they run alone, after this assembly's other collections, so
+/// no other test of this assembly has a window open under their clicks and moves.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class RealInputCollection : ICollectionFixture<RealInputLock>
+public sealed class RealInputCollection
 {
     public const string Name = "real input";
 }

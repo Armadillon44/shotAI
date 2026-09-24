@@ -54,7 +54,6 @@ public partial class CapturePillWindow : ShotAIWindow
         foreach (var area in new UIElement[] { DragArea, HintText, ErrorRow })
         {
             area.PreviewMouseLeftButtonDown += OnDragDown;
-            area.MouseMove += OnDragMove;
             area.MouseLeftButtonUp += OnDragUp;
             area.LostMouseCapture += OnDragLost;
         }
@@ -86,7 +85,9 @@ public partial class CapturePillWindow : ShotAIWindow
         base.OnSourceInitialized(e);
         var hwnd = new WindowInteropHelper(this).Handle;
         WindowStyles.MakeNonActivatingToolWindow(hwnd);
-        HwndSource.FromHwnd(hwnd)?.AddHook(WindowStyles.NoActivateOnClick);
+        var source = HwndSource.FromHwnd(hwnd);
+        source?.AddHook(WindowStyles.NoActivateOnClick);
+        source?.AddHook(FollowDrag);
     }
 
     /// <inheritdoc/>
@@ -142,6 +143,9 @@ public partial class CapturePillWindow : ShotAIWindow
     // the hover, and the buttons do not start a drag. No clamp, as in Electron. The travel is
     // measured from where the button went down, not from where the cursor is when the UI thread
     // takes the press: had the cursor moved on meanwhile, the pill would trail it by that much.
+    // The pill follows each WM_MOUSEMOVE it gets while it holds the capture (FollowDrag), not WPF's
+    // MouseMove, which WPF raises only when the cursor's place within the window changes: a drag
+    // keeps the pill under the cursor, so after one step a second equal step lands on the same place.
     private void OnDragDown(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is not DependencyObject source || StartsNoDrag(source)) return;
@@ -162,9 +166,14 @@ public partial class CapturePillWindow : ShotAIWindow
         e.Handled = true;
     }
 
-    private void OnDragMove(object sender, MouseEventArgs e)
+    private nint FollowDrag(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
-        if (!ReferenceEquals(sender, _dragging)) return;
+        if (msg == WindowMessages.MouseMove && _dragging is not null) FollowCursor();
+        return 0;
+    }
+
+    private void FollowCursor()
+    {
         (int X, int Y) cursor;
         try
         {

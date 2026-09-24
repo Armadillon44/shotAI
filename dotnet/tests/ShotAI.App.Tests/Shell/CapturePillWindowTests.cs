@@ -23,8 +23,9 @@ namespace ShotAI.App.Tests.Shell;
 /// it renders the engine's state (2.4.4), docks once per run (INV-SHELL-8), asks before a discard
 /// (INV-SHELL-13) and opens its error's tooltip while inactive (Q-SHELL-3). The clicks and drags
 /// are real input on a pill just above the primary monitor's taskbar, below the windows the
-/// Platform tests open meanwhile in their own process. The tests run alone and hold the
-/// desktop's input (<see cref="RealInputLock"/>), and each puts the cursor back where it was.
+/// Platform tests open meanwhile in their own process. The tests run alone, while this assembly
+/// holds the desktop's input (<see cref="RealInputLock"/>), and each puts the cursor back where it
+/// was.
 /// </summary>
 [Collection(RealInputCollection.Name)]
 public sealed class CapturePillWindowTests
@@ -109,7 +110,8 @@ public sealed class CapturePillWindowTests
     /// <summary>
     /// EDGE-SHELL-29, Q-SHELL-4: the drag moves the pill by the cursor's travel, and never
     /// activates it. Each step waits for the pill to take the last one, since input reaches the
-    /// pill's thread later than the call that sends it returns.
+    /// pill's thread later than the call that sends it returns. The two moves are equal steps: the
+    /// second puts the cursor on the same place within the moved pill as the first did.
     /// </summary>
     [Fact]
     public Task DragMovesWithoutActivating() => WithPillAsync(async pill =>

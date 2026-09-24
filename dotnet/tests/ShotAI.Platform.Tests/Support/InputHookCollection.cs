@@ -5,8 +5,8 @@ namespace ShotAI.Platform.Tests.Support;
 /// <summary>
 /// The tests that install the global mouse hook or send synthetic input. They run alone: the
 /// hook sees every test's input, and one trigger source at a time can be attached. They hold
-/// the desktop's input against the App tests that send it (<see cref="RealInputLock"/>), and
-/// run Per-Monitor V2 DPI aware, as the app does.
+/// the desktop's input (<see cref="RealInputLock"/>), so they never run while the App tests do,
+/// and run Per-Monitor V2 DPI aware, as the app does.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class InputHookCollection : ICollectionFixture<PerMonitorV2>, ICollectionFixture<RealInputLock>

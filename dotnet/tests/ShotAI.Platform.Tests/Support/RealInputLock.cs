@@ -3,9 +3,10 @@ namespace ShotAI.Platform.Tests.Support;
 /// <summary>
 /// The desktop's one cursor and input stream, held by one test process at a time. The input
 /// hook's tests here and the capture pill's tests in ShotAI.App.Tests both send input with
-/// <c>SendInput</c>, and <c>dotnet test</c> runs the two projects at once: in WP-B7's first run
-/// each side lost a click to the other. A mutex of the session serializes them;
-/// ShotAI.App.Tests has the same class under the same name.
+/// <c>SendInput</c>, and <c>dotnet test</c> runs the two projects at once: in WP-B7's runs each
+/// side lost a click to the other, and the clicks from here closed App popups under their own
+/// tests. A mutex of the session serializes them: ShotAI.App.Tests has the same class under the
+/// same name and holds it for its whole run, and the input hook collection holds it here.
 /// </summary>
 /// <remarks>
 /// A mutex is released by the thread that took it, and xunit makes and disposes a collection
