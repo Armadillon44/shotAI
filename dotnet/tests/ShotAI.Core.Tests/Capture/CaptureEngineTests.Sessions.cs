@@ -71,8 +71,8 @@ public sealed partial class CaptureEngineTests
 
         var first = h.Engine.StartAsync(p1, new CaptureStartOptions(), TestContext.Current.CancellationToken);
         var same = h.Engine.StartAsync(p1, new CaptureStartOptions(), TestContext.Current.CancellationToken);
-        var other = await Assert.ThrowsAsync<CaptureException>(() => h.Engine.StartAsync(p2, new CaptureStartOptions(), TestContext.Current.CancellationToken));
-        var shot = await Assert.ThrowsAsync<CaptureException>(() => h.ScreenshotAsync(p1, new CaptureTarget("screen"), 0));
+        var other = await Assert.ThrowsAsync<CaptureException>(() => h.Engine.StartAsync(p2, new CaptureStartOptions(), TestContext.Current.CancellationToken).Bounded());
+        var shot = await Assert.ThrowsAsync<CaptureException>(() => h.ScreenshotAsync(p1, new CaptureTarget("screen"), 0).Bounded());
         Assert.False(first.IsCompleted);
         gated!.Open.SetResult();
 

@@ -244,7 +244,7 @@ public sealed partial class CaptureEngineTests
         await UntilAsync(() => gated!.Opens == 1);
 
         var start = await Assert.ThrowsAsync<CaptureException>(() => h.StartAsync(p2));
-        var second = await Assert.ThrowsAsync<CaptureException>(() => h.ScreenshotAsync(p, Screen1, 0));
+        var second = await Assert.ThrowsAsync<CaptureException>(() => h.ScreenshotAsync(p, Screen1, 0).Bounded());
         gated!.Open.SetResult();
         await shot.Bounded();
 

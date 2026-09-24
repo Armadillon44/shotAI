@@ -137,6 +137,8 @@ public sealed partial class CaptureEngineTests
         await h.Engine.DisposeAsync().AsTask().Bounded();
         Assert.Empty(h.Landed);
         Assert.Empty(EngineHarness.StepsOnDisk(p));
+        // Dispose completed the queue, so the worker ended well inside DisposeAsync's 5 s.
+        Assert.DoesNotContain("capture worker did not stop within 5 s", h.LogLines(LogLevel.Warning));
     }
 
     /// <summary>7.13: the container calls only <c>Dispose</c>, which tears down first: the triggers go and nothing starts after it.</summary>
