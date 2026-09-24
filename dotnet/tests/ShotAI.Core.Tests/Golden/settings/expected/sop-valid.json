@@ -1,0 +1,21 @@
+{
+  "sop": {
+    "enabled": false,
+    "model": "claude-sonnet-5",
+    "tone": "friendly",
+    "effort": "high",
+    "customInstructions": "Be brief"
+  },
+  "projectsDir": "/shotai-home/shotAI Projects",
+  "recents": [],
+  "remoteVisible": false,
+  "captureScale": 0.85,
+  "hasSeenTour": false,
+  "userName": "",
+  "includeNameInReports": false,
+  "archiveAgeDays": 90,
+  "theme": "system",
+  "brand": "shotAI",
+  "updateCheckEnabled": true,
+  "lastUpdateCheckAt": 1790000000000
+}

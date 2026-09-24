@@ -333,7 +333,7 @@ Some work must happen before any service exists. The order is 03 7.4.1 with 12 a
 | `IProjectService` | `ProjectStore` (also `IDisposable`, `IAsyncDisposable`) | singleton | Core | 01, 11 |
 | `IProjectSessionFactory`, `IProjectSettle` | `ProjectSessionFactory` (one instance forwarded to both) | singleton | Core | 11, 07 |
 | `IInstallInfo` | the object `InstallInfoReader.Read` returned at step 1b, passed to `AddShotAIApp(dispatcher, settings, installInfo)` and registered as that instance | singleton instance | App | 12 7.10.4 |
-| `ISettingsService`, `IProjectStoreSettings`, `ICaptureSettings` | the `SettingsService` loaded at step 5b, passed to `AddShotAIApp(dispatcher, settings, installInfo)` and registered as that instance (plus forwarding factories; `Dispose` idempotent) | singleton | App (instance), Core (forwarders) | 10, 11 7.10 |
+| `ISettingsService`, `IProjectStoreSettings`, `ICaptureSettings` | the `SettingsService` loaded at step 5b, passed to `AddShotAIApp(dispatcher, settings, installInfo)` and registered as that instance (as `SettingsService`); Core forwards all three interfaces to it (corrected in WP-A10); `Dispose` idempotent | singleton | App (instance), Core (forwarders) | 10, 11 7.10 |
 | `ICaptureService` | `CaptureEngine` (also `IDisposable`) | singleton | Core, with Platform seams | 02, 11 |
 | `CaptureShield`, `IScreenCapture` (`ShieldedScreenCapture`) | same | singleton | Core | 02 |
 | `IStepFlattener`, `IStepRenderWriter`, `IRenderGate`, `ISensitiveRegionScanner`, `Flattener` | 04 types | singleton | Core | 04 |

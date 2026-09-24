@@ -394,8 +394,8 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | `settings.json` read, coerced and written exactly like Electron, optimistic with rollback, unknown keys and positions preserved |
 | Spec inputs | 10 2.6 (2.6.1 to 2.6.6), 7.4 (7.4.1 to 7.4.4), INV-INFRA-10 to INV-INFRA-19, EDGE-INFRA-39 to EDGE-INFRA-46; 07 7.2 (settings and catalog); 11 7.3.6; ARCHITECTURE 7.8, 10.2, R-ARCH-13; Q-INFRA-1, Q-INFRA-2, Q-INFRA-3 (01 agrees in Q-MODEL-24), Q-INFRA-12, Q-INFRA-20, Q-IPC-8 |
-| Deliverables | Core `ShotAI.Core.Settings`: `AppSettings`, `ThemePref`, `ThemePrefWire`, `SettingsDefaults`, `SettingsCoercer`, `SettingsCodec`, `ISettingsService`, `SettingsService` (`Load`, lock-free `Current`, `UpdateAsync` with its own `SerialWriteQueue`, re-read inside each write, `Changed` with `IsRollback`, `FlushAsync`, one `settings.json.bad` backup), `SettingsChangedEventArgs`, the `IProjectStoreSettings` implementation; Core `ShotAI.Core.Capture.ICaptureSettings` (`CaptureScaleNow`, `RemoteVisibleNow`, synchronous, 02 7.2; declared here so WP-B1's `CaptureShield` can consume it) and its implementation; Core `ShotAI.Core.Paths.IAppPaths` with `LocalDataDirectory` (`%LOCALAPPDATA%\LFI\shotAI`, 10 7.4.4, ARCHITECTURE 10.2, R-ARCH-13); Core `ShotAI.Core.Sop`: `SopCatalog`, `SopModelIds`, `SopModelOption`, `ModelParams`, `SopTone`, `SopEffort`, `SopSettings`, `SopSettingsCoercer` (07 7.2, needed to load the `sop` object); `ManifestCodec`'s private tone list (WP-A3) replaced by a call to `SopCatalog.IsTone`. 01's agreement to Q-INFRA-3 is already recorded as Q-MODEL-24, so this WP edits no spec |
-| Tests | Port `src/main/settings.test.ts` (`Settings/SettingsStoreTests`). New: `Settings/SettingsCoercionTests`, `SettingsCodecTests`, `SettingsServiceTests` (with the verification additions), `SettingsSchemaTests`, `Sop/SopSettingsCoerceTests` |
+| Deliverables | Core `ShotAI.Core.Settings`: `AppSettings`, `ThemePref`, `ThemePrefWire`, `SettingsDefaults`, `SettingsCoercer`, `SettingsCodec`, `ISettingsService`, `SettingsService` (`Load`, lock-free `Current`, `UpdateAsync` with its own `SerialWriteQueue`, re-read inside each write, `Changed` with `IsRollback`, `FlushAsync`, one `settings.json.bad` backup), `SettingsChangedEventArgs`, the `IProjectStoreSettings` implementation; Core `ShotAI.Core.Capture.ICaptureSettings` (`CaptureScaleNow`, `RemoteVisibleNow`, synchronous, 02 7.2; declared here so WP-B1's `CaptureShield` can consume it) and its implementation; Core `ShotAI.Core.Paths.IAppPaths` with `LocalDataDirectory` (`%LOCALAPPDATA%\LFI\shotAI`, 10 7.4.4, ARCHITECTURE 10.2, R-ARCH-13); Core `ShotAI.Core.Sop`: `SopCatalog`, `SopModelIds`, `SopModelOption`, `ModelParams`, `SopTone`, `SopEffort`, `SopSettings`, `SopSettingsCoercer` (07 7.2, needed to load the `sop` object); `ManifestCodec`'s private tone list (WP-A3) replaced by a call to `SopCatalog.IsTone`. 01's agreement to Q-INFRA-3 is already recorded as Q-MODEL-24, so this WP edits no spec; added in WP-A10: Core's three settings forwarders in `AddShotAICore` (the instance is App's, WP-A12), `SopCatalog.TryParseTone` and `TryParseEffort`, `JsValue.TryGetBoolean`, and the internal read seam of `SettingsService` that only the tests replace; corrected in WP-A10: the WP edits specs after all, because Core forwards all three settings interfaces to the concrete `SettingsService` (ARCHITECTURE 4.3, 11 7.10), 10 7.4.3 gains the service's mechanics and 2.11 its native log lines, and 07 7.2 the two parse helpers |
+| Tests | Port `src/main/settings.test.ts` (`Settings/SettingsStoreTests`). New: `Settings/SettingsCoercionTests`, `SettingsCodecTests`, `SettingsServiceTests` (with the verification additions), `SettingsSchemaTests`, `Sop/SopSettingsCoerceTests`; added in WP-A10: `Settings/SettingsGoldenTests` over `Golden/settings/`, whose 28 expected files the env-gated Electron generator `src/main/settings-golden.test.ts` writes by running the real settings module (a golden generator, rule B6), `Settings/SettingsParityWithElectronTests` and `Sop/SopCatalogParityWithElectronTests` (constants and strings read from the TypeScript source, skipped after cutover), the `Settings/SettingsHarness` they share with `Support/TestAppPaths` and `Support/ElectronSource`, and the `Composition/AddShotAICoreTests` case for the forwarders |
 | Acceptance criteria | none owned (its manual criteria need the Settings view and are met in WP-B10) |
 | Depends on | WP-A2, WP-A4, WP-A5 |
 | Size | M |
@@ -1722,9 +1722,9 @@ Every open question of every spec, with the WP that owns its decision and the de
 
 | Q | Topic | Owner | Decision or mitigation |
 |---|---|---|---|
-| Q-INFRA-1 | preserve unrecognized enum strings | WP-A10 | adopt |
-| Q-INFRA-2 | preserve unknown `sop` keys | WP-A10 | adopt |
-| Q-INFRA-3 | non-absolute `projectsDir` | WP-A10 | load as the default and warn; 01 agreed (Q-MODEL-24) |
+| Q-INFRA-1 | preserve unrecognized enum strings | WP-A10 | adopt (done in WP-A10) |
+| Q-INFRA-2 | preserve unknown `sop` keys | WP-A10 | adopt (done in WP-A10; an existing key keeps its position inside `sop` too) |
+| Q-INFRA-3 | non-absolute `projectsDir` | WP-A10 | load as the default and warn; 01 agreed (Q-MODEL-24) (done in WP-A10, for a write too) |
 | Q-INFRA-4 | fleet update-check policy | WP-E1 | none in 2.0.0 |
 | Q-INFRA-5 | the notice on managed devices | closed | resolved 2026-09-23: the notice follows the install scope (06 INV-HOME-45, built in WP-E1) |
 | Q-INFRA-6 | prerelease ordering | WP-E1 | adopt (`2.0.0-alpha.N` is older than `2.0.0`) |
@@ -1733,7 +1733,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-INFRA-9 | WPF and the variable Archivo | WP-A14 | static instances |
 | Q-INFRA-10 | 06's attribution of the palette | closed | R-ARCH-14 |
 | Q-INFRA-11 | `SHOTAI_LOG_LEVEL` | WP-A11 | `debug` only |
-| Q-INFRA-12 | back up a corrupt file | WP-A10 | one `settings.json.bad` |
+| Q-INFRA-12 | back up a corrupt file | WP-A10 | one `settings.json.bad` (done in WP-A10, once per corruption) |
 | Q-INFRA-13 | Electron's timeout message | WP-E1 | irrelevant natively |
 | Q-INFRA-14 | redirect handling | WP-E1 | follow; final host must be `api.github.com` |
 | Q-INFRA-15 | in-flight join | WP-E1 | adopt |
@@ -1741,7 +1741,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-INFRA-17 | generator location | WP-A4 | `dotnet/tools/ShotAI.GenBrand` plus the checked-in table |
 | Q-INFRA-18 | pending update across launches | WP-E1 | parity (not remembered) |
 | Q-INFRA-19 | static Archivo source | WP-A14 | upstream release matching 2.001, else a documented fontTools script |
-| Q-INFRA-20 | a write whose re-read fails | WP-A10, WP-B10 | as specified; the notice agreed with 06 in WP-B10 |
+| Q-INFRA-20 | a write whose re-read fails | WP-A10, WP-B10 | as specified (the service half done in WP-A10); the notice agreed with 06 in WP-B10 |
 | Q-INFRA-21 | user info in links | WP-A19 | parity (allowed) |
 | Q-INFRA-22 | does `OpenAsync` throw | WP-A19 | 11's contract (R-ARCH-25) |
 | 10 risks | JsJson layout; three generators; GitHub API dependence; users switching builds | WP-A10, WP-A4, WP-E1, WP-E5 | byte tests; parity test plus manual macOS stamp check; `--update-selftest`; pilot notes |
@@ -1757,7 +1757,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-5 | keep `ListRecentProjectsAsync` | WP-A6 | keep (decided in WP-A6) |
 | Q-IPC-6 | `ProjectsChanged` | WP-A8 | event on `IProjectService` raised by auto-archive (implemented in WP-A8) |
 | Q-IPC-7 | a manual update find and the notice | WP-E1 | parity (no push) |
-| Q-IPC-8 | unknown `settings.json` keys | WP-A10 | preserve |
+| Q-IPC-8 | unknown `settings.json` keys | WP-A10 | preserve (done in WP-A10) |
 | Q-IPC-9 | analyzer noise | WP-A1 | suppress only for `*.g.cs` |
 | Q-IPC-10 | exit flush as a blocking wait | WP-A12 | bounded blocking wait (DL4) |
 | Q-IPC-11 | debug call logging volume | WP-A12 | Debug level |
@@ -1781,7 +1781,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-PKG-1 | WiX licensing | WP-E3 | read the terms before the PR; pin a pre-fee release or budget the fee |
 | Q-PKG-2 | signing eligibility and timestamp URL | WP-E4 | IT owns the subscription; OV in Key Vault as fallback |
 | Q-PKG-3 | sign unsigned third-party PEs | WP-E4 | yes, never re-sign a valid one |
-| Q-PKG-4 | local data under the Squirrel root | WP-A10 | closed by R-ARCH-13 (`IAppPaths.LocalDataDirectory`) |
+| Q-PKG-4 | local data under the Squirrel root | WP-A10 | closed by R-ARCH-13 (`IAppPaths.LocalDataDirectory`, declared in WP-A10; App's `AppPaths` implements it in WP-A12) |
 | Q-PKG-5 | internal build distribution | WP-E4 | 30-day workflow artifact; decide with IT before S1 |
 | Q-PKG-6 | launch-condition comparison | WP-E3 | keep; test on 1909 and 2004 |
 | Q-PKG-7 | removing Electron | WP-E8 | Uninstall assignment in user context with the wrapper |

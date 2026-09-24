@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using ShotAI.Core.Capture;
 using ShotAI.Core.Composition;
+using ShotAI.Core.Settings;
 using ShotAI.Core.Store;
 using Xunit;
 
@@ -36,7 +38,27 @@ public sealed class AddShotAICoreTests
         Assert.Equal(ServiceLifetime.Singleton, store.Lifetime);
         Assert.Equal(typeof(ProjectStore), store.ImplementationType);
         Assert.DoesNotContain(services, d => d.ServiceType == typeof(ProjectStore));
-        Assert.DoesNotContain(services, d => d.ServiceType == typeof(IProjectStoreSettings));
+    }
+
+    /// <summary>
+    /// App registers the one settings service it loaded at startup; Core only forwards the three
+    /// interfaces to that instance, and registers no settings service of its own (spec 10 7.4.3,
+    /// 11 7.10).
+    /// </summary>
+    [Fact]
+    public void ForwardsTheSettingsInterfacesToTheOneSettingsService()
+    {
+        var services = new ServiceCollection().AddShotAICore();
+        var instance = (SettingsService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(SettingsService));
+        var provider = new OneServiceProvider(typeof(SettingsService), instance);
+
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(SettingsService));
+        foreach (var type in new[] { typeof(ISettingsService), typeof(IProjectStoreSettings), typeof(ICaptureSettings) })
+        {
+            var forwarded = Assert.Single(services, d => d.ServiceType == type);
+            Assert.Equal(ServiceLifetime.Singleton, forwarded.Lifetime);
+            Assert.Same(instance, forwarded.ImplementationFactory!(provider));
+        }
     }
 
     /// <summary>
