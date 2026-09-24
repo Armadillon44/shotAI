@@ -83,6 +83,25 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(1, gated.Opens);
     }
 
+    /// <summary>D8: a start that joined a pending start for the same project fails with it, and the next start proceeds.</summary>
+    [Fact]
+    public async Task AFailedStartFailsItsWaiterToo()
+    {
+        GatedOpen? gated = null;
+        await using var h = new EngineHarness(inner => gated = new GatedOpen(inner));
+        var outside = Path.Combine(h.Store.Temp.Root, "outside");
+        Directory.CreateDirectory(outside);
+
+        var first = h.Engine.StartAsync(outside, new CaptureStartOptions(), TestContext.Current.CancellationToken);
+        var same = h.Engine.StartAsync(outside, new CaptureStartOptions(), TestContext.Current.CancellationToken);
+        gated!.Open.SetResult();
+
+        await Assert.ThrowsAsync<ProjectNotKnownException>(() => first.Bounded());
+        await Assert.ThrowsAsync<ProjectNotKnownException>(() => same.Bounded());
+        Assert.Equal(1, gated.Opens);
+        Assert.Equal(CaptureStatus.Recording, (await h.StartAsync(h.Project())).Status);
+    }
+
     /// <summary>A start that fails leaves nothing: the next start for another project proceeds.</summary>
     [Fact]
     public async Task AFailedStartReleasesTheReservation()

@@ -179,6 +179,28 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(CaptureStatus.Recording, (await h.StartAsync(p)).Status);
     }
 
+    /// <summary>D21: the screenshot holds its reservation while it opens the project, before its session exists, so a start then is refused too.</summary>
+    [Fact]
+    public async Task StartWhileAScreenshotOpensItsProjectThrows()
+    {
+        GatedOpen? gated = null;
+        await using var h = new EngineHarness(inner => gated = new GatedOpen(inner));
+        var p = h.Project();
+        var p2 = h.Project("p2");
+        var shot = h.ScreenshotAsync(p, Screen1, 0);
+        await UntilAsync(() => gated!.Opens == 1);
+
+        var start = await Assert.ThrowsAsync<CaptureException>(() => h.StartAsync(p2));
+        var second = await Assert.ThrowsAsync<CaptureException>(() => h.ScreenshotAsync(p, Screen1, 0));
+        gated!.Open.SetResult();
+        await shot.Bounded();
+
+        Assert.Equal(CaptureMessages.RecordingInProgress, start.Message);
+        Assert.Equal(CaptureMessages.RecordingInProgress, second.Message);
+        Assert.Equal(0, h.Triggers.Attaches);
+        Assert.Equal(2, gated.Opens);
+    }
+
     /// <summary>D21, EDGE-CAP-51: pause, resume, stop and discard leave a screenshot alone and report idle, raising nothing.</summary>
     [Fact]
     public async Task StopDuringScreenshotIsNoOp()
