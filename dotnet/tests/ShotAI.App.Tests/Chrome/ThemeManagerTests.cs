@@ -21,6 +21,9 @@ namespace ShotAI.App.Tests.Chrome;
 /// </summary>
 public sealed class ThemeManagerTests
 {
+    // A made-up project folder; the navigation state only compares it.
+    private const string Project = @"C:\Projects\Handbook";
+
     public static TheoryData<ThemePref, string, Appearance> Pairs() => new()
     {
         { ThemePref.Light, "shotAI", Appearance.Light },
@@ -182,11 +185,11 @@ public sealed class ThemeManagerTests
     public Task TheProjectViewWearsItsPinnedBrand() => Sta.RunAsync(() =>
     {
         var rig = Started(ThemePref.Light, "shotAI");
-        rig.Nav.SetProjectView(true, "lfi");
+        rig.Nav.Set(true, Project, "lfi");
         Assert.Equal("lfi", rig.Theme.CurrentBrand);
-        rig.Nav.SetProjectView(false, "lfi");
+        rig.Nav.Set(false, Project, "lfi");
         Assert.Equal("shotAI", rig.Theme.CurrentBrand);
-        rig.Nav.SetProjectView(true, "solarpunk");
+        rig.Nav.Set(true, Project, "solarpunk");
         Assert.Equal("shotAI", rig.Theme.CurrentBrand);
         Assert.Equal(2, rig.Changes);
     });

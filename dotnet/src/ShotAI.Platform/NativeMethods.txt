@@ -40,3 +40,10 @@ WINDOW_STYLE
 WM_WINDOWPOSCHANGING
 WM_SHOWWINDOW
 WM_NCDESTROY
+EnumDisplayMonitors
+GetMonitorInfo
+MONITORINFOF_PRIMARY
+MonitorFromWindow
+MonitorFromPoint
+GetDpiForMonitor
+GetCursorPos

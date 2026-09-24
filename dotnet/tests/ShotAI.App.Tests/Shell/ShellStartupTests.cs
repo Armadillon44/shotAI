@@ -30,7 +30,7 @@ public sealed class ShellStartupTests
         var settings = new FakeSettingsService();
         settings.Set(s => s with { Theme = ThemePref.Dark, Brand = "lfi" });
         var theme = new ThemeManager(settings, new FakeSystemAppearance(), new NavigationState(), new WpfUiDispatcher(Dispatcher.CurrentDispatcher), NullLogger<ThemeManager>.Instance);
-        var main = new MainWindow(new WindowRegistration(new OwnWindowRegistry(NullLogger<OwnWindowRegistry>.Instance)));
+        var main = TestMainWindow.Create();
         var merged = -1;
         Brush? ground = null;
         var visible = true;

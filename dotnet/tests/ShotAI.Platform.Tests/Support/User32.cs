@@ -24,6 +24,7 @@ internal static partial class User32
     public const uint WdaNone = 0;
     public const uint WdaExcludeFromCapture = 0x11;
     public const uint PmRemove = 1;
+    public const int SmCMonitors = 80;
     public static readonly nint HwndMessage = -3;
 
     [LibraryImport("user32.dll", EntryPoint = "CreateWindowExW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
@@ -71,6 +72,14 @@ internal static partial class User32
     [LibraryImport("user32.dll", EntryPoint = "RegisterWindowMessageW", StringMarshalling = StringMarshalling.Utf16)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     public static partial uint RegisterWindowMessage(string name);
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial int GetSystemMetrics(int index);
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial uint GetDpiForWindow(nint hwnd);
 
     /// <summary>The display affinity of a window, or null when Windows cannot read it.</summary>
     public static uint? Affinity(nint hwnd) => GetWindowDisplayAffinity(hwnd, out var affinity) ? affinity : null;

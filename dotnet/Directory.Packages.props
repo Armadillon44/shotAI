@@ -16,9 +16,12 @@
     <PackageVersion Include="System.IO.Hashing" Version="10.0.12" />
   </ItemGroup>
   <!-- Platform: the app-mode change notification of the theme monitor (spec 06 7.14). The App's
-       desktop runtime carries the same assembly; this reference keeps Platform off WPF. -->
+       desktop runtime carries the same assembly; this reference keeps Platform off WPF. And
+       WebView2, referenced by Platform only (INV-ARCH-5): the runtime version probe of About
+       (spec 11 7.3.5), later the PDF host (spec 09 7.16). -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.Win32.SystemEvents" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
   </ItemGroup>
   <!-- App: the container, the logger factory and its debugger output, and the MVVM toolkit
        (ARCHITECTURE 3.2). -->

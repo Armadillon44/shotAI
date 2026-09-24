@@ -52,6 +52,11 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<WindowRegistration>();
         services.AddSingleton<PopupExclusion>();
         services.AddSingleton<NavigationState>();
+        services.AddSingleton<IShellNavigationState>(sp => sp.GetRequiredService<NavigationState>());
+        services.AddSingleton<IAppInfo, AppInfoProvider>();
+        services.AddSingleton<MainWindowSizer>();
+        services.AddSingleton<IMainWindowLayout>(sp => sp.GetRequiredService<MainWindowSizer>());
+        services.AddSingleton<AppMenuViewModel>();
         services.AddSingleton<ThemeManager>();
         // Step 9 starts these in this order (ARCHITECTURE 4.3): RemoteVisibilityApplier (WP-B5)
         // and RecordingVisibilityController (WP-B6) are registered before the theme manager.

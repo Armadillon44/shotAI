@@ -9,6 +9,9 @@ using Xunit;
 
 namespace ShotAI.App.Tests.Composition;
 
+// The runtime's enum, not the sibling test namespace ShotAI.App.Tests.Architecture.
+using Architecture = System.Runtime.InteropServices.Architecture;
+
 /// <summary>Startup step 1's logging (spec 10 7.5.1 and 7.5.4, AC-INFRA-14).</summary>
 public sealed partial class AppLoggingTests
 {

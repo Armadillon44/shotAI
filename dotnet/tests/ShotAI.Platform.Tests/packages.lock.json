@@ -152,6 +152,7 @@
       "shotai.platform": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Web.WebView2": "[1.0.4191.47, )",
           "Microsoft.Win32.SystemEvents": "[10.0.12, )",
           "ShotAI.Core": "[2.0.0-alpha.0, )"
         }
@@ -170,6 +171,12 @@
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.12"
         }
+      },
+      "Microsoft.Web.WebView2": {
+        "type": "CentralTransitive",
+        "requested": "[1.0.4191.47, )",
+        "resolved": "1.0.4191.47",
+        "contentHash": "Snb6mlTpuz6ZFjWMwIdg28Xp6kAUMy3zaLUyGbFSaw+/AJKlwoX8EiaWJ1eUMfKyJHksPkFjJHl1LIB7kX+0AQ=="
       },
       "Microsoft.Win32.SystemEvents": {
         "type": "CentralTransitive",

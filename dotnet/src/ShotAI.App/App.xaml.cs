@@ -108,7 +108,11 @@ public partial class App : Application
 
         // Steps 8 and 9: the main window registers, and so is excluded, before it is shown, and
         // the theme is merged before its first frame (D-HOME-10).
-        var main = new MainWindow(_services.GetRequiredService<WindowRegistration>());
+        var main = new MainWindow(
+            _services.GetRequiredService<WindowRegistration>(),
+            _services.GetRequiredService<AppMenuViewModel>(),
+            _services.GetRequiredService<MainWindowSizer>(),
+            _services.GetRequiredService<IAppInfo>());
         MainWindow = main;
         main.ContentRendered += LogFirstRender;
         ShowThemed(_services.GetRequiredService<ThemeManager>(), Resources, main);
