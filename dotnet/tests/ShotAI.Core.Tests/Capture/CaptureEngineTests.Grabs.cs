@@ -42,12 +42,12 @@ public sealed partial class CaptureEngineTests
         h.Windows.Current = FakeWindows.App("Notepad", "N", new Rect(100, 50, 3000, 2000));
         var p = h.Project();
         await h.StartAsync(p);
-        await h.ClickAsync(300, 251);
+        await h.ClickAsync(301, 251);
 
         var click = Assert.Single(h.Landed).Step.Click!;
-        Assert.Equal(new Point(300, 251), click.Global);
-        // (300 - 100) x 0.5 and (251 - 50) x 0.5 = 100.5, rounded half up.
-        Assert.Equal(new Point(100, 101), click.Image);
+        Assert.Equal(new Point(301, 251), click.Global);
+        // (301 - 100) x 0.5 and (251 - 50) x 0.5 are both 100.5, rounded half up.
+        Assert.Equal(new Point(101, 101), click.Image);
         Assert.Equal(0.5, click.ImageScale);
         Assert.Equal("left", click.Button);
         Assert.Equal((1500, 1000), EngineHarness.ShotSize(p, h.Landed[0].Step.Screenshot));
@@ -83,18 +83,19 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(new Point(100, 40), step.Click!.Image);
     }
 
-    /// <summary>2.8: an area is grabbed from the monitor under its top-left, not the click's.</summary>
+    /// <summary>2.8: an area is grabbed from the monitor under its top-left, not the click's, and the click is placed from that monitor's origin.</summary>
     [Fact]
     public async Task AnAreaIsGrabbedFromTheMonitorItIsOn()
     {
         await using var h = new EngineHarness();
-        h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1920, 0, 2560, 1440));
+        h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 0, 1080, 1920, 1080));
         var p = h.Project();
-        await h.StartAsync(p, new CaptureStartOptions(new CaptureTarget("area", Area: new Rect(2000, 100, 300, 200))));
+        await h.StartAsync(p, new CaptureStartOptions(new CaptureTarget("area", Area: new Rect(100, 1200, 300, 200))));
         await h.ClickAsync(300, 200);
 
         Assert.Equal(2u, Assert.Single(h.Screen.Grabs).Id);
-        Assert.Equal([new PixelRect(80, 100, 300, 200)], h.Codec.Crops);
+        Assert.Equal([new PixelRect(100, 120, 300, 200)], h.Codec.Crops);
+        Assert.Equal(new Point(300 - 100, 200 - 1200), Assert.Single(h.Landed).Step.Click!.Image);
     }
 
     [Fact]
@@ -170,6 +171,33 @@ public sealed partial class CaptureEngineTests
 
         Assert.Equal([new PixelRect(0, 10, 550, 400)], h.Codec.Crops);
         Assert.Equal(new Point(300, 190), Assert.Single(h.Landed).Step.Click!.Image);
+    }
+
+    /// <summary>EDGE-CAP-29: a minimized foreground window is not cropped to, whatever rectangle it reports.</summary>
+    [Fact]
+    public async Task AMinimizedForegroundWindowCapturesTheMonitor()
+    {
+        await using var h = new EngineHarness();
+        h.Windows.Current = FakeWindows.App("Notepad", "N", NotepadFrame, minimized: true);
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(300, 200);
+
+        Assert.Empty(h.Codec.Crops);
+        Assert.Equal((1920, 1080), EngineHarness.ShotSize(p, Assert.Single(h.Landed).Step.Screenshot));
+    }
+
+    /// <summary>7.5: a foreground window without frame bounds is cropped to its window rectangle.</summary>
+    [Fact]
+    public async Task AForegroundWithoutFrameBoundsIsCroppedToItsWindowRect()
+    {
+        await using var h = new EngineHarness();
+        h.Windows.Current = new ForegroundInfo(5, 321, "Notepad", "N", NotepadFrame, null, false);
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(300, 200);
+
+        Assert.Equal([new PixelRect(100, 50, 800, 600)], h.Codec.Crops);
     }
 
     /// <summary>EDGE-CAP-29: a foreground window parked off screen, at or past the -10000 sentinel on either axis, is not cropped to.</summary>
@@ -295,6 +323,7 @@ public sealed partial class CaptureEngineTests
 
         var steps = h.Landed.Select(l => l.Step).ToList();
         Assert.Equal(["Click 'OK' button in Notepad", "Right-click 'OK' button in Notepad"], steps.Select(s => s.Caption));
+        Assert.Equal(["left", "right"], steps.Select(s => s.Click!.Button));
         var element = steps[0].Raw["element"]!;
         Assert.True(element["available"]!.GetValue<bool>());
         Assert.Equal("OK", element["name"]!.GetValue<string>());
@@ -337,6 +366,7 @@ public sealed partial class CaptureEngineTests
 
         var window = h.Landed[0].Step.Raw["window"]!;
         Assert.Equal("""{"app":"Notepad","title":"Doc.txt - Notepad","pid":321,"bounds":{"x":93,"y":43,"width":814,"height":614}}""", window.ToJsonString());
+        Assert.Equal([new PixelRect(100, 50, 800, 600)], h.Codec.Crops); // the crop uses the frame bounds
         Assert.Null(h.Landed[1].Step.Raw["window"]);
         Assert.Equal("Click in screen", h.Landed[1].Step.Caption);
     }
@@ -357,7 +387,7 @@ public sealed partial class CaptureEngineTests
         Assert.Equal("shots/step-0001.png", step.Screenshot);
         Assert.Equal("click", step.Trigger);
         Assert.Null(step.Raw["crop"]);
-        Assert.Empty(step.Annotations);
+        Assert.Equal("[]", step.Raw["annotations"]!.ToJsonString());
         Assert.Equal("""{"id":1,"bounds":{"x":0,"y":0,"width":1920,"height":1080},"scaleFactor":1}""", step.Raw["monitor"]!.ToJsonString());
     }
 
