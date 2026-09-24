@@ -6,7 +6,7 @@ namespace ShotAI.Core.Home;
 /// <summary>
 /// Home's strings (spec 06 2.2, 2.7 to 2.12 and 2.17, 7.3), pinned by <c>HomeTextTests</c> on
 /// Linux (ARCHITECTURE 5.1). The hero, the capture-mode picker and the recording panel (WP-B9)
-/// and the row operations and the bulk bar (WP-A19) add theirs.
+/// and the export items of the row menu and the bulk bar (WP-D16) add theirs.
 /// </summary>
 /// <remarks>
 /// The date span labels are <see cref="DateGroups.Label"/> and the content tier's is 01's
@@ -124,6 +124,102 @@ public static class HomeText
 
     /// <summary>The empty Archive tab's sub-line.</summary>
     public const string NoArchivedSub = "Projects you haven\u2019t touched in a while land here (or archive them yourself). Opening one restores it automatically.";
+
+    /// <summary>The overflow menu's default trigger (2.20, <c>OverflowMenu.tsx</c>).</summary>
+    public const string MoreActionsGlyph = "\u22ef";
+
+    /// <summary>Its default tooltip and accessible name.</summary>
+    public const string MoreActions = "More actions";
+
+    /// <summary>The row menu's first item (2.12): opens the rename box.</summary>
+    public const string Rename = "Rename";
+
+    /// <summary>The row menu's reveal.</summary>
+    public const string RevealInExplorer = "Reveal in Explorer";
+
+    /// <summary>The row menu's archive, on a live project.</summary>
+    public const string ArchiveItem = "Archive";
+
+    /// <summary>The row menu's restore, on an archived project.</summary>
+    public const string RestoreItem = "Restore";
+
+    /// <summary>The row menu's last item, in the danger colour, and the delete question's button.</summary>
+    public const string Delete = "Delete";
+
+    /// <summary>The bulk bar's accessible name (2.16).</summary>
+    public const string BulkName = "Bulk actions";
+
+    /// <summary>The select-all toggle while not every row shown is selected.</summary>
+    public const string SelectAll = "Select all";
+
+    /// <summary>The select-all toggle while every row shown is.</summary>
+    public const string ClearAll = "Clear all";
+
+    /// <summary>The tick in the select-all toggle's filled box (<c>project.css</c>).</summary>
+    public const string SelectAllTick = "\u2713";
+
+    /// <summary>The bulk archive on the Projects tab.</summary>
+    public const string BulkArchive = "\U0001F5C4 Archive";
+
+    /// <summary>The bulk restore on the Archive tab.</summary>
+    public const string BulkRestore = "\u2934 Restore";
+
+    /// <summary>The bulk delete.</summary>
+    public const string BulkDelete = "\U0001F5D1 Delete";
+
+    /// <summary>The bulk bar's Clear, never disabled in Electron (natively disabled while a run goes, D-HOME-6).</summary>
+    public const string BulkClear = "Clear";
+
+    /// <summary>The bulk delete's verb.</summary>
+    public const string Deleting = "Deleting";
+
+    /// <summary>The bulk archive's verb.</summary>
+    public const string Archiving = "Archiving";
+
+    /// <summary>The bulk restore's verb.</summary>
+    public const string Restoring = "Restoring";
+
+    /// <summary>The confirm dialog's accessible name (2.23, <c>useConfirm.tsx</c>).</summary>
+    public const string ConfirmName = "Confirm";
+
+    /// <summary>The confirm dialog's cancel button.</summary>
+    public const string ConfirmCancel = "Cancel";
+
+    /// <summary>The confirm button's default label, and an alert's only button.</summary>
+    public const string ConfirmOk = "OK";
+
+    /// <summary>A row checkbox's accessible name: <c>`Select ${p.title}`</c>.</summary>
+    public static string SelectRow(string title)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+        return "Select " + title;
+    }
+
+    /// <summary>The bulk bar's count: <c>`${selected.size} selected`</c>.</summary>
+    public static string BulkCount(int selected) => selected.ToString(CultureInfo.InvariantCulture) + " selected";
+
+    /// <summary>The bulk bar's count during a run: <c>`${verb} ${done} of ${total}&#8230;`</c>.</summary>
+    public static string BulkProgress(BulkProgress progress)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        return progress.Verb + " " + progress.Done.ToString(CultureInfo.InvariantCulture) + " of "
+            + progress.Total.ToString(CultureInfo.InvariantCulture) + "\u2026";
+    }
+
+    /// <summary>A row's delete question, the title in straight double quotes (2.14).</summary>
+    public static string DeleteOne(string title)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+        return "Delete \"" + title + "\"? This removes the project folder and its screenshots.";
+    }
+
+    /// <summary>The bulk delete's question.</summary>
+    public static string DeleteMany(int count) =>
+        "Delete " + count.ToString(CultureInfo.InvariantCulture) + " project" + (count == 1 ? "" : "s")
+        + "? This removes each project folder and its screenshots.";
+
+    /// <summary>The bulk delete's confirm button: <c>`Delete ${n}`</c>.</summary>
+    public static string DeleteManyLabel(int count) => Delete + " " + count.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>A tab's accessible name, its text and its count as Electron's button reads them: <c>Projects 9</c>.</summary>
     public static string TabName(HomeTab tab, int count) => Heading(tab) + " " + count.ToString(CultureInfo.InvariantCulture);

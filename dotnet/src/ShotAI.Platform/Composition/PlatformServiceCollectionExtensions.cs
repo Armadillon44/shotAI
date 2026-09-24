@@ -1,12 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using ShotAI.Core.Diagnostics;
 using ShotAI.Core.Report;
+using ShotAI.Core.Shell;
 using ShotAI.Core.Store;
 using ShotAI.Core.Theme;
 using ShotAI.Platform.Capture;
 using ShotAI.Platform.Export;
 using ShotAI.Platform.FileSystem;
 using ShotAI.Platform.Imaging;
+using ShotAI.Platform.Shell;
 using ShotAI.Platform.Theme;
 
 namespace ShotAI.Platform.Composition;
@@ -31,6 +33,7 @@ public static class PlatformServiceCollectionExtensions
         services.AddSingleton<IWebView2RuntimeInfo, WebView2RuntimeInfo>();
         services.AddSingleton<ReportImageDecoder>();
         services.AddSingleton<IImageSizeProbe, WicImageSizeProbe>();
+        services.AddSingleton<IShellReveal, ShellReveal>();
         return services;
     }
 }

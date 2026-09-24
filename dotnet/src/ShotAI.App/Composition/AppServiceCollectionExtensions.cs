@@ -61,6 +61,8 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<AppMenuViewModel>();
         services.AddSingleton<NoticeCenter>();
         services.AddSingleton<INoticeService>(sp => sp.GetRequiredService<NoticeCenter>());
+        services.AddSingleton<ConfirmService>();
+        services.AddSingleton<IConfirmService>(sp => sp.GetRequiredService<ConfirmService>());
         services.AddTransient<HomeViewModel>();
         services.AddSingleton<ReportImageLoader>();
         services.AddSingleton<ReportViewModelFactory>();

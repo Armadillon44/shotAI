@@ -254,6 +254,32 @@ public sealed class MainWindowTests
         }
     });
 
+    /// <summary>
+    /// 06 D-HOME-11: an Escape no inner surface took reaches the window, where Home clears its
+    /// selection and marks the key handled; with nothing to undo the key goes on.
+    /// </summary>
+    [Fact]
+    public Task EscapeReachesHome() => WithMainAsync((main, _) =>
+    {
+        var shell = (ShellViewModel)main.Shell.DataContext;
+        shell.Home.Selection.Toggle(@"C:\p\a");
+        var escape = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(main), 0, System.Windows.Input.Key.Escape)
+        {
+            RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent,
+        };
+        main.RaiseEvent(escape);
+        Assert.True(escape.Handled);
+        Assert.Equal(0, shell.Home.Selection.Count);
+
+        var again = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(main), 0, System.Windows.Input.Key.Escape)
+        {
+            RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent,
+        };
+        main.RaiseEvent(again);
+        Assert.False(again.Handled);
+        return Task.CompletedTask;
+    });
+
     private static Task WithMainAsync(Func<MainWindow, nint, Task> body) => Sta.RunAsync(async () =>
     {
         var main = TestMainWindow.Create();

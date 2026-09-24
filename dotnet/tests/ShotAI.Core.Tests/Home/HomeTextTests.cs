@@ -125,6 +125,90 @@ public sealed class HomeTextTests
         Assert.Contains($"title=\"{HomeText.SettingsButtonTitle}\"", app, StringComparison.Ordinal);
     }
 
+    /// <summary>2.12 and 2.20: the row's checkbox, its overflow trigger and the menu's items.</summary>
+    [Fact]
+    public void RowMenu()
+    {
+        Assert.Equal("Select Payroll run", HomeText.SelectRow("Payroll run"));
+        Assert.Equal("Select ", HomeText.SelectRow(""));
+        Assert.Equal(("\u22ef", "More actions"), (HomeText.MoreActionsGlyph, HomeText.MoreActions));
+        Assert.Equal(
+            ["Rename", "Reveal in Explorer", "Archive", "Restore", "Delete"],
+            new[] { HomeText.Rename, HomeText.RevealInExplorer, HomeText.ArchiveItem, HomeText.RestoreItem, HomeText.Delete });
+        Assert.Throws<ArgumentNullException>(() => HomeText.SelectRow(null!));
+    }
+
+    /// <summary>2.16: the bulk bar's parts, its count and its progress.</summary>
+    [Fact]
+    public void BulkBar()
+    {
+        Assert.Equal("Bulk actions", HomeText.BulkName);
+        Assert.Equal(("Select all", "Clear all", "\u2713"), (HomeText.SelectAll, HomeText.ClearAll, HomeText.SelectAllTick));
+        Assert.Equal(("\U0001F5C4 Archive", "\u2934 Restore"), (HomeText.BulkArchive, HomeText.BulkRestore));
+        Assert.Equal(("\U0001F5D1 Delete", "Clear"), (HomeText.BulkDelete, HomeText.BulkClear));
+        Assert.Equal(("Deleting", "Archiving", "Restoring"), (HomeText.Deleting, HomeText.Archiving, HomeText.Restoring));
+        Assert.Equal("1 selected", HomeText.BulkCount(1));
+        Assert.Equal("12 selected", HomeText.BulkCount(12));
+        Assert.Equal("Archiving 0 of 3\u2026", HomeText.BulkProgress(new BulkProgress(HomeText.Archiving, 0, 3)));
+        Assert.Equal("Deleting 1234 of 1234\u2026", HomeText.BulkProgress(new BulkProgress(HomeText.Deleting, 1234, 1234)));
+        Assert.Throws<ArgumentNullException>(() => HomeText.BulkProgress(null!));
+    }
+
+    /// <summary>2.14 and 2.16: the delete questions keep the title in straight quotes, and the count's plural.</summary>
+    [Fact]
+    public void DeleteQuestions()
+    {
+        Assert.Equal("Delete \"Payroll run\"? This removes the project folder and its screenshots.", HomeText.DeleteOne("Payroll run"));
+        Assert.Equal("Delete \"\u201cQuoted\u201d\"? This removes the project folder and its screenshots.", HomeText.DeleteOne("\u201cQuoted\u201d"));
+        Assert.Equal("Delete 1 project? This removes each project folder and its screenshots.", HomeText.DeleteMany(1));
+        Assert.Equal("Delete 2 projects? This removes each project folder and its screenshots.", HomeText.DeleteMany(2));
+        Assert.Equal("Delete 0 projects? This removes each project folder and its screenshots.", HomeText.DeleteMany(0));
+        Assert.Equal(("Delete 1", "Delete 2"), (HomeText.DeleteManyLabel(1), HomeText.DeleteManyLabel(2)));
+        Assert.Throws<ArgumentNullException>(() => HomeText.DeleteOne(null!));
+    }
+
+    /// <summary>2.23: the confirm dialog's name and buttons.</summary>
+    [Fact]
+    public void Confirm() =>
+        Assert.Equal(("Confirm", "Cancel", "OK"), (HomeText.ConfirmName, HomeText.ConfirmCancel, HomeText.ConfirmOk));
+
+    /// <summary>The row, bulk bar, menu and confirm strings as ProjectList.tsx, OverflowMenu.tsx, useConfirm.tsx and project.css write them.</summary>
+    [Fact]
+    public void RowOperationLiteralsMatchTheElectronSource()
+    {
+        var list = ElectronSource.Read("src/renderer/project/ProjectList.tsx");
+        foreach (var item in new[] { HomeText.Rename, HomeText.RevealInExplorer, HomeText.RestoreItem, HomeText.ArchiveItem })
+            Assert.Contains($"label: '{item}'", list, StringComparison.Ordinal);
+        Assert.Contains($"{{ label: '{HomeText.Delete}', danger: true", list, StringComparison.Ordinal);
+        Assert.Contains("aria-label={`Select ${p.title}`}", list, StringComparison.Ordinal);
+        Assert.Contains($"aria-label=\"{HomeText.BulkName}\"", list, StringComparison.Ordinal);
+        Assert.Contains($"{{allSelected ? '{HomeText.ClearAll}' : '{HomeText.SelectAll}'}}", list, StringComparison.Ordinal);
+        Assert.Contains($"{{tab === 'archive' ? '{HomeText.BulkRestore}' : '{HomeText.BulkArchive}'}}", list, StringComparison.Ordinal);
+        Assert.Contains($">\n            {HomeText.BulkDelete}\n          </button>", list.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.Contains($">\n            {HomeText.BulkClear}\n          </button>", list.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.Contains("`${bulkProgress.verb} ${bulkProgress.done} of ${bulkProgress.total}\u2026`", list, StringComparison.Ordinal);
+        Assert.Contains("`${selected.size} selected`", list, StringComparison.Ordinal);
+        Assert.Contains($"runBulk('{HomeText.Deleting}'", list, StringComparison.Ordinal);
+        Assert.Contains($"tab === 'archive' ? '{HomeText.Restoring}' : '{HomeText.Archiving}'", list, StringComparison.Ordinal);
+        Assert.Contains("`Delete \"${p.title}\"? This removes the project folder and its screenshots.`", list, StringComparison.Ordinal);
+        Assert.Contains("`Delete ${n} project${n === 1 ? '' : 's'}? This removes each project folder and its screenshots.`", list, StringComparison.Ordinal);
+        Assert.Contains("confirmLabel: `Delete ${n}`", list, StringComparison.Ordinal);
+        Assert.Contains($"confirmLabel: '{HomeText.Delete}'", list, StringComparison.Ordinal);
+
+        var menu = ElectronSource.Read("src/renderer/project/OverflowMenu.tsx");
+        Assert.Contains($"label = '{HomeText.MoreActionsGlyph}'", menu, StringComparison.Ordinal);
+        Assert.Contains($"title = '{HomeText.MoreActions}'", menu, StringComparison.Ordinal);
+
+        var confirm = ElectronSource.Read("src/renderer/useConfirm.tsx");
+        Assert.Contains($"aria-label=\"{HomeText.ConfirmName}\"", confirm, StringComparison.Ordinal);
+        Assert.Contains($">\n                  {HomeText.ConfirmCancel}\n                </button>", confirm.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.Contains($"{{state.confirmLabel ?? '{HomeText.ConfirmOk}'}}", confirm, StringComparison.Ordinal);
+        Assert.Contains($"confirmLabel: '{HomeText.ConfirmOk}'", confirm, StringComparison.Ordinal);
+
+        var css = ElectronSource.Read("src/renderer/project/project.css");
+        Assert.Contains($".project__check-box--on::after {{\n  content: '{HomeText.SelectAllTick}';", css.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+    }
+
     /// <summary>The meta line: singular and plural, both tabs, and the date as en-US writes it.</summary>
     [Fact]
     public void StepsMeta()

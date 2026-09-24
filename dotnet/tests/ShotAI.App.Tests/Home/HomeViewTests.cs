@@ -17,7 +17,7 @@ namespace ShotAI.App.Tests.Home;
 /// controls drive it: the tabs and their names, the list head, the upper-cased span headers,
 /// the rows, the empty states, the search box and the sort controls.
 /// </summary>
-public sealed class HomeViewTests
+public sealed partial class HomeViewTests
 {
     // Wed 2026-07-22 10:00 UTC, TestShell's clock.
     private const string Today = "2026-07-22T09:00:00.000Z";
@@ -96,7 +96,7 @@ public sealed class HomeViewTests
             Assert.False(ButtonShowing(view, HomeText.ImportButton).IsVisible);
             var row = (DependencyObject)view.Rows.ItemContainerGenerator.ContainerFromIndex(1);
             Assert.StartsWith("1 step \u00b7 archived ", Shown(row)[2], StringComparison.Ordinal);
-            Assert.Equal(HomeText.OpenArchivedTitle, VisualTree.Descendants<Button>(row).Single().ToolTip);
+            Assert.Equal(HomeText.OpenArchivedTitle, VisualTree.Descendants<Button>(row).Single(b => Equals(b.Content, HomeText.Open)).ToolTip);
         }
         finally
         {
@@ -198,7 +198,7 @@ public sealed class HomeViewTests
             // One flat list by name, descending until the toggle says otherwise.
             Assert.Equal(["Beta", "Alpha"], Enumerable.Range(0, view.Rows.Items.Count).Select(i => Item(view, i)[0]));
 
-            var direction = VisualTree.Descendants<ToggleButton>(view).Single(b => b.GetType() == typeof(ToggleButton));
+            var direction = VisualTree.Descendants<ToggleButton>(view).Single(b => AutomationProperties.GetName(b) == HomeText.SortDirectionName);
             Assert.Equal((HomeText.SortDirectionName, "\u25bc", "Descending"), (AutomationProperties.GetName(direction), direction.Content, AutomationProperties.GetHelpText(direction)));
             direction.IsChecked = true;
             await TestShell.Settle();
@@ -223,7 +223,7 @@ public sealed class HomeViewTests
         var (t, view, window) = await Show(width: 1200, listing: [Project(@"C:\p\a", "A", Today)]);
         try
         {
-            var head = VisualTree.Descendants<ShotAI.App.Chrome.FlexWrapPanel>(view).Single();
+            var head = VisualTree.Descendants<ShotAI.App.Chrome.FlexWrapPanel>(view).Single(p => !view.BulkBar.IsAncestorOf(p));
             var parts = head.Children.Cast<FrameworkElement>().ToList();
             Assert.All(parts, p => Assert.Equal(0, LayoutInformation.GetLayoutSlot(p).Top));
             Assert.Equal(340, parts[1].ActualWidth, 3);

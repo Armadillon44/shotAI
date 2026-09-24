@@ -13,7 +13,7 @@ using static ShotAI.App.Tests.Support.ListingProjects;
 namespace ShotAI.App.Tests.Home;
 
 /// <summary>Spec 06 8.4 (INV-HOME-3 to INV-HOME-6, INV-HOME-15, D-HOME-1 to D-HOME-3, D-HOME-25, D-HOME-29).</summary>
-public sealed class HomeViewModelTests
+public sealed partial class HomeViewModelTests
 {
     // Wed 2026-07-22 10:00 UTC: this week is from Sun 07-19, last week from 07-12.
     private const string Today = "2026-07-22T09:00:00.000Z";

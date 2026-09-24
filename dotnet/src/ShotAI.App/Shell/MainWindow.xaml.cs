@@ -47,6 +47,12 @@ public partial class MainWindow : ShotAIWindow
         ShellContent.DataContext = shell;
         // 06 2.18 row 3: the window's activation re-lists Home while Home shows.
         Activated += (_, _) => shell.OnWindowActivated();
+        // 06 D-HOME-11: an Escape no inner surface took (the confirm, a menu, the rename or search
+        // box) reaches the window, where Home takes it: Electron's window listener, one thing per press.
+        KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape && !e.Handled && shell.OnEscape()) e.Handled = true;
+        };
         CommandBindings.Add(new CommandBinding(ShellCommands.Exit, (_, _) => Application.Current?.Shutdown()));
         CommandBindings.Add(new CommandBinding(ShellCommands.ToggleFullScreen, (_, _) => ToggleFullScreen()));
         CommandBindings.Add(new CommandBinding(ShellCommands.Minimize, (_, _) => WindowState = WindowState.Minimized));

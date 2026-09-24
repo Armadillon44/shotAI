@@ -226,11 +226,11 @@ Manual script:
 |---|---|---|
 | Core model | A1, A2, A3, A5, A6, A7, A8, A9 | now |
 | Core infrastructure | A4, A10, A11 | after A1 |
-| App shell | A12, A13, A14, A15, A16, A17, A18, A19, A20 | after A6, A10, A11 |
+| App shell | A12, A13, A14, A15, A16, A17, A18, A19a, A19b, A20 | after A6, A10, A11 |
 | Capture | B1 to B11 | B1 after A3 and A10; B4 after A5 |
 | Editing | C8, C5, C6, C7 (Core) | C8 after A3; C6 after C8; C5 after A7; C7 after C5, C6, C8 and A9 |
 | Report editing and editor UI | C1 to C4, C9 to C13 | after A17 |
-| Auth | D1, D2, D3, D4 | after A12; D4 also after A19 |
+| Auth | D1, D2, D3, D4 | after A12; D4 also after A19b |
 | SOP | D5 to D8 | D5 after A9, A10 and C7 |
 | Export | D9 to D16 | D9 after A17 and C7 |
 | Release | E2, E3, E5 | E2 after A12 and D1 |
@@ -241,18 +241,18 @@ Manual script:
 Phase A   A1 -> A2 -> A3 ;  A1 -> A4 ;  A1 -> A5 ;  A1 -> A11
           A3, A4, A5 -> A6 -> A7 ;  A6, A7 -> A8 ;  A6 -> A9 ;  A2, A4, A5 -> A10
           A6, A10, A11 -> A12 -> A13 ;  A4, A12 -> A14 ;  A13, A14 -> A15
-          A15, A8 -> A16 ;  A16, A9 -> A17 -> A18 ;  A16, A13 -> A19 ;  A1..A19 -> A20
+          A15, A8 -> A16 ;  A16, A9 -> A17 -> A18 ;  A16, A13 -> A19a -> A19b ;  A1..A19b -> A20
 Phase B   A3, A10 -> B1 -> B2 (and A7) -> B3 ;  B1, A5 -> B4 ;  B1, A13 -> B5
           B1, B2, B4, B5 -> B6 ;  B3, B5, A15 -> B7 ;  B5, A15 -> B8
-          B4, B6, B7, B8, A17, A19 -> B9 ;  A19, A14, B5 -> B10 ;  B1..B10 -> B11
-Phase C   A9, A17 -> C1 -> C2 (and A19) -> C3 -> C4 (and B9)
+          B4, B6, B7, B8, A17, A19a -> B9 ;  A19a, A19b, A14, B5 -> B10 ;  B1..B10 -> B11
+Phase C   A9, A17 -> C1 -> C2 (and A19a) -> C3 -> C4 (and B9)
           A7 -> C5 ;  A3 -> C8 -> C6 ;  C5, C6, C8, A9 -> C7 ;  C8, C2 -> C9
           C9, C7, B5 -> C10 -> C11 ;  C7, C2 -> C12 ;  C1..C12 -> C13
-Phase D   A12 -> D1 ;  A10, A12 -> D2 -> D3 (and A5) ;  D1, D2, D3, A19 -> D4
+Phase D   A12 -> D1 ;  A10, A12 -> D2 -> D3 (and A5) ;  D1, D2, D3, A19b -> D4
           A9, A10, C7 -> D5 -> D6 (and D2) ;  D4, B10 -> D7 ;  D6, D7, C2 -> D8
           A17, A4, C7 -> D9 -> D10 (and C2) -> D11, D12 (and A15), D13 -> D14
-          D9, A7, C2 -> D15 ;  D10, A19 -> D16 ;  D1..D16 -> D17
-Phase E   D2, A19, B10 -> E1 ;  A12, D1 -> E2 -> E3 -> E4 (and D11, E1)
+          D9, A7, C2 -> D15 ;  D10, A19a -> D16 ;  D1..D16 -> D17
+Phase E   D2, A19b, B10 -> E1 ;  A12, D1 -> E2 -> E3 -> E4 (and D11, E1)
           A12, D3, D12, E1, E3 -> E5 ;  A20, B11, C13, D17, E1, E3, E5 -> E6 -> E7 -> E8 -> E9
 ```
 
@@ -514,19 +514,37 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 | Risks and de-risking | WPF toggling a checked `MenuItem` by itself (click echo): `CheckedIsNotToggledByWpf` |
 | Demo | choosing LFI writes `"theme": "lfi"` and repaints the project view; App default removes the key |
 
-#### WP-A19. Home row operations
+#### WP-A19a. Home row operations
+
+Split from WP-A19 in WP-A19a (2.2 step 3): WP-A19 came to about 1,650 lines of product code, over M's 1,500, and the external link allowlist shares no code with the row operations, so it is WP-A19b.
 
 | Field | Content |
 |---|---|
-| Goal | Rename, archive, restore, delete, reveal and multi-select on Home, optimistic at list level with rollback; the shell reveal and the link allowlist |
-| Spec inputs | 06 2.12 to 2.16 (without export), 2.20, 2.23, 7.3 (`HomeSelection`, `RenameSession`, `BulkRunner`), 7.6 (archive, restore and their rollback, AC-HOME-39), 7.8, 7.11, D-HOME-5 to D-HOME-7, D-HOME-11 to D-HOME-13; 10 7.7; 11 7.3.3, 7.3.4, 7.10 (exit flush), D-IPC-6, D-IPC-7; ARCHITECTURE R-ARCH-19, R-ARCH-25; Q-HOME-6, Q-INFRA-21, Q-INFRA-22, Q-IPC-14 |
-| Deliverables | Core `HomeSelection`, `RenameSession`, `RenameCommit`, `BulkRunner`, `BulkProgress`, `BulkOutcome`; Core `ShotAI.Core.Shell.IShellReveal`; Core `ShotAI.Core.Links` (`IExternalLinks`, `ExternalLinks`, `ExternalLinkPolicy`, `UrlOrigin`, `IUrlLauncher`) and the `ShotAI.Core.Auth.ISupportUrlAllowlist` interface with a no-federation implementation that WP-D4 replaces; Platform `ShellReveal`, `ShellUrlLauncher`, `StaThread`; App `OverflowMenu` (a `ShotAIPopup`), `MenuItemModel`, `IConfirmService`, `ConfirmService`, `ConfirmHost`, `BulkBarViewModel` (selection and count; the export actions arrive in WP-D16), the row operations in `HomeViewModel` with the rollback notice. Added by WP-A16: `HomeViewModel.Tick` passes the rename, selection and busy states to `AutoRefreshPolicy.ShouldTick` (WP-A16 passes `false` for the three), and the selection prune and the rename abandon of 06 7.6 hook into the refresh's rebuild, where rows are kept by path; its manual script checks AC-HOME-12's rename and selection clauses, which WP-A16's cannot (AC-HOME-12 stays WP-A16's) |
-| Tests | No Electron file. New: Core `Home/HomeSelectionTests`, `RenameSessionTests`, `BulkRunnerTests`, `Links/ExternalLinkPolicyTests` (the full 10 and 11 tables), `Links/UrlOriginTests`; App `Home/HomeViewModelTests` (`RenameOptimisticRollsBackWithNotice`, `ArchiveOptimisticRollsBack`, `EscapeOrder`, `AnyBusyDisablesActions`, `DeleteNeedsConfirm`, `BulkDeleteNeedsConfirm`, `SearchEditClearsSelection`, `ClearButtonKeepsSelection`, `TabSwitchClearsSelection`, `RenameDoesNotSetRowBusy`), `Chrome/ConfirmServiceTests`, `Chrome/OverflowMenuTests`, `Shell/ShellRevealTests`, `Architecture/SingleUrlLauncherTests` |
+| Goal | Rename, archive, restore, delete, reveal and multi-select on Home, optimistic at list level with rollback; the shell reveal |
+| Spec inputs | 06 2.12 to 2.16 (without export), 2.20, 2.23, 7.3 (`HomeSelection`, `RenameSession`, `BulkRunner`), 7.6 (archive, restore and their rollback, AC-HOME-39), 7.8, 7.11, D-HOME-5 to D-HOME-7, D-HOME-11 to D-HOME-13, D-HOME-33; 11 7.3.3, 7.10 (exit flush), D-IPC-6, D-IPC-7; ARCHITECTURE R-ARCH-19; Q-HOME-6 |
+| Deliverables | Core `HomeSelection`, `RenameSession`, `RenameCommit`, `BulkRunner`, `BulkProgress`, `BulkOutcome`; Core `ShotAI.Core.Shell.IShellReveal`; Platform `ShellReveal`, `StaThread`; App `OverflowMenu` (a `ShotAIPopup`), `MenuItemModel`, `IConfirmService`, `ConfirmService`, `ConfirmHost`, `BulkBarViewModel` (selection and count; the export actions arrive in WP-D16), the row operations in `HomeViewModel` with the rollback notice. Added by WP-A16: `HomeViewModel.Tick` passes the rename, selection and busy states to `AutoRefreshPolicy.ShouldTick` (WP-A16 passes `false` for the three), and the selection prune and the rename abandon of 06 7.6 hook into the refresh's rebuild, where rows are kept by path; its manual script checks AC-HOME-12's rename and selection clauses, which WP-A16's cannot (AC-HOME-12 stays WP-A16's). As built in WP-A19a: Core `RenameSession.Begin` also takes the list's title lookup and returns the commit of the rename it ended, and `HomeText` has the row menu, bulk bar and confirm strings. Platform `ShellReveal` makes its shell calls through an internal seam, `IShellCalls`. App `MenuItemModel` is an abstract record with `MenuSeparatorItem`, `MenuHeaderItem` and `MenuActionItem`; `OverflowMenu`'s trigger is `OverflowTrigger` and its items `OverflowMenuItem` (the peers 06 7.8 names), placed with `Bottom` or `Top` and offsets rather than a custom callback; `ConfirmService` shows a `ConfirmRequest`, and `ConfirmHost` sits in the overlay layer under the notices, with `ShellViewModel` taking `IConfirmService`; `HomeViewModel(IProjectService, IShellReveal, INoticeService, IConfirmService, IUiDispatcher, TimeProvider, ILogger)` lays each edit not yet written over every listing and folds in the store's summary when it lands; `ProjectRowViewModel` takes the Home it belongs to and has the menu, selection, rename and busy state; the row checkbox is a `RowCheckBox`, whose click never ticks it by itself; `BulkBarViewModel(HomeViewModel)`; Escape that reaches the main window goes to `ShellViewModel.OnEscape`; `Controls.xaml` gains `RowCheck`, `BulkToggle`, `RenameInput` and `Button.SmallDanger`, and `FixedColors.xaml` `ConfirmShadow`. The exit flush needed nothing new: WP-A12's `ShutdownFlush` drains the store queue a Home rename writes through |
+| Tests | No Electron file. New: Core `Home/HomeSelectionTests`, `RenameSessionTests`, `BulkRunnerTests`; App `Home/HomeViewModelTests` (`RenameOptimisticRollsBackWithNotice`, `ArchiveOptimisticRollsBack`, `EscapeOrder`, `AnyBusyDisablesActions`, `DeleteNeedsConfirm`, `BulkDeleteNeedsConfirm`, `SearchEditClearsSelection`, `ClearButtonKeepsSelection`, `TabSwitchClearsSelection`, `RenameDoesNotSetRowBusy`), `Chrome/ConfirmServiceTests`, `Chrome/OverflowMenuTests`, `Shell/ShellRevealTests`. As built in WP-A19a: `ShellRevealTests` and a new `Shell/StaThreadTests` are in `ShotAI.Platform.Tests`, where the shell seam is visible; Core `HomeTextTests` adds the row, bulk bar and confirm strings, each found in the Electron source; App `HomeViewModelTests` adds the bulk cases of 06 8.4 (`BulkBarStaysVisibleWhileBusy`, `BulkRefreshesOnceThenClears`, `BulkFinalRefreshFailureStillClears`, `BulkWithNoVisibleTargetShowsNoDialog`, `BulkErrorShownOnUiThread`) and the rename, delete, reveal, prune and tick cases, `HomeViewTests` the checkbox, rename box, busy row, bar and menu, and `MainWindowTests.EscapeReachesHome` |
 | Acceptance criteria | AC-MODEL-31, AC-HOME-7, AC-HOME-10, AC-HOME-11, AC-HOME-31, AC-HOME-39, AC-IPC-18, AC-IPC-20, AC-ARCH-5 |
 | Depends on | WP-A16, WP-A13 |
 | Size | M |
 | Risks and de-risking | A reveal on an unreachable share blocking the UI (D-IPC-6): the STA helper thread and AC-IPC-20 |
 | Demo | rename a project and choose File, Exit within 100 ms: after relaunch the new title shows |
+
+#### WP-A19b. External link allowlist
+
+Split from WP-A19 in WP-A19a (2.2 step 3).
+
+| Field | Content |
+|---|---|
+| Goal | The one path that hands a URL to the shell, behind 10's and 11's allowlist |
+| Spec inputs | 10 7.7; 11 2.5.1, 7.3.4, 8.2 (`Links.ExternalLinkPolicyTests`, `Architecture.SingleUrlLauncherTests`), INV-IPC-3; ARCHITECTURE R-ARCH-25, S15; Q-INFRA-21, Q-INFRA-22, Q-IPC-14 |
+| Deliverables | Core `ShotAI.Core.Links` (`IExternalLinks`, `ExternalLinks`, `ExternalLinkPolicy`, `UrlOrigin`, `IUrlLauncher`) and the `ShotAI.Core.Auth.ISupportUrlAllowlist` interface with a no-federation implementation that WP-D4 replaces; Platform `ShellUrlLauncher`, which runs on WP-A19a's `StaThread` |
+| Tests | No Electron file. New: Core `Links/ExternalLinkPolicyTests` (the full 10 and 11 tables), `Links/UrlOriginTests`; App `Architecture/SingleUrlLauncherTests` |
+| Acceptance criteria | none owned (AC-IPC-19, which runs `SingleUrlLauncherTests`, stays WP-D12's) |
+| Depends on | WP-A19a |
+| Size | S |
+| Risks and de-risking | a second path to the shell: `SingleUrlLauncherTests` |
+| Demo | none visible; the tests |
 
 #### WP-A20. Phase A exit
 
@@ -536,8 +554,8 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 | Spec inputs | section 4 M-A; ARCHITECTURE 11 (PB-7, PB-14), 12.7 (phase A set), 15.4 (Q-ARCH-1, Q-ARCH-2); Q-MODEL-5, Q-MODEL-6, Q-REP-2, Q-REP-11, Q-SHELL-20 |
 | Deliverables | the phase A tracking issue completed: the M-A results, PB-7 and PB-14 on both reference machines, the Q-SHELL-20 frame-bounds comparison, the Q-MODEL-6 Files On-Demand check (and an Electron issue if confirmed), the Q-REP-2 decision, the reference machines named in 4.0 (Q-ARCH-1) |
 | Tests | none new |
-| Acceptance criteria | none owned (it verifies the manual criteria of WP-A1 to WP-A19 were recorded) |
-| Depends on | WP-A1 to WP-A19 |
+| Acceptance criteria | none owned (it verifies the manual criteria of WP-A1 to WP-A18, WP-A19a and WP-A19b were recorded) |
+| Depends on | WP-A1 to WP-A18, WP-A19a, WP-A19b |
 | Size | S |
 | Risks and de-risking | none beyond the procedures |
 | Demo | the tracking issue |
@@ -669,7 +687,7 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 | Deliverables | Core `CaptureReadiness`, the hero, picker and recording-panel strings in `HomeText`; App `CreateHeroViewModel`, `CaptureModePickerViewModel` (named singleton, implements `ICaptureTargetSelection`), `RecordingPanelViewModel` (shows the list length, Q-IPC-22), the new-recording flow (`StartAsync(path, new CaptureStartOptions(Target, CreatedThisSession: true))`) and the Empty Project flow, Resume capturing in the project command bar (the target is read from `ICaptureTargetSelection.BuildTarget()` at click time and carried by 05's `ResumeCaptureRequested`, R-ARCH-26), the `Recording` view of `ShellViewModel`; the `--capture-selftest` body with the macOS size corrections; the Debug timing line per capture job (PB-4) added to 02's log table. Added by WP-A16: the Recording view in `ShellViewModel` (`ShellViewKind.Recording` outranks Settings, INV-HOME-18), with `Shell/ShellViewModelTests.RecordingHidesViews` and `.MenuRequestsIgnoredWhileRecording` from 06 8.4. Added by WP-A17: the project view's `Adopt` of a recorded project (05 7.3), and the command bar's actions row for Resume capturing (WP-A17's bar is Back, the title and the count) |
 | Tests | No Electron file. New: Core `Home/CaptureReadinessTests`, `HomeTextTests` (complete), `Threading/SubscribeThenReadTests`; App `Home/CaptureModePickerTests`, `Home/RecordingPanelTests`, `Home/HomeViewModelTests.CaptureCreatesAndStartsWithCreatedThisSession`, `EmptyProjectOpensWithoutCapture`, `Threading/EventOrderTests`, `Shell/ShellViewModelTests` (recording rows) |
 | Acceptance criteria | AC-CAP-10, AC-CAP-14, AC-CAP-15, AC-CAP-19, AC-CAP-22, AC-CAP-23, AC-CAP-24, AC-CAP-25, AC-CAP-26, AC-CAP-28, AC-SHELL-3, AC-SHELL-7, AC-SHELL-8, AC-SHELL-9, AC-SHELL-10, AC-SHELL-11, AC-SHELL-12, AC-SHELL-13, AC-SHELL-14, AC-SHELL-15, AC-SHELL-16, AC-SHELL-17, AC-SHELL-19, AC-SHELL-26, AC-SHELL-27, AC-SHELL-31, AC-SHELL-32, AC-HOME-2, AC-HOME-13, AC-HOME-14, AC-INFRA-26, AC-IPC-5, AC-IPC-7, AC-IPC-21 |
-| Depends on | WP-B4, WP-B6, WP-B7, WP-B8, WP-A17, WP-A19 |
+| Depends on | WP-B4, WP-B6, WP-B7, WP-B8, WP-A17, WP-A19a |
 | Size | M (code); its manual script is long and is run in one sitting on the reference x64 machine with a 100% plus 150% monitor pair, then repeated for the ARM64 subset |
 | Risks and de-risking | A burst of capture events starving input and render (Q-IPC-20): the 20-clicks-in-5-seconds script must record 20 steps and the pill must stay responsive; `StateChanged` subscribers coalesce |
 | Demo | from Home, record a five-click flow in Auto mode; stop; the report shows five captioned steps |
@@ -683,7 +701,7 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 | Deliverables | Core `ShotAI.Core.SettingsUi` (`SettingsText` non-auth rows, `ArchiveAgeOption`, `ArchiveAgeOptions`, `CaptureScaleSteps`), `ShotAI.Core.Tour` (`TourAnchorId`, `TourStep`, `TourSteps`, `LayoutRect`, `TourPlacement`, `TourLayout`); App `SettingsView`, `SettingsViewModel` (created fresh on each open), `CaptureSettingsViewModel` (quality, remote visibility through `Task.Run` per DL1), `AppearanceSettingsViewModel` (theme and brand as two groups), `StorageSettingsViewModel` (projects folder through `IFileDialogs.PickFolder`, archive age), `AboutSettingsViewModel` (name, include name, update-check toggle, show intro tour; `Check now` arrives in WP-E1), the SOP options of the AI tab (model, tone, effort, custom instructions, master switch), `TourOverlay`, `TourViewModel`, `TourAnchor`; `ShotAI.App.Services.IFileDialogs`, `WpfFileDialogs`; from WP-A14: the `Switch` style's 0.15 s track and knob transitions (06 2.24), off when `SystemParameters.ClientAreaAnimation` is false; the `PasswordBox` and `ComboBox` field styles of D-HOME-30; the tour pill mock-up colours in `Themes/FixedColors.xaml` with their `TourPill` exemption in `XamlChromeGuard`; added by WP-A16: `SettingsView` in `ShellView`'s Settings host, and `ShellViewModel.OpenSettings` and `CloseSettings` wired to 03's `OpenSettingsRequested` and to Settings' Back (since WP-A16 the header's `⚙ Settings` button runs the menu's `OpenSettingsCommand`); `Shell/ShellViewModelTests.ReplayTourClosesSettingsAndProject` with the tour |
 | Tests | No Electron file. New: Core `SettingsUi/SettingsTextTests` (non-auth rows), `ArchiveAgeOptionsTests`, `CaptureScaleStepsTests`, `Tour/TourStepsTests`, `TourLayoutTests`; App `Settings/SettingsViewModelTests` (`ShowsCoercedValue`, `RollsBackWithNoticeOnFailure`, `BlankNameDisablesAndClearsInclude`, `RemoteVisibleAppliesImmediately`, `BrandChoiceRepaintsImmediately`, `CustomInstructionsPersistOnUnload`, `UnchangedBlurDoesNotWrite`, `RollbackShowsCurrent`), `Settings/SettingsViewTests` (`TabKeyboard`, `AppearanceAndBrandSeparate`, `ComboBoxDropDownIsExcluded`, `FieldsUseFieldBg`), `Tour/TourViewModelTests`, `Tour/TourOverlayTests`, `Shell/ShellScrollTests` (Settings), `Shell/ShellViewModelTests` (Settings rows) |
 | Acceptance criteria | AC-HOME-15, AC-HOME-16, AC-HOME-17, AC-HOME-18, AC-HOME-19, AC-HOME-20, AC-HOME-22, AC-HOME-23, AC-HOME-24, AC-HOME-38, AC-INFRA-7, AC-INFRA-8, AC-INFRA-9, AC-INFRA-10, AC-INFRA-11, AC-INFRA-12, AC-INFRA-13, AC-INFRA-32 |
-| Depends on | WP-A19, WP-A14, WP-B5 |
+| Depends on | WP-A19a, WP-A19b, WP-A14, WP-B5 |
 | Size | M |
 | Risks and de-risking | The notice text for a failed settings write needs 06's agreement (Q-INFRA-20): use the standard error notice and record it in 06 |
 | Demo | change the theme to Dark: the window repaints at once and `settings.json` holds `"theme": "dark"`; make the file read-only and change it again: the switch rolls back with a notice |
@@ -733,7 +751,7 @@ Goal (feasibility): the report becomes editable (optimistic, with rollback), the
 | Deliverables | App `StepCardViewModel` (inline editing bound to operations), `IntroViewModel`, `InlineEditBox`, `TextStepEditor`, `OverflowMenuButton` (menu per 05 `MenuFor`), delete confirmation through `IConfirmService`, move up and down and number entry, `NoticeStackViewModel` with the `SaveError` slot (`Your last change couldn't be saved and was undone. ` plus the message) and draft recovery, card list diffing so only changed cards re-render. Added by WP-A17: WP-A17 built the card list diff (`ReportViewModel.Sync` over `CardListDiff`; `ReportViewModelTests.CaptionEditTouchesOneCard` is AC-REP-12's automated half), `NoticeStackViewModel`'s four slots and `ReportAutomationTests` (the list and row names); this WP adds the card's editing members (05 7.8's `RawCallout`, `IsTextKind`, `CanMoveUp`, `CanMoveDown`, `MenuItems` and the editor flags), `ReportPresentation.MenuFor` with its `ReportPresentationTests` rows, the per-open `ReportEditState` with `Sync`'s reconcile step, the `PersistFailed` subscription behind the `Save` slot, and the overview's Add, Edit and Remove. Added by WP-A18: `ProjectDetailViewModel` subscribes to `PersistFailed` and shows the Save slot's notice (`Your last change couldn't be saved and was undone. ` plus `UserMessage.From`), logged at Warning, or at Error for an unexpected error, with the operation's type; its `ApplyAsync` observes an edit's task by 05 7.5's rule. This WP adds the draft recovery, and the report's own edits follow the same rule from `ReportViewModel`, where 05 7.5 puts the helper |
 | Tests | No Electron file. New: App `Report/InlineEditBoxTests`, `ReportResponsivenessTests`, `DialogKeyboardTests` (confirm cases), `ReportAutomationTests` (names so far), `ProjectDetailStateTests.SettingsRoundTripKeepsDrafts` (draft part) |
 | Acceptance criteria | AC-MODEL-23, AC-REP-6, AC-REP-7, AC-REP-8, AC-REP-12, AC-REP-26, AC-REP-30, AC-REP-31 |
-| Depends on | WP-C1, WP-A19 |
+| Depends on | WP-C1, WP-A19a |
 | Size | M |
 | Risks and de-risking | Rollback moving a card under the user (Q-REP-15) and re-opened drafts (Q-REP-16): accepted with the notice; the draft re-opens only when no editor of the same kind is open |
 | Demo | edit a caption on a 100-step project: the text shows before the write; with `project.json` read-only it reverts within 2 s with the notice and the editor re-opens with the typed text |
@@ -946,10 +964,10 @@ Goal (feasibility): the C# SDK client with review-before-send and the render gat
 |---|---|
 | Goal | `IAuthService` is the UI's only view of auth (status, sign-in, sign-out, key status, set, clear, three-leg test), exposing no token or key |
 | Spec inputs | 08 2.11, 2.12, 2.14, 2.16, 2.17, 2.19, 7.7, 7.8, 7.10, 7.12, 7.13, 7.17, 7.19, INV-AUTH-17 to INV-AUTH-24, INV-AUTH-30 to INV-AUTH-36; 07 2.5, 7.6 (`SopModelProbe`), 7.12 (`SopErrorMapper`), INV-SOP-13; 11 7.3.7, INV-IPC-1, INV-IPC-2, INV-IPC-12; ARCHITECTURE 9.2 S9, R-ARCH-2, R-ARCH-3; Q-AUTH-6, Q-AUTH-7, Q-AUTH-16, Q-IPC-1, Q-IPC-2, Q-SOP-15 |
-| Deliverables | Core `FederationExchange` (RFC 7523, beta header, 60 s timeout, cancelable), `FederationExchangeException`, `MintedToken` (redacted `ToString`), `FederationErrorText` (`Explain`, `ForSdk`), which uses `JsValue.ToNumber` (created by WP-C5; if WP-C5 has not merged, create `JsValue` with exactly 04 7.1's signatures and `Json/JsValueToNumberTests`, and WP-C5 then adds only `Truthy`), `JwtRoles`, `ConnectionTester` (sign-in, Claude access, Claude API legs; the models call through `IAnthropicClientFactory` and 07's internal `SopModelProbe.RetrieveAsync`, which this WP creates, 07 7.6), the leg-3 error text through 07's `SopErrorMapper.Map(e, mode, headers: null)`, which this WP creates with every row of 07 7.12 except row 15 together with `RateLimitClassifier` and the `ResponseHeaderCapture` record (row 15 matches exception types of WP-C7, WP-D5 and WP-D6, which the connection test never raises, and WP-D6 adds it, so the auth lane does not wait for the SOP lane), `AuthStatus` (seven members), `AuthStatusMode`, `ConnectionLeg`, `TestConnectionResult`, `SignInOutcome`, `IAuthService`, `AuthService` (`GetStatusAsync` invalidates the policy cache, `AuthStatusChanged`), `SupportUrlAllowlist : ISupportUrlAllowlist` (replaces WP-A19's stub), `FederationNotConfiguredException`, `EntraSignInFailedException`; `dotnet/tools/ShotAI.WifProbe` (legs 0 to 4, `--effective`, not shipped; per 08 7.19 it builds its own container from `AddShotAICore` and `AddShotAIPlatform` with its own `IAppPaths` over a fresh temporary folder deleted at exit, and `--use-app-cache` for AC-AUTH-22); 06 and 07 already use 08's interface names (R-ARCH-2, R-ARCH-3) |
+| Deliverables | Core `FederationExchange` (RFC 7523, beta header, 60 s timeout, cancelable), `FederationExchangeException`, `MintedToken` (redacted `ToString`), `FederationErrorText` (`Explain`, `ForSdk`), which uses `JsValue.ToNumber` (created by WP-C5; if WP-C5 has not merged, create `JsValue` with exactly 04 7.1's signatures and `Json/JsValueToNumberTests`, and WP-C5 then adds only `Truthy`), `JwtRoles`, `ConnectionTester` (sign-in, Claude access, Claude API legs; the models call through `IAnthropicClientFactory` and 07's internal `SopModelProbe.RetrieveAsync`, which this WP creates, 07 7.6), the leg-3 error text through 07's `SopErrorMapper.Map(e, mode, headers: null)`, which this WP creates with every row of 07 7.12 except row 15 together with `RateLimitClassifier` and the `ResponseHeaderCapture` record (row 15 matches exception types of WP-C7, WP-D5 and WP-D6, which the connection test never raises, and WP-D6 adds it, so the auth lane does not wait for the SOP lane), `AuthStatus` (seven members), `AuthStatusMode`, `ConnectionLeg`, `TestConnectionResult`, `SignInOutcome`, `IAuthService`, `AuthService` (`GetStatusAsync` invalidates the policy cache, `AuthStatusChanged`), `SupportUrlAllowlist : ISupportUrlAllowlist` (replaces WP-A19b's stub), `FederationNotConfiguredException`, `EntraSignInFailedException`; `dotnet/tools/ShotAI.WifProbe` (legs 0 to 4, `--effective`, not shipped; per 08 7.19 it builds its own container from `AddShotAICore` and `AddShotAIPlatform` with its own `IAppPaths` over a fresh temporary folder deleted at exit, and `--use-app-cache` for AC-AUTH-22); 06 and 07 already use 08's interface names (R-ARCH-2, R-ARCH-3) |
 | Tests | Port `src/main/entra/auth-core.test.ts` (`Auth/AuthServiceModeSelectionTests`, `VerifyFederationTests`), `src/main/entra/federation.test.ts` (`Auth/FederationExchangeTests`, `JwtRolesTests`) and `src/main/entra/federation-cache-wiring.test.ts` (`Auth/AuthStatusServiceTests`, `AdminDocConsistencyTests`, `ServiceBoundary/StatusRereadsPolicyTests`; the text-matching cases are ELECTRON-ONLY). `src/main/entra/net-module.test.ts` is ELECTRON-ONLY, its intents covered by `SharedHttpTests` (WP-D2) and `MsalGatewayTests` (WP-D3). New: `ConnectionTesterTests`, `FederationErrorTextTests`, `AuthErrorTypeTests`, `JwtRolesExtraTests`, `AuthStatusShapeTests`, `AuthFacadeSurfaceTests`, `SupportUrlAllowlistTests`, `MintedTokenTests`, `ServiceBoundary/AuthSurfaceTests`, `Json/JsValueToNumberTests` (the 08 7.7 table), `Sop/SopErrorMapperTests` for the rows this WP lands |
 | Acceptance criteria | AC-AUTH-8, AC-AUTH-12, AC-AUTH-13, AC-AUTH-14, AC-AUTH-18, AC-AUTH-22, AC-AUTH-30, AC-IPC-3 |
-| Depends on | WP-D1, WP-D2, WP-D3, WP-A19 (the `ISupportUrlAllowlist` interface and stub this WP replaces) |
+| Depends on | WP-D1, WP-D2, WP-D3, WP-A19b (the `ISupportUrlAllowlist` interface and stub this WP replaces) |
 | Size | M |
 | Risks and de-risking | The SDK wraps provider errors in `WorkloadIdentityException` whose message embeds a redacted body (08 finding): `FederationErrorText.ForSdk` walks the chain and maps by status (INV-AUTH-24); `FederationErrorTextTests` uses the SDK's real constructors. AC-AUTH-22 and AC-AUTH-30 need the live tenant: the maintainer runs the probe |
 | Demo | `ShotAI.WifProbe` legs 0 to 4 pass against the live tenant (maintainer machine) |
@@ -1117,7 +1135,7 @@ Goal (feasibility): the C# SDK client with review-before-send and the render gat
 | Deliverables | App `HomeExportFlow`; `ExportService.ExportToOwnFolderAsync`, `ExportToDirectoryAsync`, `ChooseExportDirectoryAsync`, `RevealExportDirectoryAsync`; the export actions of `BulkBarViewModel` with `Exporting N of M…` progress |
 | Tests | No Electron file. New: App `Home/HomeExportFlowTests`, `Home/HomeViewModelTests` (`BulkBarStaysVisibleWhileBusy`, `BulkRefreshesOnceThenClears`, `BulkFinalRefreshFailureStillClears`, `BulkWithNoVisibleTargetShowsNoDialog`, `RowExportRevealsWrittenFile`) |
 | Acceptance criteria | AC-HOME-8, AC-HOME-9, AC-HOME-40, AC-EXP-20 |
-| Depends on | WP-D10, WP-A19 |
+| Depends on | WP-D10, WP-A19a |
 | Size | S |
 | Risks and de-risking | none beyond 09's |
 | Demo | export three projects to one folder: one folder dialog, the folder opens once, three files |
@@ -1151,7 +1169,7 @@ Goal (feasibility): the signed MSI with the Desktop Runtime dependency, the same
 | Deliverables | Core `ShotAI.Core.Updates`: `UpdateCheckResult`, `UpdateSkipReason`, `UpdateDecision`, `UpdateCheck`, `ReleaseFeed` (over `ISharedHttp`, `X-GitHub-Api-Version`, final-host check, 10 s timeout), `IUpdateService`, `UpdateService` (stash before raise, in-flight join, `CheckNowAsync` updating `Pending` without raising), `AppVersion` (landed in WP-A12 for the banner); Core `UpdateSelfTest` and `--update-selftest` (WP-A12's `SelfTestHost` routes the switch and exits 2 until this WP replaces that line with the test); startup step 13's update check; App the update slot of `NoticeCenter` and `Check now` in About; Core `ShotAI.Core.Install` (`InstallScope`, `IInstallInfo`, `InstallScopeRules`) and Platform `ShotAI.Platform.Install.InstallInfoReader` (12 7.10.4), read at startup step 1b and registered by `AddShotAIApp` at step 6; the per-machine variant of the notice and of `Check now` (`SettingsText.UpdateAvailable`, 06 INV-HOME-45). Added by WP-A16: `INoticeService.ShowUpdate` and `DismissUpdate` and `NoticeCenter`'s update slot below the error (06 7.10; WP-A16 has the error slot), with `Chrome/NoticeCenterTests`' once-per-launch case |
 | Tests | Port `src/main/update-check.test.ts` (`Updates/UpdateCheckTests`, with the native additions). New: `UpdateServiceTests`, `ServiceBoundary/UpdateCheckNowTests`, `Install/InstallScopeRulesTests`; Platform `Install/InstallInfoReaderTests`; App `Chrome/UpdateNoticeTests` (with `PerMachineHasNoDownloadAction`, `PerUserKeepsDownloadAction`), `Settings/SettingsViewModelTests.CheckNowPerMachineOpensNothing` |
 | Acceptance criteria | AC-HOME-28, AC-HOME-29, AC-HOME-30, AC-INFRA-17, AC-INFRA-18, AC-INFRA-19, AC-INFRA-20, AC-INFRA-21, AC-INFRA-22, AC-INFRA-23, AC-INFRA-24, AC-INFRA-28, AC-INFRA-34, AC-IPC-4, AC-IPC-25 |
-| Depends on | WP-D2, WP-A19, WP-B10 |
+| Depends on | WP-D2, WP-A19b, WP-B10 |
 | Size | M |
 | Risks and de-risking | A native prerelease published without the prerelease flag would be offered to every Electron user (10 risk, INV-PKG-9): the release workflow's flags and `verify-published` (WP-E4) |
 | Demo | a build versioned below the latest release shows `shotAI <v> is available.` once (AC-HOME-41, the per-machine form, is recorded in WP-E6, once the MSI of WP-E3 exists) |
@@ -1616,7 +1634,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-HOME-3 | list state across navigation | WP-A16 | parity reset (taken in WP-A16) |
 | Q-HOME-4 | culture for dates | WP-A16 | `CurrentCulture`; in the release notes (taken in WP-A16, for the name collation too) |
 | Q-HOME-5 | export from the Archive tab | WP-D16 | parity |
-| Q-HOME-6 | default focus in destructive confirms | WP-A19 | parity |
+| Q-HOME-6 | default focus in destructive confirms | WP-A19a | parity (taken in WP-A19a: the confirm button has the focus, Delete included) |
 | Q-HOME-7 | bulk failure reporting | WP-D16 | parity (last failure) |
 | Q-HOME-8 | manual check raising the notice | WP-E1 | parity |
 | Q-HOME-9 | recents after a folder change | WP-B10 | parity |
@@ -1742,8 +1760,8 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-INFRA-18 | pending update across launches | WP-E1 | parity (not remembered) |
 | Q-INFRA-19 | static Archivo source | WP-A14 | upstream release matching 2.001, else a documented fontTools script. Decided in WP-A14: no release tags exist; commit `555fa4a`, which built the bundled variable file, unmodified |
 | Q-INFRA-20 | a write whose re-read fails | WP-A10, WP-B10 | as specified (the service half done in WP-A10); the notice agreed with 06 in WP-B10 |
-| Q-INFRA-21 | user info in links | WP-A19 | parity (allowed) |
-| Q-INFRA-22 | does `OpenAsync` throw | WP-A19 | 11's contract (R-ARCH-25) |
+| Q-INFRA-21 | user info in links | WP-A19b | parity (allowed) |
+| Q-INFRA-22 | does `OpenAsync` throw | WP-A19b | 11's contract (R-ARCH-25) |
 | 10 risks | JsJson layout; three generators; GitHub API dependence; users switching builds | WP-A10, WP-A4, WP-E1, WP-E5 | byte tests; parity test plus manual macOS stamp check; `--update-selftest`; pilot notes |
 
 #### 11 Service boundary
@@ -1763,7 +1781,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-11 | debug call logging volume | WP-A12 | Debug level (`ServiceLog.Call` is Debug since WP-A11) |
 | Q-IPC-12 | `ShotAIException` everywhere | WP-A1 | foundation first; each spec derives |
 | Q-IPC-13 | recents on a folder change | WP-B10 | parity |
-| Q-IPC-14 | where `IExternalLinks` lives | WP-A19 | 11's algorithm, 10's registration |
+| Q-IPC-14 | where `IExternalLinks` lives | WP-A19b | 11's algorithm, 10's registration |
 | Q-IPC-15 | Pause and Resume off the UI thread | WP-B7 | `Task.Run` |
 | Q-IPC-16 | image decoding in-process | WP-A17 | closed by R-ARCH-21 (ARCHITECTURE 15.4): explicit decoders after magic bytes; WP-A17 implements it |
 | Q-IPC-17 | subscriber that forgets to marshal | WP-A12 | `VerifyAccess` in Debug, affinity tests (done in WP-A12: `ViewModelBase.CheckAffinity`, on in Debug builds; `Threading/ViewModelAffinityTests`) |
@@ -1876,7 +1894,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-MODEL-28 | WP-A6 | ListProjectsTests: searchText for a project with intro ("Overview","Body") and one step ... |
 | AC-MODEL-29 | WP-A6 | ProjectSearchTests: query " OK " over one title hit and one content hit returns two groups ... |
 | AC-MODEL-30 | WP-A5 | SerialWriteQueueTests: 1,000 concurrent enqueues complete in enqueue order. |
-| AC-MODEL-31 | WP-A19 | App exit with a pending queued write completes that write (manual: rename a project and quit ... |
+| AC-MODEL-31 | WP-A19a | App exit with a pending queued write completes that write (manual: rename a project and quit ... |
 | AC-MODEL-32 | WP-A3 | CalloutKindTests: glyph code points are exactly U+2139, U+26A0, U+2501 and empty, and none is ... |
 | AC-MODEL-33 | WP-A8 | ArchiveNameRulesTests: restoring a zip that contains export\..\project.json throws, keeps ... |
 | AC-MODEL-34 | WP-A7 | ImportStepConfineTests: with shots/ replaced by a link to an outside folder, ImportStepAsync ... |
@@ -2054,11 +2072,11 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-HOME-4 | WP-A14 | ThemeTokenSetTests passes and every value equals 10's generated table for shotAI and LFI in ... |
 | AC-HOME-5 | WP-A16 | Manual: with 12 projects (3 archived) the tabs read Projects 9 and Archive 3; typing a query ... |
 | AC-HOME-6 | WP-A16 | Manual: sorted by Modified descending with projects edited today, 9 days ago and 40 days ago ... |
-| AC-HOME-7 | WP-A19 | Manual: click the checkbox of row 2, shift-click row 5: rows 2 to 5 are selected and the bar ... |
+| AC-HOME-7 | WP-A19a | Manual: click the checkbox of row 2, shift-click row 5: rows 2 to 5 are selected and the bar ... |
 | AC-HOME-8 | WP-D16 | Manual: select 3 projects, ⤓ Export ▾, One shared folder…, HTML: one folder dialog; the bar ... |
 | AC-HOME-9 | WP-D16 | Manual: cancelling the folder dialog in AC-HOME-8 writes nothing, shows nothing and keeps the ... |
-| AC-HOME-10 | WP-A19 | Manual: Delete on a row shows Delete "<title>"? This removes the project folder and its ... |
-| AC-HOME-11 | WP-A19 | Manual: rename a project to the same name with surrounding spaces and press Enter: no write ... |
+| AC-HOME-10 | WP-A19a | Manual: Delete on a row shows Delete "<title>"? This removes the project folder and its ... |
+| AC-HOME-11 | WP-A19a | Manual: rename a project to the same name with surrounding spaces and press Enter: no write ... |
 | AC-HOME-12 | WP-A16 | Manual: with Home open, create a project folder from another machine or the macOS app in the ... |
 | AC-HOME-13 | WP-B9 | Manual: Window mode with no windows open shows Pick a window above to start recording , that's ... |
 | AC-HOME-14 | WP-B9 | Manual: type a name, press Enter in Screen mode: the window hides, the pill shows, and Discard ... |
@@ -2078,7 +2096,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-HOME-28 | WP-E1 | UpdateNoticeTests.OpensThroughLauncher passes and every URL this subsystem opens ... |
 | AC-HOME-29 | WP-E1 | Manual: run a build whose version is lower than the latest GitHub release: shotAI <v> is ... |
 | AC-HOME-30 | WP-E1 | Manual: Settings, About, ↻ Check now on a current build shows You're up to date.; offline ... |
-| AC-HOME-31 | WP-A19 | Manual: trigger an error while the list is scrolled down (for example rename a project whose ... |
+| AC-HOME-31 | WP-A19a | Manual: trigger an error while the list is scrolled down (for example rename a project whose ... |
 | AC-HOME-32 | WP-E6 | Keyboard-only manual pass: every control in Home, Settings, the confirm dialog, the menus and ... |
 | AC-HOME-33 | WP-E6 | Accessibility manual pass with Narrator and Accessibility Insights for Windows (FastPass): no ... |
 | AC-HOME-34 | WP-B11 | SettingsViewModelTests.RemoteVisibleAppliesImmediately passes; manual: turn the ... |
@@ -2086,7 +2104,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-HOME-36 | WP-D7 | Manual [SECURITY]: with shotAI running and Settings closed, add (or remove) the federation ... |
 | AC-HOME-37 | WP-B11 | Manual [SECURITY]: with remote visibility off, open a row's ⋯ menu, the bulk ⤓ Export ▾ menu ... |
 | AC-HOME-38 | WP-B10 | Manual: open Settings from Home, then create a project folder in the projects folder from ... |
-| AC-HOME-39 | WP-A19 | Manual (archiving from Home): Archive moves the row at once and leaves project.json plus archive.zip; bulk Archive counts; Restore; Open on an archived row; rollback ... |
+| AC-HOME-39 | WP-A19a | Manual (archiving from Home): Archive moves the row at once and leaves project.json plus archive.zip; bulk Archive counts; Restore; Open on an archived row; rollback ... |
 | AC-HOME-40 | WP-D16 | Manual (bulk export to each project's own folder): 3 projects to Word, no dialog, Exporting 1 of 3... to 3 of 3, <title>.docx then <title> (1).docx ... |
 | AC-HOME-41 | WP-E6 | Manual (INV-HOME-45): install a build versioned below the latest GitHub release per-machine (ALLUSERS=1, 12 AC-PKG-2) ... |
 
@@ -2266,9 +2284,9 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-IPC-15 | WP-D17 | BoundaryLogTests passes; manual: after a session that sets an API key, signs in and exports ... |
 | AC-IPC-16 | WP-A1 | CoreReferencesTests passes on Linux. |
 | AC-IPC-17 | WP-A12 | ContainerTests, ViewModelDependencyTests, CommandConventionsTests and SubscriberDisposalTests ... |
-| AC-IPC-18 | WP-A19 | ExitFlushTests passes; manual: rename a project and within 100 ms choose File, Exit; after ... |
+| AC-IPC-18 | WP-A19a | ExitFlushTests passes; manual: rename a project and within 100 ms choose File, Exit; after ... |
 | AC-IPC-19 | WP-D12 | SingleWebViewTests and SingleUrlLauncherTests pass. |
-| AC-IPC-20 | WP-A19 | Manual: Home, row menu, Reveal in Explorer on a project whose folder is on a disconnected ... |
+| AC-IPC-20 | WP-A19a | Manual: Home, row menu, Reveal in Explorer on a project whose folder is on a disconnected ... |
 | AC-IPC-21 | WP-B9 | Manual: area selection from the target chooser: the main window hides, the overlay appears on ... |
 | AC-IPC-22 | WP-E6 | Manual parity walk: every row of 7.4 whose Native caller is a UI surface is exercised once in ... |
 | AC-IPC-23 | WP-D6 | ScreenshotTargetTests passes, and FireAndForgetTests passes. |
@@ -2326,7 +2344,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-ARCH-2 | WP-A12 | Composition.ContainerTests builds the full container with ValidateOnBuild and resolves every ... |
 | AC-ARCH-3 | WP-A1 | Each banned-symbol list and each analyzer rule of 14.9 is proven once, in the PR that adds it ... |
 | AC-ARCH-4 | WP-A9 | Store/ProjectSessionTests (Core, Linux) covers S1 to S10 of 7.4: clone-throw queues nothing ... |
-| AC-ARCH-5 | WP-A19 | Shutdown.ExitFlushTests passes, and a manual rename followed within 100 ms by File, Exit shows ... |
+| AC-ARCH-5 | WP-A19a | Shutdown.ExitFlushTests passes, and a manual rename followed within 100 ms by File, Exit shows ... |
 | AC-ARCH-6 | WP-D2 | An environment test starts the composition root with ANTHROPIC_CUSTOM_HEADERS and (if Q-ARCH-3 ... |
 | AC-ARCH-7 | WP-E5 | Manual: with the native build signed in and a PDF exported, uninstalling the Electron build ... |
 | AC-ARCH-8 | WP-E6 | Every budget of section 11 has a recorded measurement on both reference machines at the phase ... |
@@ -2422,7 +2440,8 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [ ] WP-A16. Home list: merged in #138, manual pending: AC-HOME-5, AC-HOME-6, AC-HOME-12, AC-HOME-35, AC-SHELL-33
 - [ ] WP-A17. Read-only report: merged in #139, manual pending: AC-MODEL-25, AC-REP-5, AC-REP-28, AC-REP-32, AC-REP-33
 - [ ] WP-A18. Brand submenu and navigation state: merged in #140, manual pending: AC-SHELL-20, AC-SHELL-21, AC-IPC-13, AC-IPC-14
-- [ ] WP-A19. Home row operations
+- [ ] WP-A19a. Home row operations: merged in #141, manual pending: AC-MODEL-31, AC-HOME-7, AC-HOME-10, AC-HOME-11, AC-HOME-31, AC-HOME-39, AC-IPC-18, AC-IPC-20, AC-ARCH-5
+- [ ] WP-A19b. External link allowlist
 - [ ] WP-A20. Phase A exit (M-A)
 
 **Phase B: capture engine**

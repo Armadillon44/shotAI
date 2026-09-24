@@ -1,0 +1,25 @@
+<UserControl x:Class="ShotAI.App.Chrome.OverflowMenu"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
+             xmlns:shell="clr-namespace:ShotAI.App.Shell"
+             Focusable="False" IsTabStop="False">
+  <!--
+    The one dropdown of Home's rows and bulk bar (spec 06 2.20, 7.8): a trigger and a ShotAIPopup,
+    the popup HWND R-ARCH-19 names, excluded from captures as the window is (INV-HOME-43). The
+    popover's right edge meets the trigger's, 4 DIP below it, or above it when the window has no
+    room below (2.20's estimate). Its margin leaves room for the menu shadow, which a popup would
+    otherwise clip. The items are built in code each time the list changes.
+  -->
+  <Grid>
+    <chrome:OverflowTrigger x:Name="Trigger" />
+    <shell:ShotAIPopup x:Name="Popup" PlacementTarget="{Binding ElementName=Trigger}" Placement="Bottom" StaysOpen="False"
+                       AllowsTransparency="True" Focusable="False">
+      <Border x:Name="Pop" Margin="24,16,24,32" MinWidth="172" Padding="4.8" BorderThickness="1" SnapsToDevicePixels="True"
+              BorderBrush="{DynamicResource Brush.hair}" Background="{DynamicResource Brush.surface}"
+              CornerRadius="{DynamicResource Radius.control}" Effect="{DynamicResource Shadow.menu}">
+        <StackPanel x:Name="List" KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="None" />
+      </Border>
+    </shell:ShotAIPopup>
+  </Grid>
+</UserControl>

@@ -30,9 +30,10 @@
     </DataTemplate>
 
     <!--
-      2.12: a row card, 0.5rem below the item above it: the title (with an ellipsis) and its badge,
-      the meta line, and Open. Hover lifts it 1 DIP and tints its border. The selection checkbox and
-      the overflow menu join in WP-A19.
+      2.12: a row card, 0.5rem below the item above it: the checkbox; the title (with an ellipsis)
+      and its badge, or the rename box in their place (2.13); the meta line, Working... while the
+      row is busy; Open and the overflow menu. Selected, its border is the accent and its fill the
+      tint (the hover's border wins, as :hover outranks the selected class). Hover lifts it 1 DIP.
     -->
     <DataTemplate DataType="{x:Type home:ProjectRowViewModel}">
       <Border x:Name="Card" Margin="0,8,0,0" Padding="14.4,12" BorderThickness="1" SnapsToDevicePixels="True"
@@ -43,11 +44,16 @@
         </Border.RenderTransform>
         <Grid>
           <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
-          <StackPanel Margin="0,0,14.4,0" VerticalAlignment="Center">
-            <Grid HorizontalAlignment="Left">
+          <home:RowCheckBox x:Name="Check" Margin="0,0,14.4,0" VerticalAlignment="Center" Style="{DynamicResource RowCheck}"
+                            IsChecked="{Binding IsSelected, Mode=OneWay}" AutomationProperties.Name="{Binding SelectName}"
+                            Command="{Binding DataContext.ToggleSelectCommand, RelativeSource={RelativeSource AncestorType=home:HomeView}}"
+                            CommandParameter="{Binding}" />
+          <StackPanel Grid.Column="1" Margin="0,0,14.4,0" VerticalAlignment="Center">
+            <Grid x:Name="TitleLine" HorizontalAlignment="Left">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -57,18 +63,34 @@
               <ContentControl x:Name="Badge" Grid.Column="1" Margin="8.8,0,0,0" VerticalAlignment="Center"
                               Style="{DynamicResource Badge.Draft}" Content="{Binding Badge}" ToolTip="{Binding BadgeTitle}" />
             </Grid>
+            <TextBox x:Name="RenameBox" Visibility="Collapsed" Style="{DynamicResource RenameInput}"
+                     Text="{Binding DataContext.RenameValue, RelativeSource={RelativeSource AncestorType=home:HomeView}, UpdateSourceTrigger=PropertyChanged}"
+                     AutomationProperties.Name="{x:Static core:HomeText.Rename}"
+                     KeyDown="OnRenameKeyDown" LostKeyboardFocus="OnRenameLostFocus" IsVisibleChanged="OnRenameVisibleChanged" />
             <TextBlock Margin="0,2.4,0,0" Text="{Binding Meta}" TextTrimming="CharacterEllipsis"
                        Foreground="{DynamicResource Brush.ink-2}" FontSize="{DynamicResource Fs.meta}" />
           </StackPanel>
-          <Button Grid.Column="1" VerticalAlignment="Center" Style="{DynamicResource Button.SmallPrimary}"
-                  Content="{x:Static core:HomeText.Open}" ToolTip="{Binding OpenTitle}"
-                  Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=home:HomeView}}"
-                  CommandParameter="{Binding}" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button VerticalAlignment="Center" Style="{DynamicResource Button.SmallPrimary}"
+                    Content="{x:Static core:HomeText.Open}" ToolTip="{Binding OpenTitle}"
+                    Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=home:HomeView}}"
+                    CommandParameter="{Binding}" />
+            <chrome:OverflowMenu x:Name="RowMenu" Margin="6.4,0,0,0" VerticalAlignment="Center" Items="{Binding MenuItems}"
+                                 IsEnabled="{Binding DataContext.NotBusy, RelativeSource={RelativeSource AncestorType=home:HomeView}}" />
+          </StackPanel>
         </Grid>
       </Border>
       <DataTemplate.Triggers>
         <DataTrigger Binding="{Binding HasSop}" Value="True">
           <Setter TargetName="Badge" Property="Style" Value="{DynamicResource Badge.Ok}" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+          <Setter TargetName="TitleLine" Property="Visibility" Value="Collapsed" />
+          <Setter TargetName="RenameBox" Property="Visibility" Value="Visible" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+          <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Brush.accent}" />
+          <Setter TargetName="Card" Property="Background" Value="{DynamicResource Brush.item-selected-bg}" />
         </DataTrigger>
         <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
           <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Brush.item-hover-border}" />
@@ -164,6 +186,35 @@
                         AutomationProperties.HelpText="{Binding SortDirectionTitle}" />
         </StackPanel>
       </chrome:FlexWrapPanel>
+
+      <!--
+        2.16: the bulk bar, while rows are selected or a bulk run goes: the select-all toggle and the
+        count (a polite live region), and on the right the archive or restore, delete and Clear.
+        The export menu joins with Home export (WP-D16).
+      -->
+      <Border x:Name="BulkBar" Margin="0,5.6,0,12" Padding="11.2,8.8" BorderThickness="1" SnapsToDevicePixels="True"
+              BorderBrush="{DynamicResource Brush.bulk-border}" Background="{DynamicResource Brush.accent-tint}"
+              CornerRadius="{DynamicResource Radius.control}" DataContext="{Binding Bulk}"
+              Visibility="{Binding IsVisible, Converter={StaticResource Visible}}"
+              AutomationProperties.Name="{x:Static core:HomeText.BulkName}">
+        <chrome:FlexWrapPanel Gap="9.6">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <ToggleButton x:Name="BulkToggle" VerticalAlignment="Center" Style="{DynamicResource BulkToggle}"
+                          IsChecked="{Binding AllSelected, Mode=OneWay}" Content="{Binding ToggleAllText}" Command="{Binding ToggleAllCommand}" />
+            <TextBlock x:Name="BulkCount" Margin="9.6,0,0,0" VerticalAlignment="Center" Text="{Binding CountText}"
+                       FontSize="{DynamicResource Fs.meta}" FontWeight="650" Foreground="{DynamicResource Brush.accent-ink}"
+                       AutomationProperties.LiveSetting="Polite" chrome:LiveRegion.Text="{Binding Text, RelativeSource={RelativeSource Self}}" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button x:Name="BulkArchive" Style="{DynamicResource Button.Small}" Content="{Binding ArchiveOrRestoreText}"
+                    Command="{Binding ArchiveOrRestoreCommand}" />
+            <Button x:Name="BulkDelete" Margin="9.6,0,0,0" Style="{DynamicResource Button.SmallDanger}" Content="{x:Static core:HomeText.BulkDelete}"
+                    Command="{Binding DeleteCommand}" />
+            <Button x:Name="BulkClear" Margin="9.6,0,0,0" Style="{DynamicResource Button.SmallGhost}" Content="{x:Static core:HomeText.BulkClear}"
+                    Command="{Binding ClearCommand}" />
+          </StackPanel>
+        </chrome:FlexWrapPanel>
+      </Border>
 
       <!-- 2.17: the empty states, centred, 0.5rem below the list head. -->
       <StackPanel Margin="16,48,16,40" HorizontalAlignment="Center" Visibility="{Binding IsEmpty, Converter={StaticResource Visible}}">
