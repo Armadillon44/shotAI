@@ -138,8 +138,13 @@ public partial class App : Application
         // Home lists the projects once the window is up (06 2.18 row 1).
         shell.Start();
 #if DEBUG
-        // AC-SHELL-21's manual check, in a Debug build only.
+        // AC-SHELL-21's and AC-SHELL-12's manual checks, in a Debug build only.
         if (DebugNavigationPulse.StartIfAsked(_services.GetRequiredService<NavigationState>())) NavigationPulse(_log);
+        if (DebugCaptureFailures.StartIfAsked(
+            _services.GetRequiredService<ICaptureService>(), _services.GetRequiredService<CapturePillViewModel>(), _services.GetRequiredService<IUiDispatcher>()))
+        {
+            CaptureFailuresOn(_log);
+        }
 #endif
 
         // Step 11: from here a second launch surfaces this window.
@@ -202,7 +207,11 @@ public partial class App : Application
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (_services is not null) EndSession(_services.GetRequiredService<ShellShutdown>(), _services.GetRequiredService<ICaptureService>());
+        if (_services is not null)
+        {
+            EndSession(_services.GetRequiredService<ShellShutdown>(), _services.GetRequiredService<ICaptureService>());
+            if (_log is not null) SessionEnded(_log, e.ReasonSessionEnding);
+        }
         base.OnSessionEnding(e);
     }
 
@@ -330,6 +339,9 @@ public partial class App : Application
 #if DEBUG
     [LoggerMessage(Level = LogLevel.Information, Message = "debug: navigation state raised every 1 s (SHOTAI_DEBUG_NAV_PULSE=1)")]
     private static partial void NavigationPulse(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "debug: two failed captures 3 s apart in each recording (SHOTAI_DEBUG_CAPTURE_FAILED=1)")]
+    private static partial void CaptureFailuresOn(ILogger logger);
 #endif
 
     [LoggerMessage(Level = LogLevel.Information, Message = "render: software forced (SHOTAI_ENABLE_GPU=0)")]
@@ -349,4 +361,7 @@ public partial class App : Application
 
     [LoggerMessage(Level = LogLevel.Information, Message = "exiting (code {Code})")]
     private static partial void Exiting(ILogger logger, int code);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "session ending ({Reason}): capture triggers released")]
+    private static partial void SessionEnded(ILogger logger, ReasonSessionEnding reason);
 }

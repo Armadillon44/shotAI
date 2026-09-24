@@ -150,7 +150,7 @@ Run from `dotnet/` (the `global.json` there opts `dotnet test` into Microsoft.Te
 | Exclude performance tests | add `--filter-not-trait "Category=Perf"` (no separator either; checked in WP-A3) | Linux, Windows |
 | Every test project | `dotnet test --solution ShotAI.slnx -c Release` | Windows only |
 | Run the app | `dotnet run --project src/ShotAI.App` | Windows only (from WP-A12) |
-| Self-test | `dotnet run --project src/ShotAI.App -- --selftest` (also `--capture-selftest`, `--update-selftest`) | Windows (from WP-A12, WP-B9, WP-E1) |
+| Self-test | `dotnet run --project src/ShotAI.App -- --selftest` (also `--capture-selftest`, `--update-selftest`) | Windows (from WP-A12, WP-B9b, WP-E1) |
 | Brand table check | `dotnet run --project tools/ShotAI.GenBrand -c Release -- --check` | Linux, Windows (from WP-A4) |
 | Regenerate the brand table | `dotnet run --project tools/ShotAI.GenBrand` | after a `contract/brand.json` change |
 | Notices check | `dotnet run --project tools/ShotAI.Release -c Release -- notices --check` | from WP-E2 |
@@ -244,8 +244,8 @@ Phase A   A1 -> A2 -> A3 ;  A1 -> A4 ;  A1 -> A5 ;  A1 -> A11
           A15, A8 -> A16 ;  A16, A9 -> A17 -> A18 ;  A16, A13 -> A19a -> A19b ;  A1..A19b -> A20
 Phase B   A3, A10 -> B1 -> B2 (and A7) -> B3 ;  B1, A5 -> B4 ;  B1, A13 -> B5
           B1, B2, B4, B5 -> B6 ;  B3, B5, A15 -> B7 ;  B5, A15 -> B8
-          B4, B6, B7, B8, A17, A19a -> B9 ;  A19a, A19b, A14, B5 -> B10 ;  B1..B10 -> B11
-Phase C   A9, A17 -> C1 -> C2 (and A19a) -> C3 -> C4 (and B9)
+          B4, B6, B7, B8, A17, A19a -> B9a -> B9b ;  A19a, A19b, A14, B5 -> B10 ;  B1..B10 -> B11
+Phase C   A9, A17 -> C1 -> C2 (and A19a) -> C3 -> C4 (and B9a)
           A7 -> C5 ;  A3 -> C8 -> C6 ;  C5, C6, C8, A9 -> C7 ;  C8, C2 -> C9
           C9, C7, B5 -> C10 -> C11 ;  C7, C2 -> C12 ;  C1..C12 -> C13
 Phase D   A12 -> D1 ;  A10, A12 -> D2 -> D3 (and A5) ;  D1, D2, D3, A19b -> D4
@@ -422,7 +422,7 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | `shotAI.exe` starts through the canonical bootstrap, builds and validates the container, logs, exits in the specified order and runs `--selftest`; the App test project with its STA harness exists |
 | Spec inputs | ARCHITECTURE 4 (4.1 to 4.5), 5.1, 6.1 to 6.4, 8.3, 10.2; 03 7.4.1, 7.4.9, 7.5, 8.1, D17, D18, INV-SHELL-19, INV-SHELL-20; 10 7.4.4, 7.5.1, 7.8; 11 7.3.1, 7.10, 7.12; 12 7.2.1 (`App.xaml` as a Page), 7.9.1 (INV-PKG-16); Q-IPC-10, Q-IPC-17, Q-IPC-18, Q-HOME-15, Q-HOME-16, Q-SHELL-16, Q-INFRA-16, Q-PKG-30 |
-| Deliverables | App `Program` (explicit `[STAThread] Main`, first statement `DllSearchHardening.Apply()`), `App.xaml` built as a Page (no `StartupUri`), `App` composition root running steps 0, 1, 3, 4, 5b, 6, 9, 12 and 13 of ARCHITECTURE 4.2 (step 13's update check joins in WP-E1) (step 5 lands in WP-D2, steps 2, 7, 8, 11 in WP-A13, step 10 in WP-B5, step 2a in WP-E5), `AppPaths : IAppPaths` (`SettingsFile` and `LogsDirectory` under `%APPDATA%\shotAI`, `LocalDataDirectory` = `%LOCALAPPDATA%\LFI\shotAI`, R-ARCH-13, 10 7.4.4), `CrashLogging`, `ShotAI.App.Threading` (`WpfUiDispatcher`, `AppLifetime`, `ShutdownFlush` with the 5 s bound, the one allowlisted blocking wait), `ShotAI.App.Composition` (`AddShotAIApp`, `ServiceProviderFactory` with `ValidateOnBuild` and `ValidateScopes`), `ViewModelBase` (Debug `VerifyAccess`), `IAppStartup`, `SelfTestHost`; Platform `DllSearchHardening`, `ConsoleAttach`, `PlatformServiceCollectionExtensions.AddShotAIPlatform`; Core `ShotAI.Core.Shell.RuntimeDiagnostics`, `RenderModePolicy`, `ShotAI.Core.SelfTest` (`StartupMode`, `StartupModeParser`, `SelfTestOutcome`, `StoreSelfTest`); the runtime diagnostic line and the Info line `startup: main window rendered in <n> ms` (PB-9, D-ARCH-4), both already in 03 7.9's log table; packages `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Logging`, `Microsoft.Extensions.Logging.Debug`, `CommunityToolkit.Mvvm`; new project `tests/ShotAI.App.Tests` (`UseWPF`) with the in-repo STA harness (Q-HOME-15); added in WP-A12: Core `Shell.Machine`, `SelfTest.StartupModeKind`, `SelfTest.ProjectStoreFactory` (the isolated settings service and store over the managed seams of 01 7.14; its constructor over a function is the tests' seam) with the internal `SelfTestStore`, and `Updates.AppVersion` (10 7.6.1, ahead of WP-E1, for the banner); App `Composition.AppLogging` (the step 1 factory and the banner), and `App.RunExitOrder`, `StartAll` and `AutoArchiveAsync` as internal statics, so the exit order and the startup work are tested without an `Application`; Platform `Shell.ProcessMachine` (03 7.3, ahead of WP-A13, for the runtime line) and the assembly-level `DefaultDllImportSearchPaths` of 12 7.9.1 in Platform and App (`AssemblyInfo.cs`); corrected in WP-A12: `ShutdownFlush.Run` drains both queues without a bound and bounds only the wait, because a drain given the timeout completes at the timeout without faulting (01 7.7), so the wait would never see the timeout and the warning would never be logged; step 5b takes the Windows rename classifier from a provider of `AddShotAIPlatform()` alone, disposed before step 6, because the classifier is internal and registered only as its Core interface (INV-ARCH-4); `CrashLogging.Install(Dispatcher)` hooks the UI dispatcher's own `UnhandledException`, the event `Application.DispatcherUnhandledException` is raised from, so the tests raise it without an `Application`; the generic notice of Q-SHELL-16 joins with `INoticeService` (WP-A16); `AddShotAIApp` takes `(dispatcher, settings)`, and its `installInfo` parameter joins with `InstallInfoReader` (WP-E1); `Microsoft.Extensions.Logging.Debug` is referenced in every configuration and takes no assets outside Debug (`ExcludeAssets="all"`), so one lock file serves every configuration; `--capture-selftest` and `--update-selftest` are parsed and exit 2 with `[capture-test] ERROR this build has no capture self-test` (and the `[update-test]` twin) until WP-B9 and WP-E1 bring the tests |
+| Deliverables | App `Program` (explicit `[STAThread] Main`, first statement `DllSearchHardening.Apply()`), `App.xaml` built as a Page (no `StartupUri`), `App` composition root running steps 0, 1, 3, 4, 5b, 6, 9, 12 and 13 of ARCHITECTURE 4.2 (step 13's update check joins in WP-E1) (step 5 lands in WP-D2, steps 2, 7, 8, 11 in WP-A13, step 10 in WP-B5, step 2a in WP-E5), `AppPaths : IAppPaths` (`SettingsFile` and `LogsDirectory` under `%APPDATA%\shotAI`, `LocalDataDirectory` = `%LOCALAPPDATA%\LFI\shotAI`, R-ARCH-13, 10 7.4.4), `CrashLogging`, `ShotAI.App.Threading` (`WpfUiDispatcher`, `AppLifetime`, `ShutdownFlush` with the 5 s bound, the one allowlisted blocking wait), `ShotAI.App.Composition` (`AddShotAIApp`, `ServiceProviderFactory` with `ValidateOnBuild` and `ValidateScopes`), `ViewModelBase` (Debug `VerifyAccess`), `IAppStartup`, `SelfTestHost`; Platform `DllSearchHardening`, `ConsoleAttach`, `PlatformServiceCollectionExtensions.AddShotAIPlatform`; Core `ShotAI.Core.Shell.RuntimeDiagnostics`, `RenderModePolicy`, `ShotAI.Core.SelfTest` (`StartupMode`, `StartupModeParser`, `SelfTestOutcome`, `StoreSelfTest`); the runtime diagnostic line and the Info line `startup: main window rendered in <n> ms` (PB-9, D-ARCH-4), both already in 03 7.9's log table; packages `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Logging`, `Microsoft.Extensions.Logging.Debug`, `CommunityToolkit.Mvvm`; new project `tests/ShotAI.App.Tests` (`UseWPF`) with the in-repo STA harness (Q-HOME-15); added in WP-A12: Core `Shell.Machine`, `SelfTest.StartupModeKind`, `SelfTest.ProjectStoreFactory` (the isolated settings service and store over the managed seams of 01 7.14; its constructor over a function is the tests' seam) with the internal `SelfTestStore`, and `Updates.AppVersion` (10 7.6.1, ahead of WP-E1, for the banner); App `Composition.AppLogging` (the step 1 factory and the banner), and `App.RunExitOrder`, `StartAll` and `AutoArchiveAsync` as internal statics, so the exit order and the startup work are tested without an `Application`; Platform `Shell.ProcessMachine` (03 7.3, ahead of WP-A13, for the runtime line) and the assembly-level `DefaultDllImportSearchPaths` of 12 7.9.1 in Platform and App (`AssemblyInfo.cs`); corrected in WP-A12: `ShutdownFlush.Run` drains both queues without a bound and bounds only the wait, because a drain given the timeout completes at the timeout without faulting (01 7.7), so the wait would never see the timeout and the warning would never be logged; step 5b takes the Windows rename classifier from a provider of `AddShotAIPlatform()` alone, disposed before step 6, because the classifier is internal and registered only as its Core interface (INV-ARCH-4); `CrashLogging.Install(Dispatcher)` hooks the UI dispatcher's own `UnhandledException`, the event `Application.DispatcherUnhandledException` is raised from, so the tests raise it without an `Application`; the generic notice of Q-SHELL-16 joins with `INoticeService` (WP-A16); `AddShotAIApp` takes `(dispatcher, settings)`, and its `installInfo` parameter joins with `InstallInfoReader` (WP-E1); `Microsoft.Extensions.Logging.Debug` is referenced in every configuration and takes no assets outside Debug (`ExcludeAssets="all"`), so one lock file serves every configuration; `--capture-selftest` and `--update-selftest` are parsed and exit 2 with `[capture-test] ERROR this build has no capture self-test` (and the `[update-test]` twin) until WP-B9b and WP-E1 bring the tests |
 | Tests | Port `src/main/gpu-policy.test.ts` in part (`Shell/RuntimeDiagnosticsTests`, `Shell/RenderModePolicyTests`; the decision cases are ELECTRON-ONLY per 03 8.1). New: App `Composition/ContainerTests`, `ViewModelDependencyTests`, `CommandConventionsTests`, `SubscriberDisposalTests`, `Threading/WpfUiDispatcherTests`, `NoSyncWaitTests`, `ViewModelAffinityTests`, `Shutdown/ExitFlushTests`, `CrashLoggingTests`, `LifecycleTests.ExitOrderMatchesSpec11`, `SelfTest/SelfTestProcessTests`, `Shell/AppPathsTests` (`SettingsFileIsRoamingAppData`, `LogsDirectoryIsRoamingAppData`, `LocalDataDirectoryIsUnderLfi`, `NoPathUnderSquirrelRoot`, 10 8.5; `ContainerTests` includes `NoAsyncOnlyDisposables`); Core `SelfTest/StartupModeParserTests`, `StoreSelfTestTests`, `Packaging/SourceScanTests.SetDefaultDllDirectoriesIsFirstInMain` and `AppXamlIsPage`; Platform `Startup/DllSearchTests`; added in WP-A12: Core `Updates/AppVersionTests` (its `BuildMetadataStripped` is 10 8.5's case, ahead of WP-E1), `Support/ForwardingProjectService`, and a changed copy of each source rule to prove it can fail; App `Composition/AppLoggingTests`, `SelfTest/SelfTestHostTests`, `Support/Sta` (the harness, which applies `DllSearchHardening` to the test process on first use, so the tests' windows load WPF under the app's DLL search), `Support/TestContainer`; Platform `Shell/ProcessMachineTests` (ahead of WP-A13); corrected in WP-A12: `NoSyncWaitTests` is a text scan with comments and literals removed, not a Roslyn syntax scan, so the tests take no compiler package; `ViewModelAffinityTests` turn `ViewModelBase.CheckAffinity` on, since CI runs the Release build, where it is off |
 | Acceptance criteria | AC-MODEL-36 second clause (`ContainerTests.NoAsyncOnlyDisposables` and `LifecycleTests.ExitOrderMatchesSpec11`; its first clause is WP-A3's, 1.5), AC-SHELL-25, AC-INFRA-14, AC-INFRA-25, AC-INFRA-27, AC-INFRA-35, AC-IPC-6, AC-IPC-17, AC-ARCH-2 |
 | Depends on | WP-A6, WP-A10, WP-A11 |
@@ -616,7 +616,7 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 | Spec inputs | 02 7.3, 7.4, 7.14 (hook and hotkey names), D14, D19, INV-CAP-17, risk R1; ARCHITECTURE 6.1, DL7, PB-1, PB-2; feasibility "Hook timing under .NET"; Q-CAP-2, Q-CAP-3, Q-CAP-5, Q-CAP-19, Q-CAP-23 |
 | Deliverables | Platform `ShotAI.Platform.Capture.Win32TriggerSource : ITriggerSource` (dedicated `shotAI.InputHook` thread with its own `GetMessageW` loop, `WH_MOUSE_LL` proc that copies into a preallocated 256-entry ring and signals a kernel event, `RegisterHotKey` with `MOD_NOREPEAT`, the cursor-movement watchdog, `Detach` posting to the thread and joining for 2000 ms, 32-bit coordinates); the `NativeMethods.txt` entries of 02 7.14 for hooks, messages and hotkeys; `PlatformCaptureRegistration` (first part). As built in WP-B4: the ring and the dispatcher are Core's (`InputRecord`, `InputRing`, `TriggerDispatcher`), so their order, drops and failures are tested on Linux; `Win32TriggerSource` makes one of each per attach and owns only the hook thread, the hotkey and the watchdog. One source is attached in the process at a time, because the hook procedure is static. `PlatformCaptureRegistration` registers `ITriggerSource` |
 | Tests | No Electron file. New: Platform `Capture/MouseHookTests` (`SyntheticClickIsDelivered`, `InjectedClicksAreDelivered`, `EveryButtonMaps`, `CallbackIsAllocationFree`, `WatchdogReinstallsRemovedHook`, `DetachIsIdempotentAndJoins`), `HotkeyTests`, `DpiAwarenessTests`, and a `Category=Perf` hook-latency test for PB-1. As built in WP-B4: `MouseHookTests` (12), `HotkeyTests` (4), `DpiAwarenessTests` (2) and the explicit `HookLatencyTests` (1) share one collection that runs alone and makes the test process Per-Monitor V2 (a manifest and a fixture); every click lands on a topmost window of the test's own; Core `InputRingTests` (7) and `TriggerDispatcherTests` (13); `AddShotAIPlatformTests` has the new registration (the full list is in 02 8.4) |
-| Acceptance criteria | none owned (the hook's manual criteria run end to end in WP-B9) |
+| Acceptance criteria | none owned (the hook's manual criteria run end to end in WP-B9a) |
 | Depends on | WP-B1, WP-A5 |
 | Size | M |
 | Risks and de-risking | Silent hook removal (02 R1): allocation-free proc proven by `CallbackIsAllocationFree`, watchdog proven by `WatchdogReinstallsRemovedHook`, every reinstall logged so pilot logs reveal it; Raw Input stays the documented fallback (Q-CAP-5). `SetCursorPos` bypassing the hook could make the watchdog misfire (UNVERIFIED): the test moves the cursor with `SendInput`. Outcome in WP-B4: the hosted runners deliver `SendInput` clicks, moves and the hotkey chord, and every hook test passed on x64 and arm64 from the first run; the hook thread allocated nothing across a thousand clicks on both. 48 mutations of Core's ring and dispatcher, all caught, 6 of them rewritten because their first text did not build; one ends the test host, since a callback's exception that escapes the dispatcher thread ends the process. The first pass found one gap (a drain that dropped nothing still logged a warning), closed with a test. The Platform code runs only on Windows and was not mutation-checked |
@@ -658,7 +658,7 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 | Spec inputs | 03 2.4 (2.4.1 to 2.4.8), 2.6, 7.2 (`PillDocking`, `PillPresenter`, `RecordingVisibilityPlanner`), 7.4.3, 7.4.6, 7.6 (7.6.1 to 7.6.3), D1 to D5, D8, INV-SHELL-6 to INV-SHELL-12, risk R2; 02 D20; 11 7.6, 7.7; ARCHITECTURE R-ARCH-11; Q-SHELL-2, Q-SHELL-3, Q-SHELL-4, Q-SHELL-7, Q-SHELL-8, Q-SHELL-21, Q-IPC-15, Q-IPC-20 |
 | Deliverables | Core `PillDocking`, `PillPresenter`, `PillViewState`, `PillStatusRow`, `RecordingVisibilityPlanner`, `ShellAction`, pill strings in `ShellStrings`; App `CapturePillWindow` (`WS_EX_NOACTIVATE`, `WS_EX_TOOLWINDOW`, `MA_NOACTIVATE`, manual drag, controls not focusable, closing cancelled unless shutting down), `CapturePillViewModel`, `DiscardConfirmWindow` (`Discard` and `Cancel`, Cancel default, registered and topmost), `RecordingVisibilityController` (the single ordered `IUiDispatcher.Post` path for capture events); `Pause` and `Resume` through `Task.Run`; File, Exit sets `App.IsShuttingDown` before `Shutdown()` (EDGE-SHELL-51; the Exit binding itself landed in WP-A15). As built in WP-B7: `App.IsShuttingDown` is the App singleton `ShellShutdown`, which the main window's `OnClosed` and `SessionEnding` set too; exit step 2's `Teardown()` and `SessionEnding`'s (D18) landed here; the controller acts on the windows through the seam `IRecordingWindows` (`RecordingWindows`); `PillAnimations` runs the flash and the pulse; `PillViewState` carries the engine's `CaptureStatus`, so there is no `PillStatus`; Platform's `WindowStyles.NoActivateOnClick` is the `WM_MOUSEACTIVATE` hook; the drag measures from the press's own position and follows every `WM_MOUSEMOVE` through Platform's `WindowMessages.MouseMove` (03 7.4.3, corrected) |
 | Tests | No Electron file. New: Core `Shell/PillDockingTests`, `PillPresenterTests`, `RecordingVisibilityPlannerTests`; App `CapturePillWindowTests` (`ShowDoesNotActivate` including a show after `Hide()`, `ClickDoesNotActivate`, `DragMovesWithoutActivating`, `ErrorTooltipShowsWhileInactive`, `DiscardConfirmCallsServiceOnce`), `LifecycleTests.PillCloseCancelledWhileRunning`, `MainWindowCloseClosesPillDespiteVeto`, `ShellEventOrderingTests`, `RecordingChangedHidesAndShows` (against a fake `ICaptureService`). As built in WP-B7: 108 tests, 67 Core (`PillDockingTests` 20, `PillPresenterTests` 33, `RecordingVisibilityPlannerTests` 7, five `ShellStringsTests` cases and the two new XAML files' `XamlChromeGuardTests` cases), 40 App (`CapturePillWindowTests` 15, `CapturePillViewModelTests` 7, `ShellEventOrderingTests` 8, `RecordingVisibilityTests` 4 with `RecordingChangedHidesAndShows`, four `LifecycleTests` and two `AllWindowsRegisteredTests`) and 1 Platform (`NoActivateOnClickAnswersOnlyTheMouseActivation`); App.Tests holds `RealInputLock` for its whole run against the Platform input hook collection, and the pill's window tests run alone (03 8.3 as built) |
-| Acceptance criteria | none owned (the pill's manual criteria run with real recordings in WP-B9) |
+| Acceptance criteria | none owned (the pill's manual criteria run with real recordings in WP-B9a) |
 | Depends on | WP-B3, WP-B5, WP-A15 |
 | Size | M |
 | Risks and de-risking | WPF re-activating the pill through a tooltip or a template `Focus()` (03 R2, Q-SHELL-3, Q-SHELL-21): the foreground assertions in `CapturePillWindowTests` are written first; if a later `Show()` activates, switch to `ShowWindow(SW_SHOWNOACTIVATE)` only. Outcome in WP-B7: on both runners no show (after a hide too), click, drag or tooltip activated the pill, and WPF opens the error's tooltip on it (Q-SHELL-3, Q-SHELL-21), so neither fallback is built. The first runs found three test problems and two product bugs: the pill tests' real input collided with the Platform input hook tests running at the same time, whose clicks also closed App popups (a mutex of the session now keeps the App tests and those Platform tests apart); WPF gives a window whose `ShowInTaskbar` is false a hidden owner (EDGE-SHELL-46 holds, and the test was corrected); the windows-11-arm runner can have the shell's Start menu open above every topmost window (both test projects now close it with Escape before real input); and the drag measured from the cursor when the UI thread took the press, so a press taken late made the pill trail the cursor, and it followed WPF's `MouseMove`, which a second equal step does not raise (it measures from the press and follows every `WM_MOUSEMOVE` now). 103 mutations of the Core changes: 101 caught (2 after new tests closed gaps, 4 after rewrites), 1 that cannot be built because Core bans `Math.Round`, 1 equivalent |
@@ -678,19 +678,37 @@ Goal (feasibility): the hook thread, hotkey, BitBlt grabs, region modes, the ove
 | Risks and de-risking | Chromium's `DIPToScreenRect` rounding is assumed (Q-SHELL-5): compare the `region selected:` log lines of both builds at 125% and 150% in M-B and adjust `ToPhysical`. Outcome in WP-B8: implemented as written, in double precision. Chromium's single-precision geometry (UNVERIFIED) can differ only at a custom scale, since every multiple of 25% gives exact products, so the comparison at 125% and 150% cannot tell the two apart; it stays with WP-B11. Reviewing its own code before the first push found one product bug: closing the overlays at another button's press would hand that button's release to the window beneath them (D25). The first Windows run found three test problems and no product bug: the App's synchronous-wait scan read a property named `Result` as `Task.Result`; Windows keeps a window within the virtual screen's size, so stand-ins larger than the runners' screens were cut down; and taking the mouse capture raises a move at the cursor, which moved a programmatic press's drag (the overlay now takes the capture before it records the press). 70 mutations of the Core changes: 69 caught, 1 of them only after a new case closed a gap (a drag past the overlay's top edge, where flooring and truncating differ), and 1 equivalent (the badge written with the current culture: a size is never negative) |
 | Demo | an App test harness opens overlays on every monitor with exact bounds |
 
-#### WP-B9. Recording from Home and the project view
+#### WP-B9a. Recording from Home and the project view
+
+Split from WP-B9 in WP-B9a (2.2 step 3): WP-B9 came to about 2,400 lines of product code, over M's 1,500. The recording panel, which only a window shown during a recording displays, the event-order and subscribe-then-read tests with the coalescing they measure, and the capture self-test share no code with the Home and project flows, so they are WP-B9b.
 
 | Field | Content |
 |---|---|
-| Goal | A user records from Home (new project) or resumes into an open project, with the pill, overlay, recording panel and capture self-test all wired; the phase's manual criteria run here |
-| Spec inputs | 06 2.3 to 2.6, 7.3 (`CaptureReadiness`), 7.6, 8.4 (Home recording rows); 05 2.3 (Resume capturing), 2.19 (picker rules shared with Home); 02 2.16, EDGE-CAP-34; 10 7.8 (`--capture-selftest`); 11 7.7 (subscribe then read); ARCHITECTURE 5.3 (recording row), R-ARCH-26; Q-CAP-24, Q-SHELL-9, Q-SHELL-18, Q-IPC-20, Q-IPC-22 |
-| Deliverables | Core `CaptureReadiness`, the hero, picker and recording-panel strings in `HomeText`; App `CreateHeroViewModel`, `CaptureModePickerViewModel` (named singleton, implements `ICaptureTargetSelection`), `RecordingPanelViewModel` (shows the list length, Q-IPC-22), the new-recording flow (`StartAsync(path, new CaptureStartOptions(Target, CreatedThisSession: true))`) and the Empty Project flow, Resume capturing in the project command bar (the target is read from `ICaptureTargetSelection.BuildTarget()` at click time and carried by 05's `ResumeCaptureRequested`, R-ARCH-26), the `Recording` view of `ShellViewModel`; the `--capture-selftest` body with the macOS size corrections; the Debug timing line per capture job (PB-4) added to 02's log table. Added by WP-A16: the Recording view in `ShellViewModel` (`ShellViewKind.Recording` outranks Settings, INV-HOME-18), with `Shell/ShellViewModelTests.RecordingHidesViews` and `.MenuRequestsIgnoredWhileRecording` from 06 8.4. Added by WP-A17: the project view's `Adopt` of a recorded project (05 7.3), and the command bar's actions row for Resume capturing (WP-A17's bar is Back, the title and the count) |
-| Tests | No Electron file. New: Core `Home/CaptureReadinessTests`, `HomeTextTests` (complete), `Threading/SubscribeThenReadTests`; App `Home/CaptureModePickerTests`, `Home/RecordingPanelTests`, `Home/HomeViewModelTests.CaptureCreatesAndStartsWithCreatedThisSession`, `EmptyProjectOpensWithoutCapture`, `Threading/EventOrderTests`, `Shell/ShellViewModelTests` (recording rows) |
-| Acceptance criteria | AC-CAP-10, AC-CAP-14, AC-CAP-15, AC-CAP-19, AC-CAP-22, AC-CAP-23, AC-CAP-24, AC-CAP-25, AC-CAP-26, AC-CAP-28, AC-SHELL-3, AC-SHELL-7, AC-SHELL-8, AC-SHELL-9, AC-SHELL-10, AC-SHELL-11, AC-SHELL-12, AC-SHELL-13, AC-SHELL-14, AC-SHELL-15, AC-SHELL-16, AC-SHELL-17, AC-SHELL-19, AC-SHELL-26, AC-SHELL-27, AC-SHELL-31, AC-SHELL-32, AC-HOME-2, AC-HOME-13, AC-HOME-14, AC-INFRA-26, AC-IPC-5, AC-IPC-7, AC-IPC-21 |
+| Goal | A user records from Home (new project) or resumes into an open project, with the pill and the area overlay wired; the phase's manual criteria for recording run here |
+| Spec inputs | 06 2.3 to 2.5, 7.3 (`CaptureReadiness`), 7.6 (`CreateHeroViewModel`, `CaptureModePickerViewModel`), 7.9, 7.13, 8.4 (the Home recording rows but the panel's), INV-HOME-16 to INV-HOME-18, INV-HOME-43, EDGE-HOME-7, EDGE-HOME-18, EDGE-HOME-31, EDGE-HOME-57; 05 2.3 (Resume capturing), 2.19 (picker rules shared with Home), 7.3 (`Adopt`), 7.14, EDGE-REP-37, EDGE-REP-43; 02 2.2.2; 11 7.3 (`ICaptureTargetSelection`), INV-IPC-22; ARCHITECTURE 5.3 (recording row), R-ARCH-19, R-ARCH-22, R-ARCH-26; Q-CAP-24, Q-SHELL-9 |
+| Deliverables | Core `CaptureMode`, `CaptureReadiness`, the hero, picker and recording-panel strings in `HomeText`; App `ICaptureTargetSelection`, `CreateHeroViewModel`, `CaptureModePickerViewModel` (named singleton, implements `ICaptureTargetSelection`), `TargetDropdownView` (in 03's overlay layer, R-ARCH-19), the new-recording flow (`StartAsync(path, new CaptureStartOptions(Target, CreatedThisSession: true))`) and the Empty Project flow, Resume capturing in the project command bar (the target is read from `ICaptureTargetSelection.BuildTarget()` at click time and carried by 05's `ResumeCaptureRequested`, R-ARCH-26), 05's `Adopt` (a new session, or the recorded manifest applied durably to the open one, EDGE-REP-43), the `Recording` view of `ShellViewModel`. Added by WP-A16: the Recording view in `ShellViewModel` (`ShellViewKind.Recording` outranks Settings, INV-HOME-18), with `Shell/ShellViewModelTests.RecordingHidesViews` and `.MenuRequestsIgnoredWhileRecording` from 06 8.4. Added by WP-A17: the project view's `Adopt` of a recorded project (05 7.3), and the command bar's actions row for Resume capturing (WP-A17's bar is Back, the title and the count). As built in WP-B9a: `HomeViewModel` makes the hero, which raises `CaptureRequested` and `EmptyProjectRequested`; the flows (the new recording, Empty Project and Resume capturing) are `ShellViewModel`'s, the capture coordinator, since a transient hero could not adopt into the project view the shell shows (06 7.6 corrected); the dropdown's trigger is `TargetTrigger`, a `Button` with an ExpandCollapse peer, not a `ToggleButton`; the start's state is read again rather than taken from its result (11 T7); 05 gains `ReloadAsync` (the reload after a recording, EDGE-REP-43) and `IsOpen`; the Recording view's host stays empty until WP-B9b's panel; a Debug build's `SHOTAI_DEBUG_CAPTURE_FAILED=1` is AC-SHELL-12's test hook, and `SessionEnding` logs its teardown for AC-SHELL-27 |
+| Tests | No Electron file. New: Core `Home/CaptureReadinessTests`, `HomeTextTests` (complete); App `Home/CaptureModePickerTests`, `Home/HomeViewModelTests.CaptureCreatesAndStartsWithCreatedThisSession`, `EmptyProjectOpensWithoutCapture`, `Shell/ShellViewModelTests` (recording rows), `Report/ProjectDetailStateTests.AdoptIntoOpenSessionIsDurable` and `.ResumeUsesCaptureTargetSelection`. As built in WP-B9a: 93 tests, 39 Core (`CaptureReadinessTests` 30, eight `HomeTextTests` cases and the new XAML file's `XamlChromeGuardTests` case) and 54 App (`CaptureModePickerTests` 18, `TargetDropdownTests` 7 on the real shell view, `HomeViewModelTests` 10, `ShellViewModelTests` 11 and `ProjectDetailStateTests` 8); the dropdown's cases that 06 8.4 lists under `CaptureModePickerTests` are `TargetDropdownTests`' (06 8.4 as built) |
+| Acceptance criteria | AC-CAP-10, AC-CAP-14, AC-CAP-15, AC-CAP-19, AC-CAP-22, AC-CAP-23, AC-CAP-24, AC-CAP-25, AC-CAP-26, AC-SHELL-3, AC-SHELL-7, AC-SHELL-8, AC-SHELL-9, AC-SHELL-10, AC-SHELL-11, AC-SHELL-12, AC-SHELL-13, AC-SHELL-14, AC-SHELL-15, AC-SHELL-16, AC-SHELL-17, AC-SHELL-19, AC-SHELL-26, AC-SHELL-27, AC-SHELL-31, AC-SHELL-32, AC-HOME-2, AC-HOME-13, AC-HOME-14, AC-IPC-21 |
 | Depends on | WP-B4, WP-B6, WP-B7, WP-B8, WP-A17, WP-A19a |
 | Size | M (code); its manual script is long and is run in one sitting on the reference x64 machine with a 100% plus 150% monitor pair, then repeated for the ARM64 subset |
-| Risks and de-risking | A burst of capture events starving input and render (Q-IPC-20): the 20-clicks-in-5-seconds script must record 20 steps and the pill must stay responsive; `StateChanged` subscribers coalesce |
+| Risks and de-risking | A popup HWND over the excluded main window (INV-HOME-43): the target dropdown is an element of 03's overlay layer, not a `Popup` (`TargetDropdownTests.DropdownIsOverlayElement`); a mode or pick lost on navigation (EDGE-HOME-57): the picker is one singleton (`SurvivesNavigation`). Outcome in WP-B9a: both hold on both runners. Reviewing its own code after the first push found one product bug: the shell applied the start's result as returned, so a session the engine ended before the start's continuation ran would have left the Recording view up with no event to take it down; the state is now read again (11 T7, `ShellViewModelTests.ASessionOverBeforeTheStartReturnedShowsTheProject`). The first Windows run failed one test on both legs, `ChangesAreNotified`: the shell raised `HeaderVisible` on every derivation, a repeated one included; it is now raised when the recording state changes. 114 mutations of the Core changes, all caught: 108 on the first pass, 3 only after new asserts closed gaps (a title of spaces is kept, a count of 1000 has no group separator, only Paused reads Paused), and 3 after a rewrite (two patterns matched twice and one did not build) |
 | Demo | from Home, record a five-click flow in Auto mode; stop; the report shows five captioned steps |
+
+#### WP-B9b. Recording panel, event order and the capture self-test
+
+Split from WP-B9 in WP-B9a (2.2 step 3).
+
+| Field | Content |
+|---|---|
+| Goal | The in-window recording panel a window shown during a recording displays (a second launch, Q-SHELL-18), the capture events' order and coalescing measured, and `--capture-selftest` |
+| Spec inputs | 06 2.6, 7.6 (`RecordingPanelViewModel`), 8.4 (`RecordingPanelTests`), EDGE-HOME-30; 02 2.13, 2.16, EDGE-CAP-34; 10 7.8 (`--capture-selftest`); 11 7.7 (subscribe then read), INV-IPC-5, INV-IPC-7, EDGE-IPC-35; ARCHITECTURE 11 (PB-4); Q-SHELL-18, Q-IPC-20, Q-IPC-22 |
+| Deliverables | App `RecordingPanelViewModel` (shows the list length, Q-IPC-22) and its view in the shell's Recording view; the `StateChanged` coalescing of Q-IPC-20; the `--capture-selftest` body with the macOS size corrections; the Debug timing line per capture job (PB-4) added to 02's log table |
+| Tests | No Electron file. New: Core `Threading/SubscribeThenReadTests` (the capture cases; the update cases join with WP-E1); App `Home/RecordingPanelTests`, `Threading/EventOrderTests`, and the capture self-test's |
+| Acceptance criteria | AC-CAP-28, AC-INFRA-26, AC-IPC-5, AC-IPC-7 |
+| Depends on | WP-B9a |
+| Size | M |
+| Risks and de-risking | A burst of capture events starving input and render (Q-IPC-20): the 20-clicks-in-5-seconds script must record 20 steps and the pill must stay responsive; `StateChanged` subscribers coalesce |
+| Demo | `--capture-selftest` prints `[capture-test] PASS`; a second launch during a recording shows the panel with the steps so far |
 
 #### WP-B10. Settings view (non-AI groups) and the onboarding tour
 
@@ -779,7 +797,7 @@ Goal (feasibility): the report becomes editable (optimistic, with rollback), the
 | Deliverables | Core `CaptureTargetPicker`; App `CaptureInsertDialog`, `CaptureInsertViewModel` (modes per variant, targets loaded on open, area through `IAreaSelectionService`), the insert handlers: Image (`IFileDialogs`, `ImportLimits.Check` on `FileInfo.Length` before reading, `ApplyDurable(s => s.ImportStepAsync(...))`), Screenshot (`ApplyDurable` over `CaptureScreenshotAsync`), Capture (`StartAsync` with `InsertAt`; after the recording its result is adopted into the open session through `ApplyDurable`, a `Durable` change the report reconciles exactly like an `External` one, 05 EDGE-REP-43, ARCHITECTURE 7.4). Added by WP-A17: the project view's `Adopt` into the open session (05 7.3, EDGE-REP-43) and the producers of the `Import` notice slot |
 | Tests | No Electron file. New: Core `Report/CaptureTargetPickerTests`; App `Report/DialogKeyboardTests` (capture dialog cases), `ProjectDetailStateTests` (`TextDraftBlocksRecordingAndExport` recording part, `CaptureGuardShowsInfoWithoutPrefix`) |
 | Acceptance criteria | AC-CAP-16, AC-CAP-17, AC-CAP-18, AC-CAP-20, AC-REP-22, AC-REP-34, AC-IPC-9, AC-IPC-10 |
-| Depends on | WP-C3, WP-B9 |
+| Depends on | WP-C3, WP-B9a |
 | Size | M |
 | Risks and de-risking | A 70 MB file read before the size check (AC-IPC-10): the length check runs on the file system entry, measured with `dotnet-counters` |
 | Demo | insert a screenshot at gap 2 of a 5-step project in Screen mode: one new step 3, no pill, the main window returns focused |
@@ -1546,7 +1564,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-CAP-21 | monitor names | WP-B11 | DisplayConfig friendly name; compare |
 | Q-CAP-22 | cross-thread affinity and the shield lock | WP-B5 | DL1 plus `ShieldDeadlockTests` (decided in WP-B5) |
 | Q-CAP-23 | why Electron dropped clicks | WP-B4 | no action; reinstalls logged (decided in WP-B4) |
-| Q-CAP-24 | incomplete targets | WP-B9 | the picker cannot submit incomplete; D23 warning |
+| Q-CAP-24 | incomplete targets | WP-B9a | the picker cannot submit incomplete; D23 warning (decided in WP-B9a: an incomplete Window or Area target becomes Auto, which only Resume reaches) |
 
 #### 03 Windows and shell
 
@@ -1555,12 +1573,12 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-SHELL-1 | single-instance scope | WP-A13 | `Local\` plus SID |
 | Q-SHELL-2 | pill corners | WP-B7 | rectangle (decided in WP-B7) |
 | Q-SHELL-3 | tooltips and popups in the pill | WP-A13, WP-B7 | tests first; `ShotAIPopup` on hover or the hook fallback. Decided in WP-A13 for popups visible before registration: the `WH_CALLWNDPROC` catch-all (`WindowShowHook`); tooltips on the never-active pill stay with WP-B7. Decided in WP-B7: WPF opens them on the never-active pill, so no `ShotAIPopup` replaces them |
-| Q-SHELL-4 | drag of a no-activate window | WP-B7 | manual drag (decided in WP-B7; AC-SHELL-8 in WP-B9) |
+| Q-SHELL-4 | drag of a no-activate window | WP-B7 | manual drag (decided in WP-B7; AC-SHELL-8 in WP-B9a) |
 | Q-SHELL-5 | `DIPToScreenRect` rounding | WP-B11 | implement as written; compare log lines (implemented as written in WP-B8) |
 | Q-SHELL-6 | clamp cross-monitor drags | WP-B8 | no clamp (parity) (decided in WP-B8) |
 | Q-SHELL-7 | Discard dialog buttons | WP-B7 | `Discard` and `Cancel`, Cancel default (decided in WP-B7) |
 | Q-SHELL-8 | keyboard access to the pill | WP-B7, WP-E6 | accept; revisit in the accessibility pass (accepted in WP-B7) |
-| Q-SHELL-9 | window click-pick | WP-B9 | not added |
+| Q-SHELL-9 | window click-pick | WP-B9a | not added (decided in WP-B9a) |
 | Q-SHELL-10 | macOS menu extras | WP-A15 | not in 2.0.0 (decided in WP-A15) |
 | Q-SHELL-11 | full-screen details | WP-A15 | cover the monitor, keep the menu (decided in WP-A15; a maximized window is maximized again after) |
 | Q-SHELL-12 | UI zoom persistence | WP-A15 | not persisted; the content only (decided in WP-A15) |
@@ -1569,7 +1587,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-SHELL-15 | window size persistence | WP-A15 | no (decided in WP-A15) |
 | Q-SHELL-16 | UI-thread exceptions | WP-A12 | log, handle, show the generic notice (log and handle done in WP-A12: `CrashLogging`; the notice done in WP-A16, while the main window is visible) |
 | Q-SHELL-17 | HUD during the screenshot settle | WP-C4 | none |
-| Q-SHELL-18 | second launch while recording | WP-B9 | parity (surfaces the main window) |
+| Q-SHELL-18 | second launch while recording | WP-B9b | parity (surfaces the main window) |
 | Q-SHELL-19 | the legacy guard's `MessageBox` | WP-E5 | keep until S5, allowlisted |
 | Q-SHELL-20 | widths and invisible borders | WP-A20 | outer widths; measure once (the default taken in WP-A15; the measurement is in #137's manual script) |
 | Q-SHELL-21 | `ShowActivated` after `Hide` | WP-B7 | test; `SW_SHOWNOACTIVATE` path if needed (decided in WP-B7: not needed) |
@@ -1787,9 +1805,9 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-17 | subscriber that forgets to marshal | WP-A12 | `VerifyAccess` in Debug, affinity tests (done in WP-A12: `ViewModelBase.CheckAffinity`, on in Debug builds; `Threading/ViewModelAffinityTests`) |
 | Q-IPC-18 | singleton keeping a view alive | WP-A12 | `SubscriberDisposalTests` (done in WP-A12, over the two events that exist so far) |
 | Q-IPC-19 | channel map maintenance | WP-A1 | `MatchesElectronWhileItExists` |
-| Q-IPC-20 | dispatcher priority | WP-B9 | `Normal` plus coalescing; the 20-click script |
+| Q-IPC-20 | dispatcher priority | WP-B9b | `Normal` plus coalescing; the 20-click script |
 | Q-IPC-21 | `VSTHRD200` on `Apply` | WP-A9 | keep the names, suppress on two members (done in WP-A9) |
-| Q-IPC-22 | `GetState()` ahead of `StepLanded` | WP-B9 | panel shows the list length |
+| Q-IPC-22 | `GetState()` ahead of `StepLanded` | WP-B9b | panel shows the list length |
 | Q-IPC-23 | `StartAsync` during a screenshot | WP-B2 | throws `A recording is already in progress` (D21) (decided in WP-B2) |
 
 #### 12 Packaging, CI and release
@@ -1914,25 +1932,25 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-CAP-7 | WP-B11 | Manual: right-click in File Explorer, choose View then Extra large icons. The recording ... |
 | AC-CAP-8 | WP-B11 | Manual: right-click, press Esc, wait 20 s, click nearby within 30 s. The step still gets a ... |
 | AC-CAP-9 | WP-B11 | Manual: five quick left clicks at one spot within 400 ms of each other yield exactly one step. |
-| AC-CAP-10 | WP-B9 | Manual: clicks on the pill (every button and the drag area) produce no step and do not change ... |
+| AC-CAP-10 | WP-B9a | Manual: clicks on the pill (every button and the drag area) produce no step and do not change ... |
 | AC-CAP-11 | WP-B11 | Manual with remote visibility ON, viewed through a Teams screen share: the pill is visible to ... |
 | AC-CAP-12 | WP-B11 | Manual with remote visibility OFF: the pill and main window are never visible in a Teams ... |
 | AC-CAP-13 | WP-B5 | ShotAI.ProtectionProbe reports CLEAN at +0 ms for both the normal and the AllowsTransparency ... |
-| AC-CAP-14 | WP-B9 | Manual: press Ctrl+Shift+S while recording with Notepad focused: a step Capture: <Notepad ... |
-| AC-CAP-15 | WP-B9 | Manual: with another app holding Ctrl+Shift+S, start a recording: recording works mouse-only ... |
+| AC-CAP-14 | WP-B9a | Manual: press Ctrl+Shift+S while recording with Notepad focused: a step Capture: <Notepad ... |
+| AC-CAP-15 | WP-B9a | Manual: with another app holding Ctrl+Shift+S, start a recording: recording works mouse-only ... |
 | AC-CAP-16 | WP-C4 | Manual: "+ Screenshot" with a closed picked window shows That window is no longer open  ... |
 | AC-CAP-17 | WP-C4 | Manual: "+ Screenshot" in Screen mode inserts one step at the chosen gap, the pill never ... |
 | AC-CAP-18 | WP-C4 | Manual: "+ Capture" at gap 2 of a 5-step project, three clicks: the new steps are positions 3 ... |
-| AC-CAP-19 | WP-B9 | Manual: Discard on a project created for this recording deletes the folder; Discard on an ... |
+| AC-CAP-19 | WP-B9a | Manual: Discard on a project created for this recording deletes the folder; Discard on an ... |
 | AC-CAP-20 | WP-C4 | Manual: delete step 3 of a 5-step project, then record one step: its file is step-0006.png and ... |
 | AC-CAP-21 | WP-B11 | Manual, mixed DPI (100% primary, 150% secondary): a double-click 8 physical px apart on the ... |
-| AC-CAP-22 | WP-B9 | Manual: with a hung app (a test app whose UI thread sleeps 10 s), clicking it still produces a ... |
-| AC-CAP-23 | WP-B9 | Manual: LowLevelHooksTimeout set to 200 ms in the registry and a debugger breakpoint in the ... |
-| AC-CAP-24 | WP-B9 | Manual: clicks from a Splashtop or Quick Assist remote session produce steps. |
-| AC-CAP-25 | WP-B9 | Manual: a stored PNG opened in an image viewer is fully opaque (no transparency checkerboard). |
-| AC-CAP-26 | WP-B9 | Manual: with a shots junction pointing outside the project, Start is refused with the D10 ... |
+| AC-CAP-22 | WP-B9a | Manual: with a hung app (a test app whose UI thread sleeps 10 s), clicking it still produces a ... |
+| AC-CAP-23 | WP-B9a | Manual: LowLevelHooksTimeout set to 200 ms in the registry and a debugger breakpoint in the ... |
+| AC-CAP-24 | WP-B9a | Manual: clicks from a Splashtop or Quick Assist remote session produce steps. |
+| AC-CAP-25 | WP-B9a | Manual: a stored PNG opened in an image viewer is fully opaque (no transparency checkerboard). |
+| AC-CAP-26 | WP-B9a | Manual: with a shots junction pointing outside the project, Start is refused with the D10 ... |
 | AC-CAP-27 | WP-B11 | Manual: in auto mode, click an inactive window's content area once. The step crops to the ... |
-| AC-CAP-28 | WP-B9 | --capture-selftest prints [capture-test] PASS on a Windows machine with at least one visible ... |
+| AC-CAP-28 | WP-B9b | --capture-selftest prints [capture-test] PASS on a Windows machine with at least one visible ... |
 | AC-CAP-29 | WP-B11 | Manual: in Screen mode with monitor 2 chosen, right-click on monitor 1 and select a menu item ... |
 | AC-CAP-30 | WP-D8 | Manual: the SOP review list (spec 07) shows the same App: and Window: values for a native step ... |
 | AC-CAP-31 | WP-B11 | Manual: put a file step-99999999999999999999.png in a project's shots/ and record three ... |
@@ -1947,36 +1965,36 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 |---|---|---|
 | AC-SHELL-1 | WP-B8 | dotnet test of ShotAI.Core.Tests passes every class in 8.3's Core table on Linux. |
 | AC-SHELL-2 | WP-B8 | On Windows, ShotAI.Platform.Tests and ShotAI.App.Tests pass. |
-| AC-SHELL-3 | WP-B9 | Manual: launch, then click the main window's X. Task Manager shows no shotAI.exe within 2 s. ... |
+| AC-SHELL-3 | WP-B9a | Manual: launch, then click the main window's X. Task Manager shows no shotAI.exe within 2 s. ... |
 | AC-SHELL-4 | WP-A13 | Manual: with shotAI running and minimized, launch it again from the Start menu. No second ... |
 | AC-SHELL-5 | WP-A15 | Manual: fresh launch on a 1920 x 1080 monitor at 100%: the main window is 720 x 740 DIP ... |
 | AC-SHELL-6 | WP-C3 | Manual: open a project at 100% scale: the window grows to 1010 DIP, keeping its center ... |
-| AC-SHELL-7 | WP-B9 | Manual: start a recording from a window on the secondary monitor. The main window disappears ... |
-| AC-SHELL-8 | WP-B9 | Manual: drag the pill by its label and by its hint row; it follows the cursor live without ... |
-| AC-SHELL-9 | WP-B9 | Manual: during a recording, click Pause once. The first click pauses (label Paused · N in ... |
-| AC-SHELL-10 | WP-B9 | Manual: immediately after starting a recording, click once on a button in another app. That ... |
-| AC-SHELL-11 | WP-B9 | Manual: each capture flashes a green ring on the pill for about 0.7 s; with "Show animations ... |
-| AC-SHELL-12 | WP-B9 | Manual (with a test hook that raises CaptureFailed("") and then CaptureFailed("Disk full")) ... |
-| AC-SHELL-13 | WP-B9 | Manual: click the pill's ✕ on a new project's first recording: the dialog reads Discard this ... |
-| AC-SHELL-14 | WP-B9 | Manual: double-click Stop quickly: exactly one stop happens, the pill hides once, and the main ... |
-| AC-SHELL-15 | WP-B9 | Manual, two monitors at 100% and 150%: choose Area, the main window hides, both monitors show ... |
-| AC-SHELL-16 | WP-B9 | Manual: drag a 400 x 300 DIP rectangle on the 150% monitor: outside dims at 40% black, a 2 DIP ... |
-| AC-SHELL-17 | WP-B9 | Manual: a click without drag, a 3 x 3 drag, a right click and Esc each cancel the selection ... |
+| AC-SHELL-7 | WP-B9a | Manual: start a recording from a window on the secondary monitor. The main window disappears ... |
+| AC-SHELL-8 | WP-B9a | Manual: drag the pill by its label and by its hint row; it follows the cursor live without ... |
+| AC-SHELL-9 | WP-B9a | Manual: during a recording, click Pause once. The first click pauses (label Paused · N in ... |
+| AC-SHELL-10 | WP-B9a | Manual: immediately after starting a recording, click once on a button in another app. That ... |
+| AC-SHELL-11 | WP-B9a | Manual: each capture flashes a green ring on the pill for about 0.7 s; with "Show animations ... |
+| AC-SHELL-12 | WP-B9a | Manual (with a test hook that raises CaptureFailed("") and then CaptureFailed("Disk full")) ... |
+| AC-SHELL-13 | WP-B9a | Manual: click the pill's ✕ on a new project's first recording: the dialog reads Discard this ... |
+| AC-SHELL-14 | WP-B9a | Manual: double-click Stop quickly: exactly one stop happens, the pill hides once, and the main ... |
+| AC-SHELL-15 | WP-B9a | Manual, two monitors at 100% and 150%: choose Area, the main window hides, both monitors show ... |
+| AC-SHELL-16 | WP-B9a | Manual: drag a 400 x 300 DIP rectangle on the 150% monitor: outside dims at 40% black, a 2 DIP ... |
+| AC-SHELL-17 | WP-B9a | Manual: a click without drag, a 3 x 3 drag, a right click and Esc each cancel the selection ... |
 | AC-SHELL-18 | WP-B11 | Manual: with remote visibility ON and a Teams or Splashtop session watching, the Area overlay ... |
-| AC-SHELL-19 | WP-B9 | ShotAI.ProtectionProbe (spec 02) run against the pill window with the setting OFF reports ... |
+| AC-SHELL-19 | WP-B9a | ShotAI.ProtectionProbe (spec 02) run against the pill window with the setting OFF reports ... |
 | AC-SHELL-20 | WP-A18 | Manual: View then Brand is disabled on Home; with a project open and no pin, App default (<app ... |
 | AC-SHELL-21 | WP-A18 | Manual, with a debug build that re-raises the navigation state every second without changing ... |
 | AC-SHELL-22 | WP-D15 | Manual: Ctrl+O on Home runs the import flow, Ctrl+, opens Settings; both do nothing while a ... |
 | AC-SHELL-23 | WP-A15 | Manual: Ctrl+Shift+= (and Ctrl+=), Ctrl+-, Ctrl+0 zoom the main window's content in half-level ... |
 | AC-SHELL-24 | WP-A15 | Manual: Help then About shotAI shows title About shotAI, shotAI <version>, the tagline with ... |
 | AC-SHELL-25 | WP-A12 | Log review after a normal session: the runtime line, exiting (code 0); after a forced ... |
-| AC-SHELL-26 | WP-B9 | Manual: disconnect the monitor where the pill was left, start a recording: the pill docks ... |
-| AC-SHELL-27 | WP-B9 | Manual, while recording: sign out of Windows. The log shows teardown before exit; after ... |
+| AC-SHELL-26 | WP-B9a | Manual: disconnect the monitor where the pill was left, start a recording: the pill docks ... |
+| AC-SHELL-27 | WP-B9a | Manual, while recording: sign out of Windows. The log shows teardown before exit; after ... |
 | AC-SHELL-28 | WP-E6 | Code review: no file in ShotAI.App calls MessageBox.Show, Dispatcher.Invoke( from capture ... |
 | AC-SHELL-29 | WP-B8 | Code review: ShotAI.Core/Shell references no System.Windows, Windows.Win32 or Microsoft.Win32 ... |
 | AC-SHELL-30 | WP-E3 | Manual (spec 12): after installing the MSI offline (spec 12 AC-PKG-2), Settings then Apps then ... |
-| AC-SHELL-31 | WP-B9 | Manual, primary at 100% and secondary at 150%: launch with the cursor on the secondary. The ... |
-| AC-SHELL-32 | WP-B9 | Manual, with Notepad open behind shotAI: start and stop a recording three times. After every ... |
+| AC-SHELL-31 | WP-B9a | Manual, primary at 100% and secondary at 150%: launch with the cursor on the secondary. The ... |
+| AC-SHELL-32 | WP-B9a | Manual, with Notepad open behind shotAI: start and stop a recording three times. After every ... |
 | AC-SHELL-33 | WP-A16 | Manual (startup auto-archive): with archiveAgeDays 90, a 91-day-old project is under Archive and an 89-day-old one under Projects without interaction ... |
 
 ### 04 Editor and redaction (EDIT)
@@ -2067,7 +2085,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC | WP | Criterion (abridged; the spec text is normative) |
 |---|---|---|
 | AC-HOME-1 | WP-A16 | DateGroupsTests (all 8 ported cases) and DateGroupsDstTests pass on Linux and Windows. |
-| AC-HOME-2 | WP-B9 | HomeListPipelineTests, HomeSelectionTests, RenameSessionTests, BulkRunnerTests ... |
+| AC-HOME-2 | WP-B9a | HomeListPipelineTests, HomeSelectionTests, RenameSessionTests, BulkRunnerTests ... |
 | AC-HOME-3 | WP-A14 | XamlChromeGuardTests and XamlResourceKeyGuardTests pass on Linux, and each fails when a ... |
 | AC-HOME-4 | WP-A14 | ThemeTokenSetTests passes and every value equals 10's generated table for shotAI and LFI in ... |
 | AC-HOME-5 | WP-A16 | Manual: with 12 projects (3 archived) the tabs read Projects 9 and Archive 3; typing a query ... |
@@ -2078,8 +2096,8 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-HOME-10 | WP-A19a | Manual: Delete on a row shows Delete "<title>"? This removes the project folder and its ... |
 | AC-HOME-11 | WP-A19a | Manual: rename a project to the same name with surrounding spaces and press Enter: no write ... |
 | AC-HOME-12 | WP-A16 | Manual: with Home open, create a project folder from another machine or the macOS app in the ... |
-| AC-HOME-13 | WP-B9 | Manual: Window mode with no windows open shows Pick a window above to start recording , that's ... |
-| AC-HOME-14 | WP-B9 | Manual: type a name, press Enter in Screen mode: the window hides, the pill shows, and Discard ... |
+| AC-HOME-13 | WP-B9a | Manual: Window mode with no windows open shows Pick a window above to start recording , that's ... |
+| AC-HOME-14 | WP-B9a | Manual: type a name, press Enter in Screen mode: the window hides, the pill shows, and Discard ... |
 | AC-HOME-15 | WP-B10 | Manual: scroll the Home list down, open a project, go back: the list is at the same offset ... |
 | AC-HOME-16 | WP-B10 | Manual: on a fresh profile (no settings.json) the tour opens on first launch with Step 1 of 5 ... |
 | AC-HOME-17 | WP-B10 | TourLayoutTests pass; manual: with the window 700 DIP tall, step 5's bubble sits below the ... |
@@ -2252,7 +2270,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-INFRA-23 | WP-E1 | ExternalLinkPolicyTests pass; manually, Open the download page opens the GitHub release page ... |
 | AC-INFRA-24 | WP-E1 | A network trace of a native launch with default settings and no user action shows requests ... |
 | AC-INFRA-25 | WP-A12 | Start-Process .\shotAI.exe -ArgumentList '--selftest' -Wait -PassThru -RedirectStandardOutput ... |
-| AC-INFRA-26 | WP-B9 | --capture-selftest on a Windows desktop prints [capture-test] ... lines and exits 0 on PASS, 1 ... |
+| AC-INFRA-26 | WP-B9b | --capture-selftest on a Windows desktop prints [capture-test] ... lines and exits 0 on PASS, 1 ... |
 | AC-INFRA-27 | WP-A12 | Running --selftest leaves %APPDATA%\shotAI\settings.json byte-identical (compare hashes before ... |
 | AC-INFRA-28 | WP-E1 | --update-selftest on a corporate network prints the endpoint, the result, and [update-test] ... |
 | AC-INFRA-29 | WP-E3 | The installed app contains Fonts\Archivo.ttf (sha256 0e094a7d…) and Fonts\OFL.txt ... |
@@ -2271,9 +2289,9 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-IPC-2 | WP-E6 | ChannelMapResolutionTests passes on Windows: every row's member resolves. |
 | AC-IPC-3 | WP-D4 | AuthSurfaceTests passes: AuthStatus has exactly the seven members of INV-IPC-1, and no member ... |
 | AC-IPC-4 | WP-E1 | ExternalLinkPolicyTests passes with the full table of 8.2; manual: in the running app, the ... |
-| AC-IPC-5 | WP-B9 | EventOrderTests and WpfUiDispatcherTests pass: two subscribers see capture events in raise ... |
+| AC-IPC-5 | WP-B9b | EventOrderTests and WpfUiDispatcherTests pass: two subscribers see capture events in raise ... |
 | AC-IPC-6 | WP-A12 | The solution builds with VSTHRD002, VSTHRD100, VSTHRD101, VSTHRD110, CA2007 (Core, Platform) ... |
-| AC-IPC-7 | WP-B9 | SubscribeThenReadTests passes, including OlderPayloadProcessedLateDoesNotWin; manual: start a ... |
+| AC-IPC-7 | WP-B9b | SubscribeThenReadTests passes, including OlderPayloadProcessedLateDoesNotWin; manual: start a ... |
 | AC-IPC-8 | WP-D12 | StaleProgressTests passes; manual: start a PDF export of a 20-step project and press Back ... |
 | AC-IPC-9 | WP-C4 | UserMessageTests passes; manual: import a 0-byte file with Insert Image and the notice reads ... |
 | AC-IPC-10 | WP-C4 | ImportLimitsTests passes; manual: Insert Image with a 70 MB PNG shows Import failed: Image too ... |
@@ -2287,7 +2305,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-IPC-18 | WP-A19a | ExitFlushTests passes; manual: rename a project and within 100 ms choose File, Exit; after ... |
 | AC-IPC-19 | WP-D12 | SingleWebViewTests and SingleUrlLauncherTests pass. |
 | AC-IPC-20 | WP-A19a | Manual: Home, row menu, Reveal in Explorer on a project whose folder is on a disconnected ... |
-| AC-IPC-21 | WP-B9 | Manual: area selection from the target chooser: the main window hides, the overlay appears on ... |
+| AC-IPC-21 | WP-B9a | Manual: area selection from the target chooser: the main window hides, the overlay appears on ... |
 | AC-IPC-22 | WP-E6 | Manual parity walk: every row of 7.4 whose Native caller is a UI surface is exercised once in ... |
 | AC-IPC-23 | WP-D6 | ScreenshotTargetTests passes, and FireAndForgetTests passes. |
 | AC-IPC-24 | WP-D10 | ExportReadsBrandAtCallTimeTests passes; manual: switch the app brand in Settings and export ... |
@@ -2454,7 +2472,8 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-B6. Window information and UI Automation (#148)
 - [x] WP-B7. Capture pill and recording visibility (#149)
 - [x] WP-B8. Area-select overlay (#150)
-- [ ] WP-B9. Recording from Home and the project view
+- [ ] WP-B9a. Recording from Home and the project view: merged in #151, manual pending: AC-CAP-10, AC-CAP-14, AC-CAP-15, AC-CAP-19, AC-CAP-22, AC-CAP-23, AC-CAP-24, AC-CAP-25, AC-CAP-26, AC-SHELL-3, AC-SHELL-7, AC-SHELL-8, AC-SHELL-9, AC-SHELL-10, AC-SHELL-11, AC-SHELL-12, AC-SHELL-13, AC-SHELL-14, AC-SHELL-15, AC-SHELL-16, AC-SHELL-17, AC-SHELL-19, AC-SHELL-26, AC-SHELL-27, AC-SHELL-31, AC-SHELL-32, AC-HOME-13, AC-HOME-14, AC-IPC-21
+- [ ] WP-B9b. Recording panel, event order and the capture self-test
 - [ ] WP-B10. Settings view (non-AI groups) and the onboarding tour
 - [ ] WP-B11. Phase B exit (M-B)
 

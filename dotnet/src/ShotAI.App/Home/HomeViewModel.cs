@@ -42,8 +42,9 @@ public enum HomeEmptyState
 /// row or bulk operation runs at a time. UI thread only.
 /// </summary>
 /// <remarks>
-/// The hero and the capture-mode picker join in WP-B9; export from a row and the bulk bar in
-/// WP-D16; the import flow in WP-D15. Open and Import raise requests the shell hands on
+/// Above the list, the create hero and the capture-mode picker (<see cref="Hero"/>,
+/// <see cref="Mode"/>, WP-B9a), whose requests the shell runs; export from a row and the bulk bar
+/// join in WP-D16, the import flow in WP-D15. Open and Import raise requests the shell hands on
 /// (<see cref="OpenRequested"/> to the project view, whose failures come back as
 /// <see cref="OnOpenFailed"/>).
 /// </remarks>
@@ -74,15 +75,16 @@ public sealed partial class HomeViewModel : ViewModelBase, IDisposable
     private bool _clearingQuery;
     private bool _disposed;
 
-    /// <summary>A Home list over the store; it lists nothing until <see cref="OnEnter"/>.</summary>
+    /// <summary>A Home list over the store, under the hero and the one picker; it lists nothing until <see cref="OnEnter"/>.</summary>
     public HomeViewModel(
-        IProjectService projects, IShellReveal reveal, INoticeService notices, IConfirmService confirm, IUiDispatcher ui, TimeProvider time,
-        ILogger<HomeViewModel> log)
+        IProjectService projects, IShellReveal reveal, INoticeService notices, IConfirmService confirm, CaptureModePickerViewModel mode, IUiDispatcher ui,
+        TimeProvider time, ILogger<HomeViewModel> log)
     {
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(reveal);
         ArgumentNullException.ThrowIfNull(notices);
         ArgumentNullException.ThrowIfNull(confirm);
+        ArgumentNullException.ThrowIfNull(mode);
         ArgumentNullException.ThrowIfNull(ui);
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(log);
@@ -93,6 +95,7 @@ public sealed partial class HomeViewModel : ViewModelBase, IDisposable
         _ui = ui;
         _time = time;
         _log = log;
+        Hero = new CreateHeroViewModel(mode);
         Bulk = new BulkBarViewModel(this);
         Selection.Changed += (_, _) => OnSelectionChanged();
         _tick = new DispatcherTimer(DispatcherPriority.Background) { Interval = AutoRefreshPolicy.Interval };
@@ -119,6 +122,12 @@ public sealed partial class HomeViewModel : ViewModelBase, IDisposable
         ArgumentNullException.ThrowIfNull(exception);
         _notices.ShowError(exception);
     }
+
+    /// <summary>The create hero (2.3).</summary>
+    public CreateHeroViewModel Hero { get; }
+
+    /// <summary>The capture-mode picker (2.4): the one instance, whose choice outlives Home (EDGE-HOME-57).</summary>
+    public CaptureModePickerViewModel Mode => Hero.Mode;
 
     /// <summary>The rows selected for the bulk bar (2.15).</summary>
     public HomeSelection Selection { get; } = new();
@@ -345,6 +354,7 @@ public sealed partial class HomeViewModel : ViewModelBase, IDisposable
         _regroup.Stop();
         _regroup.Start();
         _ = RefreshAsync(userInitiated: false);
+        Mode.OnHomeShown();
     }
 
     /// <summary>
@@ -359,6 +369,7 @@ public sealed partial class HomeViewModel : ViewModelBase, IDisposable
         _tick.Stop();
         _regroup.Stop();
         _refreshToken.Cancel();
+        Mode.OnHomeLeft();
     }
 
     /// <summary>The main window was activated: re-list while Home itself shows (2.18 row 3; never suppressed).</summary>
@@ -487,6 +498,7 @@ public sealed partial class HomeViewModel : ViewModelBase, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        Hero.Dispose();
         _projects.ProjectsChanged -= OnProjectsChanged;
         _tick.Stop();
         _regroup.Stop();

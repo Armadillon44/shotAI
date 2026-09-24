@@ -15,8 +15,10 @@ namespace ShotAI.App.Tests.Support;
 /// <summary>
 /// The shell, Home, the project view and the menu as the container and startup make them, over a
 /// <see cref="ListingProjects"/> store, a <see cref="FakeSettingsService"/>, a
-/// <see cref="FakeShellReveal"/> and a <see cref="TestClock"/>, on the calling UI thread: the
-/// navigation state follows the shell and the menu follows the navigation state (06 7.7).
+/// <see cref="FakeShellReveal"/>, a <see cref="TestClock"/>, a <see cref="FakeCaptureService"/>
+/// and a <see cref="FakeAreaSelection"/>, on the calling UI thread: the navigation state follows
+/// the shell and the menu follows the navigation state (06 7.7), and Home and the project view
+/// share the one capture-mode picker.
 /// </summary>
 internal sealed class TestShell : IDisposable
 {
@@ -24,25 +26,37 @@ internal sealed class TestShell : IDisposable
     /// <param name="clock">The clock; 2026-07-22 10:00 UTC when null.</param>
     /// <param name="settings">The settings; the defaults when null.</param>
     /// <param name="sessions">Wraps the real session factory, for a test that watches the sessions.</param>
+    /// <param name="capture">The capture engine; an idle one when null.</param>
     public TestShell(
         ListingProjects? projects = null, TestClock? clock = null, FakeSettingsService? settings = null,
-        Func<IProjectSessionFactory, IProjectSessionFactory>? sessions = null)
+        Func<IProjectSessionFactory, IProjectSessionFactory>? sessions = null, FakeCaptureService? capture = null)
     {
+        Capture = capture ?? new FakeCaptureService();
         Projects = projects ?? new ListingProjects();
         Clock = clock ?? new TestClock(new DateTimeOffset(2026, 7, 22, 10, 0, 0, TimeSpan.Zero));
         Settings = settings ?? new FakeSettingsService();
         var ui = new WpfUiDispatcher(Dispatcher.CurrentDispatcher);
         Notices = new NoticeCenter(new Logger<NoticeCenter>(Logs));
         Confirm = new ConfirmService(ui);
-        Home = new HomeViewModel(Projects, Reveal, Notices, Confirm, ui, Clock, new Logger<HomeViewModel>(Logs));
+        Mode = new CaptureModePickerViewModel(Capture, Areas, Notices);
+        Home = new HomeViewModel(Projects, Reveal, Notices, Confirm, Mode, ui, Clock, new Logger<HomeViewModel>(Logs));
         Navigation = new NavigationState(new Logger<NavigationState>(Logs));
         Menu = new AppMenuViewModel(Navigation, Settings, ui, new Logger<AppMenuViewModel>(Logs));
         IProjectSessionFactory real = new ProjectSessionFactory(Projects, new Logger<ProjectSessionFactory>(Logs));
         Sessions = sessions?.Invoke(real) ?? real;
-        Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, new Logger<ProjectDetailViewModel>(Logs));
-        Shell = new ShellViewModel(Home, Project, Menu, Notices, Confirm);
+        Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, Mode, new Logger<ProjectDetailViewModel>(Logs));
+        Shell = new ShellViewModel(Home, Project, Menu, Notices, Confirm, Capture, Projects, ui);
         Navigation.Follow(Shell);
     }
+
+    /// <summary>The capture engine: nothing listed and idle until the test says otherwise.</summary>
+    public FakeCaptureService Capture { get; }
+
+    /// <summary>The area overlay, which answers each selection as the test sets it.</summary>
+    public FakeAreaSelection Areas { get; } = new();
+
+    /// <summary>The one capture-mode picker, Home's and the project view's.</summary>
+    public CaptureModePickerViewModel Mode { get; }
 
     public ListingProjects Projects { get; }
 
@@ -76,6 +90,7 @@ internal sealed class TestShell : IDisposable
 
     public void Dispose()
     {
+        Shell.Dispose();
         Project.Dispose();
         Home.Dispose();
         Menu.Dispose();

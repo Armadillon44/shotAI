@@ -15,7 +15,8 @@ namespace ShotAI.App.Tests.Report;
 /// factory on the UI thread and never for an open a newer one or a Back overtook (EDGE-REP-44,
 /// R-ARCH-5); a gone project is silent and any other failure goes to Home (EDGE-REP-39); nothing
 /// from a closed session changes the view (INV-REP-31); the window follows the open and Back.
-/// The draft, capture, adopt and SOP cases join with their packages (WP-C2, WP-C8, WP-D).
+/// The capture flow's adopt and reload, and Resume capturing, are here since WP-B9a; the draft,
+/// capture insert and SOP cases join with their packages (WP-C2, WP-C4, WP-D).
 /// </summary>
 public sealed class ProjectDetailStateTests
 {
@@ -26,7 +27,7 @@ public sealed class ProjectDetailStateTests
     {
         public Rig()
         {
-            Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, new Logger<ProjectDetailViewModel>(Logs));
+            Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, Targets, new Logger<ProjectDetailViewModel>(Logs));
             Project.OpenFailed += (_, e) => Failures.Add(e);
             Project.Closed += (_, _) => ClosedCount++;
         }
@@ -36,6 +37,8 @@ public sealed class ProjectDetailStateTests
         public FakeSessions Sessions { get; } = new();
 
         public RecordingLayout Layout { get; } = new();
+
+        public FixedTargets Targets { get; } = new();
 
         public CapturingLoggerProvider Logs { get; } = new();
 
@@ -323,17 +326,164 @@ public sealed class ProjectDetailStateTests
         Assert.Equal([(true, 1.0)], r.Layout.Calls);
     });
 
+    /// <summary>
+    /// 05 7.3's adopt with nothing open (the capture flow's <c>applyOpened</c>): a session from the
+    /// manifest, with no read, and the window at the detail width.
+    /// </summary>
+    [Fact]
+    public Task AdoptWithNothingOpenMakesASession() => Sta.RunAsync(async () =>
+    {
+        using var r = new Rig();
+        await r.Project.AdoptAsync(A, TwoSteps());
+        Assert.Equal(0, r.Projects.OpenCalls);
+        var session = Assert.Single(r.Sessions.Created);
+        Assert.Equal((A, "2 steps", false), (r.Project.OpenProjectPath, r.Project.StepCount, r.Project.IsLoading));
+        Assert.Same(session, r.Project.Report!.Session);
+        Assert.Equal([(true, 1.0)], r.Layout.Calls);
+        Assert.True(r.Project.IsOpen(@"c:\projects\a"));
+        Assert.Equal(0, r.ClosedCount);
+    });
+
+    /// <summary>EDGE-REP-43: an adopt into the project open now is durable: no new session, no Loading, the view reconciled.</summary>
+    [Fact]
+    public Task AdoptIntoOpenSessionIsDurable() => Sta.RunAsync(async () =>
+    {
+        using var r = new Rig();
+        r.Projects.CanOpen(A, Of("Handbook", Shot("s1")));
+        Assert.True(await r.Project.OpenAsync(A));
+        var session = Assert.Single(r.Sessions.Created);
+        var report = r.Project.Report;
+        await r.Project.AdoptAsync(@"C:\Projects\.\A", TwoSteps());
+        Assert.Single(r.Sessions.Created);
+        Assert.False(session.Disposed);
+        Assert.Same(report, r.Project.Report);
+        Assert.Single(session.Durables);
+        Assert.Equal(["s1", "t1"], report!.Cards.Select(c => c.Id));
+        Assert.Equal("2 steps", r.Project.StepCount);
+        Assert.False(r.Project.IsLoading);
+    });
+
+    /// <summary>An adopt of another project closes the open one without navigating, then makes the new one's session.</summary>
+    [Fact]
+    public Task AdoptOfAnotherProjectReplacesTheOpenOne() => Sta.RunAsync(async () =>
+    {
+        using var r = new Rig();
+        r.Projects.CanOpen(A, TwoSteps());
+        Assert.True(await r.Project.OpenAsync(A));
+        var first = r.Sessions.Created.Single();
+        var generation = r.Project.OpenGeneration;
+        await r.Project.AdoptAsync(B, Of("Other"));
+        Assert.True(first.Disposed);
+        Assert.Equal(2, r.Sessions.Created.Count);
+        Assert.Equal((B, "Other"), (r.Project.OpenProjectPath, r.Project.Title));
+        Assert.Equal(0, r.ClosedCount);
+        Assert.True(r.Project.OpenGeneration > generation);
+    });
+
+    /// <summary>
+    /// R-ARCH-26: Resume capturing raises the picker's target read at the click, once per click, and
+    /// only with a project open.
+    /// </summary>
+    [Fact]
+    public Task ResumeUsesCaptureTargetSelection() => Sta.RunAsync(async () =>
+    {
+        using var r = new Rig();
+        var asked = new List<CaptureTarget>();
+        r.Project.ResumeCaptureRequested += (_, target) => asked.Add(target);
+        Assert.False(r.Project.ResumeCaptureCommand.CanExecute(null));
+        r.Projects.CanOpen(A, TwoSteps());
+        Assert.True(await r.Project.OpenAsync(A));
+        Assert.True(r.Project.ResumeCaptureCommand.CanExecute(null));
+        Assert.Equal(0, r.Targets.Reads);
+        r.Targets.Target = new CaptureTarget("area", Area: new ShotAI.Core.Model.Rect(10, 20, 300, 200));
+        r.Project.ResumeCaptureCommand.Execute(null);
+        Assert.Equal([r.Targets.Target], asked);
+        Assert.Equal(1, r.Targets.Reads);
+        r.Project.BackCommand.Execute(null);
+        Assert.False(r.Project.ResumeCaptureCommand.CanExecute(null));
+    });
+
+    /// <summary>2.1: after a recording into the open project, its manifest is read again and adopted durably.</summary>
+    [Fact]
+    public Task ReloadReadsTheDiskAgain() => Sta.RunAsync(async () =>
+    {
+        using var r = new Rig();
+        r.Projects.CanOpen(A, Of("Handbook", Shot("s1")));
+        Assert.True(await r.Project.OpenAsync(A));
+        r.Projects.CanOpen(A, TwoSteps());
+        await r.Project.ReloadAsync();
+        Assert.Equal(2, r.Projects.OpenCalls);
+        Assert.Single(r.Sessions.Created);
+        Assert.Equal("2 steps", r.Project.StepCount);
+        Assert.Empty(r.Failures);
+        // With nothing open there is nothing to read.
+        r.Project.BackCommand.Execute(null);
+        await r.Project.ReloadAsync();
+        Assert.Equal(2, r.Projects.OpenCalls);
+    });
+
+    /// <summary>A reload that finds the project gone (a Discard deleted it) closes it, as Back does, and says nothing.</summary>
+    [Fact]
+    public Task ReloadOfAGoneProjectClosesSilently() => Sta.RunAsync(async () =>
+    {
+        using var r = new Rig();
+        r.Projects.CanOpen(A, TwoSteps());
+        Assert.True(await r.Project.OpenAsync(A));
+        r.Projects.OpenFails(A, new ManifestCorruptException("missing", new DirectoryNotFoundException("gone")));
+        await r.Project.ReloadAsync();
+        Assert.Equal(1, r.ClosedCount);
+        Assert.Empty(r.Failures);
+        Assert.False(r.Project.ProjectOpen);
+        Assert.True(r.Sessions.Created.Single().Disposed);
+        Assert.Equal((false, 1.0), r.Layout.Calls[^1]);
+    });
+
+    /// <summary>A reload that fails otherwise closes the project and raises <see cref="ProjectDetailViewModel.OpenFailed"/> for Home.</summary>
+    [Fact]
+    public Task ReloadFailureRaisesOpenFailed() => Sta.RunAsync(async () =>
+    {
+        using var r = new Rig();
+        r.Projects.CanOpen(A, TwoSteps());
+        Assert.True(await r.Project.OpenAsync(A));
+        var failure = new IOException("The project could not be read.");
+        r.Projects.OpenFails(A, failure);
+        await r.Project.ReloadAsync();
+        Assert.Equal(1, r.ClosedCount);
+        Assert.Same(failure, Assert.Single(r.Failures));
+    });
+
+    /// <summary>A reload overtaken by another open, or a Back, changes nothing.</summary>
+    [Fact]
+    public Task AnOvertakenReloadChangesNothing() => Sta.RunAsync(async () =>
+    {
+        using var r = new Rig();
+        r.Projects.CanOpen(A, TwoSteps());
+        r.Projects.CanOpen(B, Of("Other"));
+        Assert.True(await r.Project.OpenAsync(A));
+        var gate = r.Projects.GateOpen(A);
+        var reload = r.Project.ReloadAsync();
+        Assert.True(await r.Project.OpenAsync(B));
+        gate.SetException(new IOException("late"));
+        await reload;
+        Assert.Equal((B, 0), (r.Project.OpenProjectPath, r.ClosedCount));
+        Assert.Empty(r.Failures);
+    });
+
     [Fact]
     public Task ArgumentsAreChecked() => Sta.RunAsync(async () =>
     {
         using var r = new Rig();
         var reports = new ReportViewModelFactory();
         var log = new Logger<ProjectDetailViewModel>(r.Logs);
-        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(null!, r.Sessions, reports, r.Layout, log));
-        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, null!, reports, r.Layout, log));
-        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, r.Sessions, null!, r.Layout, log));
-        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, r.Sessions, reports, null!, log));
-        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, r.Sessions, reports, r.Layout, null!));
+        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(null!, r.Sessions, reports, r.Layout, r.Targets, log));
+        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, null!, reports, r.Layout, r.Targets, log));
+        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, r.Sessions, null!, r.Layout, r.Targets, log));
+        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, r.Sessions, reports, null!, r.Targets, log));
+        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, r.Sessions, reports, r.Layout, null!, log));
+        Assert.Throws<ArgumentNullException>(() => new ProjectDetailViewModel(r.Projects, r.Sessions, reports, r.Layout, r.Targets, null!));
         await Assert.ThrowsAsync<ArgumentNullException>(() => r.Project.OpenAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => r.Project.AdoptAsync(null!, TwoSteps()));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => r.Project.AdoptAsync(A, null!));
+        Assert.Throws<ArgumentNullException>(() => r.Project.IsOpen(null!));
     });
 }
