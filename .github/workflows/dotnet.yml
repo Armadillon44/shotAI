@@ -1,8 +1,9 @@
 # CI for the native Windows app under dotnet/ (see docs/native/PLAN.md).
 #
 # Runs only when the native tree, the shared contract, .gitattributes (which pins the
-# contract and the generated tables to LF) or this file changes, so Electron-only PRs stay
-# on ci.yml alone. Two jobs:
+# contract and the generated tables to LF), the app icon in assets/, the Archivo files the app
+# ships from src/renderer/fonts/ or this file changes, so Electron-only PRs stay on ci.yml
+# alone. Two jobs:
 #
 # - Linux builds the WHOLE solution (EnableWindowsTargeting lets WPF and CsWin32
 #   compile there) and runs the platform-neutral ShotAI.Core tests, which include the
@@ -21,12 +22,16 @@ on:
       - 'dotnet/**'
       - 'contract/**'
       - '.gitattributes'
+      - 'assets/**'
+      - 'src/renderer/fonts/**'
       - '.github/workflows/dotnet.yml'
   pull_request:
     paths:
       - 'dotnet/**'
       - 'contract/**'
       - '.gitattributes'
+      - 'assets/**'
+      - 'src/renderer/fonts/**'
       - '.github/workflows/dotnet.yml'
 
 concurrency:

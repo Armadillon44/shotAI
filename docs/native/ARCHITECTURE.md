@@ -239,6 +239,7 @@ Test projects mirror the namespace of what they test (`ShotAI.Core.Tests.Store.A
 | `Microsoft.Identity.Client.Broker` | Platform | WAM broker, brings `msalruntime` per RID | 08 7.1 | MIT (package); `msalruntime` binaries under Microsoft terms (UNVERIFIED) | same line as MSAL |
 | `Microsoft.Identity.Client.Extensions.Msal` | Platform | DPAPI token cache with a cross-process lock | 08 7.6 | MIT | compatible with MSAL line |
 | `System.Security.Cryptography.ProtectedData` | Platform | DPAPI for the API key | 08 7.11 | MIT | .NET 10 line |
+| `Microsoft.Win32.SystemEvents` | Platform | `UserPreferenceChanged`, the app-mode change of `SystemAppearanceMonitor`; the App's desktop runtime carries the same assembly, and the package keeps Platform off WPF (added in WP-A14) | 06 7.14 | MIT | .NET 10 line (`10.0.12`) |
 | `Microsoft.Web.WebView2` | Platform | PDF printing host; runtime version probe | 09 7.16, 11 7.13 | Microsoft WebView2 SDK licence (BSD-style, UNVERIFIED wording) | latest stable |
 | `Microsoft.Extensions.DependencyInjection` | App | the container | 03 7.11, 11 7.13 | MIT | .NET 10 line |
 | `Microsoft.Extensions.Logging` | App | `LoggerFactory` | 10 7.11 | MIT | .NET 10 line |
@@ -349,12 +350,12 @@ Some work must happen before any service exists. The order is 03 7.4.1 with 12 a
 | `IExportService`, `IExportDialogs`, `ExportEngine` | 09 types | singleton | App (service, dialogs), Core (engine) | 09 |
 | `IAreaSelectionService`, `IMainWindowLayout`, `AppMenuViewModel`, `RecordingVisibilityController`, `CapturePillViewModel`, `PopupExclusion`, `WindowRegistration` (the `OwnWindowRegistry` wiring) | 03 types | singleton | App | 03 |
 | `OwnWindowRegistry` | same, registered as itself (the one public Platform registration, 02 7.1; corrected in WP-A13: the App wires it through `WindowRegistration`, and Platform, which owns the type, registers it) | singleton | Platform | 02, 03 |
-| `IShellNavigationState` | `NavigationState` | singleton | App | 06 |
+| `IShellNavigationState` | `NavigationState` (added in WP-A14: registered as itself, the theme manager's input; 03's interface joins in WP-A15) | singleton | App | 06 |
 | `INoticeService`, `IConfirmService`, `ThemeManager` | `NoticeCenter`, `ConfirmService`, `ThemeManager` | singleton | App | 06 |
 | `StaRenderThread`, `IOverlayRasterizer` (`WpfOverlayRasterizer`) | 04 types | singleton | App | 04 |
 | `EditorFactory`, `IColorPicker` | `EditorFactory` (C6), `Win32ColorPicker` | singleton | App | 04 7.10.1 |
 | `ReportImageLoader`, `ReportImageDecoder`, `IImageSizeProbe` | 05 types | singleton | App, Platform | 05 |
-| `IAppStartup` (multiple, in this order) | `RemoteVisibilityApplier`, `RecordingVisibilityController`, `ThemeManager` | singleton | App | 11 7.10 |
+| `IAppStartup` (multiple, in this order) | `RemoteVisibilityApplier`, `RecordingVisibilityController`, `ThemeManager` (the one registered as of WP-A14, forwarded to the `ThemeManager` singleton; WP-B5 and WP-B6 register the other two before it) | singleton | App | 11 7.10 |
 | view models | per spec | transient; named singletons only where a spec says so (today 06's `CaptureModePickerViewModel`, EDGE-HOME-57) | App | INV-IPC-22 |
 | factories (C6) | per spec | singleton | App or Core | 4.1 |
 
@@ -1207,6 +1208,7 @@ Culture: machine text (JSON, file names, log lines, wire values) uses `CultureIn
 ### 14.8 XAML
 
 - Theme keys through `{DynamicResource}` only; the palette dictionary is swapped as one merged dictionary by `ThemeManager` (06 7.5). A `StaticResource` to a theme key is a bug the source guard catches.
+- A corner that may be a capsule (`radius-chip`) is bound through `CapsuleCornerConverter` over the element's height and `RadiusValue.chip`; `Radius.chip` is never read, because WPF draws a large `CornerRadius` as an ellipse (added in WP-A14, 06 7.5). The fixed colours are read with `StaticResource`; `Themes/Controls.xaml` merges `Themes/FixedColors.xaml` for its own reads.
 - No colour or radius literal outside `Themes/FixedColors.xaml` and the named exceptions (INV-HOME-24).
 - Windows derive from `ShotAIWindow`; popups are `ShotAIPopup` or overlay-layer elements (5.4).
 - Every interactive element has `AutomationProperties.Name`; live regions raise `LiveRegionChanged` explicitly (06 7.10).

@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ShotAI.App.Chrome;
 using ShotAI.App.Composition;
 using ShotAI.App.Services;
 using ShotAI.App.Shell;
@@ -29,9 +30,8 @@ namespace ShotAI.App;
 /// </summary>
 /// <remarks>
 /// Steps 1 to 4, 5b, 6 to 9, 11, 12 and 13 run (step 0 is <see cref="Program"/>). Steps 1b and
-/// 13's update check join in WP-E1, 2a in WP-E5, 5 in WP-D2, 10 in WP-B5, the pill of step 8 in
-/// WP-B6 and the theme of step 8 in WP-A14; the exit order's capture teardown joins with the
-/// capture engine.
+/// 13's update check join in WP-E1, 2a in WP-E5, 5 in WP-D2, 10 in WP-B5 and the pill of step 8
+/// in WP-B6; the exit order's capture teardown joins with the capture engine.
 /// </remarks>
 public partial class App : Application
 {
@@ -106,11 +106,12 @@ public partial class App : Application
         // Step 7, before any window: the popups of every window register too.
         _services.GetRequiredService<PopupExclusion>().Install();
 
-        // Steps 8 and 9: the main window registers, and so is excluded, before it is shown.
+        // Steps 8 and 9: the main window registers, and so is excluded, before it is shown, and
+        // the theme is merged before its first frame (D-HOME-10).
         var main = new MainWindow(_services.GetRequiredService<WindowRegistration>());
         MainWindow = main;
         main.ContentRendered += LogFirstRender;
-        main.Show();
+        ShowThemed(_services.GetRequiredService<ThemeManager>(), Resources, main);
         StartAll(_services.GetServices<IAppStartup>());
 
         // Step 11: from here a second launch surfaces this window.
@@ -161,6 +162,19 @@ public partial class App : Application
         services?.Dispose();
         // 6. The exit line; OnExit then flushes the sink.
         if (log is not null) Exiting(log, exitCode);
+    }
+
+    /// <summary>
+    /// The end of step 8 and the start of step 9: the theme dictionary is merged into
+    /// <paramref name="resources"/>, the application's, and only then is <paramref name="main"/>
+    /// shown, so its first frame is themed (spec 06 D-HOME-10, EDGE-HOME-42).
+    /// </summary>
+    internal static void ShowThemed(ThemeManager theme, ResourceDictionary resources, Window main)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        ArgumentNullException.ThrowIfNull(main);
+        theme.ApplyInitial(resources);
+        main.Show();
     }
 
     /// <summary>Step 9: each <see cref="IAppStartup"/>, in registration order (spec 11 7.10 rule 3).</summary>

@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    mc:Ignorable="po">
+  <!--
+    The colours that are not tokens (spec 06 2.21, 2.23, 2.24, 2.31 and 7.5): the same under every
+    brand and appearance. The one XAML file XamlChromeGuardTests lets name a colour (INV-HOME-24);
+    an entry whose channel spread is above 40 must be one of the guard's reasoned chromatic keys.
+    They are fixed, so they are read with StaticResource. The tour pill mock-up joins with the tour.
+  -->
+
+  <!--
+    Notices (2.21): notice.css is outside the app-chrome guard in Electron, so a notice looks the
+    same under every brand and appearance. The fills are 0.6 alpha (0x99): rgba(185, 28, 28),
+    rgba(37, 99, 235) and rgba(22, 163, 74).
+  -->
+  <SolidColorBrush x:Key="FixedColors.NoticeError" Color="#99B91C1C" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.NoticeInfo" Color="#992563EB" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.NoticeSuccess" Color="#9916A34A" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.NoticeText" Color="#FFFFFFFF" po:Freeze="True" />
+
+  <!-- The neutral scrims, 0.55 alpha (0x8C): the confirm dialog's rgba(17, 19, 24) (2.23) and the tour's rgba(17, 19, 27) (2.31). -->
+  <SolidColorBrush x:Key="FixedColors.ConfirmScrim" Color="#8C111318" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.TourDim" Color="#8C11131B" po:Freeze="True" />
+
+  <!-- The settings switch knob's shadow, 0 1px 2px rgba(0, 0, 0, 0.25) (2.24): neutral; the 0.25 is the effect's opacity. -->
+  <Color x:Key="FixedColors.KnobShadow">#FF000000</Color>
+</ResourceDictionary>

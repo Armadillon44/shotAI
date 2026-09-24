@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using ShotAI.Core.Store;
+using ShotAI.Core.Theme;
 using ShotAI.Platform.Capture;
 using ShotAI.Platform.FileSystem;
+using ShotAI.Platform.Theme;
 
 namespace ShotAI.Platform.Composition;
 
@@ -20,6 +22,7 @@ public static class PlatformServiceCollectionExtensions
         services.AddSingleton<IPathProbe, WindowsPathProbe>();
         services.AddSingleton<IRenameRetryClassifier, WindowsRenameRetryClassifier>();
         services.AddSingleton<OwnWindowRegistry>();
+        services.AddSingleton<ISystemAppearance, SystemAppearanceMonitor>();
         return services;
     }
 }

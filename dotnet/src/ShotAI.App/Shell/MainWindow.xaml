@@ -5,7 +5,10 @@
         xmlns:core="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
         Title="{x:Static core:ShellStrings.AppName}"
         Width="720" Height="740"
-        MinWidth="680" MinHeight="560">
+        MinWidth="680" MinHeight="560"
+        Background="{DynamicResource Brush.ground}"
+        Foreground="{DynamicResource Brush.ink}"
+        FontFamily="{DynamicResource Font.stack}">
   <Grid Margin="24">
     <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap">
       shotAI native (scaffold). Not a working app yet: see docs/native/PLAN.md.
