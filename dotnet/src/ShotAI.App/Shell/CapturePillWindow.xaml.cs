@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using ShotAI.Core.Json;
 using ShotAI.Platform.Shell;
 
 namespace ShotAI.App.Shell;
@@ -138,13 +139,16 @@ public partial class CapturePillWindow : ShotAIWindow
 
     // EDGE-SHELL-29: the drag area, the hint and the empty part of the error row move the pill by
     // the cursor's travel in physical pixels; the error's glyph and message, whose tooltips need
-    // the hover, and the buttons do not start a drag. No clamp, as in Electron.
+    // the hover, and the buttons do not start a drag. No clamp, as in Electron. The travel is
+    // measured from where the button went down, not from where the cursor is when the UI thread
+    // takes the press: had the cursor moved on meanwhile, the pill would trail it by that much.
     private void OnDragDown(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is not DependencyObject source || StartsNoDrag(source)) return;
         try
         {
-            _dragStart = MonitorQueries.CursorPosition();
+            var down = PointToScreen(e.GetPosition(this));
+            _dragStart = ((int)JsMath.Round(down.X), (int)JsMath.Round(down.Y));
             var rect = WindowStyles.GetWindowRect(Handle);
             _dragOrigin = (rect.X, rect.Y);
         }

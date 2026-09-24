@@ -106,29 +106,41 @@ public sealed class CapturePillWindowTests
         pill.AssertNeverActivated();
     });
 
-    /// <summary>EDGE-SHELL-29, Q-SHELL-4: the drag moves the pill by the cursor's travel, and never activates it.</summary>
+    /// <summary>
+    /// EDGE-SHELL-29, Q-SHELL-4: the drag moves the pill by the cursor's travel, and never
+    /// activates it. Each step waits for the pill to take the last one, since input reaches the
+    /// pill's thread later than the call that sends it returns.
+    /// </summary>
     [Fact]
     public Task DragMovesWithoutActivating() => WithPillAsync(async pill =>
     {
         pill.Recording(0);
         await pill.ShowAsync();
         var before = WindowStyles.GetWindowRect(pill.Window.Handle);
-        var grip = pill.Window.Grip;
-        var (x, y) = Center(grip);
+        var (x, y) = Center(pill.Window.Grip);
         SyntheticMouse.Press(x, y);
-        await TestShell.Settle();
-        SyntheticMouse.MoveTo(x + 30, y - 20);
-        await TestShell.Settle();
-        SyntheticMouse.MoveTo(x + 60, y - 40);
-        await TestShell.Settle();
+        Assert.True(await Until(() => pill.Window.DragArea.IsMouseCaptured), "the press on the grip did not start a drag");
+        var start = SyntheticMouse.Cursor();
+        var cursor = start;
+        foreach (var (dx, dy) in new[] { (30, -20), (60, -40) })
+        {
+            var last = cursor;
+            SyntheticMouse.MoveTo(x + dx, y + dy);
+            Assert.True(await Until(() => SyntheticMouse.Cursor() != last), "the cursor did not move");
+            cursor = SyntheticMouse.Cursor();
+            var expected = (before.X + cursor.X - start.X, before.Y + cursor.Y - start.Y);
+            Assert.True(await Until(() => Origin(pill) == expected), $"the pill is at {Origin(pill)}, not {expected}, with the cursor moved from {start} to {cursor}");
+        }
         SyntheticMouse.Release();
-        Assert.True(await Until(() => WindowStyles.GetWindowRect(pill.Window.Handle).X == before.X + 60), "the pill did not follow the drag");
+        Assert.True(await Until(() => !pill.Window.DragArea.IsMouseCaptured), "the release did not end the drag");
+        Assert.InRange(cursor.X - start.X, 59, 61);
+        Assert.InRange(cursor.Y - start.Y, -41, -39);
         var after = WindowStyles.GetWindowRect(pill.Window.Handle);
-        Assert.Equal((before.X + 60, before.Y - 40, before.Width, before.Height), (after.X, after.Y, after.Width, after.Height));
+        Assert.Equal((before.X + cursor.X - start.X, before.Y + cursor.Y - start.Y, before.Width, before.Height), (after.X, after.Y, after.Width, after.Height));
         pill.AssertNeverActivated();
     });
 
-    /// <summary>A drag that starts on a button does not start: the button takes the click.</summary>
+    /// <summary>A drag that starts on a button does not start: the button takes the press.</summary>
     [Fact]
     public Task AButtonDoesNotStartADrag() => WithPillAsync(async pill =>
     {
@@ -137,11 +149,13 @@ public sealed class CapturePillWindowTests
         var before = WindowStyles.GetWindowRect(pill.Window.Handle);
         var (x, y) = Center(pill.Window.StopButton);
         SyntheticMouse.Press(x, y);
-        await TestShell.Settle();
+        Assert.True(await Until(() => pill.Window.StopButton.IsMouseCaptured), "the press did not reach Stop");
         SyntheticMouse.MoveTo(x + 40, y);
+        Assert.True(await Until(() => SyntheticMouse.Cursor().X > x + 30), "the cursor did not move");
         await TestShell.Settle();
         SyntheticMouse.Release();
-        await TestShell.Settle();
+        Assert.True(await Until(() => !pill.Window.StopButton.IsMouseCaptured), "the release did not reach Stop");
+        Assert.False(pill.Window.DragArea.IsMouseCaptured);
         Assert.Equal(before, WindowStyles.GetWindowRect(pill.Window.Handle));
     });
 
