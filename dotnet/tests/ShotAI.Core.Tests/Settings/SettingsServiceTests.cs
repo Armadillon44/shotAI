@@ -326,7 +326,7 @@ public sealed class SettingsServiceTests : IAsyncLifetime
         await Within(update);
 
         var line = Assert.Single(_h.Logs.Entries, e => e.Message.StartsWith("settings rename", StringComparison.Ordinal));
-        Assert.Equal("settings rename EBUSY — retrying (lock likely transient)", line.Message);
+        Assert.Equal("settings rename EBUSY \u2014 retrying (lock likely transient)", line.Message);
         Assert.Equal(LogLevel.Warning, line.Level);
         Assert.True(_h.OnDisk()["hasSeenTour"]!.GetValue<bool>());
     }

@@ -399,7 +399,7 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 | Acceptance criteria | none owned (its manual criteria need the Settings view and are met in WP-B10) |
 | Depends on | WP-A2, WP-A4, WP-A5 |
 | Size | M |
-| Risks and de-risking | Byte layout depends on `JsJson` (10 risk 1): `SettingsCodecTests.FreshFileBytes` compares exact bytes. Rollback of only the failed change: a three-queued, middle-fails test |
+| Risks and de-risking | Byte layout depends on `JsJson` (10 risk 1): `SettingsCodecTests.FreshFileBytes` compares exact bytes. Rollback of only the failed change: a three-queued, middle-fails test. Outcome in WP-A10: the codec writes the bytes Electron's own settings module writes for each of 28 goldens, `fresh` among them, which is 2.6.3's example byte for byte; `RollbackOnlyTheFailedChange` holds; 130 mutations of the service, the codec, the coercers, the SOP catalog, the record, the defaults and the forwarders were each caught by a failing test, none by a hang. The first pass found two that no test caught (a synchronous `Dispose` that did not refuse later changes, and a `projectsDir` warning on every read), both now caught |
 | Demo | tests |
 
 #### WP-A11. Logging
@@ -2413,7 +2413,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-A7. Project store: steps and imports (#129)
 - [x] WP-A8. Archive engine (#130)
 - [x] WP-A9. Project session (#131)
-- [ ] WP-A10. Settings service
+- [x] WP-A10. Settings service (#132)
 - [ ] WP-A11. Logging
 - [ ] WP-A12. App host and composition root
 - [ ] WP-A13. Window base, popup exclusion and single instance
