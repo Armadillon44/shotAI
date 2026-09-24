@@ -69,6 +69,29 @@ public sealed class CaptureGeometryTests
         Assert.Equal(new PixelRect(1919, 1079, 1, 1), r);
     }
 
+    /// <summary>A region above the top edge shrinks from the top, as one off the left shrinks from the left.</summary>
+    [Fact]
+    public void CropShrinksFromTheTop() =>
+        Assert.Equal(new PixelRect(100, 0, 200, 70), CaptureGeometry.CropRect(Mon, new Rect(100, -30, 200, 100)));
+
+    /// <summary>A region wholly left of or above the monitor still crops one pixel, never an empty or negative size.</summary>
+    [Fact]
+    public void CropOfARegionOffTheMonitorIsOnePixel()
+    {
+        Assert.Equal(new PixelRect(0, 10, 1, 100), CaptureGeometry.CropRect(Mon, new Rect(-500, 10, 100, 100)));
+        Assert.Equal(new PixelRect(10, 0, 100, 1), CaptureGeometry.CropRect(Mon, new Rect(10, -500, 100, 100)));
+    }
+
+    /// <summary>Every crop is in the pixels of its monitor's image, whose origin is the monitor's top-left, below the primary as well as beside it.</summary>
+    [Fact]
+    public void CropsUseTheMonitorsVerticalOrigin()
+    {
+        var below = new Rect(0, 1080, 1920, 1080);
+        Assert.Equal(new PixelRect(100, 20, 200, 150), CaptureGeometry.CropRect(below, new Rect(100, 1100, 200, 150)));
+        Assert.Equal(new PixelRect(100, 20, 200, 150), CaptureGeometry.AreaCrop(below, new Rect(100, 1100, 200, 150)));
+        Assert.Equal(new PixelRect(550, 220, 820, 640), CaptureGeometry.RegionCrop(below, 1, new Point(960, 1080 + 540)));
+    }
+
     /// <summary>Halves round up, not to even: .NET's default rounding would put this crop one pixel left and up.</summary>
     [Fact]
     public void CropHalvesRoundUp() =>
@@ -91,6 +114,11 @@ public sealed class CaptureGeometryTests
         Assert.Equal(new PixelRect(1919, 1079, 1, 1), CaptureGeometry.AreaCrop(Mon, new Rect(5000, 5000, 10, 10)));
         Assert.Equal(new PixelRect(20, 30, 40, 50), CaptureGeometry.AreaCrop(new Rect(1920, 0, 1920, 1080), new Rect(1940, 30, 40, 50)));
     }
+
+    /// <summary>A sub-pixel area rounds to nothing, and is still cropped one pixel.</summary>
+    [Fact]
+    public void AreaCropIsNeverEmpty() =>
+        Assert.Equal(new PixelRect(10, 10, 1, 1), CaptureGeometry.AreaCrop(Mon, new Rect(10, 10, 0.4, 0.4)));
 
     [Fact]
     public void RegionCropIsCentredOnTheClick() =>

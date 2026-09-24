@@ -10,9 +10,10 @@ namespace ShotAI.Core.Tests.Capture;
 /// </summary>
 public sealed class DownscalePolicyTests
 {
+    /// <summary>A shot one pixel wide or high is kept; without the rule a 5000 x 1 strip would be halved.</summary>
     [Theory]
-    [InlineData(1, 1000)]
-    [InlineData(1000, 1)]
+    [InlineData(5000, 1)]
+    [InlineData(1, 5000)]
     [InlineData(1, 1)]
     [InlineData(0, 0)]
     public void ASliverIsKept(int width, int height) => Assert.Null(DownscalePolicy.Compute(width, height, 0.5));

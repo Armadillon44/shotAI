@@ -17,7 +17,13 @@ public sealed class AutoClassifierTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("\u00A0\t")]
+    [InlineData("\uFEFF")]
+    [InlineData("\u2028\u3000")]
     public void ExplorerWithABlankTitleIsARegion(string title) => Assert.Equal(AutoMode.Region, AutoClassifier.Classify("Windows Explorer", title));
+
+    /// <summary>A next-line character is white space to .NET's <c>Trim</c> but not to JavaScript's, so this title is not blank.</summary>
+    [Fact]
+    public void ANextLineTitleIsNotBlank() => Assert.Equal(AutoMode.Window, AutoClassifier.Classify("Windows Explorer", "\u0085"));
 
     [Theory]
     [InlineData("SearchHost", "Search")]
@@ -45,11 +51,13 @@ public sealed class AutoClassifierTests
 
     /// <summary>
     /// The shell host test folds ASCII case only, as a JavaScript <c>/i</c> without <c>u</c> does:
-    /// the long s (U+017F), which .NET's case-insensitive comparisons fold into <c>S</c>, never
-    /// matches.
+    /// the long s (U+017F), which .NET's case-insensitive comparisons fold into <c>S</c>, and the
+    /// dotted capital I (U+0130), which .NET lower-cases to <c>i</c>, never match.
     /// </summary>
-    [Fact]
-    public void OnlyAsciiCaseFolds() => Assert.Equal(AutoMode.Window, AutoClassifier.Classify("\u017FearchHost", "Search"));
+    [Theory]
+    [InlineData("\u017FearchHost")]
+    [InlineData("TEXT\u0130NPUTHOST")]
+    public void OnlyAsciiCaseFolds(string app) => Assert.Equal(AutoMode.Window, AutoClassifier.Classify(app, "Search"));
 
     [Fact]
     public void TheForegroundWindowIsClassifiedByItsAppAndTitle()

@@ -21,7 +21,7 @@ public sealed partial class CaptureFunnelSourceTests
     private const string FunnelPath = "src/ShotAI.Core/Capture/ShieldedScreenCapture.cs";
     private const string SeamsPath = "src/ShotAI.Core/Capture/CaptureSeams.cs";
     private const string GdiPath = "src/ShotAI.Platform/Capture/GdiMonitorCapture.cs";
-    private const string PlatformRegistrationPath = "src/ShotAI.Platform/Composition/PlatformServiceCollectionExtensions.cs";
+    private const string PlatformRegistrationPath = "src/ShotAI.Platform/Capture/PlatformCaptureRegistration.cs";
 
     // The protection probe measures the exclusion itself, so it must read raw pixels (02 8.4).
     private const string ProbePrefix = "tools/ShotAI.ProtectionProbe/";
@@ -31,7 +31,7 @@ public sealed partial class CaptureFunnelSourceTests
     private static readonly string[] RawReadApis = ["BitBlt", "StretchBlt", "PrintWindow", "CopyFromScreen", "DuplicateOutput"];
 
     // Who may name the raw capture: its declaration, the funnel, its implementation (WP-B5) and
-    // the Platform registration that binds the two.
+    // the one Platform registration file that binds the two, which AddShotAIPlatform calls (02 7.1).
     private static readonly string[] MonitorCaptureNamers = [SeamsPath, FunnelPath, GdiPath, PlatformRegistrationPath];
 
     // Who may name the implementation, which is internal to Platform (INV-ARCH-4).
