@@ -13,8 +13,8 @@ and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file pr
 the project store's project and step operations and imports (WP-A6, WP-A7), the archive
 engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP-A10), logging
 (WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13), the theme
-with its fonts (WP-A14), the main window with its menu and About (WP-A15) and the Home list
-(WP-A16): analyzers, supply-chain
+with its fonts (WP-A14), the main window with its menu and About (WP-A15), the Home list
+(WP-A16) and the read-only report (WP-A17): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -64,8 +64,14 @@ re-reads the store when Home is entered, when the window is activated, every 20 
 types, and when the store reports a change (the startup auto-archive), keeps each row that did not
 change, and regroups once a minute so the spans roll over at midnight. Errors show in a notice that
 floats over the content, one at a time, announced to screen readers; a background refresh that
-fails is logged, not shown. Opening a project, the import and Settings arrive with the project
-view (WP-A17), the package import (WP-D15) and the Settings view (WP-B10).
+fails is logged, not shown. A row's Open shows the project's report: Back, the title and the step
+count above the steps as cards at the width the export gives them at the project's document scale,
+each screenshot fitted to its card and framed by its stored zoom and pan, with its click ring.
+Images load as they come near the view: each is read whole from inside the project folder and closed
+before it is decoded on the thread pool at the size it is shown, only as a PNG or a JPEG by Windows'
+built-in decoders, upright by its EXIF orientation. A project that cannot be opened says so on Home.
+Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
+WP-B10.
 
 ## Layout
 
@@ -76,7 +82,7 @@ view (WP-A17), the package import (WP-D15) and the Settings view (WP-B10).
 | `src/ShotAI.App` | `net10.0-windows10.0.19041.0` | The WPF app (`shotAI.exe`): windows, views, view models, composition root. |
 | `tests/ShotAI.Core.Tests` | `net10.0` | xunit.v3 tests for Core, including the shared `contract/conformance` suite. Runs on Linux and Windows. |
 | `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search, the single-instance lock, window styles, the show hook, the own-window registry, WIC, the app-mode monitor, the monitor queries, the WebView2 version probe. Builds everywhere, runs on Windows only. |
-| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, the theme manager, resources and styles, the fonts as packaged and as WPF resolves them, the main window's size, placement and full screen, the menu and its chords, About, the one WebView2 reference, and the real exe run as a process (the self-test, a second launch, closing the main window, the theme before the first show). Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, the theme manager, resources and styles, the fonts as packaged and as WPF resolves them, the main window's size, placement and full screen, the menu and its chords, About, Home, the report's view models, layout, images and automation, the one WebView2 reference, and the real exe run as a process (the self-test, a second launch, closing the main window, the theme before the first show). Builds everywhere, runs on Windows only. |
 | `assets/fonts/static` | | The upstream Archivo static instances WPF renders, their `OFL.txt` and `SOURCES.md` (the upstream commit and each file's sha256). |
 | `tools/ShotAI.GenBrand` | `net10.0` | The brand generator: writes `src/ShotAI.Core/Brand/BrandPalette.Generated.cs` from `contract/brand.json`; `--check` fails when it is stale. BCL only, so it builds when the table does not. |
 

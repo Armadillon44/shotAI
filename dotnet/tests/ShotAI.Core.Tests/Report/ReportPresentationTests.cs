@@ -156,6 +156,11 @@ public sealed class ReportPresentationTests
     public void AbsentFramingIsCentredAtZoomOne() =>
         Assert.Equal(new ReportFraming(1, 0.5, 0.5), ReportPresentation.Framing(Shot()));
 
+    /// <summary>The axes stay apart: <c>reportPanX</c> is the horizontal pan and <c>reportPanY</c> the vertical one.</summary>
+    [Fact]
+    public void ThePanAxesStayApart() =>
+        Assert.Equal(new ReportFraming(2, 0.2, 0.7), ReportPresentation.Framing(Shot("s", ""","reportZoom":2,"reportPanX":0.2,"reportPanY":0.7""")));
+
     [Fact]
     public void TheNormalizersTakeTheRawNumber()
     {
@@ -258,6 +263,24 @@ public sealed class ReportPresentationTests
         Assert.Null(new ReportMarker(1, 1, default).FractionIn(null));
         Assert.Equal(new MarkerFraction(0.25, 0.5), new ReportMarker(50, 50, default).FractionIn(new ImageSize(200, 100)));
     }
+
+    /// <summary>The ring is drawn at the click in the image's pixels, never at its point on the screen.</summary>
+    [Fact]
+    public void TheMarkerUsesTheImagePoint()
+    {
+        var marker = ReportPresentation.MarkerFor(Shot("s", ""","click":{"global":{"x":1500,"y":900},"image":{"x":150,"y":90},"button":"left"}"""));
+        Assert.NotNull(marker);
+        Assert.Equal((150.0, 90.0), (marker.Value.X, marker.Value.Y));
+    }
+
+    /// <summary>A size that is not positive draws no ring, even for the point (0, 0), whose fraction of a negative size would be -0.</summary>
+    [Theory]
+    [InlineData(-10, -10)]
+    [InlineData(0, 100)]
+    [InlineData(200, 0)]
+    [InlineData(double.NaN, 100)]
+    public void NoRingWithoutAPositiveSize(double width, double height) =>
+        Assert.Null(new ReportMarker(0, 0, default).FractionIn(new ImageSize(width, height)));
 
     /// <summary>
     /// EDGE-REP-13: every CSS hex length draws in its parsed color with the fill at 0x2E;

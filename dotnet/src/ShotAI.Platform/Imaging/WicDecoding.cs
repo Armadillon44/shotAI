@@ -14,8 +14,8 @@ namespace ShotAI.Platform.Imaging;
 /// cannot disagree about either (EDGE-REP-40, Q-REP-19). Every WIC call runs on an MTA thread.
 /// </summary>
 /// <remarks>
-/// Landed with the report decoder (WP-A17). The capture codec (WP-B) composes the same steps,
-/// without the scaler.
+/// Landed with the report decoder (WP-A17). 04's render codec (<c>WicImageCodec : IRenderCodec</c>,
+/// WP-C10) composes the same steps, without the scaler.
 /// </remarks>
 internal static class WicDecoding
 {
@@ -37,8 +37,9 @@ internal static class WicDecoding
     /// <summary>
     /// Frame 0 of <paramref name="bytes"/>, by the built-in decoder of <paramref name="container"/>,
     /// created with <c>CreateDecoder</c>, never by a factory that sniffs (R-ARCH-21). The vendor
-    /// argument is only a preference, so a decoder whose vendor is not Microsoft's built-in one is
-    /// refused (fail closed).
+    /// argument, <c>GUID_VendorMicrosoftBuiltIn</c>, is only a preference for the native decoder,
+    /// so a decoder whose vendor is not Microsoft is refused (fail closed). The built-in decoders
+    /// report <c>GUID_VendorMicrosoft</c> as their vendor, not the preference's GUID.
     /// </summary>
     /// <remarks>
     /// The stream reads <paramref name="bytes"/> in place for as long as the scope's objects live,
@@ -55,7 +56,7 @@ internal static class WicDecoding
         // no pixels and no stream, so the collector releases it.
         decoder.GetDecoderInfo(out var info);
         ((IWICComponentInfo)info).GetVendorGUID(out var vendor);
-        if (vendor != PInvoke.GUID_VendorMicrosoftBuiltIn) throw new InvalidDataException("The image decoder is not the built-in one.");
+        if (vendor != PInvoke.GUID_VendorMicrosoft) throw new InvalidDataException($"The image decoder is not Microsoft's (vendor {vendor}).");
         decoder.Initialize(stream, WICDecodeOptions.WICDecodeMetadataCacheOnDemand);
         decoder.GetFrame(0, out var frame);
         return scope.Add(frame);

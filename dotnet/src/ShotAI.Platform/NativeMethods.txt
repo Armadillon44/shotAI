@@ -60,6 +60,7 @@ IWICColorTransform
 IWICMetadataQueryReader
 GUID_ContainerFormatPng
 GUID_ContainerFormatJpeg
+GUID_VendorMicrosoft
 GUID_VendorMicrosoftBuiltIn
 GUID_WICPixelFormat32bppPBGRA
 GUID_WICPixelFormat32bppBGRA

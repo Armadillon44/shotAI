@@ -48,6 +48,8 @@ public sealed class CssColorTests
     [InlineData("#1234567")]
     [InlineData("#123456789")]
     [InlineData("e11d48")]
+    [InlineData("1e11d48")]
+    [InlineData("x123")]
     [InlineData("##e11d48")]
     [InlineData("#e11d4g")]
     [InlineData("#e1 1d48")]

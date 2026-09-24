@@ -146,6 +146,16 @@ public sealed class CardListDiffTests
         Assert.Equal([1, null, 2, 3], Enumerable.Range(0, 4).Select(i => now.For(i).Number).ToArray());
     }
 
+    /// <summary>Ids that differ only by case are different cards, so swapping them is a move, not nothing.</summary>
+    [Fact]
+    public void IdsDifferingOnlyByCaseAreDifferentCards()
+    {
+        var before = Keys("a", "A");
+        var after = Keys("A", "a");
+        Assert.NotEmpty(CardListDiff.Plan(before, after));
+        Assert.Equal(after, Applied(before, after));
+    }
+
     [Fact]
     public void ArgumentsAreChecked() => Assert.Throws<ArgumentNullException>(() => CardListDiff.Keys(null!));
 }

@@ -242,7 +242,9 @@ public sealed class ReportImageLoaderTests
             var text = Assert.Single(VisualTree.Descendants<TextBlock>(figure), t => t.Name == "PART_Missing");
             Assert.Equal("Image missing: shots/none.png", text.Text);
             Assert.Equal(Visibility.Visible, text.Visibility);
-            Assert.Equal(ReportFigure.PlaceholderHeight, figure.ActualHeight, 3);
+            // The host stretches the figure; a card's stack gives it the height it asks for.
+            Assert.Equal(ReportFigure.PlaceholderHeight, figure.DesiredSize.Height, 3);
+            Assert.Equal(ReportFigure.PlaceholderHeight, VisualTree.Named<Border>(figure, "PART_Placeholder").ActualHeight, 3);
         }
         finally
         {

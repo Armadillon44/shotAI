@@ -25,6 +25,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase, IDisposable
     private readonly ILogger<ProjectDetailViewModel> _log;
     private IProjectSession? _session;
     private int _openGeneration;
+    private double _windowScale = DocScale.Default;
 
     /// <summary>The project view, with no project open.</summary>
     public ProjectDetailViewModel(
@@ -123,7 +124,8 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase, IDisposable
         Notices = new NoticeStackViewModel();
         Report = report;
         ShowManifest();
-        _layout.SetDetailView(true, CommittedScale);
+        _windowScale = CommittedScale;
+        _layout.SetDetailView(true, _windowScale);
         return true;
     }
 
@@ -171,14 +173,17 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // INV-REP-31: an event from a session that is no longer the open one changes nothing.
+    // INV-REP-31: an event from a session that is no longer the open one changes nothing. The
+    // session sets Current before it raises Changed, so the scale the window was last sized for
+    // is remembered here rather than read from the session.
     private void OnSessionChanged(object? sender, ManifestChangedEventArgs e)
     {
         if (!ReferenceEquals(sender, _session) || _session is not { } session || Report is not { } report) return;
-        var scale = CommittedScale;
         report.Sync(session.Current, e.Kind, e.AffectedStepIds);
         ShowManifest();
-        if (CommittedScale != scale) _layout.SetDetailView(true, CommittedScale);
+        if (CommittedScale == _windowScale) return;
+        _windowScale = CommittedScale;
+        _layout.SetDetailView(true, _windowScale);
     }
 
     private void ShowManifest()
