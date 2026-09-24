@@ -80,12 +80,15 @@ public sealed class AreaSelectionMathTests
     }
 
     /// <summary>
-    /// A drag past the overlay's left edge: -11.5 rounds to -11 as JavaScript rounds (not -12),
-    /// and -13.75 floors to -14, away from the monitor's origin.
+    /// A drag past the overlay's left edge, or its top: -11.5 rounds to -11 as JavaScript rounds
+    /// (not -12), and -13.75 floors to -14, away from the monitor's origin (not -13).
     /// </summary>
     [Fact]
-    public void ANegativeOffsetRoundsLikeJavaScriptAndFloors() =>
+    public void ANegativeOffsetRoundsLikeJavaScriptAndFloors()
+    {
         Assert.Equal(new Rect(-2574, 0, 25, 25), AreaSelectionMath.ToPhysical(new(-11.5, 0, 20, 20), new(-2560, 0, 3200, 1800), 1.25));
+        Assert.Equal(new Rect(-2560, -14, 25, 25), AreaSelectionMath.ToPhysical(new(0, -11.5, 20, 20), new(-2560, 0, 3200, 1800), 1.25));
+    }
 
     /// <summary>
     /// The badge shows the size of the rectangle the drag resolves to (EDGE-SHELL-39), across

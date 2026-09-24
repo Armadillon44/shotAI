@@ -103,9 +103,10 @@ public partial class AreaOverlayWindow : ShotAIWindow
             CaptureMouse();
             return;
         }
+        // Taking the capture raises a move at the cursor at once, which must not end a drag of the old press.
+        CaptureMouse();
         _start = at;
         _current = at;
-        CaptureMouse();
         Redraw();
     }
 

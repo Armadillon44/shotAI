@@ -35,7 +35,7 @@ public sealed class AreaOverlayTests
     [Fact]
     public Task OneOverlayPerMonitorWithExactBounds() => Sta.RunAsync(async () =>
     {
-        MonitorDescriptorEx[] monitors = [AreaSelectionHarness.Band(), AreaSelectionHarness.OffScreen(0, 1920, 1080), AreaSelectionHarness.OffScreen(1, 2560, 1440)];
+        MonitorDescriptorEx[] monitors = [AreaSelectionHarness.Band(), AreaSelectionHarness.OffScreen(0, 800, 600), AreaSelectionHarness.OffScreen(1, 640, 480)];
         using var h = new AreaSelectionHarness(monitors);
         var selection = await h.OpenAsync();
         var overlays = h.Service.PendingOverlays;

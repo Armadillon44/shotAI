@@ -98,7 +98,7 @@ public sealed partial class AreaSelectionService : IAreaSelectionService
                 CloseAll(selection);
                 throw;
             }
-            return await selection.Result.Task;
+            return await selection.Completion.Task;
         }
         finally
         {
@@ -123,7 +123,7 @@ public sealed partial class AreaSelectionService : IAreaSelectionService
         if (result is { } r) Selected(_log, (int)r.Width, (int)r.Height, (int)r.X, (int)r.Y);
         else Cancelled(_log);
         CloseAll(selection);
-        selection.Result.TrySetResult(result);
+        selection.Completion.TrySetResult(result);
     }
 
     private static void CloseAll(Selection selection)
@@ -193,6 +193,6 @@ public sealed partial class AreaSelectionService : IAreaSelectionService
 
         public List<AreaOverlayWindow> Overlays { get; } = [];
 
-        public TaskCompletionSource<Rect?> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<Rect?> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }

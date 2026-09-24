@@ -74,8 +74,10 @@ internal sealed class AreaSelectionHarness : IDisposable
     /// <summary>
     /// A stood-in monitor of the primary monitor's scale, far off every real screen, so its
     /// overlay covers nothing a test elsewhere looks at; <paramref name="index"/> keeps them apart.
+    /// It is no larger than the runners' 1024 by 768 screens: Windows keeps a window within the
+    /// virtual screen's size, which a real monitor never exceeds.
     /// </summary>
-    public static MonitorDescriptorEx OffScreen(int index, int width = 1600, int height = 900)
+    public static MonitorDescriptorEx OffScreen(int index, int width = 800, int height = 600)
     {
         var rect = new PixelRect(-20000 + (index * 4000), -20000, width, height);
         return new MonitorDescriptorEx(0, rect, rect, MonitorQueries.Primary().Scale, false);
