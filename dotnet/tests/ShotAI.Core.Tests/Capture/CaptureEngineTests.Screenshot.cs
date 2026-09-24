@@ -131,6 +131,26 @@ public sealed partial class CaptureEngineTests
         Assert.Single(h.Screen.Grabs);
     }
 
+    /// <summary>A screenshot cancelled during its settle grabs nothing, restores the window and ends idle.</summary>
+    [Fact]
+    public async Task ACancelledScreenshotGrabsNothingAndEndsIdle()
+    {
+        await using var h = new EngineHarness();
+        h.Clock.Hold = true;
+        var p = h.Project();
+        using var cts = new CancellationTokenSource();
+        var shot = h.Engine.CaptureScreenshotAsync(p, Screen1, 0, cts.Token);
+        await UntilAsync(() => h.Clock.Pending == 1);
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => shot.Bounded());
+        Assert.Empty(h.Screen.Grabs);
+        Assert.Equal([new RecordingChangedEventArgs(true, false), new RecordingChangedEventArgs(false, false)], h.RecordingChanges);
+        Assert.Equal([CaptureState.Idle], h.States);
+        Assert.Empty(EngineHarness.StepsOnDisk(p));
+        Assert.Equal(CaptureStatus.Recording, (await h.StartAsync(p)).Status);
+    }
+
     /// <summary>EDGE-CAP-14: the just-hidden window can still be the foreground, so the screenshot skips the own-window guard.</summary>
     [Fact]
     public async Task ScreenshotSkipsOwnWindowGuard()
