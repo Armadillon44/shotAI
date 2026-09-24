@@ -359,10 +359,18 @@ public sealed class HomeViewModelTests
     {
         var t = new TestShell();
         Assert.Equal(1, t.Projects.Subscribers);
-        await Task.Run(t.Projects.RaiseProjectsChanged);
+        // Raised here, the signal's refresh is posted, not run; the Home is disposed before it runs.
+        t.Projects.RaiseProjectsChanged();
         t.Home.Dispose();
         await TestShell.Settle();
         Assert.Equal(0, t.Projects.Subscribers);
         Assert.Equal(0, t.Projects.Calls);
+
+        // Without the dispose, the same post lists.
+        using var live = new TestShell();
+        live.Projects.RaiseProjectsChanged();
+        Assert.Equal(0, live.Projects.Calls);
+        await TestShell.Settle();
+        Assert.Equal(1, live.Projects.Calls);
     });
 }

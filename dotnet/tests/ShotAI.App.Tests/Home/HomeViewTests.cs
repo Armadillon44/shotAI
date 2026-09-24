@@ -24,8 +24,9 @@ public sealed class HomeViewTests
     private const string Monday = "2026-07-20T09:00:00.000Z";
     private const string LastWeek = "2026-07-14T09:00:00.000Z";
 
+    // The texts on screen, as a screen reader reads them.
     private static List<string> Shown(DependencyObject root) =>
-        [.. VisualTree.Descendants<TextBlock>(root).Where(t => t.IsVisible).Select(t => t.Text)];
+        [.. VisualTree.Descendants<TextBlock>(root).Where(t => t.IsVisible).Select(VisualTree.TextOf)];
 
     private static List<string> Item(HomeView view, int index) =>
         Shown((DependencyObject)view.Rows.ItemContainerGenerator.ContainerFromIndex(index));
@@ -115,7 +116,7 @@ public sealed class HomeViewTests
             Assert.Contains(HomeText.NoProjectsIcon, shown);
             Assert.Contains(HomeText.NoProjects, shown);
             var sub = HomeText.NoProjectsSubBefore + HomeText.NoProjectsSubCapture + HomeText.NoProjectsSubMiddle + HomeText.NoProjectsSubEmpty + HomeText.NoProjectsSubAfter;
-            var line = VisualTree.Descendants<TextBlock>(view).Single(b => b.Text == sub);
+            var line = VisualTree.Descendants<TextBlock>(view).Single(b => VisualTree.TextOf(b) == sub);
             Assert.True(line.IsVisible);
             Assert.Equal(2, line.Inlines.OfType<System.Windows.Documents.Bold>().Count());
             Assert.Empty(view.Rows.Items);

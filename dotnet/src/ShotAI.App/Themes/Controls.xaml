@@ -667,7 +667,7 @@
     shadow, and notice.css's own 8 DIP corners and drop shadow, which are not tokens: a notice looks
     the same under every brand and appearance, so XamlChromeGuard exempts the Notice prefix. It
     enters in 140 ms from 6 DIP above, transparent. Its text is a live region, assertive for an
-    error (D-HOME-24); NoticeHost announces each change, since WPF does not.
+    error (D-HOME-24), announced on each change by LiveRegion, since WPF does not announce one.
   -->
   <Style x:Key="Notice.Dismiss" TargetType="Button">
     <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
@@ -726,9 +726,9 @@
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="NoticeText" Text="{Binding Text, NotifyOnTargetUpdated=True}" TextWrapping="Wrap" FontSize="13.6"
+        <TextBlock x:Name="NoticeText" Text="{Binding Text}" TextWrapping="Wrap" FontSize="13.6"
                    LineStackingStrategy="BlockLineHeight" LineHeight="18.36" Foreground="{StaticResource FixedColors.NoticeText}"
-                   AutomationProperties.LiveSetting="Assertive">
+                   AutomationProperties.LiveSetting="Assertive" chrome:LiveRegion.Text="{Binding Text, RelativeSource={RelativeSource Self}}">
           <TextBlock.Effect>
             <DropShadowEffect Color="{StaticResource FixedColors.NoticeTextShadow}" Direction="270" ShadowDepth="1" BlurRadius="2" Opacity="0.45" />
           </TextBlock.Effect>

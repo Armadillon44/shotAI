@@ -10,14 +10,24 @@ namespace ShotAI.App.Tests.Support;
 /// until the body's task completes. That thread is the test's UI thread.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The first use applies <see cref="DllSearchHardening"/> to the test process, so the windows
 /// these tests create load WPF's native parts under the same DLL search the app runs with
 /// (INV-PKG-16, EDGE-PKG-48).
+/// </para>
+/// <para>
+/// The bodies run one at a time. WPF reads XAML, images and fonts from one resource package per
+/// process, and <c>PackagePart.GetStream</c> is not thread-safe: two UI threads loading the same
+/// part at once can fail in <c>PackagePart.CleanUpRequestedStreamsList</c> (seen in WP-A16's CI).
+/// The app has one UI thread; without the gate the tests would have one per test class.
+/// </para>
 /// </remarks>
 internal static class Sta
 {
     /// <summary>A body that has not finished by then fails the test instead of hanging the run.</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
+
+    private static readonly SemaphoreSlim OneUiThreadAtATime = new(1, 1);
 
     static Sta()
     {
@@ -30,9 +40,22 @@ internal static class Sta
     /// Whether an exception no handler handled on the dispatcher fails the test. The crash
     /// logging tests turn it off to let their own handler see it.
     /// </param>
-    public static Task RunAsync(Func<Task> body, bool failOnDispatcherException = true)
+    public static async Task RunAsync(Func<Task> body, bool failOnDispatcherException = true)
     {
         ArgumentNullException.ThrowIfNull(body);
+        await OneUiThreadAtATime.WaitAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await RunOnNewThreadAsync(body, failOnDispatcherException);
+        }
+        finally
+        {
+            OneUiThreadAtATime.Release();
+        }
+    }
+
+    private static Task RunOnNewThreadAsync(Func<Task> body, bool failOnDispatcherException)
+    {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {

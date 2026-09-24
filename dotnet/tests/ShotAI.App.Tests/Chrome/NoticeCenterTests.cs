@@ -220,19 +220,22 @@ public sealed class NoticeCenterTests
             t.Notices.ShowError(string.Concat(Enumerable.Repeat("The project folder is read-only. ", 8)));
             await TestShell.Settle();
 
+            // The stack, not the card: the card's entry animation moves it by a render transform.
+            var stack = view.NoticeHost.Stack;
             var card = VisualTree.Named<Border>(view.NoticeHost, "Card");
             var header = VisualTree.Named<Border>(view, "Header");
-            var before = VisualTree.Origin(card, view);
+            var before = VisualTree.Origin(stack, view);
             Assert.Equal(header.ActualHeight + 9.6, before.Y, 3);
-            Assert.Equal((view.ActualWidth - card.ActualWidth) / 2, before.X, 1);
-            Assert.True(card.ActualWidth <= view.ActualWidth * NoticeHost.StackShare + 0.01, $"{card.ActualWidth} is wider than 92% of {view.ActualWidth}");
+            Assert.Equal((view.ActualWidth - stack.ActualWidth) / 2, before.X, 1);
+            Assert.Equal(card.ActualWidth, stack.ActualWidth, 3);
+            Assert.True(stack.ActualWidth <= view.ActualWidth * NoticeHost.StackShare + 0.01, $"{stack.ActualWidth} is wider than 92% of {view.ActualWidth}");
 
             var scroller = view.HomeView.ScrollViewer;
             Assert.True(scroller.ScrollableHeight > 200, $"the list does not scroll: {scroller.ScrollableHeight}");
             scroller.ScrollToVerticalOffset(200);
             await TestShell.Settle();
             Assert.Equal(200, scroller.VerticalOffset, 3);
-            Assert.Equal(before, VisualTree.Origin(card, view));
+            Assert.Equal(before, VisualTree.Origin(stack, view));
         }
         finally
         {

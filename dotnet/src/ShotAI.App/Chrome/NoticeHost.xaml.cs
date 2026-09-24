@@ -1,15 +1,12 @@
 using System.Windows;
-using System.Windows.Automation;
-using System.Windows.Automation.Peers;
 using System.Windows.Controls;
-using System.Windows.Data;
 
 namespace ShotAI.App.Chrome;
 
 /// <summary>
-/// The one notice control (spec 03 7.4.10, 06 7.10): renders its data context's notices, and
-/// announces each notice it shows or changes, because WPF raises nothing for a live region by
-/// itself.
+/// The one notice control (spec 03 7.4.10, 06 7.10): renders its data context's notices. Each
+/// notice's text is a <see cref="LiveRegion"/>, announced when the notice appears and each time
+/// its text is replaced, because WPF raises nothing for a live region by itself.
 /// </summary>
 public partial class NoticeHost : UserControl
 {
@@ -24,8 +21,10 @@ public partial class NoticeHost : UserControl
     {
         InitializeComponent();
         SizeChanged += (_, e) => Stack.MaxWidth = StackWidth(e.NewSize.Width);
-        // The template's text binding notifies on each transfer: a notice shown, or its text replaced.
-        AddHandler(Binding.TargetUpdatedEvent, new EventHandler<DataTransferEventArgs>(OnTargetUpdated));
+        AddHandler(LiveRegion.AnnouncedEvent, new RoutedEventHandler((_, e) =>
+        {
+            if (e.OriginalSource is TextBlock text) Announced?.Invoke(this, text);
+        }));
     }
 
     /// <summary>Raised after a notice's text was announced; the tests' view of the announcement.</summary>
@@ -33,12 +32,4 @@ public partial class NoticeHost : UserControl
 
     /// <summary>The stack's width limit in an area <paramref name="width"/> wide.</summary>
     internal static double StackWidth(double width) => Math.Min(Math.Max(0, width) * StackShare, MaxStackWidth);
-
-    private void OnTargetUpdated(object? sender, DataTransferEventArgs e)
-    {
-        if (e.TargetObject is not TextBlock text || e.Property != TextBlock.TextProperty) return;
-        var peer = UIElementAutomationPeer.FromElement(text) ?? UIElementAutomationPeer.CreatePeerForElement(text);
-        peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
-        Announced?.Invoke(this, text);
-    }
 }
