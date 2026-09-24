@@ -350,6 +350,7 @@ public sealed partial class CaptureEngineTests
         Assert.False(stop.IsCompleted);
         Assert.Equal(CaptureStatus.Recording, h.Engine.GetState().Status);
         h.Triggers.LateClick(400, 400);
+        h.Triggers.LateHotkey();
         gate.Open();
         var state = await stop.Bounded();
 
@@ -359,6 +360,25 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(new RecordingChangedEventArgs(false, false), h.RecordingChanges[^1]);
         Assert.Equal(CaptureState.Idle, h.States[^1]);
         Assert.Contains("recording stopped (7 steps total, 2 this session)", h.LogLines());
+    }
+
+    /// <summary>2.2.9: a hotkey pressed while paused is ignored, even when the recording resumes before the queue reaches it.</summary>
+    [Fact]
+    public async Task AHotkeyWhilePausedStaysIgnoredAfterResume()
+    {
+        await using var h = new EngineHarness();
+        using var gate = new GrabGate(h.Screen);
+        var p = h.Project();
+        await h.StartAsync(p);
+        h.Triggers.Click(100, 100);
+        await gate.EnteredAsync();
+        h.Engine.Pause();
+        h.Triggers.Hotkey();
+        h.Engine.Resume();
+        gate.Open();
+        await h.SettleAsync();
+
+        Assert.Equal(["click"], h.Landed.Select(l => l.Step.Trigger));
     }
 
     /// <summary>A stop with no session drains, logs and reports idle, but raises no recording change.</summary>

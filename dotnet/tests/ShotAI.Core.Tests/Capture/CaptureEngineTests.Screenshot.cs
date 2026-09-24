@@ -271,6 +271,26 @@ public sealed partial class CaptureEngineTests
         Assert.Empty(h.Screen.Grabs);
     }
 
+    /// <summary>D21: a mousedown on its way from an ended recording while a screenshot runs starts no query and adds no step.</summary>
+    [Fact]
+    public async Task AClickDuringAScreenshotIsDropped()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.Engine.StopAsync().Bounded();
+        h.Clock.Hold = true;
+        var shot = h.ScreenshotAsync(p, Screen1, 0);
+        await UntilAsync(() => h.Clock.Pending == 1);
+        h.Triggers.LateClick(100, 100);
+        h.Clock.Advance(350);
+        await shot.Bounded();
+        await h.SettleAsync();
+
+        Assert.Empty(h.Elements.Queries);
+        Assert.Single(EngineHarness.StepsOnDisk(p));
+    }
+
     /// <summary>D21, EDGE-CAP-51: pause, resume, stop and discard leave a screenshot alone and report idle, raising nothing.</summary>
     [Fact]
     public async Task StopDuringScreenshotIsNoOp()

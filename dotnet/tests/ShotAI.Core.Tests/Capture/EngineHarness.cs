@@ -155,6 +155,7 @@ internal sealed class FakeTriggerSource : ITriggerSource
     private Action<MouseDown>? _mouse;
     private Action? _hotkey;
     private Action<MouseDown>? _lastMouse;
+    private Action? _lastHotkey;
 
     public int Attaches { get; private set; }
 
@@ -186,6 +187,7 @@ internal sealed class FakeTriggerSource : ITriggerSource
             _mouse = onMouseDown;
             _lastMouse = onMouseDown;
             _hotkey = onHotkey;
+            _lastHotkey = onHotkey;
             LastAttachHadHotkey = onHotkey is not null;
             return new TriggerAttachResult(true);
         }
@@ -221,6 +223,14 @@ internal sealed class FakeTriggerSource : ITriggerSource
         Action<MouseDown> mouse;
         lock (_lock) mouse = _lastMouse ?? throw new InvalidOperationException("never attached");
         mouse(new MouseDown(x, y, MouseButton.Left, 0));
+    }
+
+    /// <summary>A hotkey press that was already on its way when the triggers were detached.</summary>
+    public void LateHotkey()
+    {
+        Action hotkey;
+        lock (_lock) hotkey = _lastHotkey ?? throw new InvalidOperationException("never attached with a hotkey");
+        hotkey();
     }
 }
 
