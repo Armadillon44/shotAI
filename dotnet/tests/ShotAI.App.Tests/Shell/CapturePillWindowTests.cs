@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
@@ -102,8 +103,9 @@ public sealed class CapturePillWindowTests
         pill.Recording(0);
         await pill.ShowAsync();
         var (x, y) = Center(pill.Window.PauseButton);
+        AssertPillAt(pill, x, y);
         SyntheticMouse.Click(x, y);
-        Assert.True(await Until(() => pill.Capture.Calls.Contains("pause")), "the click did not reach Pause");
+        Assert.True(await Until(() => pill.Capture.Calls.Contains("pause")), "the click did not reach Pause; " + Around(x, y));
         pill.AssertNeverActivated();
     });
 
@@ -120,8 +122,9 @@ public sealed class CapturePillWindowTests
         await pill.ShowAsync();
         var before = WindowStyles.GetWindowRect(pill.Window.Handle);
         var (x, y) = Center(pill.Window.Grip);
+        AssertPillAt(pill, x, y);
         SyntheticMouse.Press(x, y);
-        Assert.True(await Until(() => pill.Window.DragArea.IsMouseCaptured), "the press on the grip did not start a drag");
+        Assert.True(await Until(() => pill.Window.DragArea.IsMouseCaptured), "the press on the grip did not start a drag; " + Around(x, y));
         var start = SyntheticMouse.Cursor();
         var cursor = start;
         foreach (var (dx, dy) in new[] { (30, -20), (60, -40) })
@@ -150,8 +153,9 @@ public sealed class CapturePillWindowTests
         await pill.ShowAsync();
         var before = WindowStyles.GetWindowRect(pill.Window.Handle);
         var (x, y) = Center(pill.Window.StopButton);
+        AssertPillAt(pill, x, y);
         SyntheticMouse.Press(x, y);
-        Assert.True(await Until(() => pill.Window.StopButton.IsMouseCaptured), "the press did not reach Stop");
+        Assert.True(await Until(() => pill.Window.StopButton.IsMouseCaptured), "the press did not reach Stop; " + Around(x, y));
         SyntheticMouse.MoveTo(x + 40, y);
         Assert.True(await Until(() => SyntheticMouse.Cursor().X > x + 30), "the cursor did not move");
         await TestShell.Settle();
@@ -261,10 +265,11 @@ public sealed class CapturePillWindowTests
         var opened = false;
         pill.Window.ErrorMessage.ToolTipOpening += (_, _) => opened = true;
         var (x, y) = Center(pill.Window.ErrorMessage);
+        AssertPillAt(pill, x - 4, y);
         SyntheticMouse.MoveTo(x - 4, y);
         await TestShell.Settle();
         SyntheticMouse.MoveTo(x, y);
-        Assert.True(await Until(() => opened), "the error's tooltip did not open");
+        Assert.True(await Until(() => opened), "the error's tooltip did not open; " + Around(x, y));
         Assert.Equal(pill.ViewModel.View.Error, pill.Window.ErrorMessage.ToolTip);
         pill.AssertNeverActivated();
     });
@@ -375,6 +380,15 @@ public sealed class CapturePillWindowTests
         var p = element.PointToScreen(new Point(element.ActualWidth / 2, element.ActualHeight / 2));
         return ((int)Math.Round(p.X), (int)Math.Round(p.Y));
     }
+
+    // Real input reaches the pill only where the pill is the window on top.
+    private static void AssertPillAt(PillHarness pill, int x, int y) =>
+        Assert.True(User32.RootAt(x, y) == pill.Window.Handle, "the pill is not the window under the input; " + Around(x, y));
+
+    // What is at the point and in the foreground, for a failure message.
+    private static string Around(int x, int y) => string.Create(
+        CultureInfo.InvariantCulture,
+        $"the window at ({x}, {y}) is {User32.Describe(User32.RootAt(x, y))}, and the foreground window is {User32.Describe(User32.GetForegroundWindow())}");
 
     private static void Invoke(Button button) =>
         ((IInvokeProvider)new ButtonAutomationPeer(button).GetPattern(PatternInterface.Invoke)!).Invoke();

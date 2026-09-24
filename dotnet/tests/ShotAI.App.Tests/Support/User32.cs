@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace ShotAI.App.Tests.Support;
@@ -97,6 +98,22 @@ internal static unsafe partial class User32
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     public static partial nint GetForegroundWindow();
 
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint WindowFromPoint(ScreenPoint point);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial int GetClassName(nint hwnd, char* name, int capacity);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial int GetWindowText(nint hwnd, char* text, int capacity);
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial uint GetWindowThreadProcessId(nint hwnd, out uint processId);
+
     [LibraryImport("user32.dll", EntryPoint = "GetWindowLongW")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     public static partial int GetWindowLong(nint hwnd, int index);
@@ -107,6 +124,34 @@ internal static unsafe partial class User32
 
     /// <summary>The display affinity of a window, or <see cref="uint.MaxValue"/> when Windows cannot read it.</summary>
     public static uint Affinity(nint hwnd) => GetWindowDisplayAffinity(hwnd, out var affinity) ? affinity : uint.MaxValue;
+
+    /// <summary>The top-level window at a physical point of the screen, 0 when there is none.</summary>
+    public static nint RootAt(int x, int y) => GetAncestor(WindowFromPoint(new ScreenPoint(x, y)), 2 /* GA_ROOT */);
+
+    /// <summary>A window's handle, class, title and process, for a failure message.</summary>
+    public static string Describe(nint hwnd)
+    {
+        if (hwnd == 0) return "none";
+        var buffer = stackalloc char[256];
+        var className = new string(buffer, 0, Math.Max(0, GetClassName(hwnd, buffer, 256)));
+        var title = new string(buffer, 0, Math.Max(0, GetWindowText(hwnd, buffer, 256)));
+        _ = GetWindowThreadProcessId(hwnd, out var pid);
+        string process;
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById((int)pid);
+            process = p.ProcessName;
+        }
+        catch (ArgumentException)
+        {
+            process = "?";
+        }
+        catch (InvalidOperationException)
+        {
+            process = "?";
+        }
+        return string.Create(CultureInfo.InvariantCulture, $"0x{hwnd:x} class '{className}' title '{title}' process {process} ({pid})");
+    }
 
     /// <summary>Whether a window is top-level: its own root.</summary>
     public static bool IsTopLevel(nint hwnd) => GetAncestor(hwnd, 2 /* GA_ROOT */) == hwnd;
@@ -139,4 +184,8 @@ internal static unsafe partial class User32
         ((List<nint>)GCHandle.FromIntPtr(lParam).Target!).Add(hwnd);
         return 1;
     }
+
+    /// <summary>A point on the screen in physical pixels, as <c>POINT</c> lays it out.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public readonly record struct ScreenPoint(int X, int Y);
 }
