@@ -82,19 +82,25 @@ public sealed class UiaElementLocatorTests
         Assert.InRange(watch.ElapsedMilliseconds, 0, 1500);
     }
 
-    /// <summary>D15: while one query thread waits on a hung app, the other answers the next click.</summary>
+    /// <summary>
+    /// D15: while one query thread waits on a hung app, the other answers the next click. Both
+    /// threads have answered the button once first, since each thread's first read on a cold
+    /// runner can pass the cap; the reads are recorded for the failure message.
+    /// </summary>
     [Fact]
     public async Task AHungProviderLeavesTheOtherThread()
     {
         using var window = new ControlsWindow(left: 60);
         using var hung = new HungWindow(left: 520);
-        using var locator = Locator();
-        await ResolveAsync(locator, window.SaveText, e => e?.Name == "Save");
+        var reads = new ReadLog();
+        using var locator = new UiaElementLocator(() => new RecordingReader(new UiaElementReader(), reads), TimeProvider.System, _log);
+        await WarmBothThreadsAsync(locator, window.SaveText, reads);
 
         var stuck = locator.ElementAtAsync(hung.Center.X, hung.Center.Y);
+        await reads.WaitForStart(hung.Center);
         var element = await locator.ElementAtAsync(window.SaveText.X, window.SaveText.Y).WaitAsync(Bound, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Save", element?.Name);
+        Assert.True(element?.Name == "Save", "the other thread did not answer: " + reads);
         Assert.Null(await stuck.WaitAsync(Bound, TestContext.Current.CancellationToken));
     }
 
@@ -186,6 +192,19 @@ public sealed class UiaElementLocatorTests
         return element;
     }
 
+    // Two queries at once until each query thread has answered the point within the cap.
+    private static async Task WarmBothThreadsAsync(UiaElementLocator locator, (int X, int Y) point, ReadLog reads)
+    {
+        locator.WarmUp();
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            await Task.WhenAll(locator.ElementAtAsync(point.X, point.Y), locator.ElementAtAsync(point.X, point.Y)).WaitAsync(Bound, TestContext.Current.CancellationToken);
+            if (reads.AnsweredInTime(point, "shotAI.Uia.0") && reads.AnsweredInTime(point, "shotAI.Uia.1")) return;
+            await Task.Delay(250, TestContext.Current.CancellationToken);
+        }
+        throw new TimeoutException("Both query threads did not answer in time: " + reads);
+    }
+
     private static T OnMta<T>(Func<T> work)
     {
         T result = default!;
@@ -205,6 +224,85 @@ public sealed class UiaElementLocatorTests
         thread.Start();
         if (!thread.Join(Bound)) throw new TimeoutException("The MTA thread did not finish.");
         return error is null ? result : throw new InvalidOperationException("The MTA work failed.", error);
+    }
+
+    /// <summary>Each read's thread, point, start, duration and answer, in the order the reads started.</summary>
+    private sealed class ReadLog
+    {
+        private readonly List<Read> _reads = [];
+
+        public void Add(Read read)
+        {
+            lock (_reads) _reads.Add(read);
+        }
+
+        public bool AnsweredInTime((int X, int Y) point, string thread)
+        {
+            lock (_reads) return _reads.Any(r => r.Point == point && r.Thread == thread && r.Ms is < CaptureConstants.ElementQueryTimeoutMs && r.Name is not null);
+        }
+
+        public async Task WaitForStart((int X, int Y) point)
+        {
+            var deadline = DateTime.UtcNow + Bound;
+            while (true)
+            {
+                lock (_reads)
+                {
+                    if (_reads.Any(r => r.Point == point)) return;
+                }
+                if (DateTime.UtcNow > deadline) throw new TimeoutException("The read did not start: " + this);
+                await Task.Delay(10, TestContext.Current.CancellationToken);
+            }
+        }
+
+        public override string ToString()
+        {
+            lock (_reads) return string.Join("; ", _reads.Select(r => $"{r.Thread} ({r.Point.X},{r.Point.Y}) at {r.StartMs} ms took {(r.Ms is { } ms ? ms + " ms" : "unfinished")} -> {r.Name ?? r.Error ?? "null"}"));
+        }
+
+        public sealed class Read((int X, int Y) point, string? thread, long startMs)
+        {
+            public (int X, int Y) Point { get; } = point;
+
+            public string? Thread { get; } = thread;
+
+            public long StartMs { get; } = startMs;
+
+            public long? Ms { get; set; }
+
+            public string? Name { get; set; }
+
+            public string? Error { get; set; }
+        }
+    }
+
+    /// <summary>A UI Automation reader that records each read in a <see cref="ReadLog"/>.</summary>
+    private sealed class RecordingReader(UiaElementReader inner, ReadLog log) : IElementReader
+    {
+        private static readonly Stopwatch Clock = Stopwatch.StartNew();
+
+        public StepElement? Read(int x, int y)
+        {
+            var read = new ReadLog.Read((x, y), Thread.CurrentThread.Name, Clock.ElapsedMilliseconds);
+            log.Add(read);
+            try
+            {
+                var element = inner.Read(x, y);
+                read.Name = element?.Name ?? element?.ControlType;
+                return element;
+            }
+            catch (Exception e)
+            {
+                read.Error = e.GetType().Name;
+                throw;
+            }
+            finally
+            {
+                read.Ms = Clock.ElapsedMilliseconds - read.StartMs;
+            }
+        }
+
+        public void Dispose() => inner.Dispose();
     }
 
     private sealed class NullReader : IElementReader

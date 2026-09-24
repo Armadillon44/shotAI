@@ -145,7 +145,7 @@ public sealed class ElementQueryPoolTests : IDisposable
         Assert.Contains(_logs.Entries, e => e.Message == "element locator: UI Automation could not be started on shotAI.Uia.1; element names disabled there:");
     }
 
-    /// <summary>Two threads, named, each prepared before it starts and making its own reader on itself (EDGE-CAP-13).</summary>
+    /// <summary>Two background threads, named, each prepared before it starts and making its own reader on itself (EDGE-CAP-13, 7.13).</summary>
     [Fact]
     public async Task StartMakesTwoNamedThreadsOnce()
     {
@@ -155,6 +155,7 @@ public sealed class ElementQueryPoolTests : IDisposable
         await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.Equal(["shotAI.Uia.0", "shotAI.Uia.1"], _readers.Made.Select(r => r.Thread).Order());
+        Assert.All(_readers.Made, r => Assert.True(r.Background));
         lock (_prepared)
         {
             Assert.Equal(["shotAI.Uia.0", "shotAI.Uia.1"], _prepared.Select(p => p.Name).Order());
@@ -275,7 +276,7 @@ public sealed class ElementQueryPoolTests : IDisposable
 
         public IElementReader Create()
         {
-            var reader = new Reader(this, Thread.CurrentThread.Name, Environment.CurrentManagedThreadId);
+            var reader = new Reader(this, Thread.CurrentThread.Name, Environment.CurrentManagedThreadId, Thread.CurrentThread.IsBackground);
             _made.Enqueue(reader);
             return reader;
         }
@@ -288,11 +289,14 @@ public sealed class ElementQueryPoolTests : IDisposable
 
         public Task WaitForReads(int count) => WaitFor(() => _points.Count >= count);
 
-        public sealed class Reader(ScriptedReaders script, string? thread, int madeOn) : IElementReader
+        public sealed class Reader(ScriptedReaders script, string? thread, int madeOn, bool background) : IElementReader
         {
             public string? Thread { get; } = thread;
 
             public int MadeOn { get; } = madeOn;
+
+            /// <summary>Whether the reader's thread lets the process exit without it (spec 02 7.13).</summary>
+            public bool Background { get; } = background;
 
             public int? DisposedOn { get; private set; }
 
