@@ -5,3 +5,9 @@ WIN32_FIND_DATAW
 FINDEX_INFO_LEVELS
 FINDEX_SEARCH_OPS
 WIN32_ERROR
+SetDefaultDllDirectories
+GetStdHandle
+AttachConsole
+ATTACH_PARENT_PROCESS
+IsWow64Process2
+GetCurrentProcess
