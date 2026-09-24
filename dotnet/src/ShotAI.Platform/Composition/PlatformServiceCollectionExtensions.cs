@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ShotAI.Core.Diagnostics;
+using ShotAI.Core.Links;
 using ShotAI.Core.Report;
 using ShotAI.Core.Shell;
 using ShotAI.Core.Store;
@@ -34,6 +35,7 @@ public static class PlatformServiceCollectionExtensions
         services.AddSingleton<ReportImageDecoder>();
         services.AddSingleton<IImageSizeProbe, WicImageSizeProbe>();
         services.AddSingleton<IShellReveal, ShellReveal>();
+        services.AddSingleton<IUrlLauncher, ShellUrlLauncher>();
         return services;
     }
 }
