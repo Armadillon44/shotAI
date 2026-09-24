@@ -47,11 +47,11 @@ internal sealed class LogHarness : IDisposable
     public FileLoggerProvider Provider(FileLogOptions? options = null, bool startWriter = false) =>
         Own(new FileLoggerProvider(options ?? Options(), Time, startWriter));
 
-    /// <summary><c>shotai.log</c> as UTF-8, or null when it does not exist.</summary>
-    public string? Text() => File.Exists(LogFile) ? File.ReadAllText(LogFile, new UTF8Encoding(false, true)) : null;
+    /// <summary><c>shotai.log</c> as strict UTF-8, or null when it does not exist.</summary>
+    public string? Text() => ReadShared(LogFile);
 
-    /// <summary><c>shotai.old.log</c> as UTF-8, or null when it does not exist.</summary>
-    public string? OldText() => File.Exists(OldLogFile) ? File.ReadAllText(OldLogFile, new UTF8Encoding(false, true)) : null;
+    /// <summary><c>shotai.old.log</c> as strict UTF-8, or null when it does not exist.</summary>
+    public string? OldText() => ReadShared(OldLogFile);
 
     /// <summary>The lines of <c>shotai.log</c> without their <c>\r\n</c>; empty when it does not exist.</summary>
     public string[] Lines()
@@ -77,6 +77,16 @@ internal sealed class LogHarness : IDisposable
         var body = bytes - 2 - Encoding.UTF8.GetByteCount(tag);
         Xunit.Assert.True(body >= 0, $"a {bytes}-byte line cannot start with {tag}");
         return tag + new string('.', body) + "\r\n";
+    }
+
+    // With the sharing the writer uses, so a read never fails while a batch has the file open,
+    // and without BOM detection, so a BOM would show up as U+FEFF in every comparison.
+    private static string? ReadShared(string path)
+    {
+        if (!File.Exists(path)) return null;
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream, new UTF8Encoding(false, true), detectEncodingFromByteOrderMarks: false);
+        return reader.ReadToEnd();
     }
 
     private T Own<T>(T disposable) where T : IDisposable

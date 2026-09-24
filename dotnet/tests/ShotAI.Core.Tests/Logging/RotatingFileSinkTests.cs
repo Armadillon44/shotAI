@@ -77,6 +77,29 @@ public sealed class RotatingFileSinkTests : IDisposable
         Assert.Equal(lines[8] + lines[9], _h.Text());
     }
 
+    /// <summary>
+    /// The bound counts bytes, the drop report's included: lines of 100, 50 and 100 bytes fill
+    /// one 250-byte batch, and a report and one line leave no room for a second 100-byte line.
+    /// </summary>
+    [Fact]
+    public void ABatchCountsBytesAndTheReport()
+    {
+        var sink = _h.Sink(_h.Options(maxBytes: 50, capacity: 3, batchBytes: 250));
+        string a = Line("a"), b = LogHarness.Line("b", 50), c = Line("c"), d = Line("d");
+        foreach (var line in new[] { a, b, c }) sink.Write(line);
+        Assert.True(sink.Flush(Wait));
+        Assert.Equal(a + b + c, _h.Text());
+        WriteEach(sink, d);
+        Assert.Equal(a + b + c, _h.OldText());
+
+        var lines = Enumerable.Range(1, 4).Select(i => Line($"{i}")).ToArray();
+        foreach (var line in lines) sink.Write(line);
+        Assert.True(sink.Flush(Wait));
+        const string report = LogHarness.Stamp + " [warn]  (main)     log: 1 line(s) dropped\r\n";
+        Assert.Equal(report + lines[0], _h.OldText());
+        Assert.Equal(lines[1] + lines[2], _h.Text());
+    }
+
     /// <summary>A line longer than a batch is a batch of its own, written whole.</summary>
     [Fact]
     public void ALineLongerThanABatchIsWrittenAlone()
@@ -331,9 +354,23 @@ public sealed class RotatingFileSinkTests : IDisposable
         foreach (var line in lines) sink.Write(line);
         var expected = string.Concat(lines);
         var deadline = DateTime.UtcNow + Wait;
-        while (ReadShared() != expected && DateTime.UtcNow < deadline)
+        while (_h.Text() != expected && DateTime.UtcNow < deadline)
             await Task.Delay(10, TestContext.Current.CancellationToken);
-        Assert.Equal(expected, ReadShared());
+        Assert.Equal(expected, _h.Text());
+    }
+
+    /// <summary>The public constructor starts the writer, as the provider's does.</summary>
+    [Fact]
+    public async Task ThePublicConstructorStartsTheWriter()
+    {
+        using var sink = new RotatingFileSink(_h.Options(), _h.Time);
+        var a = Line("a");
+        sink.Write(a);
+        var deadline = DateTime.UtcNow + Wait;
+        while (_h.Text() != a && DateTime.UtcNow < deadline)
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        Assert.Equal(a, _h.Text());
+        Assert.Equal(_h.LogFile, sink.LogFile);
     }
 
     /// <summary>
@@ -513,7 +550,7 @@ public sealed class RotatingFileSinkTests : IDisposable
         sink.BeforeOpen = null;
         release.Set();
         Assert.True(sink.Flush(Wait));
-        Assert.Equal(first + LogHarness.Stamp + " [warn]  (main)     log: 2 line(s) dropped\r\n" + string.Concat(queued[..3]), ReadShared());
+        Assert.Equal(first + LogHarness.Stamp + " [warn]  (main)     log: 2 line(s) dropped\r\n" + string.Concat(queued[..3]), _h.Text());
     }
 
     /// <summary>
@@ -559,14 +596,5 @@ public sealed class RotatingFileSinkTests : IDisposable
             sink.Write(line);
             Assert.True(sink.Flush(Wait));
         }
-    }
-
-    // The file as the writer may still have it open, which the sharing mode allows.
-    private string? ReadShared()
-    {
-        if (!File.Exists(_h.LogFile)) return null;
-        using var stream = new FileStream(_h.LogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var reader = new StreamReader(stream, new UTF8Encoding(false));
-        return reader.ReadToEnd();
     }
 }

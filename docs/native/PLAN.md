@@ -408,12 +408,12 @@ Goal (feasibility "Phased plan"): the C# `project.json` codec, the store with at
 |---|---|
 | Goal | electron-log-compatible file logging that never blocks a caller |
 | Spec inputs | 10 2.7, 2.11, 7.5 (7.5.1 to 7.5.5), INV-INFRA-20, INV-INFRA-21; ARCHITECTURE 8.4, 8.5; 11 7.11 (L1, L2); Q-INFRA-7, Q-INFRA-11, Q-IPC-11 |
-| Deliverables | Core `ShotAI.Core.Logging`: `LogCategories`, `FileLogOptions`, `FileLoggerProvider`, `FileLogLineFormatter` (`[yyyy-MM-dd HH:mm:ss.fff] [level] (label)` padded to 11, CRLF, UTF-8 without BOM, invariant culture), `RotatingFileSink` (bounded channel of 10,000 lines, drop and count, batches of 256 KiB, `FileShare.ReadWrite \| FileShare.Delete`, rotation past 5,242,880 bytes, synchronous `Flush`), `ServiceLog` (`LoggerMessage` `call: {Service}.{Member}`) |
-| Tests | No Electron file. New: `Logging/FileLogLineFormatterTests`, `RotatingFileSinkTests`, `LogCategoriesTests`, `LogPrivacyTests` |
+| Deliverables | Core `ShotAI.Core.Logging`: `LogCategories`, `FileLogOptions`, `FileLoggerProvider`, `FileLogLineFormatter` (`[yyyy-MM-dd HH:mm:ss.fff] [level] (label)` padded to 11, CRLF, UTF-8 without BOM, invariant culture), `RotatingFileSink` (bounded channel of 10,000 lines, drop and count, batches of 256 KiB, `FileShare.ReadWrite \| FileShare.Delete`, rotation past 5,242,880 bytes, synchronous `Flush`), `ServiceLog` (`LoggerMessage` `call: {Service}.{Member}`); added in WP-A11: `FileLogOptions.MinimumLevelFor` and `LevelVariable` (the Q-INFRA-11 rule, so the App only passes the environment in), and the sink's internal `BeforeOpen` and `Queued`, which only the tests use |
+| Tests | No Electron file. New: `Logging/FileLogLineFormatterTests`, `RotatingFileSinkTests`, `LogCategoriesTests`, `LogPrivacyTests`; added in WP-A11: `Logging/FileLogOptionsTests`, `FileLoggerProviderTests`, `ServiceLogTests`, the shared `Logging/LogHarness`, and `Support/RepoFiles`, through which `LogCategoriesTests` reads ARCHITECTURE 2.4 |
 | Acceptance criteria | AC-INFRA-15 |
 | Depends on | WP-A1 |
 | Size | S |
-| Risks and de-risking | Log volume on the hook thread: the sink only formats on the caller and never waits (PB-17) |
+| Risks and de-risking | Log volume on the hook thread: the sink only formats on the caller and never waits (PB-17). Outcome in WP-A11: `WritesNeverWaitForTheWriter` holds the writer inside a batch and every write still returns; `TwelveMegabytesLeaveTwoFilesUnderTheBound` is the demo and AC-INFRA-15; in the mutation check, a batch bounded by its first line's size times the line count survived, because it equals the byte bound when every line has one size and no report is in the batch, and `ABatchCountsBytesAndTheReport` now catches it |
 | Demo | a test writes 12 MB of Debug lines and exactly `shotai.log` and `shotai.old.log` remain |
 
 #### WP-A12. App host and composition root
@@ -1728,11 +1728,11 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-INFRA-4 | fleet update-check policy | WP-E1 | none in 2.0.0 |
 | Q-INFRA-5 | the notice on managed devices | closed | resolved 2026-09-23: the notice follows the install scope (06 INV-HOME-45, built in WP-E1) |
 | Q-INFRA-6 | prerelease ordering | WP-E1 | adopt (`2.0.0-alpha.N` is older than `2.0.0`) |
-| Q-INFRA-7 | same log file as Electron | WP-A11 | yes |
+| Q-INFRA-7 | same log file as Electron | WP-A11 | yes (done in WP-A11: `FileLogOptions.FileName` and `OldFileName` are the Electron build's files) |
 | Q-INFRA-8 | MSIX virtualization | closed | MSI (I-2); AC-INFRA-31 stays the gate (WP-E3) |
 | Q-INFRA-9 | WPF and the variable Archivo | WP-A14 | static instances |
 | Q-INFRA-10 | 06's attribution of the palette | closed | R-ARCH-14 |
-| Q-INFRA-11 | `SHOTAI_LOG_LEVEL` | WP-A11 | `debug` only |
+| Q-INFRA-11 | `SHOTAI_LOG_LEVEL` | WP-A11 | `debug` only (done in WP-A11: `FileLogOptions.MinimumLevelFor`) |
 | Q-INFRA-12 | back up a corrupt file | WP-A10 | one `settings.json.bad` (done in WP-A10, once per corruption) |
 | Q-INFRA-13 | Electron's timeout message | WP-E1 | irrelevant natively |
 | Q-INFRA-14 | redirect handling | WP-E1 | follow; final host must be `api.github.com` |
@@ -1760,7 +1760,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-8 | unknown `settings.json` keys | WP-A10 | preserve (done in WP-A10) |
 | Q-IPC-9 | analyzer noise | WP-A1 | suppress only for `*.g.cs` |
 | Q-IPC-10 | exit flush as a blocking wait | WP-A12 | bounded blocking wait (DL4) |
-| Q-IPC-11 | debug call logging volume | WP-A12 | Debug level |
+| Q-IPC-11 | debug call logging volume | WP-A12 | Debug level (`ServiceLog.Call` is Debug since WP-A11) |
 | Q-IPC-12 | `ShotAIException` everywhere | WP-A1 | foundation first; each spec derives |
 | Q-IPC-13 | recents on a folder change | WP-B10 | parity |
 | Q-IPC-14 | where `IExternalLinks` lives | WP-A19 | 11's algorithm, 10's registration |
@@ -2223,7 +2223,7 @@ Every acceptance criterion of every spec (section 9) and of ARCHITECTURE 12.10, 
 | AC-INFRA-12 | WP-B10 | SettingsServiceTests.RollbackOnlyTheFailedChange passes, and manually: with settings.json made ... |
 | AC-INFRA-13 | WP-B10 | SettingsServiceTests.CachesReadCurrentSynchronously passes, and toggling remote visibility in ... |
 | AC-INFRA-14 | WP-A12 | The log file is %APPDATA%\shotAI\logs\shotai.log; its first line matches ^\[\d{4}-\d{2}-\d{2} ... |
-| AC-INFRA-15 | WP-A11 | RotatingFileSinkTests pass; manually, writing 12 MB of debug logs leaves exactly shotai.log ... |
+| AC-INFRA-15 | WP-A11 | RotatingFileSinkTests pass on Linux and both Windows legs, among them ... |
 | AC-INFRA-16 | WP-E6 | LogPrivacyTests.CanaryNeverLogged passes; a code review of every Log* call finds no value from ... |
 | AC-INFRA-17 | WP-E1 | UpdateCheckTests (all 25 ported cases plus the new ones) and UpdateServiceTests pass on Linux. |
 | AC-INFRA-18 | WP-E1 | Manual, on a build whose version is set below the latest release: first launch shows shotAI ... |
@@ -2414,7 +2414,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-A8. Archive engine (#130)
 - [x] WP-A9. Project session (#131)
 - [x] WP-A10. Settings service (#132)
-- [ ] WP-A11. Logging
+- [x] WP-A11. Logging (#133)
 - [ ] WP-A12. App host and composition root
 - [ ] WP-A13. Window base, popup exclusion and single instance
 - [ ] WP-A14. Theme resources and fonts

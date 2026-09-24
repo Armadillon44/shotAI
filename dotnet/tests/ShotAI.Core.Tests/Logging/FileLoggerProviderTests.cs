@@ -168,6 +168,19 @@ public sealed class FileLoggerProviderTests : IDisposable
     [Fact]
     public void LogFileIsInTheLogsFolder() => Assert.Equal(_h.LogFile, _h.Provider().LogFile);
 
+    /// <summary>The public constructor starts the writer: a line reaches the file with no flush.</summary>
+    [Fact]
+    public async Task ThePublicConstructorStartsTheWriter()
+    {
+        using var provider = new FileLoggerProvider(_h.Options(), _h.Time);
+        Log(provider.CreateLogger("main"), LogLevel.Information, "m");
+        const string expected = LogHarness.Stamp + " [info]  (main)     m\r\n";
+        var deadline = DateTime.UtcNow + Wait;
+        while (_h.Text() != expected && DateTime.UtcNow < deadline)
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        Assert.Equal(expected, _h.Text());
+    }
+
     private static void Log(ILogger log, LogLevel level, string text) => log.Log(level, default, text, null, static (s, _) => s);
 
     private sealed class ToStringThrows : Exception
