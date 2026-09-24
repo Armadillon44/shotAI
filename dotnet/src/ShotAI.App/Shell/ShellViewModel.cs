@@ -12,9 +12,10 @@ namespace ShotAI.App.Shell;
 /// </summary>
 /// <remarks>
 /// The inputs land with their views: Home's Open opens the project view, whose successful open
-/// shows it and whose Back closes it (WP-A17); Settings and its Back call <see cref="OpenSettings"/>
-/// and <see cref="CloseSettings"/> (WP-B10), and the capture state adds Recording (WP-B9). Until
-/// then the header's Settings button raises the menu's request.
+/// shows it and whose Back closes it (WP-A17); the open project's pin follows its session, and
+/// the menu's Brand choice goes to the project view (WP-A18); Settings and its Back call
+/// <see cref="OpenSettings"/> and <see cref="CloseSettings"/> (WP-B10), and the capture state adds
+/// Recording (WP-B9). Until then the header's Settings button raises the menu's request.
 /// </remarks>
 public sealed class ShellViewModel : ViewModelBase
 {
@@ -35,10 +36,16 @@ public sealed class ShellViewModel : ViewModelBase
         Project = project;
         Menu = menu;
         Notices = notices;
-        // Both live as long as the shell, so neither subscription outlives what it holds.
+        // Both live as long as the shell, so neither subscription outlives what it holds; the menu
+        // lives as long as the app, which has the one shell.
         home.OpenRequested += (_, path) => _ = OpenProjectAsync(path);
         project.OpenFailed += (_, e) => home.OnOpenFailed(e);
         project.Closed += (_, _) => CloseProject();
+        project.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ProjectDetailViewModel.RawProjectTheme)) FollowProjectTheme();
+        };
+        menu.ProjectThemeChosen += (_, choice) => Project.SetProjectTheme(choice.ProjectPath, choice.Brand);
     }
 
     /// <summary>Raised once after each transition, when every fact of it is set; <see cref="NavigationState"/> follows it.</summary>
@@ -181,6 +188,19 @@ public sealed class ShellViewModel : ViewModelBase
     {
         RawProjectTheme = null;
         OpenProjectPath = null;
+        Derive();
+    }
+
+    // The open project's pin changed in its session (a Brand choice, its rollback, a write that
+    // found another pin on disk): the navigation follows at once, so the theme and the menu do
+    // (06 7.7). Only the project shown counts: while a Back or another open is under way the
+    // project view's path is not the shell's, and ShowProject or CloseProject sets the pin.
+    private void FollowProjectTheme()
+    {
+        if (OpenProjectPath is null || !string.Equals(Project.OpenProjectPath, OpenProjectPath, StringComparison.Ordinal)) return;
+        var theme = Project.RawProjectTheme;
+        if (string.Equals(theme, RawProjectTheme, StringComparison.Ordinal)) return;
+        RawProjectTheme = theme;
         Derive();
     }
 

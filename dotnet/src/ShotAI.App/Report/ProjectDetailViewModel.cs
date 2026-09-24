@@ -2,8 +2,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using ShotAI.App.Shell;
+using ShotAI.Core.Errors;
 using ShotAI.Core.Geometry;
 using ShotAI.Core.Report;
+using ShotAI.Core.Report.Operations;
 using ShotAI.Core.Store;
 
 namespace ShotAI.App.Report;
@@ -12,9 +14,10 @@ namespace ShotAI.App.Report;
 /// The project view (spec 05 7.3): it opens a project into a session of its own (INV-REP-31),
 /// shows its report, and closes it on Back. A newer open, or a Back, makes an older open's result
 /// a no-op, so nothing is created for it (EDGE-REP-44). A failed open that is not a project gone
-/// from disk is raised as <see cref="OpenFailed"/> for Home to show (EDGE-REP-39). The command
-/// bar's controls, the edits and the capture flow's adopt join with their packages (WP-C, WP-D).
-/// UI thread only.
+/// from disk is raised as <see cref="OpenFailed"/> for Home to show (EDGE-REP-39). Its one edit
+/// so far is View, Brand's (<see cref="SetProjectTheme"/>, WP-A18); the command bar's controls,
+/// the report's edits and the capture flow's adopt join with their packages (WP-C, WP-D). UI
+/// thread only.
 /// </summary>
 public sealed partial class ProjectDetailViewModel : ViewModelBase, IDisposable
 {
@@ -119,6 +122,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase, IDisposable
         var session = _sessions.Create(opened);
         _session = session;
         session.Changed += OnSessionChanged;
+        session.PersistFailed += OnPersistFailed;
         var report = _reports.Create(session);
         report.Sync(session.Current, ManifestChangeKind.External, null);
         Notices = new NoticeStackViewModel();
@@ -148,10 +152,65 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase, IDisposable
         CloseSession();
     }
 
+    /// <summary>
+    /// View, Brand (05 7.5 P8, 03 INV-SHELL-17): pins <paramref name="brand"/>, or with null clears
+    /// the pin, through the session of the project open now, when it is still
+    /// <paramref name="projectPath"/>; otherwise nothing happens. The value passes through
+    /// untouched (INV-IPC-14). The view, the theme and the menu show the change at once; a write
+    /// the disk refuses is rolled back and shown as the rollback notice.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="brand"/> is not null and not a brand id (D-IPC-9).</exception>
+    public void SetProjectTheme(string projectPath, string? brand)
+    {
+        ArgumentNullException.ThrowIfNull(projectPath);
+        var op = new SetProjectThemeOperation(brand);
+        if (_session is not { } session || !string.Equals(session.ProjectDir, projectPath, StringComparison.Ordinal)) return;
+        _ = ApplyAsync(session, op);
+    }
+
+    // 05 7.5's rule for an optimistic edit: an operation the clone refused changed nothing and is
+    // shown here (a step already gone shows nothing, S2); a write the disk refused is shown once,
+    // from PersistFailed (S4), so its faulted task is only observed (VSTHRD110).
+    private async Task ApplyAsync(IProjectSession session, ProjectOperation op)
+    {
+        var task = session.Apply(op);
+        var refused = task.IsFaulted;
+        try
+        {
+            await task;
+        }
+        catch (StepNotFoundException) when (refused)
+        {
+        }
+        catch (Exception e) when (refused)
+        {
+            NotApplied(_log, e, op.GetType().Name);
+            if (ReferenceEquals(session, _session)) ShowRolledBack(e);
+        }
+        catch (Exception) when (!refused)
+        {
+        }
+    }
+
+    // S4: the session has rolled Current back and raised Changed(RolledBack) first.
+    private void OnPersistFailed(object? sender, PersistFailedEventArgs e)
+    {
+        if (!ReferenceEquals(sender, _session)) return;
+        if (UserMessage.IsUnexpected(e.Error)) RolledBackUnexpected(_log, e.Error, e.Operation.GetType().Name);
+        else RolledBack(_log, e.Error, e.Operation.GetType().Name);
+        ShowRolledBack(e.Error);
+    }
+
+    private void ShowRolledBack(Exception error)
+    {
+        if (UserMessage.From(error) is { } message) Notices.Show(ReportNoticeSlot.Save, message);
+    }
+
     private void CloseSession()
     {
         if (_session is not { } session) return;
         session.Changed -= OnSessionChanged;
+        session.PersistFailed -= OnPersistFailed;
         _session = null;
         Report = null;
         OnPropertyChanged(nameof(OpenProjectPath));
@@ -204,4 +263,13 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase, IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "report: closing the session failed:")]
     private static partial void DisposeFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "report: an edit did not apply: {Operation}")]
+    private static partial void NotApplied(ILogger logger, Exception exception, string operation);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "report: a change could not be saved and was undone: {Operation}")]
+    private static partial void RolledBack(ILogger logger, Exception exception, string operation);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "report: a change could not be saved and was undone, for an unexpected reason: {Operation}")]
+    private static partial void RolledBackUnexpected(ILogger logger, Exception exception, string operation);
 }

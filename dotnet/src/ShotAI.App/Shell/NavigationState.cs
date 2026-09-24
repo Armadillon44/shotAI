@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using ShotAI.Core.Brand;
+using ShotAI.Core.Threading;
 
 namespace ShotAI.App.Shell;
 
@@ -9,11 +11,22 @@ namespace ShotAI.App.Shell;
 /// <remarks>
 /// WP-A14 landed the theme manager's half; WP-A15 added the open project for the menu (03's
 /// <see cref="IShellNavigationState"/>); WP-A16 made it <see cref="Follow"/> the shell's view
-/// model, which a view model may not take as a dependency (INV-ARCH-3). Until the project view
-/// opens a project (WP-A17) no project is open, and the app brand shows.
+/// model, which a view model may not take as a dependency (INV-ARCH-3); WP-A18 feeds it the open
+/// project's pin as the session changes it. Each subscriber of <see cref="Changed"/> runs in its
+/// own try/catch, so a menu or theme that fails to follow is logged and never fails the edit
+/// that changed the pin (spec 11 EDGE-IPC-6, 06 8.3).
 /// </remarks>
 public sealed class NavigationState : IShellNavigationState
 {
+    private readonly ILogger<NavigationState> _log;
+
+    /// <summary>The state with nothing open.</summary>
+    public NavigationState(ILogger<NavigationState> log)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        _log = log;
+    }
+
     /// <inheritdoc/>
     public bool ProjectOpen => OpenProjectPath is not null;
 
@@ -32,7 +45,7 @@ public sealed class NavigationState : IShellNavigationState
     /// </summary>
     public string? ProjectPinnedBrand { get; private set; }
 
-    /// <summary>Raised on the UI thread when any of the facts changes.</summary>
+    /// <summary>Raised on the UI thread when any of the facts changes; a subscriber that throws is logged and the rest still run.</summary>
     public event EventHandler? Changed;
 
     /// <summary>
@@ -65,8 +78,16 @@ public sealed class NavigationState : IShellNavigationState
         OpenProjectPath = openProjectPath;
         RawProjectTheme = rawProjectTheme;
         ProjectPinnedBrand = BrandPalette.PinnedBrand(rawProjectTheme);
-        Changed?.Invoke(this, EventArgs.Empty);
+        EventRaiser.Raise(Changed, this, _log, nameof(Changed));
     }
+
+#if DEBUG
+    /// <summary>
+    /// Debug builds only: raises <see cref="Changed"/> with nothing changed, for AC-SHELL-21's
+    /// manual check (<see cref="DebugNavigationPulse"/>).
+    /// </summary>
+    internal void RaiseUnchanged() => EventRaiser.Raise(Changed, this, _log, nameof(Changed));
+#endif
 
     private void From(ShellViewModel shell) =>
         Set(shell.CurrentView == ShellViewKind.Project, shell.OpenProjectPath, shell.RawProjectTheme);

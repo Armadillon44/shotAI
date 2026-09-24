@@ -173,9 +173,11 @@ public sealed class ReportImageDecoderTests
     [Fact]
     public Task ACanceledDecodeThrows() => Sta.RunAsync(async () =>
     {
+        // Made here, not in the pool's lambda: WPF's encoder would leave a Dispatcher on that pool thread.
+        var png = TestImages.Png(4, 4);
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.Run(() => Decoder.Decode(TestImages.Png(4, 4), n => (int)n.Width, cts.Token), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.Run(() => Decoder.Decode(png, n => (int)n.Width, cts.Token), TestContext.Current.CancellationToken));
     });
 
     [Fact]

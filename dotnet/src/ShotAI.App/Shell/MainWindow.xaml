@@ -58,6 +58,24 @@
         <MenuItem Header="{x:Static core:ShellStrings.ZoomOut}" InputGestureText="Ctrl+-" Command="{Binding ZoomOutCommand}" />
         <Separator />
         <MenuItem Header="{x:Static core:ShellStrings.ToggleFullScreen}" InputGestureText="F11" Command="{x:Static shell:ShellCommands.ToggleFullScreen}" />
+        <Separator />
+        <!--
+          View, Brand (7.4.5, D14): bound, never rebuilt. WPF never checks a row by itself
+          (IsCheckable false, IsChecked one way), and every click, the ticked row's included,
+          runs the menu's command with the row's brand, null for App default.
+        -->
+        <MenuItem x:Name="BrandMenu" Header="{x:Static core:ShellStrings.Brand}" IsEnabled="{Binding BrandMenuEnabled, Mode=OneWay}" ItemsSource="{Binding BrandItems, Mode=OneTime}">
+          <MenuItem.ItemContainerStyle>
+            <Style TargetType="MenuItem">
+              <Setter Property="Header" Value="{Binding Label, Mode=OneWay}" />
+              <Setter Property="IsCheckable" Value="False" />
+              <Setter Property="IsChecked" Value="{Binding IsChecked, Mode=OneWay}" />
+              <Setter Property="InputGestureText" Value="" />
+              <Setter Property="Command" Value="{Binding Command, Mode=OneTime}" />
+              <Setter Property="CommandParameter" Value="{Binding BrandId, Mode=OneTime}" />
+            </Style>
+          </MenuItem.ItemContainerStyle>
+        </MenuItem>
       </MenuItem>
       <MenuItem Header="_Window">
         <MenuItem Header="{x:Static core:ShellStrings.Minimize}" InputGestureText="Ctrl+M" Command="{x:Static shell:ShellCommands.Minimize}" />

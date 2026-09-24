@@ -13,24 +13,41 @@ using ShotAI.Core.Theme;
 namespace ShotAI.App.Tests.Support;
 
 /// <summary>
-/// The shell, Home and the project view as the container makes them, over a
-/// <see cref="ListingProjects"/> store and a <see cref="TestClock"/>, on the calling UI thread.
+/// The shell, Home, the project view and the menu as the container and startup make them, over a
+/// <see cref="ListingProjects"/> store, a <see cref="FakeSettingsService"/> and a
+/// <see cref="TestClock"/>, on the calling UI thread: the navigation state follows the shell and
+/// the menu follows the navigation state (06 7.7).
 /// </summary>
 internal sealed class TestShell : IDisposable
 {
-    public TestShell(ListingProjects? projects = null, TestClock? clock = null)
+    /// <param name="projects">The store; a new one when null.</param>
+    /// <param name="clock">The clock; 2026-07-22 10:00 UTC when null.</param>
+    /// <param name="settings">The settings; the defaults when null.</param>
+    /// <param name="sessions">Wraps the real session factory, for a test that watches the sessions.</param>
+    public TestShell(
+        ListingProjects? projects = null, TestClock? clock = null, FakeSettingsService? settings = null,
+        Func<IProjectSessionFactory, IProjectSessionFactory>? sessions = null)
     {
         Projects = projects ?? new ListingProjects();
         Clock = clock ?? new TestClock(new DateTimeOffset(2026, 7, 22, 10, 0, 0, TimeSpan.Zero));
+        Settings = settings ?? new FakeSettingsService();
+        var ui = new WpfUiDispatcher(Dispatcher.CurrentDispatcher);
         Notices = new NoticeCenter(new Logger<NoticeCenter>(Logs));
-        Home = new HomeViewModel(Projects, Notices, new WpfUiDispatcher(Dispatcher.CurrentDispatcher), Clock, new Logger<HomeViewModel>(Logs));
-        Menu = new AppMenuViewModel();
-        Sessions = new ProjectSessionFactory(Projects, new Logger<ProjectSessionFactory>(Logs));
+        Home = new HomeViewModel(Projects, Notices, ui, Clock, new Logger<HomeViewModel>(Logs));
+        Navigation = new NavigationState(new Logger<NavigationState>(Logs));
+        Menu = new AppMenuViewModel(Navigation, Settings, ui, new Logger<AppMenuViewModel>(Logs));
+        IProjectSessionFactory real = new ProjectSessionFactory(Projects, new Logger<ProjectSessionFactory>(Logs));
+        Sessions = sessions?.Invoke(real) ?? real;
         Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, new Logger<ProjectDetailViewModel>(Logs));
         Shell = new ShellViewModel(Home, Project, Menu, Notices);
+        Navigation.Follow(Shell);
     }
 
     public ListingProjects Projects { get; }
+
+    public FakeSettingsService Settings { get; }
+
+    public NavigationState Navigation { get; }
 
     public TestClock Clock { get; }
 
@@ -42,7 +59,7 @@ internal sealed class TestShell : IDisposable
 
     public AppMenuViewModel Menu { get; }
 
-    public ProjectSessionFactory Sessions { get; }
+    public IProjectSessionFactory Sessions { get; }
 
     public RecordingLayout Layout { get; } = new();
 
@@ -54,6 +71,7 @@ internal sealed class TestShell : IDisposable
     {
         Project.Dispose();
         Home.Dispose();
+        Menu.Dispose();
     }
 
     /// <summary>

@@ -64,6 +64,16 @@ public static class ShellStrings
     /// <summary>View, Toggle Full Screen: the <c>togglefullscreen</c> role.</summary>
     public const string ToggleFullScreen = "Toggle Full Screen";
 
+    /// <summary>View, Brand: the open project's brand pin (<c>menu.ts:242</c>).</summary>
+    public const string Brand = "Brand";
+
+    /// <summary>
+    /// View, Brand's first row, which clears the pin and names the app brand the project then
+    /// follows (<c>menu.ts:186</c>).
+    /// </summary>
+    /// <param name="brandLabel">The app brand's label: <c>shotAI</c> or <c>LFI</c>.</param>
+    public static string BrandAppDefault(string brandLabel) => $"App default ({brandLabel})";
+
     /// <summary>The Window menu (the <c>windowMenu</c> role).</summary>
     public const string WindowMenu = "Window";
 

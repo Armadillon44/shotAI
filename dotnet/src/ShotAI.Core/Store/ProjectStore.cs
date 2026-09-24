@@ -5,6 +5,7 @@ using ShotAI.Core.Codec;
 using ShotAI.Core.Geometry;
 using ShotAI.Core.Json;
 using ShotAI.Core.Model;
+using ShotAI.Core.Report.Operations;
 
 namespace ShotAI.Core.Store;
 
@@ -364,18 +365,14 @@ public sealed partial class ProjectStore : IProjectService, IDisposable, IAsyncD
     /// <remarks>
     /// The comparison is raw: an absent key follows the app brand and a pinned default does not,
     /// so clearing an unbranded project is a no-op while pinning it to the default writes (#77).
-    /// An unknown brand is refused before anything is queued (Q-MODEL-15).
+    /// An unknown brand is refused before anything is queued (Q-MODEL-15). The rule is the
+    /// report's <see cref="SetProjectThemeOperation"/>, which View, Brand applies through the
+    /// session, so the two paths are one (added in WP-A18).
     /// </remarks>
     public Task<ProjectManifest> SetProjectThemeAsync(string projectPath, string? brand)
     {
-        if (brand is not null && !BrandPalette.IsBrandId(brand))
-            throw new ArgumentException("A project theme is null or a brand id.", nameof(brand));
-        return MutateAsync(projectPath, m =>
-        {
-            if (string.Equals(m.Theme, brand, StringComparison.Ordinal)) return ValueTask.FromResult(MutateResult.Unchanged);
-            m.Theme = brand;
-            return ValueTask.FromResult(MutateResult.Changed);
-        });
+        var op = new SetProjectThemeOperation(brand);
+        return MutateAsync(projectPath, m => ValueTask.FromResult(op.Apply(m)));
     }
 
     /// <summary>

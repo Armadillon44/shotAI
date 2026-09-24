@@ -25,6 +25,17 @@ public sealed class ReportStringsTests
         Assert.Equal("Export failed: ", ReportStrings.ExportFailed);
     }
 
+    /// <summary>
+    /// The native rollback notice's prefix (7.5, Q-REP-1, 01 Q-MODEL-12), with an ASCII apostrophe
+    /// and the space before the message; added in WP-A18.
+    /// </summary>
+    [Fact]
+    public void TheRollbackNoticeIsQRep1s()
+    {
+        Assert.Equal("Your last change couldn't be saved and was undone. ", ReportStrings.RolledBack);
+        Assert.Equal("Your last change couldn't be saved and was undone. " + UserMessage.Generic, ReportStrings.RolledBack + UserMessage.From(new InvalidOperationException("x")));
+    }
+
     /// <summary><c>`${n} step${n === 1 ? '' : 's'}`</c>: every step counted, and only 1 is singular.</summary>
     [Theory]
     [InlineData(0, "0 steps")]
