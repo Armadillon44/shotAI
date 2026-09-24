@@ -486,7 +486,7 @@ public sealed class RotatingFileSinkTests : IDisposable
         Assert.Equal(a + b, _h.Text());
     }
 
-    /// <summary>A null line is ignored; a logging call never throws.</summary>
+    /// <summary>A null line is ignored, not counted as dropped; a logging call never throws.</summary>
     [Fact]
     public void ANullLineIsIgnored()
     {
@@ -494,6 +494,9 @@ public sealed class RotatingFileSinkTests : IDisposable
         sink.Write(null!);
         Assert.True(sink.Flush(Wait));
         Assert.Null(_h.Text());
+        var a = Line("a");
+        WriteEach(sink, a);
+        Assert.Equal(a, _h.Text());
     }
 
     /// <summary>
