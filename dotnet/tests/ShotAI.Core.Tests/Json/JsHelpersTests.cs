@@ -96,6 +96,40 @@ public sealed class JsHelpersTests
     public void TryParseJsDateRejectsEverythingElse(string text) =>
         Assert.False(IsoTime.TryParseJsDate(text, TestEastern, out _));
 
+    /// <summary>
+    /// <c>new Date(y, m, d, h, mi)</c> in the zone: an ordinary time takes its offset, a skipped
+    /// one (02:30 on 2026-03-08) the offset before the gap, so it reads 03:30, and a repeated one
+    /// (01:30 on 2026-11-01) the earlier instant.
+    /// </summary>
+    [Theory]
+    [InlineData(2026, 7, 4, 12, 0, "2026-07-04T16:00:00.000Z")]
+    [InlineData(2026, 1, 15, 0, 0, "2026-01-15T05:00:00.000Z")]
+    [InlineData(2026, 3, 8, 2, 30, "2026-03-08T07:30:00.000Z")]
+    [InlineData(2026, 11, 1, 1, 30, "2026-11-01T05:30:00.000Z")]
+    public void FromLocalTimeIsTheDateConstructor(int y, int mo, int d, int h, int mi, string expectedIso) =>
+        Assert.Equal(expectedIso, IsoTime.ToIsoString(IsoTime.FromLocalTime(new DateTime(y, mo, d, h, mi, 0), TestEastern)));
+
+    /// <summary>A date-time with no offset parses to the same instant the constructor gives, gap and repeat included.</summary>
+    [Theory]
+    [InlineData("2026-03-08T02:30", 2026, 3, 8, 2, 30)]
+    [InlineData("2026-11-01T01:30", 2026, 11, 1, 1, 30)]
+    [InlineData("2026-06-01T09:15", 2026, 6, 1, 9, 15)]
+    public void FromLocalTimeAgreesWithTheParser(string text, int y, int mo, int d, int h, int mi)
+    {
+        Assert.True(IsoTime.TryParseJsDate(text, TestEastern, out var parsed));
+        Assert.Equal(parsed.UtcTicks, IsoTime.FromLocalTime(new DateTime(y, mo, d, h, mi, 0), TestEastern).UtcTicks);
+    }
+
+    /// <summary>The clock's kind is ignored: a Local or Utc DateTime is read as wall-clock time in the zone.</summary>
+    [Fact]
+    public void FromLocalTimeIgnoresTheKind()
+    {
+        var wall = new DateTime(2026, 7, 4, 12, 0, 0);
+        var expected = IsoTime.FromLocalTime(wall, TestEastern);
+        Assert.Equal(expected, IsoTime.FromLocalTime(DateTime.SpecifyKind(wall, DateTimeKind.Utc), TestEastern));
+        Assert.Equal(expected, IsoTime.FromLocalTime(DateTime.SpecifyKind(wall, DateTimeKind.Local), TestEastern));
+    }
+
     // A fixed stand-in for America/New_York, so the DST cases do not depend on the machine's zone data.
     private static readonly TimeZoneInfo TestEastern = TimeZoneInfo.CreateCustomTimeZone(
         "Test Eastern",

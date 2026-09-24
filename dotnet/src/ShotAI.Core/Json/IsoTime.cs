@@ -88,6 +88,25 @@ public static partial class IsoTime
         }
     }
 
+    /// <summary>
+    /// A local clock time in <paramref name="local"/> as the instant <c>new Date(y, m, d, ...)</c>
+    /// gives it: the earlier instant when the time occurs twice, and when it was skipped, the
+    /// offset in force before the transition, which moves the clock forward by the gap.
+    /// </summary>
+    /// <remarks>
+    /// The same rule <see cref="TryParseJsDate"/> applies to a date-time with no offset; spec 06's
+    /// date buckets resolve each local midnight with it (added in WP-A16).
+    /// </remarks>
+    /// <param name="clock">The wall-clock time; its kind is ignored.</param>
+    /// <param name="local">The zone the clock time is read in.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The instant falls outside <see cref="DateTimeOffset"/>.</exception>
+    public static DateTimeOffset FromLocalTime(DateTime clock, TimeZoneInfo local)
+    {
+        ArgumentNullException.ThrowIfNull(local);
+        var offset = LocalOffset(DateTime.SpecifyKind(clock, DateTimeKind.Unspecified), local, out var adjusted);
+        return new DateTimeOffset(adjusted, offset);
+    }
+
     // ECMAScript's disambiguation of a local clock time: the earlier instant when the time
     // occurs twice, and when it was skipped, the offset in force before the transition,
     // which moves the clock forward by the gap.

@@ -85,6 +85,20 @@ public sealed class ProjectSearchComparerTests
         Assert.Equal(["early1", "early2", "late"], ProjectSearch.Sort([early1, late, early2], ProjectSearch.ByCreated, descending: false).Select(p => p.Id));
     }
 
+    /// <summary>The collation overload (spec 06 7.2) orders exactly as the culture's own.</summary>
+    [Theory]
+    [MemberData(nameof(Cultures))]
+    public void TheCollationOverloadIsTheCultures(string culture)
+    {
+        var byCulture = ProjectSearch.ByTitle(Culture(culture));
+        var byCollation = ProjectSearch.ByTitle(Culture(culture).CompareInfo);
+        string[] titles = ["a", "A", "\u00e1", "B", "b", "", "z", "10", "9"];
+        foreach (var x in titles)
+        {
+            foreach (var y in titles) Assert.Equal(Math.Sign(byCulture(Titled(x), Titled(y))), Math.Sign(byCollation(Titled(x), Titled(y))));
+        }
+    }
+
     [Fact]
     public void TheUpdatedComparerReadsUpdatedAt()
     {
