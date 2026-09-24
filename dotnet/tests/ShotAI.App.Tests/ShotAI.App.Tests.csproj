@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Tests of ShotAI.App that need Windows and WPF: the composition root, the dispatcher
-    contract, the exit order and flush, crash logging, the paths and the self-test process.
+    contract, the exit order and flush, crash logging, the paths, the window registration, the
+    single instance, and the real exe run as a process.
     The project builds on Linux like the rest of the solution; only a Windows runner can run
     it (docs/native/ARCHITECTURE.md 12.1). Support/Sta.cs is the STA harness (Q-HOME-15).
   -->
@@ -13,6 +14,8 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <RootNamespace>ShotAI.App.Tests</RootNamespace>
+    <!-- LibraryImport and the show probe's hook use pointers (Support/User32.cs, Support/ShowProbe.cs). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <!-- A WPF project's implicit usings leave System.IO out. -->
   <ItemGroup>

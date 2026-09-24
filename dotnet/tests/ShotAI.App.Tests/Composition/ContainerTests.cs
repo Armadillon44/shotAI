@@ -10,6 +10,7 @@ using ShotAI.Core.Settings;
 using ShotAI.Core.Store;
 using ShotAI.Core.Threading;
 using ShotAI.Platform;
+using ShotAI.Platform.Capture;
 using Xunit;
 
 namespace ShotAI.App.Tests.Composition;
@@ -180,8 +181,11 @@ public sealed partial class ContainerTests
         Assert.NotEmpty(seams);
         foreach (var t in seams) Assert.True(!t.IsPublic && !t.IsNestedPublic && t.IsSealed, $"{t.FullName} is not internal sealed");
         using var c = new TestContainer(Dispatcher.CurrentDispatcher);
-        foreach (var d in c.Services.Where(d => d.ImplementationType?.Assembly == PlatformAssembly))
+        // The one exception (spec 02 7.1): the own-window registry, whose registration surface the
+        // App calls for every window it shows, is public and registered as itself.
+        foreach (var d in c.Services.Where(d => d.ImplementationType?.Assembly == PlatformAssembly && d.ImplementationType != typeof(OwnWindowRegistry)))
             Assert.True(d.ServiceType.Assembly == Core, $"{d.ImplementationType!.Name} is registered as {d.ServiceType.Name}");
+        Assert.Single(c.Services, d => d.ServiceType == typeof(OwnWindowRegistry) && d.ImplementationType == typeof(OwnWindowRegistry));
     });
 
     /// <summary>The logger factory is not the container's: the exit line is logged after the container is disposed.</summary>
