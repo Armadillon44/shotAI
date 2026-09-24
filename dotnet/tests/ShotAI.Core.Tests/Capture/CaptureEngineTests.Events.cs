@@ -78,6 +78,21 @@ public sealed partial class CaptureEngineTests
         Assert.DoesNotContain(h.Logs.Entries, e => e.Level >= LogLevel.Information && e.Message.Contains("'File'", StringComparison.Ordinal));
     }
 
+    /// <summary>2.6 step 18: the <c>el=</c> part tests JavaScript truthiness, so an empty name logs neither line.</summary>
+    [Fact]
+    public async Task AnEmptyElementNameIsNotLogged()
+    {
+        await using var h = new EngineHarness();
+        h.Windows.Current = FakeWindows.App("Notepad", "N", NotepadFrame);
+        h.Elements.OnQuery = (_, _) => Task.FromResult<StepElement?>(new StepElement(false, "", "Pane", new Rect(0, 0, 10, 10)));
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(300, 200);
+
+        Assert.Contains("step #1 [click/auto:window] Notepad -> step-0001.png (0 KB)", h.LogLines(LogLevel.Information));
+        Assert.DoesNotContain(h.LogLines(), l => l.Contains("el=", StringComparison.Ordinal));
+    }
+
     /// <summary>A capture over 120 ms of grab and downscale together logs both at debug (2.6 step 9); 120 ms does not.</summary>
     [Theory]
     [InlineData(121, 0, "capture timing: grab(async)=121ms downscale(sync)=0ms")]

@@ -462,6 +462,7 @@ public sealed partial class CaptureEngineTests
         await h.SettleAsync();
 
         Assert.Empty(h.Landed);
+        Assert.Empty(h.Screen.Grabs); // it bails at its first check, before any grab
         Assert.Empty(EngineHarness.StepsOnDisk(p1));
         Assert.Empty(EngineHarness.StepsOnDisk(p2));
         Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(p2, "shots")));

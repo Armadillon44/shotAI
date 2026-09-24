@@ -313,6 +313,43 @@ public sealed partial class CaptureEngineTests
         Assert.Equal((2560, 1440), EngineHarness.ShotSize(p, step.Screenshot));
     }
 
+    /// <summary>2.3: libuiohook's middle and other buttons are recorded as such, captioned like a left click.</summary>
+    [Theory]
+    [InlineData(MouseButton.Middle, "middle")]
+    [InlineData(MouseButton.Other, "other")]
+    public async Task AMiddleOrOtherClickRecordsItsButton(MouseButton button, string wire)
+    {
+        await using var h = new EngineHarness();
+        h.Windows.Current = FakeWindows.App("Notepad", "N", NotepadFrame);
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(300, 200, button);
+
+        var step = Assert.Single(h.Landed).Step;
+        Assert.Equal(wire, step.Click!.Button);
+        Assert.Equal("Click in Notepad", step.Caption);
+    }
+
+    /// <summary>2.7.1: the point is checked again at capture time, so a click an own window covers by then is dropped.</summary>
+    [Fact]
+    public async Task AnOwnWindowOverTheClickByCaptureTimeSuppressesIt()
+    {
+        await using var h = new EngineHarness();
+        using var gate = new GrabGate(h.Screen);
+        h.Windows.Current = FakeWindows.App("Notepad", "N", NotepadFrame);
+        var p = h.Project();
+        await h.StartAsync(p);
+        h.Triggers.Click(100, 100);
+        await gate.EnteredAsync();
+        h.Triggers.Click(500, 300);
+        h.Own.Windows.Add(new Rect(400, 250, 320, 100));
+        gate.Open();
+        await h.SettleAsync();
+
+        Assert.Equal([(100, 100), (500, 300)], h.Elements.Queries);
+        Assert.Single(h.Landed);
+    }
+
     /// <summary>INV-CAP-6, D1: a click on shotAI's own window is dropped at mousedown, before any element query.</summary>
     [Fact]
     public async Task PillClicksCreateNoSteps()

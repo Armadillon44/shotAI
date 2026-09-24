@@ -122,6 +122,22 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(landed.Step.Raw.ToJsonString(), EngineHarness.StepsOnDisk(p)[1]!.ToJsonString());
     }
 
+    /// <summary>D5, 2.2.3: with steps gone mid-session the store clamps the cursor, and the event carries where the step landed.</summary>
+    [Fact]
+    public async Task StepLandedIndexIsWhereTheStoreLandedIt()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project(steps: EngineHarness.OldSteps(3));
+        await h.StartAsync(p, new CaptureStartOptions(InsertAt: 3));
+        await h.Store.Store.DeleteStepsAsync(p, ["old2", "old3"]);
+        await h.ClickAsync(100, 100);
+
+        var landed = Assert.Single(h.Landed);
+        Assert.Equal(1, landed.Index);
+        Assert.Equal(2, landed.Step.Order);
+        Assert.Equal(["old1", landed.Step.Id], Store.StoreHarness.StepIds(p));
+    }
+
     /// <summary>INV-CAP-27: the PNG and the manifest are on disk before the step event fires.</summary>
     [Fact]
     public async Task StepEventFiresAfterPersist()
