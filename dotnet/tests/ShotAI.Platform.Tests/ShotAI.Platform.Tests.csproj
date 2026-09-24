@@ -13,6 +13,8 @@
     <RootNamespace>ShotAI.Platform.Tests</RootNamespace>
     <!-- LibraryImport generates marshalling code, which needs unsafe blocks (Startup/DllSearchTests). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Per-Monitor V2, as the app runs (spec 02 INV-CAP-26); see Support/InputHookCollection.cs. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />

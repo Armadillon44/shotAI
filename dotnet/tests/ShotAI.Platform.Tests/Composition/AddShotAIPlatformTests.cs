@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using ShotAI.Core.Capture;
 using ShotAI.Core.Report;
 using ShotAI.Core.Store;
 using ShotAI.Platform.Capture;
@@ -16,6 +17,7 @@ public sealed class AddShotAIPlatformTests
     [InlineData(typeof(IPathProbe), typeof(WindowsPathProbe))]
     [InlineData(typeof(IRenameRetryClassifier), typeof(WindowsRenameRetryClassifier))]
     [InlineData(typeof(IImageSizeProbe), typeof(WicImageSizeProbe))]
+    [InlineData(typeof(ITriggerSource), typeof(Win32TriggerSource))]
     public void RegistersTheSeams(Type service, Type implementation)
     {
         var descriptor = Assert.Single(new ServiceCollection().AddShotAIPlatform(), d => d.ServiceType == service);
