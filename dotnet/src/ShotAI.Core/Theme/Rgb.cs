@@ -13,22 +13,12 @@ public readonly record struct Rgb(byte R, byte G, byte B)
     public static Rgb FromHex(string hex)
     {
         ArgumentNullException.ThrowIfNull(hex);
-        if (hex.Length != 7 || hex[0] != '#' || !IsHex(hex.AsSpan(1))
-            || !int.TryParse(hex.AsSpan(1), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var v))
+        // AllowHexSpecifier alone takes hex digits only: no sign, no space, no 0x.
+        if (hex.Length != 7 || hex[0] != '#' || !int.TryParse(hex.AsSpan(1), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var v))
             throw new ArgumentException($"expected #rrggbb, got {hex}", nameof(hex));
         return new Rgb((byte)(v >> 16), (byte)(v >> 8), (byte)v);
     }
 
     /// <summary><c>#rrggbb</c> in lower case, the brand table's own form.</summary>
     public override string ToString() => $"#{R:x2}{G:x2}{B:x2}";
-
-    // int.TryParse with AllowHexSpecifier also takes a leading or trailing space.
-    private static bool IsHex(ReadOnlySpan<char> digits)
-    {
-        foreach (var c in digits)
-        {
-            if (!char.IsAsciiHexDigit(c)) return false;
-        }
-        return true;
-    }
 }

@@ -19,6 +19,7 @@ public sealed class RgbTests
     [Theory]
     [InlineData("")]
     [InlineData("6344f1")]
+    [InlineData("x6344f1")]
     [InlineData("#6344f")]
     [InlineData("#6344f1a")]
     [InlineData("#6344g1")]
