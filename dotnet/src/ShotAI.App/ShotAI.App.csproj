@@ -38,6 +38,18 @@
     <ProjectReference Include="..\ShotAI.Core\ShotAI.Core.csproj" />
     <ProjectReference Include="..\ShotAI.Platform\ShotAI.Platform.csproj" />
   </ItemGroup>
+  <!--
+    The Archivo files (spec 10 7.9, INV-INFRA-31): loose files under Fonts\, each folder with its
+    own OFL.txt. The variable face and its licence are Electron's copies until WP-E9 moves them
+    under dotnet/assets/fonts/; the static instances WPF renders are dotnet/assets/fonts/static/
+    (spec 06 Q-HOME-2).
+  -->
+  <ItemGroup>
+    <None Include="$(RepoRoot)src/renderer/fonts/Archivo.ttf;$(RepoRoot)src/renderer/fonts/OFL.txt"
+          Link="Fonts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepoRoot)dotnet/assets/fonts/static/*.ttf;$(RepoRoot)dotnet/assets/fonts/static/OFL.txt"
+          Link="Fonts\static\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   <!-- The App.Tests project reaches the composition root's internals. -->
   <ItemGroup>
     <InternalsVisibleTo Include="ShotAI.App.Tests" />

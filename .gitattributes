@@ -35,3 +35,10 @@ dotnet/tests/ShotAI.Core.Tests/Golden/**/*.pdf  binary
 dotnet/tests/ShotAI.Core.Tests/Golden/**/*.docx binary
 dotnet/tests/ShotAI.Core.Tests/Golden/**/*.pptx binary
 dotnet/tests/ShotAI.Core.Tests/Golden/**/*.zip  binary
+
+# Fonts (docs/native/spec/10-brand-settings-infra.md 7.9). A font is binary, and the licence
+# beside each copy stays byte-identical to upstream's on every checkout, so the hashes in
+# dotnet/assets/fonts/static/SOURCES.md hold on a Windows runner's CRLF checkout too.
+*.ttf binary
+src/renderer/fonts/OFL.txt          text eol=lf
+dotnet/assets/fonts/**/OFL.txt      text eol=lf

@@ -4,8 +4,10 @@ namespace ShotAI.App.Shell;
 
 /// <summary>
 /// The main window (spec 03 7.4.2). Closing it ends the process (<c>ShutdownMode</c> in
-/// <c>App.xaml</c>, INV-SHELL-4), so it has no <c>Closing</c> handler that could cancel. Its size,
-/// menu and placement join in WP-A14.
+/// <c>App.xaml</c>, INV-SHELL-4), so it has no <c>Closing</c> handler that could cancel. It wears
+/// the theme from its first frame: <c>body</c>'s ground, ink and font stack (spec 06 2.2) are
+/// <c>DynamicResource</c> reads of the dictionary <c>ThemeManager.ApplyInitial</c> merges before
+/// it is shown. Its size, menu and placement join in WP-A15.
 /// </summary>
 public partial class MainWindow : ShotAIWindow
 {
