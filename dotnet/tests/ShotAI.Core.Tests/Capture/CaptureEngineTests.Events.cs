@@ -231,6 +231,17 @@ public sealed partial class CaptureEngineTests
         }
     }
 
+    /// <summary>The native messages have no Electron source: their text is spec 02's (D6, D7, D10).</summary>
+    [Fact]
+    public void TheNativeMessagesAreTheSpecs()
+    {
+        Assert.Equal("A screenshot could not be captured. If this keeps happening, make sure the target is visible, then try again.", CaptureMessages.GrabFailed);
+        Assert.Equal("The global click listener could not be started. Restart shotAI and try again.", CaptureMessages.ClickListenerFailed);
+        Assert.Equal(
+            "This project's shots folder resolves outside the project (it may be a symlink or junction). Recording was refused so screenshots aren't written elsewhere.",
+            CaptureMessages.ShotsOutsideProject);
+    }
+
     // Blocks the funnel's grab until the test opens it, so a capture can be caught in flight.
     private sealed class GrabGate : IDisposable
     {

@@ -201,6 +201,23 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(2, gated.Opens);
     }
 
+    /// <summary>7.13: a teardown while a screenshot opens its project ends it before anything is hidden or grabbed.</summary>
+    [Fact]
+    public async Task TeardownDuringAScreenshotHidesNothing()
+    {
+        GatedOpen? gated = null;
+        await using var h = new EngineHarness(inner => gated = new GatedOpen(inner));
+        var p = h.Project();
+        var shot = h.ScreenshotAsync(p, Screen1, 0);
+        await UntilAsync(() => gated!.Opens == 1);
+        h.Engine.Teardown();
+        gated!.Open.SetResult();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => shot.Bounded());
+        Assert.Empty(h.Events);
+        Assert.Empty(h.Screen.Grabs);
+    }
+
     /// <summary>D21, EDGE-CAP-51: pause, resume, stop and discard leave a screenshot alone and report idle, raising nothing.</summary>
     [Fact]
     public async Task StopDuringScreenshotIsNoOp()

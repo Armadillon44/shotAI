@@ -240,6 +240,22 @@ public sealed partial class CaptureEngineTests
         Assert.Contains("monitor capture failed:", h.LogLines(Microsoft.Extensions.Logging.LogLevel.Warning));
     }
 
+    /// <summary>D6: a new session starts a new run, so its first failed grab is reported even when the last session ended mid-run.</summary>
+    [Fact]
+    public async Task ANewSessionStartsANewFailureRun()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        h.Screen.Failing.Add(1);
+        await h.StartAsync(p);
+        await h.ClickAsync(100, 100);
+        await h.Engine.StopAsync().Bounded();
+        await h.StartAsync(p);
+        await h.ClickAsync(100, 100);
+
+        Assert.Equal([CaptureMessages.GrabFailed, CaptureMessages.GrabFailed], h.Failures);
+    }
+
     /// <summary>A suppressed capture burns no number and reports nothing (2.7.1).</summary>
     [Fact]
     public async Task ASuppressedCaptureBurnsNoNumber()

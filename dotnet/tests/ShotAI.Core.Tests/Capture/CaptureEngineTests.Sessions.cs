@@ -131,8 +131,42 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(CaptureState.Idle, h.Engine.GetState());
         Assert.Empty(h.Events);
         Assert.Contains("mouse hook could not be installed (Win32 error 5); the recording did not start", h.LogLines(Microsoft.Extensions.Logging.LogLevel.Error));
+        Assert.Equal(1, h.Elements.WarmUps); // 2.2.2 steps 10 and 11: the warm-up runs before the hook
 
         Assert.Equal(CaptureStatus.Recording, (await h.StartAsync(p)).Status);
+    }
+
+    /// <summary>A start with a cancelled token starts nothing.</summary>
+    [Fact]
+    public async Task ACancelledStartStartsNothing()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => h.Engine.StartAsync(p, new CaptureStartOptions(), cts.Token));
+        Assert.Equal(CaptureState.Idle, h.Engine.GetState());
+        Assert.Equal(0, h.Triggers.Attaches);
+        Assert.Empty(h.Events);
+    }
+
+    /// <summary>7.13: a teardown while a start opens its project leaves no session: the start throws and nothing attaches.</summary>
+    [Fact]
+    public async Task TeardownDuringAStartLeavesNoSession()
+    {
+        GatedOpen? gated = null;
+        await using var h = new EngineHarness(inner => gated = new GatedOpen(inner));
+        var p = h.Project();
+        var start = h.Engine.StartAsync(p, new CaptureStartOptions(), TestContext.Current.CancellationToken);
+        await UntilAsync(() => gated!.Opens == 1);
+        h.Engine.Teardown();
+        gated!.Open.SetResult();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => start.Bounded());
+        Assert.Equal(CaptureState.Idle, h.Engine.GetState());
+        Assert.Equal(0, h.Triggers.Attaches);
+        Assert.Empty(h.Events);
     }
 
     /// <summary>INV-CAP-23, D10: a <c>shots/</c> that is a link refuses the start.</summary>

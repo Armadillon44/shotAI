@@ -1219,6 +1219,7 @@ As built in WP-B2, for the divergences this WP owns:
 - D16: `ICaptureService` has no single-shot member.
 - D21: the screenshot's session is `SessionKind.Screenshot`. `GetState` reports idle during it; `Pause`, `Resume`, `StopAsync` and `DiscardAsync` return idle and raise nothing; a start for any project and a second screenshot throw `A recording is already in progress` (`StartDuringScreenshotThrows`, `StopDuringScreenshotIsNoOp`).
 - D23: the warning is `recording target mode=<mode> has no <window|area>: each capture falls back to the click monitor` (`IncompleteTargetLogsOneWarning`).
+- D24: nothing to own yet. `PixelFrame` stays a plain buffer until WP-B5 pools the buffers in `GdiMonitorCapture`; the capture step then disposes the frames it grabbed and cropped after the encode (7.7).
 
 ### 7.11 `CaptureEngine` algorithms (C# pseudo-code)
 
