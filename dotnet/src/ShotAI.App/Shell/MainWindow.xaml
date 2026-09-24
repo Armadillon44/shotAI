@@ -1,7 +1,9 @@
-<Window x:Class="ShotAI.App.MainWindow"
+<shell:ShotAIWindow x:Class="ShotAI.App.Shell.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="shotAI"
+        xmlns:shell="clr-namespace:ShotAI.App.Shell"
+        xmlns:core="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
+        Title="{x:Static core:ShellStrings.AppName}"
         Width="720" Height="740"
         MinWidth="680" MinHeight="560">
   <Grid Margin="24">
@@ -9,4 +11,4 @@
       shotAI native (scaffold). Not a working app yet: see docs/native/PLAN.md.
     </TextBlock>
   </Grid>
-</Window>
+</shell:ShotAIWindow>

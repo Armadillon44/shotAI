@@ -16,11 +16,9 @@ namespace ShotAI.App.Tests.SelfTest;
 /// The child runs as the user, so it writes the user's own log, as the manual procedure does;
 /// the tests give it a temp folder of its own through <c>TEMP</c> and <c>TMP</c>.
 /// </remarks>
-[Collection(SelfTestProcessCollection.Name)]
+[Collection(AppProcessCollection.Name)]
 public sealed partial class SelfTestProcessTests
 {
-    private static readonly string UserData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "shotAI");
-
     [Fact]
     public async Task SwitchPassesAndExitsZero()
     {
@@ -47,11 +45,10 @@ public sealed partial class SelfTestProcessTests
     public async Task LeavesTheUserSettingsAndTempClean()
     {
         using var temp = new TempDir();
-        var settings = Path.Combine(UserData, "settings.json");
-        var before = Hash(settings);
+        var before = Hash(AppProcess.Settings);
         var run = await RunAsync(["--selftest"], temp.Root);
         Assert.Equal(0, run.ExitCode);
-        Assert.Equal(before, Hash(settings));
+        Assert.Equal(before, Hash(AppProcess.Settings));
         Assert.Empty(Directory.GetFileSystemEntries(temp.Root));
     }
 
@@ -62,17 +59,16 @@ public sealed partial class SelfTestProcessTests
     [Fact]
     public async Task LogsTheBannerTheLinesAndTheExit()
     {
-        var log = Path.Combine(UserData, "logs", "shotai.log");
-        var start = File.Exists(log) ? new FileInfo(log).Length : 0;
+        var start = AppProcess.LogLength();
         using var temp = new TempDir();
         var run = await RunAsync(["--selftest"], temp.Root);
         Assert.Equal(0, run.ExitCode);
 
-        var lines = ReadFrom(log, start);
+        var lines = AppProcess.LogFrom(start);
         var banner = lines.FindLastIndex(l => l.Contains("shotAI starting", StringComparison.Ordinal));
         Assert.True(banner >= 0, "no banner in the log");
         Assert.Matches(Banner(), lines[banner]);
-        Assert.EndsWith("] [info]             logs: " + log, lines[banner + 1], StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("] [info]             logs: " + AppProcess.Log, lines[banner + 1], StringComparison.OrdinalIgnoreCase);
         Assert.Contains(lines.Skip(banner), l => l.EndsWith("] [info]  (main)     [selftest] PASS", StringComparison.Ordinal));
         Assert.EndsWith("] [info]  (main)     exiting (code 0)", lines[^1], StringComparison.Ordinal);
     }
@@ -90,69 +86,23 @@ public sealed partial class SelfTestProcessTests
 
     private static async Task<(int ExitCode, string Output, string Error)> RunAsync(string[] args, string temp, params (string Name, string Value)[] env)
     {
-        var psi = new ProcessStartInfo(ShotAIExe())
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-        foreach (var a in args) psi.ArgumentList.Add(a);
-        psi.Environment["TEMP"] = temp;
-        psi.Environment["TMP"] = temp;
-        psi.Environment.Remove("SHOTAI_SELFTEST");
-        psi.Environment.Remove("SHOTAI_CAPTURE_TEST");
-        foreach (var (name, value) in env) psi.Environment[name] = value;
-
+        var psi = AppProcess.StartInfo(args, temp, env);
+        psi.RedirectStandardOutput = true;
+        psi.RedirectStandardError = true;
+        psi.StandardOutputEncoding = Encoding.UTF8;
+        psi.StandardErrorEncoding = Encoding.UTF8;
         using var process = Process.Start(psi)!;
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(90));
-        var output = process.StandardOutput.ReadToEndAsync(timeout.Token);
-        var error = process.StandardError.ReadToEndAsync(timeout.Token);
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            throw;
-        }
-        return (process.ExitCode, await output, await error);
-    }
-
-    // The App's own output, which the solution build puts beside this project's with the same
-    // configuration and target framework.
-    private static string ShotAIExe()
-    {
-        var here = new DirectoryInfo(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
-        var exe = Path.Combine(RepoFiles.Root, "dotnet", "src", "ShotAI.App", "bin", here.Parent!.Name, here.Name, "shotAI.exe");
-        Assert.True(File.Exists(exe), $"build the App first: {exe} does not exist");
-        return exe;
+        var output = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+        var error = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        var exitCode = await AppProcess.WaitForExitAsync(process);
+        return (exitCode, await output, await error);
     }
 
     private static string LastLine(string text) => text.TrimEnd().Split('\n')[^1].TrimEnd('\r');
 
     private static string? Hash(string file) => File.Exists(file) ? Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))) : null;
 
-    // The lines appended since the log was start bytes long, or the whole file after a rotation.
-    private static List<string> ReadFrom(string file, long start)
-    {
-        using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        if (stream.Length >= start) stream.Position = start;
-        using var reader = new StreamReader(stream, new UTF8Encoding(false));
-        return reader.ReadToEnd().Split("\r\n", StringSplitOptions.RemoveEmptyEntries).ToList();
-    }
-
     // AC-INFRA-14, with the real U+2014 and U+00B7.
     [GeneratedRegex("^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\] \\[info\\] {13}shotAI starting \u2014 win32/(x64|arm64) \u00b7 .+ \u00b7 packaged=(true|false)$")]
     private static partial Regex Banner();
-}
-
-/// <summary>The runs share the user's log file, so they run one at a time.</summary>
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class SelfTestProcessCollection
-{
-    public const string Name = "self-test process";
 }

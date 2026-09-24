@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ShotAI.Core.Store;
+using ShotAI.Platform.Capture;
 using ShotAI.Platform.FileSystem;
 
 namespace ShotAI.Platform.Composition;
@@ -9,13 +10,16 @@ public static class PlatformServiceCollectionExtensions
 {
     /// <summary>
     /// Adds the Windows implementations of Core's seams, each registered only as its Core
-    /// interface (INV-ARCH-4); each subsystem work package adds its own lines here.
+    /// interface (INV-ARCH-4); each subsystem work package adds its own lines here. The one
+    /// public exception is <see cref="OwnWindowRegistry"/>, whose registration surface the App
+    /// calls for every window it shows (spec 02 7.1).
     /// </summary>
     public static IServiceCollection AddShotAIPlatform(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddSingleton<IPathProbe, WindowsPathProbe>();
         services.AddSingleton<IRenameRetryClassifier, WindowsRenameRetryClassifier>();
+        services.AddSingleton<OwnWindowRegistry>();
         return services;
     }
 }

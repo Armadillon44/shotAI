@@ -1,6 +1,7 @@
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ShotAI.App.Shell;
 using ShotAI.App.Threading;
 using ShotAI.Core.Paths;
 using ShotAI.Core.Settings;
@@ -46,6 +47,8 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<IAppLifetime>(sp => sp.GetRequiredService<AppLifetime>());
         services.AddSingleton<IAppPaths, AppPaths>();
         services.AddSingleton<ShutdownFlush>();
+        services.AddSingleton<WindowRegistration>();
+        services.AddSingleton<PopupExclusion>();
         return services;
     }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -5,20 +6,23 @@ using ShotAI.App.Tests.Support;
 using ShotAI.App.Threading;
 using ShotAI.Core.Store;
 using ShotAI.Core.Threading;
+using ShotAI.Platform.Shell;
 using Xunit;
 
 namespace ShotAI.App.Tests;
 
 /// <summary>
-/// The exit order of ARCHITECTURE 4.5 and spec 11 7.10 (AC-MODEL-36's second clause), and the
-/// startup's background work (step 13). The capture teardown (step 2) and the activation
-/// listener and instance lock (step 4) join this test with their work packages.
+/// The exit order of ARCHITECTURE 4.5 and spec 11 7.10 (AC-MODEL-36's second clause), the
+/// startup's background work (step 13), and INV-SHELL-4 on the real exe. The capture teardown
+/// (exit step 2) joins this test with the capture engine.
 /// </summary>
+[Collection(AppProcessCollection.Name)]
 public sealed class LifecycleTests
 {
     /// <summary>
     /// Fakes record the order: <c>Stopping</c> canceled, the flush (before the container is
-    /// disposed, AC-MODEL-36), the container disposed, then the exit line.
+    /// disposed, AC-MODEL-36), the activation listener, then the instance lock, the container
+    /// disposed, then the exit line.
     /// </summary>
     [Fact]
     public Task ExitOrderMatchesSpec11() => Sta.RunAsync(() =>
@@ -36,20 +40,69 @@ public sealed class LifecycleTests
         c.Provider.GetRequiredService<DisposalRecorder>();
         c.Logs.OnEntry = e => order.Add(e.Message);
 
-        App.RunExitOrder(c.Provider, c.Logs.CreateLogger("ShotAI.App.App"), 3);
+        App.RunExitOrder(c.Provider, new DisposalRecorder(order, "listener disposed"), new DisposalRecorder(order, "lock disposed"), c.Logs.CreateLogger("ShotAI.App.App"), 3);
 
-        Assert.Equal(["stopping", "flush", "container disposed", "exiting (code 3)"], order);
+        Assert.Equal(["stopping", "flush", "listener disposed", "lock disposed", "container disposed", "exiting (code 3)"], order);
         var exit = c.Logs.Entries.Single(e => e.Message == "exiting (code 3)");
         Assert.Equal(LogLevel.Information, exit.Level);
     });
 
-    /// <summary>After a self-test, which builds no container, the exit only logs its line.</summary>
+    /// <summary>After a self-test, which builds no container but holds the lock, the exit releases the lock and logs its line.</summary>
     [Fact]
-    public void ExitAfterASelfTestLogsItsLine()
+    public void ExitAfterASelfTestReleasesTheLock()
+    {
+        var order = new List<string>();
+        using var logs = new CapturingLoggerProvider();
+        logs.OnEntry = e => order.Add(e.Message);
+        App.RunExitOrder(null, null, new DisposalRecorder(order, "lock disposed"), logs.CreateLogger("ShotAI.App.App"), 2);
+        Assert.Equal(["lock disposed", "exiting (code 2)"], order);
+    }
+
+    /// <summary>After a second launch, which holds nothing, the exit only logs its line.</summary>
+    [Fact]
+    public void ExitAfterASecondLaunchLogsItsLine()
     {
         using var logs = new CapturingLoggerProvider();
-        App.RunExitOrder(null, logs.CreateLogger("ShotAI.App.App"), 2);
-        Assert.Equal(["exiting (code 2)"], logs.Entries.Select(e => e.Message));
+        App.RunExitOrder(null, null, null, logs.CreateLogger("ShotAI.App.App"), 0);
+        Assert.Equal(["exiting (code 0)"], logs.Entries.Select(e => e.Message));
+    }
+
+    /// <summary>The real lock, taken on the UI thread, is released by the exit on that thread, so another can take it.</summary>
+    [Fact]
+    public Task ExitReleasesTheInstanceLock() => Sta.RunAsync(async () =>
+    {
+        var name = "Local\\shotAI.test." + Guid.NewGuid().ToString("N");
+        App.RunExitOrder(null, null, SingleInstanceLock.TryAcquire(name), null, 0);
+        var retaken = await Task.Run(
+            () =>
+            {
+                using var again = SingleInstanceLock.TryAcquire(name);
+                return again is not null;
+            },
+            TestContext.Current.CancellationToken);
+        Assert.True(retaken);
+    });
+
+    /// <summary>
+    /// INV-SHELL-4 on the real exe: closing the main window, as its close button does, ends the
+    /// process with exit code 0 and the exit line last in the log (AC-SHELL-3's first half).
+    /// </summary>
+    [Fact]
+    public async Task ClosingMainWindowShutsDown()
+    {
+        using var temp = new TempDir();
+        var start = AppProcess.LogLength();
+        using var app = Process.Start(AppProcess.StartInfo([], temp.Root))!;
+        try
+        {
+            User32.Close(await AppProcess.StartedAsync(app, start));
+            Assert.Equal(0, await AppProcess.WaitForExitAsync(app));
+        }
+        finally
+        {
+            if (!app.HasExited) app.Kill(entireProcessTree: true);
+        }
+        Assert.EndsWith("] [info]  (main)     exiting (code 0)", AppProcess.LogFrom(start)[^1], StringComparison.Ordinal);
     }
 
     /// <summary>Step 13 archives with the setting's age and the app's stopping token, on the pool.</summary>
@@ -118,9 +171,9 @@ public sealed class LifecycleTests
         Assert.Equal(1, calls);
     }
 
-    private sealed class DisposalRecorder(List<string> order) : IDisposable
+    private sealed class DisposalRecorder(List<string> order, string name = "container disposed") : IDisposable
     {
-        public void Dispose() => order.Add("container disposed");
+        public void Dispose() => order.Add(name);
     }
 
     private sealed class ArchiveRecorder(Func<CancellationToken, Task<int>> archive) : FakeProjectService
