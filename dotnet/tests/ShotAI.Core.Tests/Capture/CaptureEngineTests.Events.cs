@@ -1,7 +1,10 @@
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using ShotAI.Core.Capture;
 using ShotAI.Core.Errors;
 using ShotAI.Core.Model;
+using ShotAI.Core.Store;
+using ShotAI.Core.Tests.Support;
 using Xunit;
 
 namespace ShotAI.Core.Tests.Capture;
@@ -117,6 +120,25 @@ public sealed partial class CaptureEngineTests
     }
 
     /// <summary>T5: a throwing handler is logged, and the handlers after it and the next event still run.</summary>
+    /// <summary>Spec 02 7.2: every seam is required, and the null one is named.</summary>
+    [Fact]
+    public async Task EverySeamIsRequired()
+    {
+        await using var h = new EngineHarness();
+        object?[] seams = [h.Projects, new ManagedPathProbe(), h.Triggers, h.Screen, h.Windows, h.Elements, h.Own, h.Codec, h.Settings, h.Clock, h.Logs.CreateLogger<CaptureEngine>()];
+        var ctor = typeof(CaptureEngine).GetConstructors().Single();
+        var names = ctor.GetParameters().Select(p => p.Name).ToList();
+        Assert.Equal(seams.Length, names.Count);
+
+        for (var i = 0; i < seams.Length; i++)
+        {
+            var args = (object?[])seams.Clone();
+            args[i] = null;
+            var e = Assert.Throws<TargetInvocationException>(() => ctor.Invoke(args));
+            Assert.Equal(names[i], Assert.IsType<ArgumentNullException>(e.InnerException).ParamName);
+        }
+    }
+
     [Fact]
     public async Task EventsGoThroughEventRaiser()
     {

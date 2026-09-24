@@ -17,12 +17,13 @@ public sealed class TimeProviderCaptureClockTests
         Assert.Equal(350, clock.NowMs() - start);
     }
 
+    /// <summary>A minute on the provider's timers ends when the provider reaches it, long before a real minute.</summary>
     [Fact]
     public async Task ADelayEndsWhenTheProviderReachesIt()
     {
         var time = new FakeTimeProvider();
-        var delay = new TimeProviderCaptureClock(time).DelayAsync(350, TestContext.Current.CancellationToken);
-        time.Advance(TimeSpan.FromMilliseconds(349));
+        var delay = new TimeProviderCaptureClock(time).DelayAsync(60_000, TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromMilliseconds(59_999));
         Assert.False(delay.IsCompleted);
         time.Advance(TimeSpan.FromMilliseconds(1));
         await delay.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
@@ -32,9 +33,9 @@ public sealed class TimeProviderCaptureClockTests
     public async Task ADelayCancels()
     {
         using var cts = new CancellationTokenSource();
-        var delay = new TimeProviderCaptureClock(new FakeTimeProvider()).DelayAsync(350, cts.Token);
+        var delay = new TimeProviderCaptureClock(new FakeTimeProvider()).DelayAsync(60_000, cts.Token);
         await cts.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => delay);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => delay.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
     }
 
     [Fact]

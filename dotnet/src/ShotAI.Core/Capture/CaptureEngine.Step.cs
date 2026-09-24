@@ -40,7 +40,8 @@ public sealed partial class CaptureEngine
         var grabbed = Grab(s.Target, mode, autoMode, foreground, clickMonitor, point);
         if (grabbed is null)
         {
-            await ElementOrUnavailableAsync(element).ConfigureAwait(false);
+            // Electron returns at once: the query's result is dropped, and its fault observed.
+            Observe(element);
             ReportGrabFailure(job);
             return null;
         }
@@ -283,11 +284,11 @@ public sealed partial class CaptureEngine
         var how = autoMode is { } auto ? "auto:" + AutoModeWire(auto) : mode;
         var right = job.Button == MouseButton.Right ? " right" : "";
         var insert = job.InsertAt is { } at ? " (insert@" + at.ToString(CultureInfo.InvariantCulture) + ")" : "";
-        var elementType = element.Name is null ? "" : " el=(" + (element.ControlType ?? "null") + ")";
+        var elementType = element.Name is { Length: > 0 } ? " el=(" + (element.ControlType ?? "null") + ")" : "";
         var kb = JsMath.Round(shot.Png.Length / 1024.0).ToString(CultureInfo.InvariantCulture);
         var scale = shot.Scale != 1 ? " @" + shot.Scale.ToString("F2", CultureInfo.InvariantCulture) + "x" : "";
         StepCaptured(_log, string.Create(CultureInfo.InvariantCulture, $"step #{order} [{trigger}/{how}{right}]{insert} {window?.App ?? "screen"}{elementType} -> {filename} ({kb} KB{scale})"));
-        if (element.Name is { } name) StepElementNamed(_log, order, name, element.ControlType ?? "null");
+        if (element.Name is { Length: > 0 } name) StepElementNamed(_log, order, name, element.ControlType ?? "null");
     }
 
     private static string ButtonWire(MouseButton button) => button switch
