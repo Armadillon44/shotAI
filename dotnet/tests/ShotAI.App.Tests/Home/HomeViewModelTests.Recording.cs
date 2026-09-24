@@ -161,6 +161,29 @@ public sealed partial class HomeViewModelTests
         Assert.Null(t.Notices.Error);
     });
 
+    /// <summary>
+    /// D-HOME-36: a failed read of the list after a create shows its notice, and what the create was
+    /// for goes on: Capture's recording starts, and Empty Project opens its project.
+    /// </summary>
+    [Fact]
+    public Task AFailedRefreshAfterTheCreateGoesOn() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        t.Shell.Start();
+        await TestShell.Settle();
+        t.Projects.Failure = new IOException("The projects folder could not be read.");
+        await t.Shell.CaptureFromHomeAsync();
+        Assert.Equal("The projects folder could not be read.", t.Notices.Error?.Text);
+        Assert.Equal(Created, Assert.Single(t.Capture.Starts).Path);
+        Assert.Equal(ShellViewKind.Recording, t.Shell.CurrentView);
+        t.Capture.RaiseEnded();
+        Assert.True(await TestShell.UntilAsync(() => t.Shell.CurrentView == ShellViewKind.Project));
+
+        await t.Shell.CreateEmptyProjectAsync();
+        Assert.Equal((@"C:\Projects\New-2", ShellViewKind.Project), (t.Shell.OpenProjectPath, t.Shell.CurrentView));
+        Assert.Single(t.Capture.Starts);
+    });
+
     /// <summary>2.5 onRecord: Home's target is the picker's when the recording starts, after the project opened.</summary>
     [Fact]
     public Task TheTargetIsThePickersAtTheStart() => Sta.RunAsync(async () =>

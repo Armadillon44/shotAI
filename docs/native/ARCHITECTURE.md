@@ -357,7 +357,7 @@ Some work must happen before any service exists. The order is 03 7.4.1 with 12 a
 | `EditorFactory`, `IColorPicker` | `EditorFactory` (C6), `Win32ColorPicker` | singleton | App | 04 7.10.1 |
 | `ReportImageLoader`, `ReportImageDecoder`, `IImageSizeProbe` | 05 types (as of WP-A17: `ReportImageLoader` in the App; `ReportImageDecoder` registered as itself and `WicImageSizeProbe` as `IImageSizeProbe` in Platform; with them the C6 `ReportViewModelFactory`, a singleton, and `ProjectDetailViewModel`, a transient the shell takes) | singleton | App, Platform | 05 |
 | `IAppStartup` (multiple, in this order) | `RemoteVisibilityApplier`, `RecordingVisibilityController`, `ThemeManager` (the one registered as of WP-A14, forwarded to the `ThemeManager` singleton; WP-B5 and WP-B7 register the other two before it (corrected in WP-A15 from WP-B6: the pill and `RecordingVisibilityController` are WP-B7's); as of WP-B5 the applier is registered as itself and forwarded, first; as of WP-B7 the controller is registered as itself and forwarded, second) | singleton | App | 11 7.10 |
-| view models | per spec | transient; named singletons only where a spec says so (06's `CaptureModePickerViewModel`, EDGE-HOME-57, and 03's `AppMenuViewModel`, registered in WP-A15, and `CapturePillViewModel`, registered in WP-B7) | App | INV-IPC-22 |
+| view models | per spec | transient; named singletons only where a spec says so (06's `CaptureModePickerViewModel`, EDGE-HOME-57, registered in WP-B9a with `ICaptureTargetSelection` resolving to the same instance, and 03's `AppMenuViewModel`, registered in WP-A15, and `CapturePillViewModel`, registered in WP-B7) | App | INV-IPC-22 |
 | factories (C6) | per spec | singleton | App or Core | 4.1 |
 
 ### 4.4 The service catalog is the backbone

@@ -1387,6 +1387,7 @@ The shell persists nothing: no window bounds, no pill position (per run only), n
 | warn | `pill: <action> failed:` (as built in WP-B7, the action is `pause`, `resume`, `stop`, `discard`, or `state read` when reading the state after a failed Stop or Discard fails) |
 | debug | `menu: brand state open=<b> project=<rawTheme or null> app=<appBrand>` (spec 11 L3) |
 | info | `debug: navigation state raised every 1 s (SHOTAI_DEBUG_NAV_PULSE=1)` (Debug builds only, added in WP-A18 for AC-SHELL-21) |
+| info | `debug: two failed captures 3 s apart in each recording (SHOTAI_DEBUG_CAPTURE_FAILED=1)` (Debug builds only, added in WP-B9a for AC-SHELL-12's test hook: 3 s after each recording starts the pill is given a failed capture with no message, and 3 s later one reading `Disk full`, as the engine's `CaptureFailed` reaches it) |
 | warn | `startup auto-archive failed (non-fatal):` (Electron wording kept) |
 | info | `legacy shotAI 1.x is running (pid <pid>, <path>); exiting.` (spec 12 `LegacyInstanceGuard`) |
 | info | `personal copy of shotAI; opening the copy installed for all users (<path>).` and, in a self-test mode, `personal copy of shotAI; a copy for all users exists (<path>); the self-test runs this copy.` (spec 12 `PersonalCopyGuard`) |
@@ -1614,7 +1615,7 @@ Purpose: pin the Squirrel ARP icon fix without touching the real registry.
 
 **Q-SHELL-8. Keyboard access to the pill.** A non-activating pill cannot take keyboard focus, so Tab cannot reach Pause or Stop (Electron's activating pill could be tabbed after a click). Narrator can still invoke buttons through UI Automation. Recommended default: accept for 2.0.0; add a global hotkey for Stop only if accessibility review requires it (that would be a spec 02 hotkey decision). Decided in WP-B7: accepted for 2.0.0; every control carries its name for Narrator (`ControlsCarryTheirTooltipsAndNames`).
 
-**Q-SHELL-9. Window click-pick.** Neither Electron nor macOS has a "click a window to pick it" mode; Window targets are picked from a list (spec 06). Recommended default: do not add one in the port.
+**Q-SHELL-9. Window click-pick.** Neither Electron nor macOS has a "click a window to pick it" mode; Window targets are picked from a list (spec 06). Recommended default: do not add one in the port. Decided in WP-B9a: not added; Window targets are picked from the target dropdown's list (06 7.6).
 
 **Q-SHELL-10. macOS menu extras** (`Check for Updates…`, File then Export, `Export shotAI Logs…`). Recommended default: not at 2.0.0 (parity with Windows 1.3.0); propose after cutover. Decided in WP-A15: the default; the menu is 2.8.1's without the Electron-only items.
 

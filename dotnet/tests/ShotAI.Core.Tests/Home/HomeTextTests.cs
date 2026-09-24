@@ -309,6 +309,8 @@ public sealed partial class HomeTextTests
         Assert.Equal("Select a window\u2026", HomeText.WindowLabel(null, loading: false));
         Assert.Equal("(untitled)", HomeText.WindowItemName(new WindowInfo(1, 2, "", "Notepad")));
         Assert.Equal("Inbox", HomeText.WindowItemName(new WindowInfo(1, 2, "Inbox", "Outlook")));
+        // `title || '(untitled)'`: a title of spaces is a non-empty string, so it is kept.
+        Assert.Equal("  ", HomeText.WindowItemName(new WindowInfo(1, 2, "  ", "Outlook")));
         Assert.Throws<ArgumentNullException>(() => HomeText.WindowItemName(null!));
     }
 
@@ -343,9 +345,13 @@ public sealed partial class HomeTextTests
         Assert.Equal("Capturing \u00b7 Payroll run", HomeText.RecordingLabel(new CaptureState(CaptureStatus.Recording, @"C:\p", "Payroll run", 3, false)));
         Assert.Equal("Paused \u00b7 Payroll run", HomeText.RecordingLabel(new CaptureState(CaptureStatus.Paused, @"C:\p", "Payroll run", 3, false)));
         Assert.Equal("Capturing \u00b7 ", HomeText.RecordingLabel(new CaptureState(CaptureStatus.Recording, null, null, 0, false)));
+        // `status === 'paused'`: only Paused reads Paused.
+        Assert.Equal("Capturing \u00b7 Payroll run", HomeText.RecordingLabel(new CaptureState(CaptureStatus.Idle, @"C:\p", "Payroll run", 3, false)));
         Assert.Equal("1 steps", HomeText.RecordingCount(1));
         Assert.Equal("0 steps", HomeText.RecordingCount(0));
         Assert.Equal("12 steps", HomeText.RecordingCount(12));
+        // `${n}`: no group separator.
+        Assert.Equal("1000 steps", HomeText.RecordingCount(1000));
         Assert.Equal(("Pause", "Resume", "Stop"), (HomeText.Pause, HomeText.Resume, HomeText.Stop));
         Assert.Equal("Click anywhere (or press Ctrl+Shift+S) to capture a step. Clicks on shotAI's own windows are ignored.", HomeText.RecordingHint);
         Assert.Equal("Capture error: Disk full", HomeText.CaptureError("Disk full"));
