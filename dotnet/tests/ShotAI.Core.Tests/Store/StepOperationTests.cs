@@ -145,7 +145,7 @@ public sealed class StepOperationTests : IAsyncLifetime
     {
         var outside = Directory.CreateDirectory(_h.Temp.Combine("outside")).FullName;
         var victim = StoreHarness.WriteFile(outside, "step-0001.png");
-        Links.Directory(Path.Join(_project, "shots"), outside);
+        Symlinks.Directory(Path.Join(_project, "shots"), outside);
 
         await _h.Store.DeleteStepsAsync(_project, ["s1"]);
 

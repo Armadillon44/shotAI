@@ -6,7 +6,7 @@ namespace ShotAI.Core.Tests.Support;
 /// Creates real symlinks. Windows needs Developer Mode or elevation for one, so a test that
 /// cannot create it there skips; Linux always can. Junctions are Platform.Tests' business.
 /// </summary>
-internal static class Links
+internal static class Symlinks
 {
     public static void Directory(string link, string target) =>
         Create(() => System.IO.Directory.CreateSymbolicLink(link, target));

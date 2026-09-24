@@ -40,7 +40,7 @@ public sealed class PathConfineSymlinkTests : IDisposable
     public void RefusesASymlinkedDirectoryComponent()
     {
         Directory.Delete(Path.Combine(_project, "shots"));
-        Links.Directory(Path.Combine(_project, "shots"), _outside);
+        Symlinks.Directory(Path.Combine(_project, "shots"), _outside);
 
         // Lexical confinement sees nothing wrong, which is the whole point.
         Assert.NotNull(PathConfine.Confine(_project, "shots/evil.png"));
@@ -51,7 +51,7 @@ public sealed class PathConfineSymlinkTests : IDisposable
     public void RefusesASymlinkedFinalComponent()
     {
         var target = _root.File("outside/target.png");
-        Links.File(Path.Combine(_project, "shots", "link.png"), target);
+        Symlinks.File(Path.Combine(_project, "shots", "link.png"), target);
         Assert.Null(PathConfine.ConfineNoLinks(_project, "shots/link.png", Probe));
     }
 
@@ -59,7 +59,7 @@ public sealed class PathConfineSymlinkTests : IDisposable
     public void RefusesALinkNestedDeeperInTheWalk()
     {
         Directory.CreateDirectory(Path.Combine(_project, "export"));
-        Links.Directory(Path.Combine(_project, "export", ".render"), _outside);
+        Symlinks.Directory(Path.Combine(_project, "export", ".render"), _outside);
         Assert.Null(PathConfine.ConfineNoLinks(_project, "export/.render/x.png", Probe));
     }
 
@@ -71,7 +71,7 @@ public sealed class PathConfineSymlinkTests : IDisposable
     public void RefusesASymlinkEvenWhenItsTargetIsInsideTheProject()
     {
         Directory.CreateDirectory(Path.Combine(_project, "real"));
-        Links.Directory(Path.Combine(_project, "aliased"), Path.Combine(_project, "real"));
+        Symlinks.Directory(Path.Combine(_project, "aliased"), Path.Combine(_project, "real"));
         Assert.Null(PathConfine.ConfineNoLinks(_project, "aliased/x.png", Probe));
     }
 
@@ -86,7 +86,7 @@ public sealed class PathConfineSymlinkTests : IDisposable
     [Fact]
     public void RefusesADanglingSymlink()
     {
-        Links.File(Path.Combine(_project, "shots", "gone.png"), Path.Combine(_outside, "missing.png"));
+        Symlinks.File(Path.Combine(_project, "shots", "gone.png"), Path.Combine(_outside, "missing.png"));
         Assert.Null(PathConfine.ConfineNoLinks(_project, "shots/gone.png", Probe));
     }
 

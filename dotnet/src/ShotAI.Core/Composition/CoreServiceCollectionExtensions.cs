@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using ShotAI.Core.Auth;
 using ShotAI.Core.Capture;
+using ShotAI.Core.Links;
 using ShotAI.Core.Settings;
 using ShotAI.Core.Store;
 
@@ -18,7 +20,8 @@ public static class CoreServiceCollectionExtensions
     /// (ARCHITECTURE 4.2 step 5b) and registers as that instance; Core forwards
     /// <see cref="ISettingsService"/>, <see cref="IProjectStoreSettings"/> (which
     /// <see cref="ProjectStore"/> needs) and <see cref="ICaptureSettings"/> to it (spec 10 7.4.3,
-    /// 11 7.10).
+    /// 11 7.10). <see cref="ExternalLinks"/> needs an <see cref="IUrlLauncher"/>, which
+    /// <c>AddShotAIPlatform</c> registers (spec 10 7.7).
     /// </remarks>
     public static IServiceCollection AddShotAICore(this IServiceCollection services)
     {
@@ -35,6 +38,9 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ISettingsService>(sp => sp.GetRequiredService<SettingsService>());
         services.AddSingleton<IProjectStoreSettings>(sp => sp.GetRequiredService<SettingsService>());
         services.AddSingleton<ICaptureSettings>(sp => sp.GetRequiredService<SettingsService>());
+        // No federation configuration yet: the SupportUrl admits nothing until WP-D4 (spec 08 7.13).
+        services.AddSingleton<ISupportUrlAllowlist, NoFederationSupportUrlAllowlist>();
+        services.AddSingleton<IExternalLinks, ExternalLinks>();
         return services;
     }
 }

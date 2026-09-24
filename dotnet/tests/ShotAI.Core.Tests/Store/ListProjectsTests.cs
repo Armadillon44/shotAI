@@ -97,7 +97,7 @@ public sealed class ListProjectsTests : IAsyncDisposable
     public async Task SkipsASymlinkedFolderUnderTheRoot()
     {
         var target = Outside("target", Manifest("Linked"));
-        Links.Directory(Path.Combine(_h.Root, "link"), target);
+        Symlinks.Directory(Path.Combine(_h.Root, "link"), target);
         _h.Project("good");
 
         Assert.Equal("test", Assert.Single(await _h.Store.ListProjectsAsync(TestContext.Current.CancellationToken)).Id);
