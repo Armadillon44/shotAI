@@ -2,10 +2,10 @@ using Microsoft.Extensions.Logging;
 
 namespace ShotAI.Core.Tests.Support;
 
-/// <summary>An <see cref="ILogger{T}"/> over a <see cref="CapturingLoggerProvider"/>, for types that take one.</summary>
+/// <summary>An <see cref="ILogger{T}"/> over any provider (a <see cref="CapturingLoggerProvider"/> or the real file provider), for types that take one.</summary>
 public static class TypedLogger
 {
-    public static ILogger<T> CreateLogger<T>(this CapturingLoggerProvider provider)
+    public static ILogger<T> CreateLogger<T>(this ILoggerProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
         return new Logger<T>(provider.CreateLogger(typeof(T).FullName!));
