@@ -136,21 +136,26 @@ internal static unsafe partial class User32
         var className = new string(buffer, 0, Math.Max(0, GetClassName(hwnd, buffer, 256)));
         var title = new string(buffer, 0, Math.Max(0, GetWindowText(hwnd, buffer, 256)));
         _ = GetWindowThreadProcessId(hwnd, out var pid);
-        string process;
+        return string.Create(CultureInfo.InvariantCulture, $"0x{hwnd:x} class '{className}' title '{title}' process {ProcessName(hwnd)} ({pid})");
+    }
+
+    /// <summary>The name of the process a window belongs to, or <c>?</c> when it has ended.</summary>
+    public static string ProcessName(nint hwnd)
+    {
+        _ = GetWindowThreadProcessId(hwnd, out var pid);
         try
         {
             using var p = System.Diagnostics.Process.GetProcessById((int)pid);
-            process = p.ProcessName;
+            return p.ProcessName;
         }
         catch (ArgumentException)
         {
-            process = "?";
+            return "?";
         }
         catch (InvalidOperationException)
         {
-            process = "?";
+            return "?";
         }
-        return string.Create(CultureInfo.InvariantCulture, $"0x{hwnd:x} class '{className}' title '{title}' process {process} ({pid})");
     }
 
     /// <summary>Whether a window is top-level: its own root.</summary>

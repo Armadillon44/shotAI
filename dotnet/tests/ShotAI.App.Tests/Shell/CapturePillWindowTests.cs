@@ -103,7 +103,7 @@ public sealed class CapturePillWindowTests
         pill.Recording(0);
         await pill.ShowAsync();
         var (x, y) = Center(pill.Window.PauseButton);
-        AssertPillAt(pill, x, y);
+        await AssertPillAtAsync(pill, x, y);
         SyntheticMouse.Click(x, y);
         Assert.True(await Until(() => pill.Capture.Calls.Contains("pause")), "the click did not reach Pause; " + Around(x, y));
         pill.AssertNeverActivated();
@@ -122,7 +122,7 @@ public sealed class CapturePillWindowTests
         await pill.ShowAsync();
         var before = WindowStyles.GetWindowRect(pill.Window.Handle);
         var (x, y) = Center(pill.Window.Grip);
-        AssertPillAt(pill, x, y);
+        await AssertPillAtAsync(pill, x, y);
         SyntheticMouse.Press(x, y);
         Assert.True(await Until(() => pill.Window.DragArea.IsMouseCaptured), "the press on the grip did not start a drag; " + Around(x, y));
         var start = SyntheticMouse.Cursor();
@@ -153,7 +153,7 @@ public sealed class CapturePillWindowTests
         await pill.ShowAsync();
         var before = WindowStyles.GetWindowRect(pill.Window.Handle);
         var (x, y) = Center(pill.Window.StopButton);
-        AssertPillAt(pill, x, y);
+        await AssertPillAtAsync(pill, x, y);
         SyntheticMouse.Press(x, y);
         Assert.True(await Until(() => pill.Window.StopButton.IsMouseCaptured), "the press did not reach Stop; " + Around(x, y));
         SyntheticMouse.MoveTo(x + 40, y);
@@ -265,7 +265,7 @@ public sealed class CapturePillWindowTests
         var opened = false;
         pill.Window.ErrorMessage.ToolTipOpening += (_, _) => opened = true;
         var (x, y) = Center(pill.Window.ErrorMessage);
-        AssertPillAt(pill, x - 4, y);
+        await AssertPillAtAsync(pill, x - 4, y);
         SyntheticMouse.MoveTo(x - 4, y);
         await TestShell.Settle();
         SyntheticMouse.MoveTo(x, y);
@@ -381,9 +381,13 @@ public sealed class CapturePillWindowTests
         return ((int)Math.Round(p.X), (int)Math.Round(p.Y));
     }
 
-    // Real input reaches the pill only where the pill is the window on top.
-    private static void AssertPillAt(PillHarness pill, int x, int y) =>
+    // Real input reaches the pill only where the pill is the window on top. The runner's Start
+    // menu can be open over it (ShellOverlay): it is closed first, and the test's output says so.
+    private static async Task AssertPillAtAsync(PillHarness pill, int x, int y)
+    {
+        if (await ShellOverlay.CloseOverAsync(x, y)) TestContext.Current.TestOutputHelper?.WriteLine("closed the shell's Start menu or Search, which covered the pill");
         Assert.True(User32.RootAt(x, y) == pill.Window.Handle, "the pill is not the window under the input; " + Around(x, y));
+    }
 
     // What is at the point and in the foreground, for a failure message.
     private static string Around(int x, int y) => string.Create(

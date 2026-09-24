@@ -12,6 +12,9 @@ namespace ShotAI.App.Tests.Support;
 internal static unsafe partial class SyntheticMouse
 {
     private const uint InputMouse = 0;
+    private const uint InputKeyboard = 1;
+    private const uint KeyUp = 0x0002;
+    private const ushort VkEscape = 0x1B;
     private const uint Move = 0x0001;
     private const uint LeftDown = 0x0002;
     private const uint LeftUp = 0x0004;
@@ -34,6 +37,9 @@ internal static unsafe partial class SyntheticMouse
     /// <summary>Releases the left button where the cursor is.</summary>
     public static void Release() => Send([Button(LeftUp)]);
 
+    /// <summary>Presses and releases Escape, the one key these tests send (<see cref="ShellOverlay"/>).</summary>
+    public static void PressEscape() => Send([Key(0), Key(KeyUp)]);
+
     /// <summary>The cursor's physical position.</summary>
     public static (int X, int Y) Cursor() => GetCursorPos(out var p) ? (p.X, p.Y) : throw new InvalidOperationException("GetCursorPos failed.");
 
@@ -50,6 +56,9 @@ internal static unsafe partial class SyntheticMouse
     }
 
     private static Input Button(uint flags) => Mouse(0, 0, flags);
+
+    private static Input Key(uint flags) =>
+        new() { Type = InputKeyboard, U = new InputUnion { Keyboard = new KeyboardInput { Vk = VkEscape, Flags = flags } } };
 
     private static void Send(Input[] inputs)
     {
@@ -96,6 +105,19 @@ internal static unsafe partial class SyntheticMouse
     {
         [FieldOffset(0)]
         public MouseInput Mouse;
+
+        [FieldOffset(0)]
+        public KeyboardInput Keyboard;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KeyboardInput
+    {
+        public ushort Vk;
+        public ushort Scan;
+        public uint Flags;
+        public uint Time;
+        public nint ExtraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]
