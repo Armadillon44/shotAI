@@ -78,17 +78,22 @@ public sealed partial class CaptureEngineTests
         Assert.DoesNotContain(h.Logs.Entries, e => e.Level >= LogLevel.Information && e.Message.Contains("'File'", StringComparison.Ordinal));
     }
 
-    /// <summary>A capture over 120 ms of grab and downscale logs its timing at debug.</summary>
-    [Fact]
-    public async Task ASlowCaptureLogsItsTiming()
+    /// <summary>A capture over 120 ms of grab and downscale together logs both at debug (2.6 step 9); 120 ms does not.</summary>
+    [Theory]
+    [InlineData(121, 0, "capture timing: grab(async)=121ms downscale(sync)=0ms")]
+    [InlineData(60, 61, "capture timing: grab(async)=60ms downscale(sync)=61ms")]
+    [InlineData(60, 60, null)]
+    public async Task ASlowCaptureLogsItsTiming(int grabMs, int encodeMs, string? line)
     {
         await using var h = new EngineHarness();
-        h.Screen.OnGrab = _ => h.Clock.Advance(121);
+        h.Screen.OnGrab = _ => h.Clock.Advance(grabMs);
+        h.Codec.OnEncode = () => h.Clock.Advance(encodeMs);
         var p = h.Project();
         await h.StartAsync(p);
         await h.ClickAsync(100, 100);
 
-        Assert.Contains("capture timing: grab(async)=121ms downscale(sync)=0ms", h.LogLines(LogLevel.Debug));
+        string[] expected = line is null ? [] : [line];
+        Assert.Equal(expected, h.LogLines(LogLevel.Debug).Where(l => l.StartsWith("capture timing:", StringComparison.Ordinal)));
     }
 
     /// <summary>

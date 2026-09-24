@@ -240,6 +240,22 @@ public sealed partial class CaptureEngineTests
         Assert.Contains("monitor capture failed:", h.LogLines(Microsoft.Extensions.Logging.LogLevel.Warning));
     }
 
+    /// <summary>2.6 step 6, D6: with no monitor at all there is nothing to grab, which is a failed grab, not an error.</summary>
+    [Fact]
+    public async Task NoMonitorIsAFailedGrab()
+    {
+        await using var h = new EngineHarness();
+        h.Screen.Displays.Clear();
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(100, 100);
+        await h.HotkeyAsync();
+
+        Assert.Equal([CaptureMessages.GrabFailed], h.Failures);
+        Assert.Empty(h.Landed);
+        Assert.DoesNotContain(h.Logs.Entries, e => e.Message == "capture failed:");
+    }
+
     /// <summary>D6: a new session starts a new run, so its first failed grab is reported even when the last session ended mid-run.</summary>
     [Fact]
     public async Task ANewSessionStartsANewFailureRun()

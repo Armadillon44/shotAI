@@ -286,8 +286,12 @@ internal sealed class FakeCodec : IImageCodec
 
     public PixelFrame Resize(PixelFrame frame, int width, int height) => Frame(width, height);
 
+    /// <summary>Runs at the start of every encode (to move the clock).</summary>
+    public Action? OnEncode { get; set; }
+
     public byte[] EncodePng(PixelFrame frame)
     {
+        OnEncode?.Invoke();
         var png = FakePng.Of(frame.Width, frame.Height);
         return PngBytes > png.Length ? [.. png, .. new byte[PngBytes - png.Length]] : png;
     }
