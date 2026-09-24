@@ -20,7 +20,7 @@ public sealed class ReportAutomationTests
     {
         var projects = new ListingProjects();
         var sessions = new FakeSessions();
-        using var project = new ProjectDetailViewModel(projects, sessions, new ReportViewModelFactory(), new RecordingLayout(), NullLogger<ProjectDetailViewModel>.Instance);
+        using var project = new ProjectDetailViewModel(projects, sessions, new ReportViewModelFactory(), new RecordingLayout(), new FixedTargets(), NullLogger<ProjectDetailViewModel>.Instance);
         var view = new ProjectDetailView { DataContext = project };
         var window = TestShell.Host(view);
         window.Show();

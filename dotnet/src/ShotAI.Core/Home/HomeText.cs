@@ -236,6 +236,18 @@ public static class HomeText
     /// <summary>The Area chip.</summary>
     public const string ModeArea = "Area";
 
+    /// <summary>The Screen chip's tooltip.</summary>
+    public const string ModeScreenHint = "Capture one full monitor each step";
+
+    /// <summary>The Auto chip's tooltip.</summary>
+    public const string ModeAutoHint = "Best-effort smart capture \u2014 may include extra/unintended context";
+
+    /// <summary>The Window chip's tooltip.</summary>
+    public const string ModeWindowHint = "Capture one specific window each step";
+
+    /// <summary>The Area chip's tooltip.</summary>
+    public const string ModeAreaHint = "Drag-select a fixed region to capture";
+
     /// <summary>The warning after the chips in Auto mode.</summary>
     public const string AutoWarning = "\u26a0 Auto is best-effort";
 
@@ -257,6 +269,9 @@ public static class HomeText
 
     /// <summary>After the bold Auto.</summary>
     public const string ModeHintAfterAuto = "-detect per click.";
+
+    /// <summary>The target dropdown trigger's caret, after its label.</summary>
+    public const string DropdownCaret = "\u25be";
 
     /// <summary>The target dropdown's trigger and empty list while the targets load.</summary>
     public const string Loading = "Loading\u2026";
@@ -429,10 +444,10 @@ public static class HomeText
     /// <exception cref="ArgumentOutOfRangeException">Not a mode.</exception>
     public static string ModeHint(CaptureMode mode) => mode switch
     {
-        CaptureMode.Screen => "Capture one full monitor each step",
-        CaptureMode.Auto => "Best-effort smart capture \u2014 may include extra/unintended context",
-        CaptureMode.Window => "Capture one specific window each step",
-        CaptureMode.Area => "Drag-select a fixed region to capture",
+        CaptureMode.Screen => ModeScreenHint,
+        CaptureMode.Auto => ModeAutoHint,
+        CaptureMode.Window => ModeWindowHint,
+        CaptureMode.Area => ModeAreaHint,
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a capture mode."),
     };
 

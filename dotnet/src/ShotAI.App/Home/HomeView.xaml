@@ -4,16 +4,46 @@
              xmlns:home="clr-namespace:ShotAI.App.Home"
              xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
              xmlns:core="clr-namespace:ShotAI.Core.Home;assembly=ShotAI.Core"
+             xmlns:capture="clr-namespace:ShotAI.Core.Capture;assembly=ShotAI.Core"
              Focusable="False" IsTabStop="False">
   <!--
-    Home (spec 06 2.7 to 2.12, 2.17): the tabs, the list head, then the rows under their date spans
-    or search tiers, or the empty state. The one scroller of the view, padded as .project__body
-    (1.75rem 2rem); the padding scrolls with the content. The shared styles are read with
-    DynamicResource, so the view also loads outside the Application (the tests' windows).
+    Home (spec 06 2.3, 2.4, 2.7 to 2.12, 2.17): the create hero with the capture-mode picker, the
+    tabs, the list head, then the rows under their date spans or search tiers, or the empty state.
+    The one scroller of the view, padded as .project__body (1.75rem 2rem); the padding scrolls with
+    the content. The shared styles are read with DynamicResource, so the view also loads outside
+    the Application (the tests' windows).
   -->
   <UserControl.Resources>
     <BooleanToVisibilityConverter x:Key="Visible" />
     <chrome:UpperCaseConverter x:Key="UpperCase" />
+
+    <!-- home__dd-trigger: 0.45rem 0.7rem, 1px control-bd, radius-control, surface, ink, fs-body, left aligned; hover accent border. -->
+    <Style x:Key="TargetTrigger" TargetType="home:TargetTrigger">
+      <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusVisual}" />
+      <Setter Property="Background" Value="{DynamicResource Brush.surface}" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.ink}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Brush.control-bd}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="11.2,7.2" />
+      <Setter Property="FontSize" Value="{DynamicResource Fs.body}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="home:TargetTrigger">
+            <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource Radius.control}">
+              <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Brush.accent}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
 
     <!-- 2.11: a span or tier header, upper-cased, with a hairline filling the rest of the line. Text for assistive tech, a level 3 heading (7.13). -->
     <DataTemplate DataType="{x:Type home:GroupHeaderItem}">
@@ -117,6 +147,96 @@
 
   <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
     <StackPanel Margin="32,28">
+      <!--
+        2.3: the create hero, 1.5rem above the tabs: the heading, the mission (60ch), and the name box
+        with Capture and Empty Project, 0.6rem apart. Enter in the name box is Capture's, when it can
+        run (7.9); the box's placeholder is a TextBlock over it, and its help text for assistive tech.
+      -->
+      <StackPanel x:Name="Hero" Margin="0,0,0,24" DataContext="{Binding Hero}">
+        <TextBlock Margin="0,0,0,11.2" Text="{x:Static core:HomeText.StartProject}" FontSize="{DynamicResource Fs.section}"
+                   FontWeight="{DynamicResource Fw.section}" AutomationProperties.HeadingLevel="Level2" />
+        <TextBlock Margin="0,-4.8,0,16" HorizontalAlignment="Left" MaxWidth="472.5" TextWrapping="Wrap" Text="{x:Static core:HomeText.Mission}"
+                   FontSize="{DynamicResource Fs.body}" LineStackingStrategy="BlockLineHeight" LineHeight="21" Foreground="{DynamicResource Brush.ink-2}" />
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBox x:Name="NameBox" Style="{DynamicResource TextInput}" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                   IsEnabled="{Binding CanEditName}" AutomationProperties.Name="{x:Static core:HomeText.NameBoxName}"
+                   AutomationProperties.HelpText="{x:Static core:HomeText.NamePlaceholder}">
+            <TextBox.InputBindings>
+              <KeyBinding Key="Enter" Command="{Binding CaptureCommand}" />
+            </TextBox.InputBindings>
+          </TextBox>
+          <TextBlock Margin="13,0,13,0" VerticalAlignment="Center" IsHitTestVisible="False" FontSize="15.2" TextTrimming="CharacterEllipsis"
+                     Text="{x:Static core:HomeText.NamePlaceholder}" Foreground="{DynamicResource Brush.ink-3}"
+                     Visibility="{Binding ShowNamePlaceholder, Converter={StaticResource Visible}}" />
+          <Button x:Name="CaptureButton" Grid.Column="1" Margin="9.6,0,0,0" Style="{DynamicResource Button.Primary}" Content="{Binding CaptureText}"
+                  ToolTip="{x:Static core:HomeText.CaptureButtonTitle}" ToolTipService.ShowOnDisabled="True" Command="{Binding CaptureCommand}" />
+          <Button x:Name="EmptyProjectButton" Grid.Column="2" Margin="9.6,0,0,0" Style="{DynamicResource Button.Ghost}"
+                  Content="{x:Static core:HomeText.EmptyProject}" ToolTip="{x:Static core:HomeText.EmptyProjectTitle}" ToolTipService.ShowOnDisabled="True"
+                  Command="{Binding EmptyProjectCommand}" />
+        </Grid>
+
+        <!--
+          2.4: the mode chips, one radio group (the arrows move between them, 7.9), after the Mode
+          label and before Auto's warning, 0.4rem apart; then the plain-language hint (62ch), and the
+          target dropdown's trigger, the Area button or a warning, as the mode needs.
+        -->
+        <StackPanel DataContext="{Binding Mode}">
+          <WrapPanel x:Name="ModeRow" Margin="0,11.2,0,0" AutomationProperties.Name="{x:Static core:HomeText.ModeGroupName}">
+            <TextBlock Margin="0,0,8.8,0" VerticalAlignment="Center" Text="{Binding Source={x:Static core:HomeText.ModeLabel}, Converter={StaticResource UpperCase}}"
+                       FontFamily="{DynamicResource Font.label-stack}" FontStretch="{DynamicResource Font.label-stretch}" FontSize="{DynamicResource Fs.label}"
+                       Foreground="{DynamicResource Brush.ink-3}" />
+            <RadioButton x:Name="ScreenChip" Margin="0,0,6.4,0" GroupName="CaptureMode" Style="{DynamicResource Chip}" IsChecked="{Binding IsScreen}"
+                         Content="{x:Static core:HomeText.ModeScreen}" ToolTip="{x:Static core:HomeText.ModeScreenHint}"
+                         Command="{Binding SelectModeCommand}" CommandParameter="{x:Static capture:CaptureMode.Screen}" />
+            <RadioButton x:Name="AutoChip" Margin="0,0,6.4,0" GroupName="CaptureMode" Style="{DynamicResource Chip}" IsChecked="{Binding IsAuto}"
+                         Content="{x:Static core:HomeText.ModeAuto}" ToolTip="{x:Static core:HomeText.ModeAutoHint}"
+                         Command="{Binding SelectModeCommand}" CommandParameter="{x:Static capture:CaptureMode.Auto}" />
+            <RadioButton x:Name="WindowChip" Margin="0,0,6.4,0" GroupName="CaptureMode" Style="{DynamicResource Chip}" IsChecked="{Binding IsWindow}"
+                         Content="{x:Static core:HomeText.ModeWindow}" ToolTip="{x:Static core:HomeText.ModeWindowHint}"
+                         Command="{Binding SelectModeCommand}" CommandParameter="{x:Static capture:CaptureMode.Window}" />
+            <RadioButton x:Name="AreaChip" Margin="0,0,6.4,0" GroupName="CaptureMode" Style="{DynamicResource Chip}" IsChecked="{Binding IsArea}"
+                         Content="{x:Static core:HomeText.ModeArea}" ToolTip="{x:Static core:HomeText.ModeAreaHint}"
+                         Command="{Binding SelectModeCommand}" CommandParameter="{x:Static capture:CaptureMode.Area}" />
+            <TextBlock x:Name="AutoWarning" VerticalAlignment="Center" Text="{x:Static core:HomeText.AutoWarning}" ToolTip="{x:Static core:HomeText.AutoWarningTitle}"
+                       Cursor="Help" FontSize="{DynamicResource Fs.meta}" Foreground="{DynamicResource Brush.caut-fg}"
+                       Visibility="{Binding ShowsAutoWarning, Converter={StaticResource Visible}}" />
+          </WrapPanel>
+          <TextBlock x:Name="ModeHint" Margin="0,8,0,0" HorizontalAlignment="Left" MaxWidth="446.4" TextWrapping="Wrap" FontSize="{DynamicResource Fs.meta}"
+                     LineStackingStrategy="BlockLineHeight" LineHeight="18.56" Foreground="{DynamicResource Brush.ink-3}"><Run Text="{x:Static core:HomeText.ModeHintBefore}" /><Run Text="{x:Static core:HomeText.ModeScreen}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.ink-2}" /><Run Text="{x:Static core:HomeText.ModeHintAfterScreen}" /><Run Text="{x:Static core:HomeText.ModeWindow}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.ink-2}" /><Run Text="{x:Static core:HomeText.ModeHintAfterWindow}" /><Run Text="{x:Static core:HomeText.ModeArea}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.ink-2}" /><Run Text="{x:Static core:HomeText.ModeHintAfterArea}" /><Run Text="{x:Static core:HomeText.ModeAuto}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.ink-2}" /><Run Text="{x:Static core:HomeText.ModeHintAfterAuto}" /></TextBlock>
+
+          <!-- home__dd: min 280, max 460, 0.6rem down; the label with an ellipsis and the caret. The popover is the shell's (TargetDropdownView). -->
+          <home:TargetTrigger x:Name="TargetTrigger" Margin="0,9.6,0,0" HorizontalAlignment="Left" MinWidth="280" MaxWidth="460" Style="{StaticResource TargetTrigger}"
+                              IsOpen="{Binding PickerOpen, Mode=OneWay}" Command="{Binding ToggleDropdownCommand}" AutomationProperties.Name="{Binding TriggerLabel}"
+                              Visibility="{Binding ShowsDropdown, Converter={StaticResource Visible}}">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Right" Margin="9.6,0,0,0" VerticalAlignment="Center" Text="{x:Static core:HomeText.DropdownCaret}"
+                         Foreground="{DynamicResource Brush.ink-3}" />
+              <TextBlock VerticalAlignment="Center" Text="{Binding TriggerLabel}" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+          </home:TargetTrigger>
+
+          <!-- capmode__picker: the Area button and the area beside it, 0.5rem apart. -->
+          <StackPanel Margin="0,11.2,0,0" Orientation="Horizontal" Visibility="{Binding ShowsAreaPicker, Converter={StaticResource Visible}}">
+            <Button x:Name="AreaButton" Style="{DynamicResource Button.Base}" Content="{Binding AreaButtonText}" Command="{Binding SelectAreaCommand}"
+                    CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}" />
+            <TextBlock x:Name="AreaText" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding AreaText}" FontSize="13.6"
+                       Foreground="{DynamicResource Brush.accent-ink}" Typography.NumeralAlignment="Tabular"
+                       Visibility="{Binding HasArea, Converter={StaticResource Visible}}" />
+          </StackPanel>
+
+          <!-- capmode__warn: why Capture is disabled, in the caution colour. -->
+          <TextBlock x:Name="WindowWarning" Margin="0,8,0,0" TextWrapping="Wrap" Text="{x:Static core:HomeText.WindowWarning}" FontSize="13.12"
+                     Foreground="{DynamicResource Brush.caut-fg}" Visibility="{Binding ShowsWindowWarning, Converter={StaticResource Visible}}" />
+          <TextBlock x:Name="AreaWarning" Margin="0,8,0,0" TextWrapping="Wrap" Text="{x:Static core:HomeText.AreaWarning}" FontSize="13.12"
+                     Foreground="{DynamicResource Brush.caut-fg}" Visibility="{Binding ShowsAreaWarning, Converter={StaticResource Visible}}" />
+        </StackPanel>
+      </StackPanel>
+
       <!-- 2.7: the tabs, a pair of radio buttons over a hairline; the counts are over every project. -->
       <Border Margin="0,0,0,4" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.hair}">
         <StackPanel Orientation="Horizontal" AutomationProperties.Name="{x:Static core:HomeText.TabsName}"

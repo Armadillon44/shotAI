@@ -1,17 +1,21 @@
+using System.Windows.Threading;
 using ShotAI.App.Chrome;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
+using ShotAI.App.Threading;
 using Xunit;
 
 namespace ShotAI.App.Tests.Shell;
 
 /// <summary>
 /// Spec 06 8.4 and 2.1: the view shown, derived from the open project and Settings; the header
-/// and its Settings button; Home entered and left as it comes and goes. The recording rows join
-/// in WP-B9, the tour's in WP-B10.
+/// and its Settings button; Home entered and left as it comes and goes. The recording rows are
+/// <c>ShellViewModelTests.Recording.cs</c> (WP-B9a); the tour's join in WP-B10.
 /// </summary>
-public sealed class ShellViewModelTests
+public sealed partial class ShellViewModelTests
 {
+    private static WpfUiDispatcher Ui() => new(Dispatcher.CurrentDispatcher);
+
     private const string Handbook = @"C:\Projects\Handbook";
 
     private static (ShellViewKind View, bool Header, bool SettingsButton, ShellViewKind ReturnsTo) Facts(ShellViewModel shell) =>
@@ -244,11 +248,14 @@ public sealed class ShellViewModelTests
     public Task ArgumentsAreChecked() => Sta.RunAsync(() =>
     {
         using var t = new TestShell();
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Menu, t.Notices, t.Confirm));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Menu, t.Notices, t.Confirm));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Notices, t.Confirm));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, (INoticeService)null!, t.Confirm));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, t.Notices, null!));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Notices, t.Confirm, t.Capture, t.Projects, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, (INoticeService)null!, t.Confirm, t.Capture, t.Projects, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, t.Notices, null!, t.Capture, t.Projects, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, t.Notices, t.Confirm, null!, t.Projects, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, t.Notices, t.Confirm, t.Capture, null!, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, null!));
         Assert.Throws<ArgumentNullException>(() => t.Shell.ShowProject(null!, null));
     });
 }

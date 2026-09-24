@@ -8,11 +8,12 @@
              xmlns:coreshell="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
              Focusable="False" IsTabStop="False">
   <!--
-    The main window's content (spec 06 2.2, 7.6, 03 7.4.10): the shotAI header, the Home, project
-    and Settings hosts, one shown at a time, and above them the overlay layer, which holds the
-    notices. Home and the project view are made once and kept, so Home's scroller keeps its place
-    (7.7) while the project view starts each open at the top (05 EDGE-REP-42); Settings fills its
-    host in WP-B10.
+    The main window's content (spec 06 2.2, 7.6, 03 7.4.10): the shotAI header, the Home, project,
+    Settings and Recording hosts, one shown at a time, and above them the overlay layer, which holds
+    the target dropdown's popover, the confirm dialog and the notices. Home and the project view are
+    made once and kept, so Home's scroller keeps its place (7.7) while the project view starts each
+    open at the top (05 EDGE-REP-42); Settings fills its host in WP-B10, and the recording panel the
+    Recording host in WP-B9b.
   -->
   <UserControl.Resources>
     <BooleanToVisibilityConverter x:Key="Visible" />
@@ -52,17 +53,21 @@
       </Grid>
       <ContentControl x:Name="SettingsHost" Focusable="False" IsTabStop="False"
                       Visibility="{Binding SettingsVisible, Converter={StaticResource Visible}}" />
+      <ContentControl x:Name="RecordingHost" Focusable="False" IsTabStop="False"
+                      Visibility="{Binding RecordingVisible, Converter={StaticResource Visible}}" />
     </Grid>
 
     <!--
-      03 7.4.10: the overlay layer, over the header and the views: the confirm dialog's scrim over
-      both, and above it the notices at the top of the content area (Electron's z 50 and 60).
+      03 7.4.10: the overlay layer, over the header and the views: the target dropdown's backdrop
+      and popover (Electron's z 50 and 51), the confirm dialog's scrim over both, and above them the
+      notices at the top of the content area (z 60).
     -->
     <Grid x:Name="OverlayLayer" Grid.RowSpan="2">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" SharedSizeGroup="ShellHeader" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
+      <home:TargetDropdownView x:Name="TargetDropdown" Grid.RowSpan="2" DataContext="{Binding Home.Mode}" />
       <chrome:ConfirmHost x:Name="Confirm" Grid.RowSpan="2" DataContext="{Binding Confirm}" />
       <chrome:NoticeHost x:Name="Notices" Grid.Row="1" DataContext="{Binding Notices}" />
     </Grid>

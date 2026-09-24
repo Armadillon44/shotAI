@@ -1,0 +1,115 @@
+<UserControl x:Class="ShotAI.App.Home.TargetDropdownView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:home="clr-namespace:ShotAI.App.Home"
+             xmlns:core="clr-namespace:ShotAI.Core.Home;assembly=ShotAI.Core"
+             Focusable="False" IsTabStop="False">
+  <!--
+    The target dropdown's popover (spec 06 2.4, 7.6), in the shell's overlay layer and not a Popup,
+    so it draws inside the main window and shares its capture exclusion (R-ARCH-19, INV-HOME-43):
+    a backdrop over the whole window, whose click closes the popover and goes no further and whose
+    wheel scrolls Home, as Electron's menu__backdrop does; and the popover, 4 DIP under the trigger
+    and as wide, with its head (Windows or Monitors, and Refresh) and the list, 220 DIP at most.
+    The data context is the CaptureModePickerViewModel; the shell attaches the trigger.
+  -->
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="Visible" />
+
+    <!-- home__dd-list: no frame of its own, and a scroller from 220 DIP. -->
+    <Style x:Key="TargetList" TargetType="ListBox">
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource Brush.ink}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBox">
+            <ScrollViewer MaxHeight="220" Focusable="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <ItemsPresenter />
+            </ScrollViewer>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!--
+      home__picker-item: 0.45rem 0.7rem, a hair-2 line under each; hover accent-tint; the picked row
+      (on) accent-tint, 600 and a 3 DIP accent bar on its left. The row the arrows are on wears the
+      hover's tint, where the keyboard focus is.
+    -->
+    <Style x:Key="TargetRow" TargetType="ListBoxItem">
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+      <EventSetter Event="PreviewMouseLeftButtonUp" Handler="OnRowClick" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="Row" Background="Transparent" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.hair-2}" SnapsToDevicePixels="True">
+              <Grid>
+                <Border x:Name="Bar" Width="3" HorizontalAlignment="Left" Background="{DynamicResource Brush.accent}" Visibility="Collapsed" />
+                <ContentPresenter Margin="11.2,7.2" />
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Row" Property="Background" Value="{DynamicResource Brush.accent-tint}" />
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Row" Property="Background" Value="{DynamicResource Brush.accent-tint}" />
+              </Trigger>
+              <DataTrigger Binding="{Binding IsPicked}" Value="True">
+                <Setter TargetName="Row" Property="Background" Value="{DynamicResource Brush.accent-tint}" />
+                <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+              </DataTrigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- A window's app before its title, or a monitor's size after its name; the name takes the rest of the row, with an ellipsis. -->
+    <DataTemplate DataType="{x:Type home:TargetItem}">
+      <DockPanel>
+        <TextBlock x:Name="Detail" DockPanel.Dock="Left" Margin="0,0,8,0" VerticalAlignment="Center" Text="{Binding Detail}"
+                   FontSize="{DynamicResource Fs.meta}" Foreground="{DynamicResource Brush.ink-3}" />
+        <TextBlock x:Name="Name" VerticalAlignment="Center" Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource Fs.body}" />
+      </DockPanel>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding DetailFirst}" Value="False">
+          <Setter TargetName="Detail" Property="DockPanel.Dock" Value="Right" />
+          <Setter TargetName="Detail" Property="Margin" Value="8,0,0,0" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding HasDetail}" Value="False">
+          <Setter TargetName="Detail" Property="Visibility" Value="Collapsed" />
+        </DataTrigger>
+      </DataTemplate.Triggers>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <Grid x:Name="Root" Visibility="{Binding PickerOpen, Converter={StaticResource Visible}}">
+    <Border x:Name="Backdrop" Background="Transparent" />
+    <Border x:Name="Pop" HorizontalAlignment="Left" VerticalAlignment="Top" BorderThickness="1" SnapsToDevicePixels="True"
+            BorderBrush="{DynamicResource Brush.hair}" Background="{DynamicResource Brush.surface}"
+            CornerRadius="{DynamicResource Radius.panel}" Effect="{DynamicResource Shadow.menu}"
+            KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle">
+      <DockPanel x:Name="Inner">
+        <Border DockPanel.Dock="Top" Padding="11.2,6.4" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.hair-2}"
+                Background="{DynamicResource Brush.surface-2}">
+          <DockPanel>
+            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Margin="9.6,0,0,0" VerticalAlignment="Center" Style="{DynamicResource Button.SmallGhost}"
+                    Content="{x:Static core:HomeText.Refresh}" ToolTip="{x:Static core:HomeText.RefreshTitle}" Command="{Binding RefreshCommand}" />
+            <TextBlock x:Name="Head" VerticalAlignment="Center" Text="{Binding ListHead}" FontSize="{DynamicResource Fs.meta}" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Brush.ink-2}" />
+          </DockPanel>
+        </Border>
+        <TextBlock x:Name="EmptyText" DockPanel.Dock="Top" Margin="11.2" Text="{Binding EmptyText}" FontSize="{DynamicResource Fs.meta}"
+                   Foreground="{DynamicResource Brush.ink-3}" Visibility="{Binding IsListEmpty, Converter={StaticResource Visible}}" />
+        <!-- The last row's line falls under the popover's clip, as :last-child drops it. -->
+        <ListBox x:Name="List" Margin="0,0,0,-1" Style="{StaticResource TargetList}" ItemContainerStyle="{StaticResource TargetRow}"
+                 ItemsSource="{Binding Items}" AutomationProperties.Name="{Binding ListName}"
+                 Visibility="{Binding HasItems, Converter={StaticResource Visible}}" />
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

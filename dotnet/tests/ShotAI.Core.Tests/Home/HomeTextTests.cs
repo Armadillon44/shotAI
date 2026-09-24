@@ -282,6 +282,7 @@ public sealed partial class HomeTextTests
     [Fact]
     public void Picker()
     {
+        Assert.Equal("\u25be", HomeText.DropdownCaret);
         Assert.Equal(("Windows", "Monitors"), (HomeText.WindowsHead, HomeText.MonitorsHead));
         Assert.Equal(("\u21bb Refresh", "Refresh the list"), (HomeText.Refresh, HomeText.RefreshTitle));
         Assert.Equal(("Window to capture", "Monitor to capture"), (HomeText.WindowListName, HomeText.MonitorListName));
@@ -385,6 +386,7 @@ public sealed partial class HomeTextTests
         Assert.Contains($"? '{HomeText.Loading}'\n          : '{HomeText.SelectWindow}'", app, StringComparison.Ordinal);
         Assert.Contains("`${m.name} \u00b7 ${m.width}\u00d7${m.height}${m.isPrimary ? ' \u00b7 primary' : ''}`", app, StringComparison.Ordinal);
         Assert.Contains($": '{HomeText.SelectMonitor}'", app, StringComparison.Ordinal);
+        Assert.Contains($"<span className=\"home__dd-caret\" aria-hidden=\"true\"> {HomeText.DropdownCaret} </span>", text, StringComparison.Ordinal);
         Assert.Contains($"{{mode === 'window' ? '{HomeText.WindowsHead}' : '{HomeText.MonitorsHead}'}}", app, StringComparison.Ordinal);
         Assert.Contains($"aria-label={{mode === 'window' ? '{HomeText.WindowListName}' : '{HomeText.MonitorListName}'}}", app, StringComparison.Ordinal);
         Assert.Contains($"title=\"{HomeText.RefreshTitle}\"", app, StringComparison.Ordinal);

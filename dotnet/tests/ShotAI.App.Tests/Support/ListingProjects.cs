@@ -158,6 +158,28 @@ internal sealed class ListingProjects : FakeProjectService, IProjectService
     /// <summary>An open of <paramref name="path"/> throws <paramref name="failure"/>.</summary>
     public void OpenFails(string path, Exception failure) => Openable[path] = () => throw failure;
 
+    /// <summary>The title each create was given, in order.</summary>
+    public List<string?> Created { get; } = [];
+
+    /// <summary>When set, a create throws it and makes nothing.</summary>
+    public Exception? CreateFailure { get; set; }
+
+    /// <summary>
+    /// A create makes <c>C:\Projects\New-n</c>, titled as given or, for an empty title, with a
+    /// default as the store's, first in the listing and openable with no steps.
+    /// </summary>
+    public override Task<ProjectSummary> CreateProjectAsync(string? title)
+    {
+        Created.Add(title);
+        if (CreateFailure is { } failure) return Task.FromException<ProjectSummary>(failure);
+        var path = @"C:\Projects\New-" + Created.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var name = string.IsNullOrEmpty(title) ? "Project 2026/07/22 10:00:00" : title;
+        CanOpen(path, Manifests.Of(name));
+        var summary = Project(path, name, "2026-07-22T10:00:00.000Z", steps: 0);
+        Listing = [summary, .. Listing];
+        return Task.FromResult(summary);
+    }
+
     /// <summary>The next open of <paramref name="path"/> waits for the returned source, which the test completes.</summary>
     public TaskCompletionSource<OpenedProject> GateOpen(string path)
     {

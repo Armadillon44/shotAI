@@ -582,7 +582,7 @@ public sealed partial class HomeViewModelTests
         var logs = new CapturingLoggerProvider();
         var notices = new ThreadCheckingNotices(new NoticeCenter(new Logger<NoticeCenter>(logs)));
         var projects = new PoolFailingProjects { Listing = [Project(A, "A", Today), Project(B, "B", Today)] };
-        using var home = new HomeViewModel(projects, new FakeShellReveal(), notices, new ConfirmService(ui), ui, TimeProvider.System, new Logger<HomeViewModel>(logs));
+        using var home = new HomeViewModel(projects, new FakeShellReveal(), notices, new ConfirmService(ui), FixedTargets.Picker(notices), ui, TimeProvider.System, new Logger<HomeViewModel>(logs));
         home.OnEnter();
         await TestShell.Settle();
         home.Bulk.ToggleAllCommand.Execute(null);

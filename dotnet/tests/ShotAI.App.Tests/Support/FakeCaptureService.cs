@@ -1,19 +1,23 @@
+using System.IO;
 using ShotAI.Core.Capture;
 using ShotAI.Core.Model;
 
 namespace ShotAI.App.Tests.Support;
 
 /// <summary>
-/// An <see cref="ICaptureService"/> the test drives: it records the calls the pill and the exit
-/// order make, raises the engine's events on the calling thread as the engine raises them on its
-/// own, and returns <see cref="State"/>. Thread-safe.
+/// An <see cref="ICaptureService"/> the test drives: it records the calls the pill, the shell and
+/// the exit order make, raises the engine's events on the calling thread as the engine raises
+/// them on its own, and returns <see cref="State"/>. A start records its options and raises what
+/// the engine raises; the targets are <see cref="Targets"/>. Thread-safe.
 /// </summary>
 internal sealed class FakeCaptureService : ICaptureService
 {
     private readonly Lock _gate = new();
     private readonly List<string> _calls = [];
     private readonly List<Thread> _threads = [];
+    private readonly List<(string Path, CaptureStartOptions Options)> _starts = [];
     private CaptureState _state = Idle;
+    private int _lists;
 
     /// <summary>No session.</summary>
     public static CaptureState Idle { get; } = new(CaptureStatus.Idle, null, null, 0, false);
@@ -58,6 +62,39 @@ internal sealed class FakeCaptureService : ICaptureService
     /// <summary>Called for each call, on its thread, after it is recorded.</summary>
     public Action<string>? OnCall { get; set; }
 
+    /// <summary>What <see cref="ListTargetsAsync"/> returns: nothing listed by default.</summary>
+    public CaptureTargets Targets { get; set; } = new([], []);
+
+    /// <summary>When set, <see cref="ListTargetsAsync"/> throws it.</summary>
+    public Exception? ListFails { get; set; }
+
+    /// <summary>What <see cref="ListTargetsAsync"/> awaits before it returns, so a test can hold a load open.</summary>
+    public Task ListGate { get; set; } = Task.CompletedTask;
+
+    /// <summary>How many times the targets were listed.</summary>
+    public int ListCount
+    {
+        get
+        {
+            lock (_gate) return _lists;
+        }
+    }
+
+    /// <summary>The starts asked for, in order: the project and the options.</summary>
+    public IReadOnlyList<(string Path, CaptureStartOptions Options)> Starts
+    {
+        get
+        {
+            lock (_gate) return [.. _starts];
+        }
+    }
+
+    /// <summary>When set, <see cref="StartAsync"/> throws it and nothing starts.</summary>
+    public Exception? StartFails { get; set; }
+
+    /// <summary>What <see cref="StartAsync"/> awaits before it starts, so a test can hold a start open.</summary>
+    public Task StartGate { get; set; } = Task.CompletedTask;
+
     public event EventHandler<CaptureState>? StateChanged;
 
     public event EventHandler<StepLandedEventArgs>? StepLanded;
@@ -73,7 +110,19 @@ internal sealed class FakeCaptureService : ICaptureService
 
     public CaptureState GetState() => State;
 
-    public Task<CaptureState> StartAsync(string projectPath, CaptureStartOptions options, CancellationToken ct = default) => throw new NotSupportedException();
+    /// <summary>Records the start, then, as the engine does, raises <see cref="RecordingChanged"/> and <see cref="StateChanged"/> and returns the recording state.</summary>
+    public async Task<CaptureState> StartAsync(string projectPath, CaptureStartOptions options, CancellationToken ct = default)
+    {
+        Record("start");
+        lock (_gate) _starts.Add((projectPath, options));
+        await StartGate.ConfigureAwait(false);
+        if (StartFails is { } ex) throw ex;
+        var state = new CaptureState(CaptureStatus.Recording, projectPath, Path.GetFileName(projectPath), 0, options.CreatedThisSession);
+        State = state;
+        RecordingChanged?.Invoke(this, new RecordingChangedEventArgs(true, ShowPill: true));
+        StateChanged?.Invoke(this, state);
+        return state;
+    }
 
     public Task<ProjectManifest> CaptureScreenshotAsync(string projectPath, CaptureTarget? target, int insertAt, CancellationToken ct = default) =>
         throw new NotSupportedException();
@@ -103,7 +152,12 @@ internal sealed class FakeCaptureService : ICaptureService
         return Fails is { } ex ? Task.FromException<DiscardResult>(ex) : Task.FromResult(new DiscardResult(State, false));
     }
 
-    public Task<CaptureTargets> ListTargetsAsync(CancellationToken ct = default) => Task.FromResult(new CaptureTargets([], []));
+    public async Task<CaptureTargets> ListTargetsAsync(CancellationToken ct = default)
+    {
+        lock (_gate) _lists++;
+        await ListGate.ConfigureAwait(false);
+        return ListFails is { } ex ? throw ex : Targets;
+    }
 
     public void Teardown() => Record("teardown");
 
@@ -117,6 +171,14 @@ internal sealed class FakeCaptureService : ICaptureService
     {
         State = state;
         StateChanged?.Invoke(this, state);
+    }
+
+    /// <summary>The session ends, as a stop or a discard ends it: the idle state, then the events the engine raises.</summary>
+    public void RaiseEnded()
+    {
+        State = Idle;
+        RecordingChanged?.Invoke(this, new RecordingChangedEventArgs(false, ShowPill: true));
+        StateChanged?.Invoke(this, Idle);
     }
 
     /// <summary>Raises <see cref="CaptureFailed"/> with <paramref name="message"/>.</summary>

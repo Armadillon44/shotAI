@@ -12,6 +12,6 @@ public enum ShellViewKind
     /// <summary>Settings, over Home or over the open project.</summary>
     Settings,
 
-    /// <summary>A capture session runs; the window is hidden (02, 03). Joins with the capture engine (WP-B9).</summary>
+    /// <summary>A capture session exists, recording or paused; the window is hidden (02, 03) unless it is shown during one (06 2.6).</summary>
     Recording,
 }
