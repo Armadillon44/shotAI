@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using ShotAI.Core.Shell;
 using ShotAI.Core.Tests.Support;
 using Xunit;
@@ -88,5 +90,77 @@ public sealed class ShellStringsTests
     {
         Assert.Single(ShellStrings.AboutTagline, c => c == '\u2014');
         Assert.DoesNotContain('\u2013', ShellStrings.AboutTagline);
+    }
+
+    /// <summary>2.11's pill rows, and the Discard confirmation's (7.6.3).</summary>
+    [Fact]
+    public void PillStringsAreTheTableOf211()
+    {
+        Assert.Equal("shotAI \u2014 Capture", ShellStrings.PillTitle);
+        Assert.Equal("shotAI", ShellStrings.PillIdleLabel);
+        Assert.Equal("Capturing \u00B7 3", ShellStrings.PillActiveLabel(paused: false, 3));
+        Assert.Equal("Paused \u00B7 3", ShellStrings.PillActiveLabel(paused: true, 3));
+        Assert.Equal(
+            ["\u275A\u275A Pause", "\u25B6 Resume", "\u25A0 Stop", "\u2715", "\u26A0", "Dismiss"],
+            [ShellStrings.Pause, ShellStrings.Resume, ShellStrings.Stop, ShellStrings.Discard, ShellStrings.ErrorGlyph, ShellStrings.Dismiss]);
+        Assert.Equal(
+            ["Pause", "Resume", "Stop & finish", "Discard this capture", "Drag to move", "Dismiss this error", "Dismiss this capture error"],
+            [ShellStrings.PauseTip, ShellStrings.ResumeTip, ShellStrings.StopTip, ShellStrings.DiscardTip, ShellStrings.DragTip, ShellStrings.DismissTip, ShellStrings.DismissName]);
+        Assert.Equal("Click anything to capture a step \u00B7 Ctrl+Shift+S", ShellStrings.HintRecording);
+        Assert.Equal("Paused \u2014 press Resume to keep capturing", ShellStrings.HintPaused);
+        Assert.Equal("A capture failed \u2014 see the log for details.", ShellStrings.ErrorFallback);
+        Assert.Equal("Discard this capture? This is a new project, so the entire project will be deleted.", ShellStrings.DiscardWholeProject);
+        Assert.Equal("Discard this capture? Steps recorded in this session will be deleted.", ShellStrings.DiscardSessionSteps);
+        Assert.Equal(["Discard", "Cancel"], [ShellStrings.DiscardConfirm, ShellStrings.Cancel]);
+    }
+
+    /// <summary>The count is written as JavaScript's template literal writes an integer: digits, no grouping.</summary>
+    [Theory]
+    [InlineData(0, "Capturing \u00B7 0")]
+    [InlineData(1234, "Capturing \u00B7 1234")]
+    public void TheCountIsPlainDigits(int count, string label)
+    {
+        var before = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+            Assert.Equal(label, ShellStrings.PillActiveLabel(false, count));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
+    }
+
+    /// <summary>The pill's strings as the toolbar page and its window write them.</summary>
+    [Fact]
+    public void PillStringsMatchTheElectronSource()
+    {
+        var main = ElectronSource.Read("src/main/main.ts").ReplaceLineEndings("\n");
+        Assert.Contains($"    title: '{ShellStrings.PillTitle}',\n", main, StringComparison.Ordinal);
+        var pill = ElectronSource.Read("src/renderer/toolbar/App.tsx").ReplaceLineEndings("\n");
+        Assert.Contains($"              ? '{ShellStrings.PillIdleLabel}'\n", pill, StringComparison.Ordinal);
+        Assert.Contains("              : `${status === 'paused' ? 'Paused' : 'Capturing'} \u00B7 ${count}`}\n", pill, StringComparison.Ordinal);
+        foreach (var text in new[] { ShellStrings.HintPaused, ShellStrings.HintRecording, ShellStrings.ErrorFallback, ShellStrings.DiscardWholeProject, ShellStrings.DiscardSessionSteps })
+            Assert.Contains($"'{text}'", pill, StringComparison.Ordinal);
+        foreach (var text in new[] { ShellStrings.Pause, ShellStrings.Resume, ShellStrings.Stop, ShellStrings.Discard, ShellStrings.ErrorGlyph, ShellStrings.Dismiss })
+            Assert.Matches("\n +" + Regex.Escape(text) + "\n", pill);
+        foreach (var tip in new[] { ShellStrings.PauseTip, ShellStrings.ResumeTip, ShellStrings.DiscardTip, ShellStrings.DragTip, ShellStrings.DismissTip })
+            Assert.Contains($"title=\"{tip}\"", pill, StringComparison.Ordinal);
+        // JSX decodes the entity the source writes.
+        Assert.Contains($"title=\"{ShellStrings.StopTip.Replace("&", "&amp;", StringComparison.Ordinal)}\"", pill, StringComparison.Ordinal);
+        foreach (var name in new[] { ShellStrings.DiscardTip, ShellStrings.DismissName })
+            Assert.Contains($"aria-label=\"{name}\"", pill, StringComparison.Ordinal);
+    }
+
+    /// <summary>The pill's em-dash strings carry U+2014 exactly once and no U+2013 (INV-SHELL-22).</summary>
+    [Fact]
+    public void ThePillsEmDashStringsHaveOneEmDashAndNoEnDash()
+    {
+        foreach (var text in new[] { ShellStrings.PillTitle, ShellStrings.HintPaused, ShellStrings.ErrorFallback })
+        {
+            Assert.Single(text, c => c == '\u2014');
+            Assert.DoesNotContain('\u2013', text);
+        }
     }
 }

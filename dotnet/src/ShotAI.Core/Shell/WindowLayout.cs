@@ -89,7 +89,8 @@ public static class WindowLayout
 
     private static double Thousandths(double value) => JsMath.Round(value * 1000) / 1000;
 
-    private static void CheckScale(double scale)
+    /// <summary>Refuses a monitor scale that is not a positive finite number; the pill's docking shares the rule.</summary>
+    internal static void CheckScale(double scale)
     {
         if (!(double.IsFinite(scale) && scale > 0))
             throw new ArgumentOutOfRangeException(nameof(scale), scale, "A monitor scale is a positive finite number.");
