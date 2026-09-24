@@ -14,6 +14,7 @@ internal static partial class User32
     public const uint VkS = 0x53;
     public const ushort VkShift = 0x10;
     public const ushort VkControl = 0x11;
+    public const ushort VkEscape = 0x1B;
     public const int DpiAwarenessPerMonitorAware = 2;
     public static readonly nint HwndTopmost = -1;
     public static readonly nint DpiAwarenessContextPerMonitorAwareV2 = -4;
@@ -39,6 +40,10 @@ internal static partial class User32
     [LibraryImport("kernel32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     public static partial uint GetCurrentThreadId();
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial uint GetWindowThreadProcessId(nint hwnd, out uint processId);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

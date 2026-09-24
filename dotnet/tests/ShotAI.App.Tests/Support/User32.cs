@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace ShotAI.App.Tests.Support;
@@ -16,6 +17,12 @@ internal static unsafe partial class User32
     public const int SwMaximize = 3;
     public const int SwShowNoActivate = 4;
     public const int WsPopup = unchecked((int)0x80000000);
+    public const int GwlExStyle = -20;
+    public const int WsExTopmost = 0x00000008;
+    public const int WsExToolWindow = 0x00000080;
+    public const int WsExAppWindow = 0x00040000;
+    public const int WsExNoActivate = 0x08000000;
+    public const uint GwOwner = 4;
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -87,8 +94,69 @@ internal static unsafe partial class User32
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     public static partial uint GetCurrentThreadId();
 
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint WindowFromPoint(ScreenPoint point);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial int GetClassName(nint hwnd, char* name, int capacity);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial int GetWindowText(nint hwnd, char* text, int capacity);
+
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial uint GetWindowThreadProcessId(nint hwnd, out uint processId);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial int GetWindowLong(nint hwnd, int index);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindow")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint GetWindow(nint hwnd, uint command);
+
     /// <summary>The display affinity of a window, or <see cref="uint.MaxValue"/> when Windows cannot read it.</summary>
     public static uint Affinity(nint hwnd) => GetWindowDisplayAffinity(hwnd, out var affinity) ? affinity : uint.MaxValue;
+
+    /// <summary>The top-level window at a physical point of the screen, 0 when there is none.</summary>
+    public static nint RootAt(int x, int y) => GetAncestor(WindowFromPoint(new ScreenPoint(x, y)), 2 /* GA_ROOT */);
+
+    /// <summary>A window's handle, class, title and process, for a failure message.</summary>
+    public static string Describe(nint hwnd)
+    {
+        if (hwnd == 0) return "none";
+        var buffer = stackalloc char[256];
+        var className = new string(buffer, 0, Math.Max(0, GetClassName(hwnd, buffer, 256)));
+        var title = new string(buffer, 0, Math.Max(0, GetWindowText(hwnd, buffer, 256)));
+        _ = GetWindowThreadProcessId(hwnd, out var pid);
+        return string.Create(CultureInfo.InvariantCulture, $"0x{hwnd:x} class '{className}' title '{title}' process {ProcessName(hwnd)} ({pid})");
+    }
+
+    /// <summary>The name of the process a window belongs to, or <c>?</c> when it has ended.</summary>
+    public static string ProcessName(nint hwnd)
+    {
+        _ = GetWindowThreadProcessId(hwnd, out var pid);
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById((int)pid);
+            return p.ProcessName;
+        }
+        catch (ArgumentException)
+        {
+            return "?";
+        }
+        catch (InvalidOperationException)
+        {
+            return "?";
+        }
+    }
 
     /// <summary>Whether a window is top-level: its own root.</summary>
     public static bool IsTopLevel(nint hwnd) => GetAncestor(hwnd, 2 /* GA_ROOT */) == hwnd;
@@ -121,4 +189,8 @@ internal static unsafe partial class User32
         ((List<nint>)GCHandle.FromIntPtr(lParam).Target!).Add(hwnd);
         return 1;
     }
+
+    /// <summary>A point on the screen in physical pixels, as <c>POINT</c> lays it out.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public readonly record struct ScreenPoint(int X, int Y);
 }

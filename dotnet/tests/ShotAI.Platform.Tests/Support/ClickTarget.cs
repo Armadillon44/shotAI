@@ -24,6 +24,8 @@ internal sealed class ClickTarget : IDisposable
         _thread.Start();
         if (!_ready.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("The click target did not open.");
         if (_failure is not null) throw new InvalidOperationException("The click target could not open.", _failure);
+        // The runner's Start menu, when it is open, would take the clicks meant for the target.
+        ShellOverlay.CloseIfOpen();
     }
 
     public int X { get; }

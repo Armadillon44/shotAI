@@ -137,3 +137,5 @@ IUIAutomation
 IUIAutomation2
 IUIAutomationElement
 IUIAutomationTreeWalker
+WM_MOUSEACTIVATE
+MA_NOACTIVATE

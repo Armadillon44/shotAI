@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace ShotAI.Core.Shell;
 
 /// <summary>
@@ -99,4 +101,79 @@ public static class ShellStrings
 
     /// <summary>The About dialog's one button (<c>menu.ts:147</c>).</summary>
     public const string Ok = "OK";
+
+    // The capture pill (2.4, src/renderer/toolbar/App.tsx) and its Discard confirmation (7.6.3).
+
+    /// <summary>The pill's window title (<c>src/main/main.ts:325</c>, <c>toolbar.html:6</c>).</summary>
+    public const string PillTitle = "shotAI \u2014 Capture";
+
+    /// <summary>The pill's label while no session exists (<c>toolbar/App.tsx:87</c>).</summary>
+    public const string PillIdleLabel = AppName;
+
+    /// <summary>The pill's label while a session exists (<c>:88</c>).</summary>
+    /// <param name="paused">Whether the session is paused.</param>
+    /// <param name="count">The step count the engine reports.</param>
+    /// <returns><c>Capturing \u00B7 3</c> or <c>Paused \u00B7 3</c>.</returns>
+    public static string PillActiveLabel(bool paused, int count) =>
+        string.Create(CultureInfo.InvariantCulture, $"{(paused ? "Paused" : "Capturing")} \u00B7 {count}");
+
+    /// <summary>Row 2 while recording, the core interaction the hidden main window would otherwise teach (<c>:173</c>).</summary>
+    public const string HintRecording = "Click anything to capture a step \u00B7 Ctrl+Shift+S";
+
+    /// <summary>Row 2 while paused (<c>:172</c>).</summary>
+    public const string HintPaused = "Paused \u2014 press Resume to keep capturing";
+
+    /// <summary>The error row for a capture error with no message (<c>:35</c>, EDGE-SHELL-15).</summary>
+    public const string ErrorFallback = "A capture failed \u2014 see the log for details.";
+
+    /// <summary>The Pause button (<c>:102</c>).</summary>
+    public const string Pause = "\u275A\u275A Pause";
+
+    /// <summary>The Resume button (<c>:111</c>).</summary>
+    public const string Resume = "\u25B6 Resume";
+
+    /// <summary>The Stop button (<c>:120</c>).</summary>
+    public const string Stop = "\u25A0 Stop";
+
+    /// <summary>The Discard button, the pill's destructive control (<c>:130</c>).</summary>
+    public const string Discard = "\u2715";
+
+    /// <summary>The error row's glyph (<c>:151</c>).</summary>
+    public const string ErrorGlyph = "\u26A0";
+
+    /// <summary>The Pause button's tooltip (<c>:99</c>).</summary>
+    public const string PauseTip = "Pause";
+
+    /// <summary>The Resume button's tooltip (<c>:108</c>).</summary>
+    public const string ResumeTip = "Resume";
+
+    /// <summary>The Stop button's tooltip: the JSX writes <c>Stop &amp;amp; finish</c>, which JSX decodes (<c>:117</c>).</summary>
+    public const string StopTip = "Stop & finish";
+
+    /// <summary>The Discard button's tooltip and its accessible name (<c>:126-127</c>).</summary>
+    public const string DiscardTip = "Discard this capture";
+
+    /// <summary>The drag area's tooltip (<c>:82</c>).</summary>
+    public const string DragTip = "Drag to move";
+
+    /// <summary>The error row's worded dismiss, a shape that cannot be mistaken for Discard (<c>:166</c>, EDGE-SHELL-16).</summary>
+    public const string Dismiss = "Dismiss";
+
+    /// <summary>The dismiss control's tooltip (<c>:162</c>).</summary>
+    public const string DismissTip = "Dismiss this error";
+
+    /// <summary>The dismiss control's accessible name (<c>:163</c>).</summary>
+    public const string DismissName = "Dismiss this capture error";
+
+    /// <summary>The Discard confirmation when the whole project goes (<c>:67-68</c>, R5).</summary>
+    public const string DiscardWholeProject = "Discard this capture? This is a new project, so the entire project will be deleted.";
+
+    /// <summary>The Discard confirmation when only this session's steps go (<c>:69</c>).</summary>
+    public const string DiscardSessionSteps = "Discard this capture? Steps recorded in this session will be deleted.";
+
+    /// <summary>The confirmation's destructive button, worded for what it does (7.6.3, D8, Q-SHELL-7); Electron's was <c>OK</c>.</summary>
+    public const string DiscardConfirm = "Discard";
+
+    /// <summary>The confirmation's other button, the default (7.6.3).</summary>
+    public const string Cancel = "Cancel";
 }

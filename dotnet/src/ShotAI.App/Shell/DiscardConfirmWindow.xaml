@@ -1,0 +1,30 @@
+<shell:ShotAIWindow x:Class="ShotAI.App.Shell.DiscardConfirmWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:ShotAI.App.Shell"
+        xmlns:core="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
+        Title="{x:Static core:ShellStrings.AppName}"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="WidthAndHeight"
+        Background="{DynamicResource Brush.surface}"
+        Foreground="{DynamicResource Brush.ink}"
+        FontFamily="{DynamicResource Font.stack}"
+        FontSize="{DynamicResource Fs.body}">
+  <!--
+    Spec 03 2.4.7 and 7.6.3: Electron's window.confirm as a registered dialog owned by the pill,
+    topmost like it, with the message Electron shows and buttons that say what they do: Discard,
+    and Cancel, which Enter and Esc both press, so a stray Enter destroys nothing (D8, Q-SHELL-7).
+  -->
+  <StackPanel Margin="24,20" MaxWidth="420">
+    <TextBlock x:Name="MessageText" TextWrapping="Wrap" />
+    <StackPanel Margin="0,20,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button x:Name="DiscardButton" MinWidth="88" Margin="0,0,9.6,0" Style="{DynamicResource Button.Danger}"
+              Content="{x:Static core:ShellStrings.DiscardConfirm}" />
+      <Button x:Name="CancelButton" MinWidth="88" Style="{DynamicResource Button.Base}"
+              Content="{x:Static core:ShellStrings.Cancel}" IsDefault="True" IsCancel="True" />
+    </StackPanel>
+  </StackPanel>
+</shell:ShotAIWindow>

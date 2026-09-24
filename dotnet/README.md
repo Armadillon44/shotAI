@@ -17,7 +17,9 @@ with its fonts (WP-A14), the main window with its menu and About (WP-A15), the H
 (WP-A16), the read-only report (WP-A17), View, Brand (WP-A18), Home's row operations
 (WP-A19a), the external link allowlist (WP-A19b), the capture rules with the capture shield
 (WP-B1), the capture engine's sessions and pipeline (WP-B2), its click decisions and context
-menus (WP-B3) and the input hook with the hotkey (WP-B4): analyzers, supply-chain rules, Core's
+menus (WP-B3), the input hook with the hotkey (WP-B4), the screen read with display affinity
+(WP-B5), the window information with UI Automation (WP-B6) and the capture pill (WP-B7):
+analyzers, supply-chain rules, Core's
 error, threading and composition types, `JsJson` (reads what `JSON.parse` reads, writes the
 bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron
 for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The shared conformance suite
@@ -113,7 +115,11 @@ relaxed only when the remote visibility setting allows and no read is in progres
 that setting reaches the open windows at once, off the UI thread. Each step names the app as its
 executable's version resource does, as Electron did, and the button or field clicked is read with
 UI Automation on two threads of its own within 600 ms, so a hung app never holds up a capture. The
-app registers the engine; the pill arrives with WP-B7 and recording from Home with WP-B9.
+app registers the engine. While a recording runs, the main window hides and the capture pill shows
+at the top of its monitor without ever taking the focus from the app being recorded: it counts
+the steps, flashes when one lands, shows a failed capture until the next step lands or it is
+dismissed, and pauses, resumes, stops, or discards after asking. Recording from Home arrives with
+WP-B9.
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.
 
@@ -126,7 +132,7 @@ WP-B10.
 | `src/ShotAI.App` | `net10.0-windows10.0.19041.0` | The WPF app (`shotAI.exe`): windows, views, view models, composition root. |
 | `tests/ShotAI.Core.Tests` | `net10.0` | xunit.v3 tests for Core, including the shared `contract/conformance` suite. Runs on Linux and Windows. |
 | `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search, the single-instance lock, window styles, the show hook, the own-window registry, WIC, the app-mode monitor, the monitor queries, the WebView2 version probe, the input hook and hotkey, the screen read, display affinity and the capture codec, the window information and UI Automation. Builds everywhere, runs on Windows only. |
-| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, the theme manager, resources and styles, the fonts as packaged and as WPF resolves them, the main window's size, placement and full screen, the menu and its chords, About, View, Brand and the brand choice's pass-through, Home, the report's view models, layout, images, automation and theme edit, the one WebView2 reference, and the real exe run as a process (the self-test, a second launch, closing the main window, the theme before the first show). Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, the theme manager, resources and styles, the fonts as packaged and as WPF resolves them, the main window's size, placement and full screen, the menu and its chords, About, View, Brand and the brand choice's pass-through, Home, the report's view models, layout, images, automation and theme edit, the one WebView2 reference, the capture pill (its styles, real clicks and drags that never activate it, docking, rendering and the Discard confirmation) and the recording visibility, and the real exe run as a process (the self-test, a second launch, closing the main window, the theme before the first show). Builds everywhere, runs on Windows only. |
 | `assets/fonts/static` | | The upstream Archivo static instances WPF renders, their `OFL.txt` and `SOURCES.md` (the upstream commit and each file's sha256). |
 | `tools/ShotAI.GenBrand` | `net10.0` | The brand generator: writes `src/ShotAI.Core/Brand/BrandPalette.Generated.cs` from `contract/brand.json`; `--check` fails when it is stale. BCL only, so it builds when the table does not. |
 | `tools/ShotAI.ProtectionProbe` | `net10.0-windows10.0.19041.0` | The protection probe (spec 02 8.4, AC-CAP-13): how soon display affinity takes a WPF window, normal and layered, out of a screen read and back. Run by hand on a desktop; not shipped, not in CI. |

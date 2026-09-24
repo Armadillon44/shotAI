@@ -46,6 +46,19 @@ public static class WindowStyles
             (HWND)hwnd, topmost ? HWND.HWND_TOPMOST : HWND.Null, r.X, r.Y, r.Width, r.Height,
             topmost ? SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE : SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER);
 
+    /// <summary>
+    /// A window hook in the shape of WPF's <c>HwndSourceHook</c> that answers <c>WM_MOUSEACTIVATE</c>
+    /// with <c>MA_NOACTIVATE</c>: a click reaches the window and is not eaten, and the window is not
+    /// activated by it (spec 03 7.4.3, 7.6.2, belt and braces with <c>WS_EX_NOACTIVATE</c>).
+    /// Every other message is left to the window.
+    /// </summary>
+    public static nint NoActivateOnClick(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
+    {
+        if (msg != (int)PInvoke.WM_MOUSEACTIVATE) return 0;
+        handled = true;
+        return (nint)PInvoke.MA_NOACTIVATE;
+    }
+
     /// <summary>The outer rectangle, invisible resize borders included, in physical pixels.</summary>
     /// <exception cref="Win32Exception">The handle is not a window.</exception>
     public static PixelRect GetWindowRect(nint hwnd)
