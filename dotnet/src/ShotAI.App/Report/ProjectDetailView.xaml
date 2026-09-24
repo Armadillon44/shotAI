@@ -1,0 +1,89 @@
+<UserControl x:Class="ShotAI.App.Report.ProjectDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:report="clr-namespace:ShotAI.App.Report"
+             xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
+             xmlns:core="clr-namespace:ShotAI.Core.Report;assembly=ShotAI.Core"
+             x:Name="Root" Focusable="False" IsTabStop="False" UseLayoutRounding="True">
+  <!--
+    The project view (spec 05 2.2, 2.3, 7.9): the command bar pinned above its own scroller, which
+    holds the report's frame; the report's notices float at the top of that scroller, under the bar,
+    so they never scroll away (EDGE-REP-31). The bar's actions (the SOP panel, the size control,
+    Resume capturing, Export) join with their packages. The data context is the ProjectDetailViewModel.
+  -->
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="StepCardTemplates.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <BooleanToVisibilityConverter x:Key="Visible" />
+    </ResourceDictionary>
+  </UserControl.Resources>
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- 2.3: Back, the title (one line, an ellipsis, its tooltip the whole title) and the step count. -->
+    <Border x:Name="CommandBar" Padding="32,9.6,32,14.4" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.hair}"
+            Background="{DynamicResource Brush.ground}">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Button x:Name="BackButton" VerticalAlignment="Center" Style="{DynamicResource Button.Small}"
+                Content="{x:Static core:ReportStrings.Back}" Command="{Binding BackCommand}" />
+        <TextBlock x:Name="TitleText" Grid.Column="1" Margin="13.6,0" VerticalAlignment="Center" Text="{Binding Title}" ToolTip="{Binding Title}"
+                   TextTrimming="CharacterEllipsis" FontSize="18.4" FontWeight="650" AutomationProperties.HeadingLevel="Level2" />
+        <TextBlock x:Name="CountText" Grid.Column="2" VerticalAlignment="Center" Text="{Binding StepCount}" FontSize="13.6"
+                   Foreground="{DynamicResource Brush.ink-2}" Typography.NumeralAlignment="Tabular" />
+      </Grid>
+    </Border>
+
+    <!-- 2.1: Loading... in place of the report while a project opens. -->
+    <TextBlock x:Name="LoadingText" Grid.Row="1" Margin="32,20,32,0" Text="{x:Static core:ReportStrings.Loading}" FontSize="16"
+               Foreground="{DynamicResource Brush.ink-2}" Visibility="{Binding IsLoading, Converter={StaticResource Visible}}" />
+
+    <!-- 7.9: pixel scrolling, no horizontal scroll; the frame takes its width from the viewport (INV-REP-34). -->
+    <ScrollViewer x:Name="Scroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False" Focusable="False" Visibility="{Binding ProjectOpen, Converter={StaticResource Visible}}">
+      <report:ReportFrame x:Name="Frame" DataContext="{Binding Report}" report:ReportFigure.DocScale="{Binding Scale}"
+                          report:ReportFigure.ProjectDir="{Binding ProjectDir}" TextElement.FontSize="16">
+        <StackPanel>
+          <!--
+            2.8: the overview, only with steps and a heading or text: a hairline box with a 4 DIP
+            accent left edge, card corners, surface-2. Its Edit and Remove join with WP-C2.
+          -->
+          <Grid x:Name="Overview" Margin="0,0,0,6.4" Visibility="{Binding HasIntro, Converter={StaticResource Visible}}"
+                AutomationProperties.Name="{Binding IntroHeading}">
+            <Border BorderThickness="1" BorderBrush="{DynamicResource Brush.hair}" Background="{DynamicResource Brush.surface-2}"
+                    CornerRadius="{DynamicResource Radius.card}" SnapsToDevicePixels="True" />
+            <Border BorderThickness="4,0,0,0" BorderBrush="{DynamicResource Brush.accent}" CornerRadius="{DynamicResource Radius.card}"
+                    SnapsToDevicePixels="True" />
+            <StackPanel Margin="21.6,15.4,18.6,15.4">
+              <TextBlock x:Name="IntroHeading" Margin="0,0,0,5.6" Text="{Binding IntroHeading}" TextWrapping="Wrap" FontSize="17.6" FontWeight="Bold"
+                         AutomationProperties.HeadingLevel="Level2" Visibility="{Binding HasIntroHeading, Converter={StaticResource Visible}}" />
+              <TextBlock x:Name="IntroBody" Text="{Binding IntroBody}" TextWrapping="Wrap" Foreground="{DynamicResource Brush.ink-2}"
+                         Visibility="{Binding HasIntroBody, Converter={StaticResource Visible}}" />
+            </StackPanel>
+          </Grid>
+
+          <!-- 2.8 to 2.10: the cards, a List of ListItems (7.18), not virtualized (Q-REP-11). -->
+          <report:ReportList x:Name="Cards" ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource StepCard.Row}" Focusable="False" IsTabStop="False"
+                             AutomationProperties.Name="{Binding DataContext.Title, ElementName=Root}" />
+
+          <!-- 2.17: the empty state's hint (project__hint: ink-2, 1.55 line height, 52ch). The insert zone joins with WP-C3. -->
+          <TextBlock x:Name="EmptyHint" Margin="0,16" HorizontalAlignment="Left" MaxWidth="468" Text="{x:Static core:ReportStrings.EmptyHint}"
+                     TextWrapping="Wrap" LineStackingStrategy="BlockLineHeight" LineHeight="24.8" Foreground="{DynamicResource Brush.ink-2}"
+                     Visibility="{Binding IsEmpty, Converter={StaticResource Visible}}" />
+        </StackPanel>
+      </report:ReportFrame>
+    </ScrollViewer>
+
+    <!-- EDGE-REP-31: pinned to the top of the report, under the command bar. -->
+    <chrome:NoticeHost x:Name="Notices" Grid.Row="1" DataContext="{Binding Notices}" />
+  </Grid>
+</UserControl>

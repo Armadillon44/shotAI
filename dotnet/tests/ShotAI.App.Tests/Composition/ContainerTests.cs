@@ -11,6 +11,7 @@ using ShotAI.Core.Store;
 using ShotAI.Core.Threading;
 using ShotAI.Platform;
 using ShotAI.Platform.Capture;
+using ShotAI.Platform.Imaging;
 using Xunit;
 
 namespace ShotAI.App.Tests.Composition;
@@ -181,11 +182,13 @@ public sealed partial class ContainerTests
         Assert.NotEmpty(seams);
         foreach (var t in seams) Assert.True(!t.IsPublic && !t.IsNestedPublic && t.IsSealed, $"{t.FullName} is not internal sealed");
         using var c = new TestContainer(Dispatcher.CurrentDispatcher);
-        // The one exception (spec 02 7.1): the own-window registry, whose registration surface the
-        // App calls for every window it shows, is public and registered as itself.
-        foreach (var d in c.Services.Where(d => d.ImplementationType?.Assembly == PlatformAssembly && d.ImplementationType != typeof(OwnWindowRegistry)))
+        // The exceptions, public and registered as themselves: the own-window registry, whose
+        // registration surface the App calls for every window it shows (spec 02 7.1), and the
+        // report's image decoder, which the App's loader calls (spec 05 7.19).
+        Type[] asThemselves = [typeof(OwnWindowRegistry), typeof(ReportImageDecoder)];
+        foreach (var d in c.Services.Where(d => d.ImplementationType?.Assembly == PlatformAssembly && !asThemselves.Contains(d.ImplementationType)))
             Assert.True(d.ServiceType.Assembly == Core, $"{d.ImplementationType!.Name} is registered as {d.ServiceType.Name}");
-        Assert.Single(c.Services, d => d.ServiceType == typeof(OwnWindowRegistry) && d.ImplementationType == typeof(OwnWindowRegistry));
+        foreach (var t in asThemselves) Assert.Single(c.Services, d => d.ServiceType == t && d.ImplementationType == t);
     });
 
     /// <summary>The logger factory is not the container's: the exit line is logged after the container is disposed.</summary>

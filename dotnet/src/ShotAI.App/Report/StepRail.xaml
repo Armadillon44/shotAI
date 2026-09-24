@@ -1,0 +1,71 @@
+<UserControl x:Class="ShotAI.App.Report.StepRail"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
+             Focusable="False" IsTabStop="False">
+  <!--
+    A card's rail (spec 05 2.9): its badge, 0.85rem down so it lines up with the card's first
+    line. A numbered step shows its number on the accent (a text step's on ink-2); a note, caution
+    or warning its glyph in the kind's colours; a section nothing. The data context is the card.
+    The number editor and the drag grip join with WP-C2 and WP-C3.
+  -->
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="Visible" />
+    <chrome:CapsuleCornerConverter x:Key="CapsuleCornerConverter" />
+    <Style x:Key="Badge" TargetType="Border">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Margin" Value="0,13.6,0,0" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="Tag" Value="{DynamicResource RadiusValue.chip}" />
+      <Setter Property="CornerRadius">
+        <Setter.Value>
+          <MultiBinding Converter="{StaticResource CapsuleCornerConverter}">
+            <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}" />
+            <Binding Path="Tag" RelativeSource="{RelativeSource Self}" />
+          </MultiBinding>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+  <StackPanel HorizontalAlignment="Center">
+    <Border x:Name="NumberBadge" Visibility="{Binding HasNumber, Converter={StaticResource Visible}}">
+      <Border.Style>
+        <Style TargetType="Border" BasedOn="{StaticResource Badge}">
+          <Setter Property="Background" Value="{DynamicResource Brush.accent}" />
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPlainText}" Value="True">
+              <Setter Property="Background" Value="{DynamicResource Brush.ink-2}" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </Border.Style>
+      <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding NumberText}"
+                 Foreground="{DynamicResource Brush.on-accent}" FontSize="15.2" FontWeight="650" Typography.NumeralAlignment="Tabular" />
+    </Border>
+    <Border x:Name="CalloutBadge" BorderThickness="1" ToolTip="{Binding BadgeTip}" Visibility="{Binding IsCallout, Converter={StaticResource Visible}}">
+      <Border.Style>
+        <Style TargetType="Border" BasedOn="{StaticResource Badge}">
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding CalloutKind}" Value="note">
+              <Setter Property="Background" Value="{DynamicResource Brush.note-bg}" />
+              <Setter Property="BorderBrush" Value="{DynamicResource Brush.note-bd}" />
+              <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.note-fg}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding CalloutKind}" Value="caution">
+              <Setter Property="Background" Value="{DynamicResource Brush.caut-bg}" />
+              <Setter Property="BorderBrush" Value="{DynamicResource Brush.caut-bd}" />
+              <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.caut-fg}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding CalloutKind}" Value="warning">
+              <Setter Property="Background" Value="{DynamicResource Brush.warn-bg}" />
+              <Setter Property="BorderBrush" Value="{DynamicResource Brush.warn-bd}" />
+              <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.warn-fg}" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </Border.Style>
+      <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding Glyph}" FontSize="16.8" />
+    </Border>
+  </StackPanel>
+</UserControl>

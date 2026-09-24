@@ -244,6 +244,21 @@ public sealed class ReportPresentationTests
         Assert.Null(ReportPresentation.MarkerFractionFor(Shot("s", Click(100, -0.5)), new ImageSize(200, 100)));
     }
 
+    /// <summary>The ring is the click less the crop origin, for a render, in the image's own pixels, with its colors.</summary>
+    [Fact]
+    public void TheMarkerCarriesThePointAndTheStyle()
+    {
+        var step = Shot("s", Click(765, 510, "right") + ""","crop":{"x":200,"y":120,"width":1200,"height":700},"flattened":"export/.render/s.png" """);
+        var marker = ReportPresentation.MarkerFor(step);
+        Assert.NotNull(marker);
+        Assert.Equal(new ReportMarker(565, 390, ReportPresentation.MarkerStyleFor(step)), marker.Value);
+        Assert.Equal(new Rgba(0x25, 0x63, 0xEB, 0xFF), marker.Value.Style.Stroke);
+        Assert.Null(ReportPresentation.MarkerFor(Shot()));
+        Assert.Null(ReportPresentation.MarkerFor(Shot("s", Click(1, 1) + ""","markerBaked":true""")));
+        Assert.Null(new ReportMarker(1, 1, default).FractionIn(null));
+        Assert.Equal(new MarkerFraction(0.25, 0.5), new ReportMarker(50, 50, default).FractionIn(new ImageSize(200, 100)));
+    }
+
     /// <summary>
     /// EDGE-REP-13: every CSS hex length draws in its parsed color with the fill at 0x2E;
     /// anything else draws in the stylesheet's fallbacks.

@@ -49,6 +49,43 @@ internal sealed class ListingProjects : FakeProjectService, IProjectService
         return Failure is { } failure ? Task.FromException<IReadOnlyList<ProjectSummary>>(failure) : Task.FromResult(Listing);
     }
 
+    /// <summary>How many opens were asked for.</summary>
+    public int OpenCalls { get; private set; }
+
+    /// <summary>What an open of each folder does: its manifest, or the exception it throws.</summary>
+    public Dictionary<string, Func<OpenedProject>> Openable { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, TaskCompletionSource<OpenedProject>> _openGates = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>An open of <paramref name="path"/> returns <paramref name="manifest"/>.</summary>
+    public void CanOpen(string path, ProjectManifest manifest) => Openable[path] = () => new OpenedProject(path, manifest);
+
+    /// <summary>An open of <paramref name="path"/> throws <paramref name="failure"/>.</summary>
+    public void OpenFails(string path, Exception failure) => Openable[path] = () => throw failure;
+
+    /// <summary>The next open of <paramref name="path"/> waits for the returned source, which the test completes.</summary>
+    public TaskCompletionSource<OpenedProject> GateOpen(string path)
+    {
+        var gate = new TaskCompletionSource<OpenedProject>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _openGates[path] = gate;
+        return gate;
+    }
+
+    public override Task<OpenedProject> OpenProjectAsync(string projectPath)
+    {
+        OpenCalls++;
+        if (_openGates.Remove(projectPath, out var gate)) return gate.Task;
+        if (!Openable.TryGetValue(projectPath, out var open)) return Task.FromException<OpenedProject>(new ProjectNotKnownException());
+        try
+        {
+            return Task.FromResult(open());
+        }
+        catch (Exception e)
+        {
+            return Task.FromException<OpenedProject>(e);
+        }
+    }
+
     /// <summary>A project row as the store summarizes it.</summary>
     public static ProjectSummary Project(string path, string title, string updatedAt, bool archived = false, int steps = 1, bool hasSop = false, string searchText = "") =>
         new(path, title, path, updatedAt, updatedAt, steps, archived, hasSop, searchText);

@@ -7,8 +7,9 @@ using static ShotAI.App.Tests.Support.ListingProjects;
 namespace ShotAI.App.Tests.Shell;
 
 /// <summary>
-/// Spec 06 8.4, INV-HOME-19, 2.19 and 7.7: Home keeps its offset across the other views. The
-/// project and Settings views, which start at the top, join with them (WP-A17, WP-B10).
+/// Spec 06 8.4, INV-HOME-19, 2.19 and 7.7: Home keeps its offset across the other views; the
+/// project view starts every open at the top (05 EDGE-REP-42). The Settings view, which also
+/// starts at the top, joins with WP-B10.
 /// </summary>
 public sealed class ShellScrollTests
 {
@@ -43,6 +44,41 @@ public sealed class ShellScrollTests
             Assert.True(view.HomeView.IsVisible);
             Assert.Equal(350, scroller.VerticalOffset, 3);
             Assert.Equal(350, view.HomeView.ScrollMemory.Saved, 3);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>05 EDGE-REP-42: a project opens at the top, wherever the report was left before Back.</summary>
+    [Fact]
+    public Task TheProjectStartsAtTheTop() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        ShotAI.Core.Model.ProjectStep[] many = [.. Enumerable.Range(1, 30).Select(i => Manifests.Text($"t{i}", heading: $"Step {i}", body: "Some text"))];
+        t.Projects.CanOpen(@"C:\p\a", Manifests.Of("A", many));
+        t.Projects.CanOpen(@"C:\p\b", Manifests.Of("B", many));
+        var view = new ShellView { DataContext = t.Shell };
+        var window = TestShell.Host(view, height: 500);
+        window.Show();
+        try
+        {
+            t.Shell.Start();
+            await t.Shell.OpenProjectAsync(@"C:\p\a");
+            await TestShell.Settle();
+            var scroller = view.ProjectView.ScrollViewer;
+            Assert.True(scroller.ScrollableHeight > 600);
+            scroller.ScrollToVerticalOffset(600);
+            await TestShell.Settle();
+            Assert.Equal(600, scroller.VerticalOffset, 3);
+
+            t.Project.BackCommand.Execute(null);
+            await TestShell.Settle();
+            await t.Shell.OpenProjectAsync(@"C:\p\b");
+            await TestShell.Settle();
+            Assert.Equal(ShellViewKind.Project, t.Shell.CurrentView);
+            Assert.Equal(0, scroller.VerticalOffset, 3);
         }
         finally
         {

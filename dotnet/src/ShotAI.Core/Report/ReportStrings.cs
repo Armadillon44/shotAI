@@ -29,6 +29,12 @@ public static class ReportStrings
     /// <summary>The report of a project with no steps.</summary>
     public const string EmptyHint = "No steps yet. Resume capturing, Import an image, or Add a text step.";
 
+    /// <summary>The prefix of the import notice (2.7): an image import, a text insert or a screenshot failed.</summary>
+    public const string ImportFailed = "Import failed: ";
+
+    /// <summary>The prefix of the export notice (2.7).</summary>
+    public const string ExportFailed = "Export failed: ";
+
     /// <summary>The accessible name of a section row whose heading is empty (7.18; native).</summary>
     public const string SectionName = "Section";
 

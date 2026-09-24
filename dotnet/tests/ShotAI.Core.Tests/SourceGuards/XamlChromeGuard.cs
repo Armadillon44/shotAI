@@ -22,7 +22,7 @@ internal static partial class XamlChromeGuard
     /// <summary>Colour channel spread above which a colour is chromatic (2.35 rule 3).</summary>
     public const int NeutralSpread = 40;
 
-    /// <summary>The exemptions of the App as it is: the notice template (WP-A16); the tour pill (WP-B10) and the report markers (05) add their key prefixes.</summary>
+    /// <summary>The exemptions of the App as it is: the notice template (WP-A16) and the report's click ring (WP-A17); the tour pill (WP-B10) adds its key prefix.</summary>
     public static Exemptions Real { get; } = new(
         Files:
         [
@@ -35,6 +35,7 @@ internal static partial class XamlChromeGuard
         CodeFiles:
         [
             new("Chrome/ThemeResources.cs", "Builds every theme colour from ThemeTokenSet, which reads 10's generated brand table; the numbers are the contract's, not the App's (INV-HOME-26)."),
+            new("Report/ReportFigure.cs", "Draws the click ring in the step's stored markerColor, parsed by 04's CssColor: it must match the ring baked into the render, so it is no token (05 2.11, EDGE-REP-13)."),
         ],
         ChromaticKeys:
         [

@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using ShotAI.Core.Report;
 using ShotAI.Core.Store;
 using ShotAI.Platform.Capture;
 using ShotAI.Platform.Composition;
 using ShotAI.Platform.FileSystem;
+using ShotAI.Platform.Imaging;
 using Xunit;
 
 namespace ShotAI.Platform.Tests.Composition;
@@ -13,7 +15,8 @@ public sealed class AddShotAIPlatformTests
     [Theory]
     [InlineData(typeof(IPathProbe), typeof(WindowsPathProbe))]
     [InlineData(typeof(IRenameRetryClassifier), typeof(WindowsRenameRetryClassifier))]
-    public void RegistersTheFileSystemSeams(Type service, Type implementation)
+    [InlineData(typeof(IImageSizeProbe), typeof(WicImageSizeProbe))]
+    public void RegistersTheSeams(Type service, Type implementation)
     {
         var descriptor = Assert.Single(new ServiceCollection().AddShotAIPlatform(), d => d.ServiceType == service);
         Assert.Equal(implementation, descriptor.ImplementationType);
@@ -23,16 +26,34 @@ public sealed class AddShotAIPlatformTests
     }
 
     /// <summary>
-    /// The own-window registry is the one public Platform type in the container: the App calls
-    /// its registration surface for every window it shows (spec 02 7.1).
+    /// The public Platform types in the container, registered as themselves: the own-window
+    /// registry, whose registration surface the App calls for every window it shows (spec 02
+    /// 7.1), and the report's image decoder, which the App's loader calls (spec 05 7.19).
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(OwnWindowRegistry))]
+    [InlineData(typeof(ReportImageDecoder))]
+    public void RegistersThePublicTypesAsThemselves(Type type)
+    {
+        var descriptor = Assert.Single(new ServiceCollection().AddShotAIPlatform(), d => d.ServiceType == type);
+        Assert.Equal(type, descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+        Assert.True(type.IsPublic);
+        Assert.True(type.IsSealed);
+    }
+
+    /// <summary>
+    /// Every public Platform type the container holds is on the list above; every other one is
+    /// registered as a Core interface only (INV-ARCH-4).
     /// </summary>
     [Fact]
-    public void RegistersTheOwnWindowRegistry()
+    public void NoOtherPublicTypeIsRegistered()
     {
-        var descriptor = Assert.Single(new ServiceCollection().AddShotAIPlatform(), d => d.ServiceType == typeof(OwnWindowRegistry));
-        Assert.Equal(typeof(OwnWindowRegistry), descriptor.ImplementationType);
-        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
-        Assert.True(typeof(OwnWindowRegistry).IsPublic);
-        Assert.True(typeof(OwnWindowRegistry).IsSealed);
+        var registered = new ServiceCollection().AddShotAIPlatform()
+            .Select(d => d.ImplementationType)
+            .OfType<Type>()
+            .Where(t => t.Assembly == typeof(PlatformServiceCollectionExtensions).Assembly && t.IsPublic)
+            .ToHashSet();
+        Assert.Equal(new HashSet<Type> { typeof(OwnWindowRegistry), typeof(ReportImageDecoder) }, registered);
     }
 }

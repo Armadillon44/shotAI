@@ -21,6 +21,8 @@ public sealed class ReportStringsTests
         Assert.Equal("Empty \u2014 click to add a section heading.", ReportStrings.SectionEmpty);
         Assert.Equal("No steps yet. Resume capturing, Import an image, or Add a text step.", ReportStrings.EmptyHint);
         Assert.Equal("note callout \u2014 not a numbered step", ReportStrings.CalloutBadgeTip("note"));
+        Assert.Equal("Import failed: ", ReportStrings.ImportFailed);
+        Assert.Equal("Export failed: ", ReportStrings.ExportFailed);
     }
 
     /// <summary><c>`${n} step${n === 1 ? '' : 's'}`</c>: every step counted, and only 1 is singular.</summary>
@@ -72,6 +74,8 @@ public sealed class ReportStringsTests
         Assert.Contains(ReportStrings.Back, detail, StringComparison.Ordinal);
         Assert.Contains(ReportStrings.Loading, detail, StringComparison.Ordinal);
         Assert.Contains("{steps.length} step{steps.length === 1 ? '' : 's'}", detail, StringComparison.Ordinal);
+        Assert.Contains(ReportStrings.ImportFailed + "{importErr}", detail, StringComparison.Ordinal);
+        Assert.Contains(ReportStrings.ExportFailed + "{exportErr}", detail, StringComparison.Ordinal);
 
         var report = ElectronSource.Read("src/renderer/project/Report.tsx");
         Assert.Contains(ReportStrings.CaptionEmpty, report, StringComparison.Ordinal);

@@ -31,6 +31,26 @@ public readonly record struct MarkerFraction(double X, double Y);
 public readonly record struct MarkerStyle(Rgba Stroke, Rgba Fill);
 
 /// <summary>
+/// A step's click ring: the click in the pixels of the image the figure shows (for a render, the
+/// crop's origin already subtracted), and its colors.
+/// </summary>
+public readonly record struct ReportMarker(double X, double Y, MarkerStyle Style)
+{
+    /// <summary>
+    /// Where the ring sits as fractions of an image of <paramref name="displayedImage"/>'s size,
+    /// or null when that size is unknown or not positive, or the point falls outside the image
+    /// (INV-REP-16). Both edges are inside.
+    /// </summary>
+    public MarkerFraction? FractionIn(ImageSize? displayedImage)
+    {
+        if (displayedImage is not { } size || !(size.Width > 0) || !(size.Height > 0)) return null;
+        var fx = X / size.Width;
+        var fy = Y / size.Height;
+        return fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1 ? new MarkerFraction(fx, fy) : null;
+    }
+}
+
+/// <summary>
 /// The report's display rules for one step (spec 05 2.9 to 2.11), with no pixels on screen, so
 /// they run on Linux. The macOS app keeps the same rules in <c>ReportPresentation.swift</c>.
 /// </summary>
@@ -98,23 +118,27 @@ public static class ReportPresentation
     public static double NormalizePan(double? raw) => raw is { } p && double.IsFinite(p) ? Math.Clamp(p, 0, 1) : 0.5;
 
     /// <summary>
-    /// Where the click ring sits (INV-REP-16), or null when none is drawn: the step has no
-    /// click, its ring is baked into the render, the image size is unknown or not positive, or
-    /// the click falls outside the image. The crop's origin is subtracted only when the figure
-    /// shows the render and the step has a crop, because only the render is cropped.
+    /// The step's click ring (INV-REP-16), or null when none is drawn: the step has no click, or
+    /// its ring is baked into the render (<c>markerBaked</c>, by JavaScript truthiness). The
+    /// crop's origin is subtracted only when the figure shows the render and the step has a crop,
+    /// because only the render is cropped.
     /// </summary>
-    /// <param name="step">The step.</param>
-    /// <param name="displayedImage">The natural size of the image the figure shows.</param>
-    public static MarkerFraction? MarkerFractionFor(ProjectStep step, ImageSize? displayedImage)
+    public static ReportMarker? MarkerFor(ProjectStep step)
     {
         ArgumentNullException.ThrowIfNull(step);
         if (step.Click is not { } click || step.MarkerBaked) return null;
-        if (displayedImage is not { } size || !(size.Width > 0) || !(size.Height > 0)) return null;
         var crop = step.Flattened is { Length: > 0 } ? step.Crop : null;
-        var fx = (click.Image.X - (crop?.X ?? 0)) / size.Width;
-        var fy = (click.Image.Y - (crop?.Y ?? 0)) / size.Height;
-        return fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1 ? new MarkerFraction(fx, fy) : null;
+        return new ReportMarker(click.Image.X - (crop?.X ?? 0), click.Image.Y - (crop?.Y ?? 0), MarkerStyleFor(step));
     }
+
+    /// <summary>
+    /// Where the click ring sits, or null when none is drawn (<see cref="MarkerFor"/>, then
+    /// <see cref="ReportMarker.FractionIn"/>).
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="displayedImage">The natural size of the image the figure shows.</param>
+    public static MarkerFraction? MarkerFractionFor(ProjectStep step, ImageSize? displayedImage) =>
+        MarkerFor(step)?.FractionIn(displayedImage);
 
     /// <summary>
     /// The ring's colors from <see cref="AnnotationStyle.MarkerColorFor"/> by

@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ShotAI.App.Chrome;
 using ShotAI.App.Composition;
+using ShotAI.App.Report;
 using ShotAI.App.Services;
 using ShotAI.App.Shell;
 using ShotAI.App.Threading;
@@ -116,7 +117,8 @@ public partial class App : Application
             _services.GetRequiredService<AppMenuViewModel>(),
             _services.GetRequiredService<MainWindowSizer>(),
             _services.GetRequiredService<IAppInfo>(),
-            shell);
+            shell,
+            _services.GetRequiredService<ReportImageLoader>());
         MainWindow = main;
         _crash.AttachNotices(_services.GetRequiredService<INoticeService>(), () => main.IsVisible);
         main.ContentRendered += LogFirstRender;
