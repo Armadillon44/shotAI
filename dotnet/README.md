@@ -13,7 +13,8 @@ and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file pr
 the project store's project and step operations and imports (WP-A6, WP-A7), the archive
 engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP-A10), logging
 (WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13), the theme
-with its fonts (WP-A14) and the main window with its menu and About (WP-A15): analyzers, supply-chain
+with its fonts (WP-A14), the main window with its menu and About (WP-A15) and the Home list
+(WP-A16): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -56,6 +57,15 @@ monitor the cursor is on and no taller than its work area, with Electron's menu 
 Electron-only items: File's Import Project and Settings, Edit, View's zoom of the content in
 half-level steps and full screen, Window's Minimize and Close, and Help's About, whose `.NET` and
 `WebView2` line comes from Platform's WebView2 probe; the App itself has no WebView2 reference.
+The window shows Home: the Projects and Archive tabs with their counts, a search over titles and
+content, the Name, Created and Modified sorts, and the rows under This Week, Last Week, This Month,
+Last Month and Older, spans computed in the user's time zone with Electron's DST rules. The list
+re-reads the store when Home is entered, when the window is activated, every 20 s while nobody
+types, and when the store reports a change (the startup auto-archive), keeps each row that did not
+change, and regroups once a minute so the spans roll over at midnight. Errors show in a notice that
+floats over the content, one at a time, announced to screen readers; a background refresh that
+fails is logged, not shown. Opening a project, the import and Settings arrive with the project
+view (WP-A17), the package import (WP-D15) and the Settings view (WP-B10).
 
 ## Layout
 

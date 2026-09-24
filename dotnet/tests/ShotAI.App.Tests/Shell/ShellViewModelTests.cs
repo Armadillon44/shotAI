@@ -8,7 +8,7 @@ namespace ShotAI.App.Tests.Shell;
 /// <summary>
 /// Spec 06 8.4 and 2.1: the view shown, derived from the open project and Settings; the header
 /// and its Settings button; Home entered and left as it comes and goes. The recording rows join
-/// in WP-B9, the tour's in WP-B11.
+/// in WP-B9, the tour's in WP-B10.
 /// </summary>
 public sealed class ShellViewModelTests
 {
