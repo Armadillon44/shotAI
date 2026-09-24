@@ -83,13 +83,22 @@ public sealed class ReportImageLoaderTests
         Assert.Equal(0, loader.DecodeCount);
     });
 
-    /// <summary>An absolute path inside the project is read, as Electron's handler allowed.</summary>
+    /// <summary>
+    /// 01 D-6, EDGE-MODEL-20: a drive letter's colon is hostile, so an absolute path is refused
+    /// even when it names a file inside the project, and nothing is read. Electron's
+    /// <c>confinePath</c> accepted one; the native rule is the stricter one.
+    /// </summary>
     [Fact]
-    public Task AnAbsolutePathInsideTheProjectLoads() => Sta.RunAsync(async () =>
+    public Task ADriveLetterPathIsRefusedEvenInsideTheProject() => Sta.RunAsync(async () =>
     {
         using var temp = new TempDir();
         var dir = await ProjectWith(temp, ("shots/a.png", TestImages.Png(4, 4)));
-        Assert.NotNull(await Loader().LoadAsync(dir, Path.Combine(dir, "shots", "a.png"), n => (int)n.Width, TestContext.Current.CancellationToken));
+        var loader = Loader();
+        var absolute = Path.Combine(dir, "shots", "a.png");
+        Assert.Contains(':', absolute);
+        Assert.Null(await loader.LoadAsync(dir, absolute, n => (int)n.Width, TestContext.Current.CancellationToken));
+        Assert.Equal(0, loader.DecodeCount);
+        Assert.NotNull(await loader.LoadAsync(dir, "shots/a.png", n => (int)n.Width, TestContext.Current.CancellationToken));
     });
 
     /// <summary>INV-REP-18, R-ARCH-21: GIF and BMP bytes under a .png name are the missing state; the decoder refused them before WIC.</summary>
