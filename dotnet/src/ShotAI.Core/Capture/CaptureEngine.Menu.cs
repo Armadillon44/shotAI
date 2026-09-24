@@ -67,7 +67,8 @@ public sealed partial class CaptureEngine
             var chain = arm.Chain + 1;
             if (chain < CaptureConstants.MaxMenuChain)
             {
-                Arm(new MenuArm(now + CaptureConstants.SubmenuFollowupWindowMs, owner, point, chain, generation));
+                // The clock is read again, after the click-time grab, as Electron does.
+                Arm(new MenuArm(_clock.NowMs() + CaptureConstants.SubmenuFollowupWindowMs, owner, point, chain, generation));
             }
             else
             {
@@ -146,8 +147,8 @@ public sealed partial class CaptureEngine
     // startMenuPolling (2.4.3): every 400 ms while the arm is current, unexpired and unpaused,
     // grab the monitor under the arm's point, at most 32 frames. A tick while this arm's grab is
     // in flight, or with no monitor, is skipped without counting. The grab is not awaited, so the
-    // ticks keep Electron's interval. It never faults: a failed grab is logged, and a disarm ends
-    // it through the arm's token.
+    // ticks keep Electron's interval. It never faults (7.11): a failed lookup or grab is logged,
+    // and a disarm ends it through the arm's token.
     private async Task PollAsync(MenuArm arm)
     {
         var frames = 0;
@@ -164,7 +165,16 @@ public sealed partial class CaptureEngine
                     if (frames >= CaptureConstants.MaxPollFrames) return;
                     if (arm.Polling) continue;
                 }
-                var monitor = _screen.FromPoint(arm.LastPoint.X, arm.LastPoint.Y) ?? PrimaryOrFirst();
+                MonitorDescriptor? monitor;
+                try
+                {
+                    monitor = _screen.FromPoint(arm.LastPoint.X, arm.LastPoint.Y) ?? PrimaryOrFirst();
+                }
+                catch (Exception e)
+                {
+                    MenuPollFailed(_log, e);
+                    continue;
+                }
                 if (monitor is null) continue;
                 lock (_gate)
                 {

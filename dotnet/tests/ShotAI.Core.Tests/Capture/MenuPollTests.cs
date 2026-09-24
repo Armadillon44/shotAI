@@ -287,6 +287,23 @@ public sealed class MenuPollTests
         Assert.Equal(3, h.Screen.Grabs.Count);
     }
 
+    /// <summary>7.11: the poll never faults; a monitor lookup that throws is logged, the tick is skipped without counting, and the next tick grabs.</summary>
+    [Fact]
+    public async Task AFailedMonitorLookupIsLoggedAndTheNextTickGrabs()
+    {
+        await using var h = await RightClickedAsync();
+        h.Screen.FailLookups = true;
+        await TickAsync(h);
+        h.Screen.FailLookups = false;
+        Assert.Equal(["menu poll capture failed:"], h.LogLines(LogLevel.Warning));
+        Assert.False(h.Engine.LastPollForTest!.IsCompleted);
+        Assert.Single(h.Screen.Grabs);
+
+        await TickAsync(h);
+        Assert.Equal(2, h.Screen.Grabs.Count);
+        Assert.NotNull(h.Engine.ArmForTest!.Frame);
+    }
+
     /// <summary>2.4.3: the poll grabs the monitor under the arm's point, which each selection moves.</summary>
     [Fact]
     public async Task ThePollFollowsTheArmPoint()

@@ -260,10 +260,14 @@ internal sealed class FakeScreen : IScreenCapture
         }
     }
 
-    public IReadOnlyList<MonitorDescriptor> Monitors() => [.. Displays];
+    /// <summary>When set, the monitor lookups throw.</summary>
+    public bool FailLookups { get; set; }
 
-    public MonitorDescriptor? FromPoint(int x, int y) =>
-        Displays.FirstOrDefault(m => m.Bounds.X <= x && x < m.Bounds.X + m.Bounds.Width && m.Bounds.Y <= y && y < m.Bounds.Y + m.Bounds.Height);
+    public IReadOnlyList<MonitorDescriptor> Monitors() => FailLookups ? throw new InvalidOperationException("EnumDisplayMonitors failed") : [.. Displays];
+
+    public MonitorDescriptor? FromPoint(int x, int y) => FailLookups
+        ? throw new InvalidOperationException("MonitorFromPoint failed")
+        : Displays.FirstOrDefault(m => m.Bounds.X <= x && x < m.Bounds.X + m.Bounds.Width && m.Bounds.Y <= y && y < m.Bounds.Y + m.Bounds.Height);
 
     public PixelFrame Grab(MonitorDescriptor monitor)
     {

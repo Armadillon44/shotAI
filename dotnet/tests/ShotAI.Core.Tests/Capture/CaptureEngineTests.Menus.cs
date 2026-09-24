@@ -367,6 +367,26 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(selection ? "Select from context menu in screen" : "Click in screen", h.Landed[^1].Step.Caption);
     }
 
+    /// <summary>2.4.2: the 6 s count from after the selection's click-time grab, where Electron reads the clock again.</summary>
+    [Fact]
+    public async Task TheSubmenuWindowStartsAfterTheClickTimeGrab()
+    {
+        await using var h = new EngineHarness();
+        var p = h.Project();
+        await h.StartAsync(p);
+        h.Triggers.Click(400, 300, MouseButton.Right);
+        await h.SettleAsync();
+        h.Screen.OnGrab = _ => h.Clock.Advance(200); // the click-time grab takes 200 ms
+        h.Triggers.Click(400, 310);
+        h.Screen.OnGrab = null;
+        await h.SettleAsync();
+        h.Clock.Advance(5900); // 6100 ms after the mousedown, 5900 after the grab
+        h.Triggers.Click(400, 320);
+        await h.SettleAsync();
+
+        Assert.Equal("Select from context menu in screen", h.Landed[^1].Step.Caption);
+    }
+
     /// <summary>2.2.1: pause and resume disarm the menu, so the next nearby click is plain.</summary>
     [Fact]
     public async Task PauseAndResumeDisarmTheMenu()
