@@ -83,6 +83,20 @@ public sealed partial class CaptureEngineTests
         Assert.Equal(new Point(100, 40), step.Click!.Image);
     }
 
+    /// <summary>2.8: an area is grabbed from the monitor under its top-left, not the click's.</summary>
+    [Fact]
+    public async Task AnAreaIsGrabbedFromTheMonitorItIsOn()
+    {
+        await using var h = new EngineHarness();
+        h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1920, 0, 2560, 1440));
+        var p = h.Project();
+        await h.StartAsync(p, new CaptureStartOptions(new CaptureTarget("area", Area: new Rect(2000, 100, 300, 200))));
+        await h.ClickAsync(300, 200);
+
+        Assert.Equal(2u, Assert.Single(h.Screen.Grabs).Id);
+        Assert.Equal([new PixelRect(80, 100, 300, 200)], h.Codec.Crops);
+    }
+
     [Fact]
     public async Task ScreenModeKeepsChosenMonitor()
     {
@@ -126,6 +140,53 @@ public sealed partial class CaptureEngineTests
 
         Assert.Equal([new PixelRect(200, 100, 600, 400)], h.Codec.Crops);
         Assert.Equal(new Point(100, 100), Assert.Single(h.Landed).Step.Click!.Image);
+    }
+
+    /// <summary>2.8: a window is grabbed from the monitor under its top-left, not the click's, and cropped there.</summary>
+    [Fact]
+    public async Task AWindowIsGrabbedFromTheMonitorItIsOn()
+    {
+        await using var h = new EngineHarness();
+        h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1920, 0, 2560, 1440));
+        h.Windows.Listed.Add(new ListedWindow(7, 200, "Doc", "Word", new Rect(2000, 100, 600, 400), false, false));
+        var p = h.Project();
+        await h.StartAsync(p, new CaptureStartOptions(new CaptureTarget("window", Window: new CaptureTargetWindow(7, 200, "Doc"))));
+        await h.ClickAsync(300, 200);
+
+        Assert.Equal(2u, Assert.Single(h.Screen.Grabs).Id);
+        Assert.Equal([new PixelRect(80, 100, 600, 400)], h.Codec.Crops);
+        Assert.Equal(new Point(300 - 2000, 200 - 100), Assert.Single(h.Landed).Step.Click!.Image);
+    }
+
+    /// <summary>2.8: a window whose top-left is on no monitor is cropped on the click monitor, clamped at its edge (<c>CropRect</c>, not the area crop).</summary>
+    [Fact]
+    public async Task AWindowHangingOffTheLeftEdgeIsCroppedOnTheClickMonitor()
+    {
+        await using var h = new EngineHarness();
+        h.Windows.Current = FakeWindows.App("Notepad", "N", new Rect(-50, 10, 600, 400));
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(300, 200);
+
+        Assert.Equal([new PixelRect(0, 10, 550, 400)], h.Codec.Crops);
+        Assert.Equal(new Point(300, 190), Assert.Single(h.Landed).Step.Click!.Image);
+    }
+
+    /// <summary>EDGE-CAP-29: a foreground window parked off screen, at or past the -10000 sentinel on either axis, is not cropped to.</summary>
+    [Theory]
+    [InlineData(-32000, -32000)]
+    [InlineData(-10000, 0)]
+    [InlineData(0, -10000)]
+    public async Task AParkedForegroundWindowCapturesTheMonitor(double x, double y)
+    {
+        await using var h = new EngineHarness();
+        h.Windows.Current = FakeWindows.App("Notepad", "N", new Rect(x, y, 160, 28));
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(300, 200);
+
+        Assert.Empty(h.Codec.Crops);
+        Assert.Equal((1920, 1080), EngineHarness.ShotSize(p, Assert.Single(h.Landed).Step.Screenshot));
     }
 
     [Fact]
@@ -418,6 +479,44 @@ public sealed partial class CaptureEngineTests
 
         Assert.Equal((1920, 1080), EngineHarness.ShotSize(p, Assert.Single(h.Landed).Step.Screenshot));
         Assert.Contains("window capture failed, falling back to monitor:", h.LogLines(Microsoft.Extensions.Logging.LogLevel.Warning));
+    }
+
+    /// <summary>2.8: a grab that throws on the area path falls through to the click monitor, with Electron's warning.</summary>
+    [Fact]
+    public async Task AFailedAreaGrabFallsThroughToTheMonitor()
+    {
+        await using var h = new EngineHarness();
+        FailFirstGrab(h);
+        var p = h.Project();
+        await h.StartAsync(p, new CaptureStartOptions(new CaptureTarget("area", Area: new Rect(100, 100, 300, 200))));
+        await h.ClickAsync(300, 200);
+
+        Assert.Equal((1920, 1080), EngineHarness.ShotSize(p, Assert.Single(h.Landed).Step.Screenshot));
+        Assert.Contains("area capture failed, falling back to monitor:", h.LogLines(Microsoft.Extensions.Logging.LogLevel.Warning));
+    }
+
+    /// <summary>2.8: a grab that throws on the auto region path falls through to the whole monitor, with Electron's warning.</summary>
+    [Fact]
+    public async Task AFailedRegionGrabFallsThroughToTheMonitor()
+    {
+        await using var h = new EngineHarness();
+        FailFirstGrab(h);
+        h.Windows.Current = FakeWindows.App("SearchHost", "Search", new Rect(0, 0, 1920, 1080));
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(960, 540);
+
+        Assert.Equal((1920, 1080), EngineHarness.ShotSize(p, Assert.Single(h.Landed).Step.Screenshot));
+        Assert.Contains("region capture failed, falling back to full monitor:", h.LogLines(Microsoft.Extensions.Logging.LogLevel.Warning));
+    }
+
+    private static void FailFirstGrab(EngineHarness h)
+    {
+        var grabs = 0;
+        h.Screen.OnGrab = _ =>
+        {
+            if (Interlocked.Increment(ref grabs) == 1) throw new InvalidOperationException("first grab failed");
+        };
     }
 
     [Fact]
