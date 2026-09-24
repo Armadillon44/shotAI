@@ -1,0 +1,70 @@
+using ShotAI.Core.Capture;
+using Xunit;
+
+namespace ShotAI.Core.Tests.Capture;
+
+/// <summary>Spec 02 2.8.1, 8.1 and 8.4: <c>captureModeFor</c>, ported from <c>src/main/capture-geometry.test.ts</c>.</summary>
+public sealed class AutoClassifierTests
+{
+    [Fact]
+    public void UnknownFocusIsFullscreen() => Assert.Equal(AutoMode.Fullscreen, AutoClassifier.Classify((ForegroundInfo?)null));
+
+    [Fact]
+    public void TheDesktopIsFullscreen() => Assert.Equal(AutoMode.Fullscreen, AutoClassifier.Classify("Windows Explorer", "Program Manager"));
+
+    /// <summary>The taskbar and the tray: Explorer with a blank title, blank by JavaScript's <c>trim</c> (which removes a no-break space too).</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\u00A0\t")]
+    public void ExplorerWithABlankTitleIsARegion(string title) => Assert.Equal(AutoMode.Region, AutoClassifier.Classify("Windows Explorer", title));
+
+    [Theory]
+    [InlineData("SearchHost", "Search")]
+    [InlineData("StartMenuExperienceHost", "Start")]
+    [InlineData("SearchHost.exe", "Search")]
+    [InlineData("Windows Shell Experience Host", "")]
+    [InlineData("ShellExperienceHost.exe", "Notification Centre")]
+    [InlineData("TextInputHost", "Windows Input Experience")]
+    [InlineData("SearchApp", "Search")]
+    [InlineData("Cortana", "Cortana")]
+    [InlineData("STARTMENUEXPERIENCEHOST", "Start")]
+    public void ShellHostsAreRegions(string app, string title) => Assert.Equal(AutoMode.Region, AutoClassifier.Classify(app, title));
+
+    [Theory]
+    [InlineData("Notepad", "Untitled")]
+    [InlineData("Windows Explorer", "Documents")]
+    public void ANormalAppIsAWindow(string app, string title) => Assert.Equal(AutoMode.Window, AutoClassifier.Classify(app, title));
+
+    /// <summary>The Explorer rules compare exactly, case and all.</summary>
+    [Theory]
+    [InlineData("windows explorer", "Program Manager")]
+    [InlineData("Windows Explorer", "program manager")]
+    [InlineData("Windows Explorer ", "Program Manager")]
+    public void TheExplorerRulesAreCaseSensitive(string app, string title) => Assert.Equal(AutoMode.Window, AutoClassifier.Classify(app, title));
+
+    /// <summary>
+    /// The shell host test folds ASCII case only, as a JavaScript <c>/i</c> without <c>u</c> does:
+    /// the long s (U+017F), which .NET's case-insensitive comparisons fold into <c>S</c>, never
+    /// matches.
+    /// </summary>
+    [Fact]
+    public void OnlyAsciiCaseFolds() => Assert.Equal(AutoMode.Window, AutoClassifier.Classify("\u017FearchHost", "Search"));
+
+    [Fact]
+    public void TheForegroundWindowIsClassifiedByItsAppAndTitle()
+    {
+        Assert.Equal(AutoMode.Region, AutoClassifier.Classify(Foreground("SearchHost", "Search")));
+        Assert.Equal(AutoMode.Fullscreen, AutoClassifier.Classify(Foreground("Windows Explorer", "Program Manager")));
+        Assert.Equal(AutoMode.Window, AutoClassifier.Classify(Foreground("Notepad", "Untitled")));
+    }
+
+    [Fact]
+    public void ArgumentsAreChecked()
+    {
+        Assert.Throws<ArgumentNullException>(() => AutoClassifier.Classify(null!, "t"));
+        Assert.Throws<ArgumentNullException>(() => AutoClassifier.Classify("a", null!));
+    }
+
+    private static ForegroundInfo Foreground(string app, string title) => new(1, 2, app, title, null, null, false);
+}
