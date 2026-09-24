@@ -12,7 +12,8 @@ cutover, when native releases as 2.0.0 and the Electron code is removed in one P
 and `project.json` codec (WP-A3), the brand palette (WP-A4), the store's file primitives (WP-A5),
 the project store's project and step operations and imports (WP-A6, WP-A7), the archive
 engine (WP-A8), the optimistic project session (WP-A9), the settings service (WP-A10), logging
-(WP-A11), the app host (WP-A12) and the window base with the single instance (WP-A13): analyzers, supply-chain
+(WP-A11), the app host (WP-A12), the window base with the single instance (WP-A13) and the theme
+with its fonts (WP-A14): analyzers, supply-chain
 rules, Core's error, threading and composition types, `JsJson` (reads what `JSON.parse`
 reads, writes the bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the
 same bytes as Electron for every golden in `tests/ShotAI.Core.Tests/Golden/codec/`. The
@@ -44,7 +45,13 @@ settings file and projects folder of its own and exits 0 on `[selftest] PASS`. E
 shows is excluded from capture before it is first visible: a `ShotAIWindow` registers its HWND
 when it is created, and a hook on the UI thread registers any other window it shows (tooltips,
 menus, drop-downs, system dialogs) just before the show. One instance runs per user session: a
-second launch surfaces the first one's window and exits.
+second launch surfaces the first one's window and exits. The window wears the brand and the
+appearance from its first frame: one theme dictionary, built from the generated brand table, is
+merged before the window shows and replaced whole when the theme or brand setting, Windows' app
+mode (while the theme follows it) or the open project's pinned brand changes, and every colour,
+corner and font reaches XAML through a `DynamicResource` key, which a Linux source scan enforces.
+LFI text renders from the upstream static Archivo instances in `Fonts\static\`, each folder of
+font files with its OFL licence.
 
 ## Layout
 
@@ -54,8 +61,9 @@ second launch surfaces the first one's window and exits.
 | `src/ShotAI.Platform` | `net10.0-windows10.0.19041.0` | Windows services: hooks, capture, UI Automation, display affinity, DPAPI, policy registry, OCR, WebView2 PDF host, libavif. |
 | `src/ShotAI.App` | `net10.0-windows10.0.19041.0` | The WPF app (`shotAI.exe`): windows, views, view models, composition root. |
 | `tests/ShotAI.Core.Tests` | `net10.0` | xunit.v3 tests for Core, including the shared `contract/conformance` suite. Runs on Linux and Windows. |
-| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search, the single-instance lock, window styles, the show hook, the own-window registry, WIC. Builds everywhere, runs on Windows only. |
-| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, and the real exe run as a process (the self-test, a second launch, closing the main window). Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.Platform.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests that need Windows: junctions, reparse tags, real sharing violations, the DLL search, the single-instance lock, window styles, the show hook, the own-window registry, WIC, the app-mode monitor. Builds everywhere, runs on Windows only. |
+| `tests/ShotAI.App.Tests` | `net10.0-windows10.0.19041.0` | xunit.v3 tests of the App on the in-repo STA harness (`Support/Sta.cs`): the container, the dispatcher, the exit order and flush, crash logging, the paths, window and popup registration, the activation listener, the theme manager, resources and styles, the fonts as packaged and as WPF resolves them, and the real exe run as a process (the self-test, a second launch, closing the main window, the theme before the first show). Builds everywhere, runs on Windows only. |
+| `assets/fonts/static` | | The upstream Archivo static instances WPF renders, their `OFL.txt` and `SOURCES.md` (the upstream commit and each file's sha256). |
 | `tools/ShotAI.GenBrand` | `net10.0` | The brand generator: writes `src/ShotAI.Core/Brand/BrandPalette.Generated.cs` from `contract/brand.json`; `--check` fails when it is stale. BCL only, so it builds when the table does not. |
 
 Windows 10 2004 (10.0.19041) is the minimum because it is the first build with

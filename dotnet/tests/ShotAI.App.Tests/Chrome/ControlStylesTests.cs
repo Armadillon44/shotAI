@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using ShotAI.App.Chrome;
 using ShotAI.App.Tests.Support;
@@ -46,7 +47,8 @@ public sealed class ControlStylesTests
         {
             foreach (var key in controls.Keys.OfType<string>())
             {
-                if (controls[key] is not Style style || style.TargetType is null) continue;
+                // A style with no TargetType (FocusVisual) has WPF's default, IFrameworkInputElement.
+                if (controls[key] is not Style style || !typeof(FrameworkElement).IsAssignableFrom(style.TargetType)) continue;
                 var element = Instance(style.TargetType);
                 element.Style = style;
                 panel.Children.Add(element);
@@ -101,6 +103,19 @@ public sealed class ControlStylesTests
         {
             window.Close();
         }
+    });
+
+    /// <summary>
+    /// Why a chip's corner is bound (06 7.5, settling its UNVERIFIED note): WPF clamps a corner to
+    /// half of each side on its own, so CSS's <c>999px</c> on a 100 x 30 box is an ellipse, not
+    /// the capsule CSS draws. The point (15, 1) lies inside the capsule's 15 DIP end and outside the ellipse.
+    /// </summary>
+    [Fact]
+    public Task ALargeCornerRadiusIsAnEllipseNotACapsule() => Sta.RunAsync(() =>
+    {
+        Assert.False(Filled(new CornerRadius(999), 15, 1), "a 999 corner drew a capsule");
+        Assert.True(Filled(CapsuleCornerConverter.Corner(30, double.PositiveInfinity), 15, 1), "the converter's corner is no capsule");
+        Assert.True(Filled(new CornerRadius(999), 50, 1), "the box is not drawn at all");
     });
 
     /// <summary>The styles bring the fixed colours with them, so a StaticResource of one resolves wherever the styles are merged.</summary>
@@ -159,6 +174,19 @@ public sealed class ControlStylesTests
     }
 
     private static Color Solid(object brush) => Assert.IsType<SolidColorBrush>(brush).Color;
+
+    // Whether a 100 x 30 box with the corner is opaque at the pixel.
+    private static bool Filled(CornerRadius corner, int x, int y)
+    {
+        var box = new Border { Width = 100, Height = 30, CornerRadius = corner, Background = new SolidColorBrush(Color.FromRgb(0, 0, 0)) };
+        box.Measure(new Size(100, 30));
+        box.Arrange(new Rect(0, 0, 100, 30));
+        var bitmap = new RenderTargetBitmap(100, 30, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(box);
+        var pixel = new byte[4];
+        bitmap.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0);
+        return pixel[3] > 128;
+    }
 
     private static async Task Settle()
     {

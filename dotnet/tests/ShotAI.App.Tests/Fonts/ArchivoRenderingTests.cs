@@ -28,7 +28,7 @@ public sealed class ArchivoRenderingTests
     public Task EachWeightHasItsFace(int weight, string file) => Sta.RunAsync(() =>
     {
         var face = Face(BundledFonts.Reference("Archivo"), FontWeight.FromOpenTypeWeight(weight), FontStretches.Normal);
-        Assert.Equal(file, Path.GetFileName(face.FontUri.LocalPath));
+        Assert.Equal(file, FileOf(face), ignoreCase: true);
         Assert.Equal(weight, face.Weight.ToOpenTypeWeight());
     });
 
@@ -36,7 +36,7 @@ public sealed class ArchivoRenderingTests
     [Fact]
     public Task NormalIsNotSemiBold() => Sta.RunAsync(() =>
     {
-        Assert.Equal("Archivo-Regular.ttf", Path.GetFileName(Face(BundledFonts.Reference("Archivo"), FontWeights.Normal, FontStretches.Normal).FontUri.LocalPath));
+        Assert.Equal("Archivo-Regular.ttf", FileOf(Face(BundledFonts.Reference("Archivo"), FontWeights.Normal, FontStretches.Normal)), ignoreCase: true);
         var stack = Lfi(ThemeTokenKeys.FontStack);
         var single = new FontFamily(BundledFonts.StaticFolderUri, BundledFonts.Reference("Archivo"));
         Assert.Equal(Width(single, FontWeights.Normal, FontStretches.Normal), Width(stack, FontWeights.Normal, FontStretches.Normal), 3);
@@ -66,23 +66,32 @@ public sealed class ArchivoRenderingTests
         var family = BundledFonts.WidthFamily("Archivo", FontStretches.ExtraCondensed);
         Assert.Equal("Archivo ExtraCondensed", family);
         var face = Face(BundledFonts.Reference(family), FontWeight.FromOpenTypeWeight(weight), FontStretches.ExtraCondensed);
-        Assert.Equal(file, Path.GetFileName(face.FontUri.LocalPath));
+        Assert.Equal(file, FileOf(face), ignoreCase: true);
     });
 
     /// <summary>
-    /// Q-INFRA-9: WPF sees the variable file as one face, its SemiBold default, and no named
-    /// instance, so the static files are what makes the weights and the condensed labels work.
+    /// Q-INFRA-9, measured in WP-A14: WPF lists the variable file's 9 named instances, Thin 100 to
+    /// Black 900, all at normal width, and no condensed face, because the file has none (10 2.10).
+    /// The wdth 62 labels therefore need the static files; the weights take them too, one source
+    /// of faces that does not depend on how a Windows build enumerates named instances.
     /// </summary>
     [Fact]
-    public Task TheVariableFileIsOneSemiBoldFace() => Sta.RunAsync(() =>
+    public Task TheVariableFileHasWeightsButNoCondensedFace() => Sta.RunAsync(() =>
     {
-        var folder = new Uri(BundledFonts.Folder + Path.DirectorySeparatorChar);
-        var family = new FontFamily(folder, "./#Archivo");
-        var faces = family.GetTypefaces().Select(t => t.TryGetGlyphTypeface(out var g) ? $"{g.Weight}/{g.Stretch} {Path.GetFileName(g.FontUri.LocalPath)}" : "(none)").ToList();
-        Assert.True(faces.Count == 1, "WPF lists these faces of the variable file: " + string.Join(", ", faces));
-        var face = Face(folder, "./#Archivo", FontWeights.Normal, FontStretches.Normal);
-        Assert.Equal(("Archivo.ttf", 600), (Path.GetFileName(face.FontUri.LocalPath), face.Weight.ToOpenTypeWeight()));
+        var family = new FontFamily(new Uri(BundledFonts.Folder + Path.DirectorySeparatorChar), "./#Archivo");
+        var faces = family.GetTypefaces()
+            .Select(t => t.TryGetGlyphTypeface(out var g)
+                ? (Weight: g.Weight.ToOpenTypeWeight(), Stretch: g.Stretch, File: FileOf(g))
+                : (Weight: 0, Stretch: FontStretches.Normal, File: "(no face)"))
+            .Distinct()
+            .ToList();
+        var listed = string.Join(", ", faces.Select(f => $"{f.Weight}/{f.Stretch} {f.File}"));
+        Assert.All(faces, f => Assert.Equal("Archivo.ttf", f.File, ignoreCase: true));
+        Assert.True(faces.All(f => f.Stretch == FontStretches.Normal), "a condensed face of the variable file: " + listed);
+        Assert.Equal(new[] { 100, 200, 300, 400, 500, 600, 700, 800, 900 }, faces.Select(f => f.Weight).Order());
     });
+
+    private static string FileOf(GlyphTypeface face) => Path.GetFileName(face.FontUri.LocalPath);
 
     private static ResourceDictionary Theme() => ThemeResources.Build(ThemeTokenSet.For("lfi", Appearance.Light));
 
