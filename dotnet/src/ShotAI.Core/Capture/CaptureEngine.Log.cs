@@ -51,6 +51,10 @@ public sealed partial class CaptureEngine
     [LoggerMessage(Level = LogLevel.Debug, Message = "capture timing: grab(async)={GrabMs}ms downscale(sync)={DownMs}ms")]
     private static partial void CaptureTiming(ILogger logger, long grabMs, long downMs);
 
+    // ARCHITECTURE 11 PB-4: durations only, never a title, a caption or a path.
+    [LoggerMessage(Level = LogLevel.Debug, Message = "capture job: step #{Order} {TotalMs}ms (grab {GrabMs}, encode {EncodeMs}, write {WriteMs}, store {StoreMs})")]
+    private static partial void CaptureJobTiming(ILogger logger, long order, long totalMs, long grabMs, long encodeMs, long writeMs, long storeMs);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "window capture failed, falling back to monitor:")]
     private static partial void WindowCaptureFailed(ILogger logger, Exception exception);
 
