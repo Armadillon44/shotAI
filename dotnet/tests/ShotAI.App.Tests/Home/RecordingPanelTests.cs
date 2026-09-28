@@ -42,6 +42,8 @@ public sealed class RecordingPanelTests
         Assert.Equal(2, seededBeforeStart);
         Assert.Equal([new RecordingStepRow("", "Open the app", null), new RecordingStepRow("2", "Click Save", "Notes")], t.Recording.Steps);
         Assert.Equal("2 steps", t.Recording.CountText);
+        // The panel's state arrives with its posted re-read.
+        await TestShell.Settle();
         Assert.Equal("Capturing \u00b7 A", t.Recording.Label);
     });
 

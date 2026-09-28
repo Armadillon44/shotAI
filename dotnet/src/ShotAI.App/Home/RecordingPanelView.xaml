@@ -5,7 +5,8 @@
              Focusable="False" IsTabStop="False">
   <!--
     The recording panel (spec 06 2.6, project.css .rec): in the Recording view's own scroller,
-    padded as .project__body (1.75rem 2rem). The panel is 1rem 1.25rem inside a 1px border with
+    padded as .project__body (1.75rem 2rem), with its own 1.5rem below it. The panel is 1rem
+    1.25rem inside a 1px border with
     the card's corners, danger-tinted while recording and amber while paused; the head row holds
     the dot, the label and the count; then Pause or Resume and Stop, the hint, and the steps
     listed so far, up to 14rem tall. The styles are read with DynamicResource, so the view also
@@ -16,7 +17,7 @@
   </UserControl.Resources>
 
   <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
-    <Border x:Name="Panel" Margin="32,28" Padding="20,16" BorderThickness="1" CornerRadius="{DynamicResource Radius.card}" VerticalAlignment="Top">
+    <Border x:Name="Panel" Margin="32,28,32,52" Padding="20,16" BorderThickness="1" CornerRadius="{DynamicResource Radius.card}" VerticalAlignment="Top">
       <Border.Style>
         <Style TargetType="Border">
           <Setter Property="BorderBrush" Value="{DynamicResource Brush.danger-bd}" />
