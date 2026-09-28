@@ -279,6 +279,39 @@ public sealed class RecordingPanelTests
             Assert.Equal(("1", "Click Save", "notes.txt - Notepad"), Texts(first));
             Assert.Equal(("", "", ""), Texts(second));
             Assert.Equal("2 steps", VisualTree.Named<TextBlock>(view, "Count").Text);
+            // The body's 16 DIP for the label and the hint, 0.85rem for the count and the rows.
+            Assert.Equal((16.0, 16.0, 13.6), (VisualTree.Named<TextBlock>(view, "Label").FontSize, VisualTree.Named<TextBlock>(view, "Hint").FontSize, VisualTree.Named<TextBlock>(view, "Count").FontSize));
+            Assert.Equal(13.6, VisualTree.Named<TextBlock>(first, "Caption").FontSize);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>A wheel over a list that cannot scroll that way scrolls the view, as Chromium chains it.</summary>
+    [Fact]
+    public Task AWheelTheListCannotUseGoesToTheView() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        var view = new RecordingPanelView { DataContext = t.Recording };
+        var window = TestShell.Host(view);
+        window.Show();
+        try
+        {
+            t.Recording.Seed([Shot("s1"), Shot("s2")]);
+            await TestShell.Settle();
+            var outer = VisualTree.Named<ScrollViewer>(view, "Scroller");
+            var list = VisualTree.Named<ScrollViewer>(view, "StepsScroller");
+            var reached = 0;
+            outer.AddHandler(UIElement.MouseWheelEvent, new System.Windows.Input.MouseWheelEventHandler((_, _) => reached++), handledEventsToo: true);
+
+            var wheel = new System.Windows.Input.MouseWheelEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent, Source = list };
+            list.RaiseEvent(wheel);
+
+            Assert.Equal(0, list.ScrollableHeight);
+            Assert.True(wheel.Handled);
+            Assert.Equal(1, reached);
         }
         finally
         {

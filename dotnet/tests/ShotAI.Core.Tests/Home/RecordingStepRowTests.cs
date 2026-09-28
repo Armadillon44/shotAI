@@ -22,10 +22,15 @@ public sealed class RecordingStepRowTests
     [Theory]
     [InlineData("""{"order":1,"caption":"Intro","window":null}""")]
     [InlineData("""{"order":1,"caption":"Intro"}""")]
-    [InlineData("""{"order":1,"caption":"Intro","window":0}""")]
     [InlineData("""{"order":1,"caption":"Intro","window":""}""")]
     [InlineData("""{"order":1,"caption":"Intro","window":false}""")]
     public void AFalsyWindowShowsNoTitle(string json) => Assert.Null(Row(json).Window);
+
+    /// <summary>JSX renders a falsy number itself: a window of 0 (or -0) shows "0".</summary>
+    [Theory]
+    [InlineData("""{"window":0}""")]
+    [InlineData("""{"window":-0}""")]
+    public void AZeroWindowShowsZero(string json) => Assert.Equal("0", Row(json).Window);
 
     /// <summary>A truthy window shows its title, and one without a title shows an empty title.</summary>
     [Theory]

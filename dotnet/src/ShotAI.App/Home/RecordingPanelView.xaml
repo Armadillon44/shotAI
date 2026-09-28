@@ -9,15 +9,18 @@
     1.25rem inside a 1px border with
     the card's corners, danger-tinted while recording and amber while paused; the head row holds
     the dot, the label and the count; then Pause or Resume and Stop, the hint, and the steps
-    listed so far, up to 14rem tall. The styles are read with DynamicResource, so the view also
-    loads outside the Application (the tests' windows).
+    listed so far, up to 14rem tall. Its text is the body's 16 DIP unless a part sets its own, as
+    the project view's is. A wheel over the list that it cannot scroll further scrolls the view,
+    as Chromium chains it. The styles are read with DynamicResource, so the view also loads
+    outside the Application (the tests' windows).
   -->
   <UserControl.Resources>
     <BooleanToVisibilityConverter x:Key="Visible" />
   </UserControl.Resources>
 
   <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
-    <Border x:Name="Panel" Margin="32,28,32,52" Padding="20,16" BorderThickness="1" CornerRadius="{DynamicResource Radius.card}" VerticalAlignment="Top">
+    <Border x:Name="Panel" Margin="32,28,32,52" Padding="20,16" BorderThickness="1" CornerRadius="{DynamicResource Radius.card}" VerticalAlignment="Top"
+            TextElement.FontSize="16">
       <Border.Style>
         <Style TargetType="Border">
           <Setter Property="BorderBrush" Value="{DynamicResource Brush.danger-bd}" />

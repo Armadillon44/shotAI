@@ -187,6 +187,37 @@ public sealed class SubscribeThenReadTests
         Assert.Equal(0, ui.PendingCount);
     }
 
+    /// <summary>A raise already under way when the follower is disposed posts nothing.</summary>
+    [Fact]
+    public void ARaiseInFlightDuringADisposePostsNothing()
+    {
+        var capture = new StateSource(CaptureState.Idle);
+        var ui = new ManualUiDispatcher();
+        var follower = new CaptureStateFollower(capture, ui, _ => { });
+        follower.Follow();
+        var inFlight = capture.Handlers();
+
+        follower.Dispose();
+        inFlight?.Invoke(capture, A);
+
+        Assert.Equal(0, ui.PendingCount);
+    }
+
+    /// <summary>A follower disposed before it followed never follows.</summary>
+    [Fact]
+    public void AFollowAfterADisposeDoesNothing()
+    {
+        var capture = new StateSource(A);
+        var shown = new List<CaptureState>();
+        var follower = new CaptureStateFollower(capture, new ManualUiDispatcher(), shown.Add);
+
+        follower.Dispose();
+        follower.Follow();
+
+        Assert.Equal(0, capture.Subscribers);
+        Assert.Empty(shown);
+    }
+
     /// <summary>Follow subscribes and reads once.</summary>
     [Fact]
     public void FollowIsOnce()
@@ -272,6 +303,9 @@ public sealed class SubscribeThenReadTests
         public event EventHandler<CaptureErrorEventArgs>? CaptureFailed { add { } remove { } }
 
         public event EventHandler<RecordingChangedEventArgs>? RecordingChanged { add { } remove { } }
+
+        /// <summary>The handlers as a raise under way would hold them.</summary>
+        public EventHandler<CaptureState>? Handlers() => _stateChanged;
 
         /// <summary>Sets the state, then raises it, as the engine does.</summary>
         public void Raise(CaptureState next)

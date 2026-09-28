@@ -176,6 +176,54 @@ public sealed class CaptureSelfTestTests : IAsyncDisposable
         Assert.Contains(Out, l => l.StartsWith("[capture-test] listTargets", StringComparison.Ordinal));
     }
 
+    /// <summary>A failing seam alone fails the run: the first monitor's grab fails, the primary's does not.</summary>
+    [Fact]
+    public async Task AFailingSeamAloneFailsTheRun()
+    {
+        _h.Screen.Displays.Insert(0, FakeMonitorCapture.Monitor(2, -1920, 0, 1920, 1080));
+        _h.Screen.Failing.Add(2);
+
+        Assert.Equal(SelfTestOutcome.Fail, await RunAsync());
+        Assert.Single(Err, l => l.StartsWith("[capture-test] screen capture  FAILED: ", StringComparison.Ordinal));
+        Assert.Contains("[capture-test] shot written       = true", Out);
+        Assert.Contains("[capture-test] mode menu(screen)  = 1920x1080", Out);
+    }
+
+    /// <summary>A failing window read alone fails the run: the engine's own read works.</summary>
+    [Fact]
+    public async Task AFailingWindowReadAloneFailsTheRun()
+    {
+        var failing = new FakeWindows { FailForeground = true };
+
+        Assert.Equal(SelfTestOutcome.Fail, await CaptureSelfTest.RunAsync(_ => Services(windows: failing), _paths, _out, _err, Log));
+        Assert.Equal(["[capture-test] window info     FAILED: GetForegroundWindow failed"], Err);
+        Assert.Contains("[capture-test] shot written       = true", Out);
+    }
+
+    /// <summary>No monitor for the modes alone fails the run, before any mode runs.</summary>
+    [Fact]
+    public async Task NoMonitorForTheModesAloneFailsTheRun()
+    {
+        var screen = new MonitorsGoAway(_h.Screen);
+
+        Assert.Equal(SelfTestOutcome.Fail, await CaptureSelfTest.RunAsync(_ => Services(screen: screen), _paths, _out, _err, Log));
+        Assert.Equal(["[capture-test] modes: no monitor available"], Err);
+        Assert.Contains("[capture-test] shot written       = true", Out);
+        Assert.DoesNotContain(Out, l => l.StartsWith("[capture-test] listTargets", StringComparison.Ordinal));
+    }
+
+    /// <summary>Failing modes alone fail the run: listing the windows throws, and the rest of the modes do not run.</summary>
+    [Fact]
+    public async Task FailingModesAloneFailTheRun()
+    {
+        _h.Windows.FailListing = true;
+
+        Assert.Equal(SelfTestOutcome.Fail, await RunAsync());
+        Assert.Equal(["[capture-test] modes FAILED: EnumWindows failed"], Err);
+        Assert.Contains("[capture-test] shot written       = true", Out);
+        Assert.DoesNotContain(Out, l => l.StartsWith("[capture-test] mode ", StringComparison.Ordinal));
+    }
+
     /// <summary>10 7.8 and 7.5.5: every line is logged at Information, but no window title or caption.</summary>
     [Fact]
     public async Task EveryLineIsLoggedWithoutTitlesOrCaptions()
@@ -205,6 +253,9 @@ public sealed class CaptureSelfTestTests : IAsyncDisposable
     [Fact]
     public async Task RemovesItsFilesAndDisposesItsServices()
     {
+        // As the isolated settings service leaves it once the store has moved its projects folder.
+        await File.WriteAllTextAsync(Path.Combine(_paths.TempDirectory, "shotai-capture-" + Pid + ".settings.json"), "{}", TestContext.Current.CancellationToken);
+
         await RunAsync();
 
         Assert.False(Directory.Exists(Path.Combine(_paths.TempDirectory, "shotai-capture-" + Pid)));
@@ -239,10 +290,23 @@ public sealed class CaptureSelfTestTests : IAsyncDisposable
 
     private Task<SelfTestOutcome> RunAsync() => CaptureSelfTest.RunAsync(_ => Services(), _paths, _out, _err, Log);
 
-    private CaptureSelfTestServices Services() =>
-        new(_h.Engine, _h.Projects, _h.Screen, _h.Windows, _h.Codec, _h.Triggers, _h.Settings, new Owner(() => Interlocked.Increment(ref _disposed)));
+    // The body's own seams may differ from the engine's, so a test can fail one check alone.
+    private CaptureSelfTestServices Services(IScreenCapture? screen = null, IWindowInfoProvider? windows = null) =>
+        new(_h.Engine, _h.Projects, screen ?? _h.Screen, windows ?? _h.Windows, _h.Codec, _h.Triggers, _h.Settings, new Owner(() => Interlocked.Increment(ref _disposed)));
 
     private static string Ints(double value) => ((int)value).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // The screen with its monitors for the first read only: the seams check's, not the modes'.
+    private sealed class MonitorsGoAway(IScreenCapture inner) : IScreenCapture
+    {
+        private int _reads;
+
+        public IReadOnlyList<MonitorDescriptor> Monitors() => Interlocked.Increment(ref _reads) == 1 ? inner.Monitors() : [];
+
+        public MonitorDescriptor? FromPoint(int x, int y) => inner.FromPoint(x, y);
+
+        public PixelFrame Grab(MonitorDescriptor monitor) => inner.Grab(monitor);
+    }
 
     // The harness owns the services; the test only sees that the run disposed its owner.
     private sealed class Owner(Action onDispose) : IAsyncDisposable

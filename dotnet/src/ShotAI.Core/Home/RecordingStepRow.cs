@@ -23,9 +23,9 @@ public sealed record RecordingStepRow(string Order, string Caption, string? Wind
     }
 
     // {s.window && <span>{s.window.title}</span>}: a truthy window shows its title, which only an
-    // object can have.
+    // object can have; a falsy one renders itself, which for the number 0 is the text "0".
     private static string? WindowTitle(JsonNode? window) =>
-        JsValue.IsTruthy(window) ? window is JsonObject o ? Jsx(o["title"]) : "" : null;
+        JsValue.IsTruthy(window) ? window is JsonObject o ? Jsx(o["title"]) : "" : JsValue.TryGetNumber(window, out _) ? "0" : null;
 
     // JSX renders a string as it is and a number as JavaScript prints it; null, undefined and a
     // boolean render nothing, and so, here, does an object or an array, which no writer stores.

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using ShotAI.App.Shell;
 
 namespace ShotAI.App.Home;
@@ -25,6 +26,7 @@ public partial class RecordingPanelView : UserControl
         InitializeComponent();
         DataContextChanged += (_, _) => Follow(DataContext as RecordingPanelViewModel);
         IsVisibleChanged += (_, _) => UpdatePulse(restart: false);
+        StepsScroller.PreviewMouseWheel += OnStepsWheel;
         // The event is static: the view leaves it when it leaves the tree.
         Loaded += (_, _) => SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;
         Unloaded += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParameterChanged;
@@ -44,6 +46,16 @@ public partial class RecordingPanelView : UserControl
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(RecordingPanelViewModel.IsCapturing)) UpdatePulse(restart: false);
+    }
+
+    // A ScrollViewer handles every wheel, even one it cannot use; Chromium passes it to the page
+    // when the list has nothing left to scroll that way.
+    private void OnStepsWheel(object sender, MouseWheelEventArgs e)
+    {
+        var up = e.Delta > 0;
+        if (up ? StepsScroller.VerticalOffset > 0 : StepsScroller.VerticalOffset < StepsScroller.ScrollableHeight) return;
+        e.Handled = true;
+        Scroller.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = MouseWheelEvent, Source = Scroller });
     }
 
     // Windows' animation setting is read as the pulse starts, and a change restarts it with the new rule.

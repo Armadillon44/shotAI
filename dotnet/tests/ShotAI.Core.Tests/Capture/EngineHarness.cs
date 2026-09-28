@@ -401,7 +401,10 @@ internal sealed class FakeWindows : IWindowInfoProvider
 
     public ForegroundInfo? Foreground() => FailForeground ? throw new InvalidOperationException("GetForegroundWindow failed") : Current;
 
-    public IReadOnlyList<ListedWindow> ListWindows() => [.. Listed];
+    /// <summary>When set, listing the windows throws.</summary>
+    public bool FailListing { get; set; }
+
+    public IReadOnlyList<ListedWindow> ListWindows() => FailListing ? throw new InvalidOperationException("EnumWindows failed") : [.. Listed];
 
     public ListedWindow? Resolve(CaptureTargetWindow target) => Listed.FirstOrDefault(w => w.Id == target.Id);
 
