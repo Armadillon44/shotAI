@@ -408,12 +408,19 @@ public sealed partial class HomeViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// Escape that no inner surface took (a confirm, an open menu, the rename box, the search box
-    /// with text): it ends an open rename, else clears the selection, one thing per press
-    /// (IMPROVEMENT D-HOME-11, EDGE-HOME-6).
+    /// with text): it closes the target dropdown, else ends an open rename, else clears the
+    /// selection, one thing per press (IMPROVEMENT D-HOME-11, EDGE-HOME-6).
     /// </summary>
     /// <returns>Whether it did something, so the key is handled.</returns>
     public bool OnEscape()
     {
+        // 7.9, innermost first: the target dropdown, open with the focus outside it (its Refresh
+        // was disabled by a load under it, and the window took the focus).
+        if (Mode.PickerOpen)
+        {
+            Mode.CloseDropdownCommand.Execute(null);
+            return true;
+        }
         if (_rename.IsOpen)
         {
             CancelRename();

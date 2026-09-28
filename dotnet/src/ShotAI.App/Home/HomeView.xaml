@@ -186,8 +186,8 @@
           target dropdown's trigger, the Area button or a warning, as the mode needs.
         -->
         <StackPanel DataContext="{Binding Mode}">
-          <WrapPanel x:Name="ModeRow" Margin="0,11.2,0,0" AutomationProperties.Name="{x:Static core:HomeText.ModeGroupName}"
-                     chrome:RadioGroupKeys.MovesSelection="True">
+          <chrome:GroupWrapPanel x:Name="ModeRow" Margin="0,11.2,0,0" AutomationProperties.Name="{x:Static core:HomeText.ModeGroupName}"
+                                 chrome:RadioGroupKeys.MovesSelection="True">
             <TextBlock Margin="0,0,8.8,0" VerticalAlignment="Center" Text="{Binding Source={x:Static core:HomeText.ModeLabel}, Converter={StaticResource UpperCase}}"
                        FontFamily="{DynamicResource Font.label-stack}" FontStretch="{DynamicResource Font.label-stretch}" FontSize="{DynamicResource Fs.label}"
                        Foreground="{DynamicResource Brush.ink-3}" />
@@ -206,7 +206,7 @@
             <TextBlock x:Name="AutoWarning" VerticalAlignment="Center" Text="{x:Static core:HomeText.AutoWarning}" ToolTip="{x:Static core:HomeText.AutoWarningTitle}"
                        Cursor="Help" FontSize="{DynamicResource Fs.meta}" Foreground="{DynamicResource Brush.caut-fg}"
                        Visibility="{Binding ShowsAutoWarning, Converter={StaticResource Visible}}" />
-          </WrapPanel>
+          </chrome:GroupWrapPanel>
           <TextBlock x:Name="ModeHint" Margin="0,8,0,0" HorizontalAlignment="Left" MaxWidth="446.4" TextWrapping="Wrap" FontSize="{DynamicResource Fs.meta}"
                      LineStackingStrategy="BlockLineHeight" LineHeight="18.56" Foreground="{DynamicResource Brush.ink-3}"><Run Text="{x:Static core:HomeText.ModeHintBefore}" /><Run Text="{x:Static core:HomeText.ModeScreen}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.ink-2}" /><Run Text="{x:Static core:HomeText.ModeHintAfterScreen}" /><Run Text="{x:Static core:HomeText.ModeWindow}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.ink-2}" /><Run Text="{x:Static core:HomeText.ModeHintAfterWindow}" /><Run Text="{x:Static core:HomeText.ModeArea}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.ink-2}" /><Run Text="{x:Static core:HomeText.ModeHintAfterArea}" /><Run Text="{x:Static core:HomeText.ModeAuto}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.ink-2}" /><Run Text="{x:Static core:HomeText.ModeHintAfterAuto}" /></TextBlock>
 

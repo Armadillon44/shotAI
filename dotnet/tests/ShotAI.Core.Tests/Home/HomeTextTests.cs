@@ -11,7 +11,9 @@ namespace ShotAI.Core.Tests.Home;
 
 /// <summary>
 /// Spec 06 8.4 (every literal of 2.2 to 2.17): each string equals the spec's text, and each is
-/// found in the Electron source, JSX text that spans lines read as JSX collapses it.
+/// found in the Electron source, JSX text that spans lines read as JSX collapses it. The native
+/// accessible names Electron did not have (7.13, EDGE-HOME-32), such as the name box's, are
+/// checked against the spec only.
 /// </summary>
 public sealed partial class HomeTextTests
 {

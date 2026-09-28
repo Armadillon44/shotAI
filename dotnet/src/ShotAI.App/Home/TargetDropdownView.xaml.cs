@@ -10,7 +10,10 @@ namespace ShotAI.App.Home;
 /// trigger it is attached to, and moved with it as Home scrolls and the window resizes, as
 /// Electron's absolutely placed popover moves. Opening focuses the picked row, or the first;
 /// Up, Down, Home and End move, Enter or a click picks, and Escape closes with the focus back on
-/// the trigger (IMPROVEMENT, EDGE-HOME-31). Tab stays inside the popover.
+/// the trigger (IMPROVEMENT, EDGE-HOME-31). Tab and the arrows stay inside the popover. A load
+/// that ends while it is open, when Refresh was disabled and the focus may have left for the
+/// window, focuses the row again. The popover is clipped to Home's viewport, as Electron's,
+/// inside the scrolling page, was.
 /// </summary>
 public partial class TargetDropdownView : UserControl
 {
@@ -36,8 +39,15 @@ public partial class TargetDropdownView : UserControl
         };
         Backdrop.PreviewMouseWheel += OnBackdropWheel;
         Pop.PreviewKeyDown += OnPopoverKey;
+        Pop.SizeChanged += (_, _) => Place();
         Inner.SizeChanged += (_, _) => ClipToCorners();
         SizeChanged += (_, _) => Place();
+        // Refresh is disabled while the targets load, which moves a focus it held out of the
+        // popover; when it is enabled again, the load is over and the rows are the new ones.
+        RefreshButton.IsEnabledChanged += (_, e) =>
+        {
+            if ((bool)e.NewValue && Root.IsVisible && !IsFocusInside()) FocusRowAfterLayout();
+        };
     }
 
     /// <summary>The popover's box, for the tests.</summary>
@@ -65,7 +75,8 @@ public partial class TargetDropdownView : UserControl
         scroller.ScrollChanged += (_, _) => Place();
     }
 
-    // The popover's top left is the trigger's bottom left and Gap below it, and its width the trigger's.
+    // The popover's top left is the trigger's bottom left and Gap below it, and its width the
+    // trigger's. What falls outside Home's viewport is clipped, as the page's scroller clipped it.
     private void Place()
     {
         if (_trigger is not { IsVisible: true } trigger || !Root.IsVisible) return;
@@ -73,6 +84,25 @@ public partial class TargetDropdownView : UserControl
         var margin = new Thickness(origin.X, origin.Y + trigger.ActualHeight + Gap, 0, 0);
         if (Pop.Margin != margin) Pop.Margin = margin;
         if (!Pop.Width.Equals(trigger.ActualWidth)) Pop.Width = trigger.ActualWidth;
+        ClipToViewport(margin);
+    }
+
+    private void ClipToViewport(Thickness margin)
+    {
+        if (_scroller is not { IsVisible: true } scroller)
+        {
+            Pop.Clip = null;
+            return;
+        }
+        var viewport = scroller.TransformToVisual(this).TransformBounds(new Rect(0, 0, scroller.ViewportWidth, scroller.ViewportHeight));
+        var box = new Rect(margin.Left, margin.Top, Pop.ActualWidth, Pop.ActualHeight);
+        if (viewport.Contains(box))
+        {
+            Pop.Clip = null;
+            return;
+        }
+        viewport.Offset(-margin.Left, -margin.Top);
+        Pop.Clip = new RectangleGeometry(viewport);
     }
 
     // overflow: hidden with the panel's corners: the head and the rows keep inside the rounded border.
@@ -85,6 +115,12 @@ public partial class TargetDropdownView : UserControl
     private void OnOpened()
     {
         Place();
+        FocusRowAfterLayout();
+    }
+
+    // The picked row, or the first, or Refresh when the list is empty, once the rows are laid out.
+    private void FocusRowAfterLayout()
+    {
         void FocusRow(object? sender, EventArgs e)
         {
             List.LayoutUpdated -= FocusRow;
@@ -105,11 +141,13 @@ public partial class TargetDropdownView : UserControl
         List.InvalidateMeasure();
     }
 
+    private bool IsFocusInside() => Keyboard.FocusedElement is DependencyObject focused && IsInside(focused);
+
     // The focus was in the popover, which is gone: it goes back to the trigger.
     private void OnClosed()
     {
         List.SelectedItem = null;
-        if (Keyboard.FocusedElement is null || (Keyboard.FocusedElement is DependencyObject focused && IsInside(focused))) _trigger?.Focus();
+        if (Keyboard.FocusedElement is null || IsFocusInside()) _trigger?.Focus();
     }
 
     private bool IsInside(DependencyObject node) => IsWithin(node, Pop);

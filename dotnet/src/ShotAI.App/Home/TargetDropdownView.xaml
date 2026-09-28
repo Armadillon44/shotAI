@@ -92,7 +92,8 @@
     <Border x:Name="Pop" HorizontalAlignment="Left" VerticalAlignment="Top" BorderThickness="1" SnapsToDevicePixels="True"
             BorderBrush="{DynamicResource Brush.hair}" Background="{DynamicResource Brush.surface}"
             CornerRadius="{DynamicResource Radius.panel}" Effect="{DynamicResource Shadow.menu}"
-            KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle">
+            KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle"
+            KeyboardNavigation.DirectionalNavigation="Contained">
       <DockPanel x:Name="Inner">
         <Border DockPanel.Dock="Top" Padding="11.2,6.4" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.hair-2}"
                 Background="{DynamicResource Brush.surface-2}">

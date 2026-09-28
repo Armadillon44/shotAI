@@ -467,6 +467,16 @@ public sealed class ProjectDetailStateTests
         await reload;
         Assert.Equal((B, 0), (r.Project.OpenProjectPath, r.ClosedCount));
         Assert.Empty(r.Failures);
+
+        // A Back while the read runs: the manifest it read opens nothing.
+        var sessions = r.Sessions.Created.Count;
+        var read = r.Projects.GateOpen(B);
+        var again = r.Project.ReloadAsync();
+        r.Project.BackCommand.Execute(null);
+        read.SetResult(new OpenedProject(B, Of("Other", Shot("s1"))));
+        await again;
+        Assert.Equal(((string?)null, 1, sessions), (r.Project.OpenProjectPath, r.ClosedCount, r.Sessions.Created.Count));
+        Assert.Empty(r.Failures);
     });
 
     [Fact]

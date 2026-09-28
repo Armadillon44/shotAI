@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShotAI.App.Chrome;
@@ -432,6 +433,28 @@ public sealed class CaptureModePickerTests
             // Another key is not the group's.
             Assert.False(Arrow(view.ScreenChip, Key.Space).Handled);
             Assert.Equal(CaptureMode.Screen, t.Mode.Mode);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>7.13: the mode row is a group named Capture mode, as Electron's radiogroup was, holding the four chips.</summary>
+    [Fact]
+    public Task TheModeRowIsANamedGroup() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        var view = new HomeView { DataContext = t.Home };
+        var window = TestShell.Host(view);
+        window.Show();
+        try
+        {
+            await TestShell.Settle();
+            var peer = UIElementAutomationPeer.CreatePeerForElement(view.ModeRow);
+            Assert.Equal(AutomationControlType.Group, peer.GetAutomationControlType());
+            Assert.Equal(HomeText.ModeGroupName, peer.GetName());
+            Assert.Equal(4, peer.GetChildren().Count(c => c.GetAutomationControlType() == AutomationControlType.RadioButton));
         }
         finally
         {

@@ -35,7 +35,7 @@ internal sealed class FakeCaptureService : ICaptureService
         }
     }
 
-    /// <summary>The calls made, in order: <c>pause</c>, <c>resume</c>, <c>stop</c>, <c>discard</c>, <c>teardown</c>, with the thread of each.</summary>
+    /// <summary>The calls made, in order: <c>start</c>, <c>pause</c>, <c>resume</c>, <c>stop</c>, <c>discard</c>, <c>teardown</c>, with the thread of each.</summary>
     public IReadOnlyList<string> Calls
     {
         get
@@ -89,7 +89,7 @@ internal sealed class FakeCaptureService : ICaptureService
         }
     }
 
-    /// <summary>When set, <see cref="StartAsync"/> throws it and nothing starts.</summary>
+    /// <summary>When set, <see cref="StartAsync"/> throws it after recording the start in <see cref="Starts"/> and <see cref="Calls"/>, and no session starts.</summary>
     public Exception? StartFails { get; set; }
 
     /// <summary>What <see cref="StartAsync"/> awaits before it starts, so a test can hold a start open.</summary>

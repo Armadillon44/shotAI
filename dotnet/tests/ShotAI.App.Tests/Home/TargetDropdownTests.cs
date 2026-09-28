@@ -78,6 +78,7 @@ public sealed class TargetDropdownTests
         await TestShell.Settle();
         var trigger = view.HomeView.TargetTrigger;
         var pop = view.Dropdown.Popover;
+        Assert.Equal(4, TargetDropdownView.Gap);
         AssertUnder(trigger, pop, view);
         Assert.Equal(trigger.ActualWidth, pop.ActualWidth, 3);
         view.HomeView.ScrollViewer.ScrollToVerticalOffset(60);
@@ -167,6 +168,64 @@ public sealed class TargetDropdownTests
         Assert.True(view.Dropdown.EmptyText.IsVisible);
         Assert.Equal(HomeText.NoWindows, view.Dropdown.EmptyText.Text);
         Assert.False(view.Dropdown.Rows.IsVisible);
+    }));
+
+    /// <summary>
+    /// A load that ends with the popover open focuses its row again: Refresh, disabled while the
+    /// targets load, can lose the focus to the window, and the rows are new ones.
+    /// </summary>
+    [Fact]
+    public Task ALoadThatEndsWhileOpenFocusesTheRowAgain() => Sta.RunAsync(() => WithShellAsync(async (t, view, _) =>
+    {
+        t.Mode.PickerOpen = true;
+        await TestShell.Settle();
+        var gate = new TaskCompletionSource();
+        t.Capture.ListGate = gate.Task;
+        view.Dropdown.RefreshButton.Command.Execute(null);
+        await TestShell.Settle();
+        Assert.False(view.Dropdown.RefreshButton.IsEnabled);
+        // Where the focus went while Refresh was disabled.
+        view.HomeView.TargetTrigger.Focus();
+        gate.SetResult();
+        Assert.True(await TestShell.UntilAsync(() => view.Dropdown.RefreshButton.IsEnabled));
+        await TestShell.Settle();
+        var picked = Assert.Single(t.Mode.Items, i => i.IsPicked);
+        Assert.Same(picked, view.Dropdown.Rows.SelectedItem);
+        Assert.True(((ListBoxItem)view.Dropdown.Rows.ItemContainerGenerator.ContainerFromItem(picked)).IsFocused);
+    }));
+
+    /// <summary>7.9, innermost first: an Escape that reaches the window with the popover open closes it.</summary>
+    [Fact]
+    public Task EscapeReachingTheWindowClosesThePopover() => Sta.RunAsync(() => WithShellAsync(async (t, view, _) =>
+    {
+        t.Mode.PickerOpen = true;
+        await TestShell.Settle();
+        Assert.True(t.Shell.OnEscape());
+        Assert.False(t.Mode.PickerOpen);
+        Assert.False(t.Shell.OnEscape());
+    }));
+
+    /// <summary>
+    /// The popover is clipped to Home's viewport, as the page's scroller clipped Electron's: with the
+    /// trigger scrolled above the viewport, the popover's top is cut off; scrolled back, it is not.
+    /// </summary>
+    [Fact]
+    public Task ThePopoverIsClippedToHomesViewport() => Sta.RunAsync(() => WithShellAsync(async (t, view, _) =>
+    {
+        t.Projects.Listing = [.. Enumerable.Range(0, 30).Select(i => ListingProjects.Project($@"C:\Projects\P{i}", $"Project {i}", "2026-07-22T09:00:00.000Z"))];
+        await t.Home.RefreshAsync(userInitiated: false);
+        t.Mode.PickerOpen = true;
+        await TestShell.Settle();
+        var scroller = view.HomeView.ScrollViewer;
+        var trigger = view.HomeView.TargetTrigger;
+        var bottom = trigger.TranslatePoint(new Point(0, trigger.ActualHeight), scroller).Y;
+        scroller.ScrollToVerticalOffset(bottom + 20);
+        await TestShell.Settle();
+        var clip = Assert.IsType<RectangleGeometry>(view.Dropdown.Popover.Clip);
+        Assert.Equal(20 - TargetDropdownView.Gap, clip.Rect.Top, 3);
+        scroller.ScrollToVerticalOffset(0);
+        await TestShell.Settle();
+        Assert.True(view.Dropdown.Popover.Clip is not RectangleGeometry back || back.Rect.Top <= 0);
     }));
 
     /// <summary>7.6: the trigger reports ExpandCollapse, and Expand and Collapse open and close the popover.</summary>

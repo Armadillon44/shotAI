@@ -184,9 +184,12 @@ public sealed partial class HomeViewModelTests
         Assert.Single(t.Capture.Starts);
     });
 
-    /// <summary>2.5 onRecord: Home's target is the picker's when the recording starts, after the project opened.</summary>
+    /// <summary>
+    /// 2.5: Home's target is the picker's at the click, as Electron's submit handler held the state
+    /// of the render it came from; a mode chosen while the project is made is the next recording's.
+    /// </summary>
     [Fact]
-    public Task TheTargetIsThePickersAtTheStart() => Sta.RunAsync(async () =>
+    public Task TheTargetIsThePickersAtTheClick() => Sta.RunAsync(async () =>
     {
         using var t = new TestShell();
         t.Capture.Targets = new CaptureTargets([], [new MonitorInfo(65_537, "DELL U2720Q", 3840, 2160, IsPrimary: true)]);
@@ -198,7 +201,7 @@ public sealed partial class HomeViewModelTests
         t.Mode.SelectModeCommand.Execute(CaptureMode.Auto);
         gate.SetResult(new OpenedProject(Created, Of("Project")));
         await capture;
-        Assert.Equal(new CaptureTarget("auto"), Assert.Single(t.Capture.Starts).Options.Target);
+        Assert.Equal(new CaptureTarget("screen", MonitorId: 65_537), Assert.Single(t.Capture.Starts).Options.Target);
     });
 
     /// <summary>The hero's view: Enter in the name box is Capture, and Capture reads Creating while it runs.</summary>
