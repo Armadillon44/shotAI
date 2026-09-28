@@ -21,7 +21,7 @@ namespace ShotAI.App.Shell;
 /// The inputs land with their views: Home's Open opens the project view, whose successful open
 /// shows it and whose Back closes it (WP-A17); the open project's pin follows its session, and
 /// the menu's Brand choice goes to the project view (WP-A18); a capture session shows the
-/// Recording view (WP-B9a), whose panel joins in WP-B9b; Settings and its Back call
+/// Recording view (WP-B9a), which holds the recording panel (WP-B9b); Settings and its Back call
 /// <see cref="OpenSettings"/> and <see cref="CloseSettings"/> (WP-B10). Until then the header's
 /// Settings button raises the menu's request.
 /// </remarks>
@@ -39,13 +39,14 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
     private bool _started;
     private bool _disposed;
 
-    /// <summary>The shell over Home, the project view, the menu's requests, the notices, the confirm dialog and the capture engine.</summary>
+    /// <summary>The shell over Home, the project view, the recording panel, the menu's requests, the notices, the confirm dialog and the capture engine.</summary>
     public ShellViewModel(
-        HomeViewModel home, ProjectDetailViewModel project, AppMenuViewModel menu, INoticeService notices, IConfirmService confirm, ICaptureService capture,
-        IProjectService projects, IUiDispatcher ui)
+        HomeViewModel home, ProjectDetailViewModel project, RecordingPanelViewModel recording, AppMenuViewModel menu, INoticeService notices,
+        IConfirmService confirm, ICaptureService capture, IProjectService projects, IUiDispatcher ui)
     {
         ArgumentNullException.ThrowIfNull(home);
         ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(recording);
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(notices);
         ArgumentNullException.ThrowIfNull(confirm);
@@ -54,6 +55,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         ArgumentNullException.ThrowIfNull(ui);
         Home = home;
         Project = project;
+        Recording = recording;
         Menu = menu;
         Notices = notices;
         Confirm = confirm;
@@ -86,6 +88,9 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
 
     /// <summary>The project view's model.</summary>
     public ProjectDetailViewModel Project { get; }
+
+    /// <summary>The Recording view's panel, which follows the engine for the shell's life; the container disposes it.</summary>
+    public RecordingPanelViewModel Recording { get; }
 
     /// <summary>The menu, whose Settings request the header's button raises too.</summary>
     public AppMenuViewModel Menu { get; }
@@ -286,6 +291,8 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         try
         {
             var opened = await _projects.OpenProjectAsync(projectPath);
+            // 2.5 step 2: the panel lists the project's steps before the start, so no landed step comes first.
+            Recording.Seed(opened.Manifest.Steps);
             await _capture.StartAsync(projectPath, new CaptureStartOptions(target, createdThisSession, insertAt));
             ApplyCaptureState(_capture.GetState());
             // Resume's project is open already: its session, which holds every edit, stays as it

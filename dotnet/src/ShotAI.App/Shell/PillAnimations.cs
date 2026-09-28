@@ -66,8 +66,12 @@ internal static class PillAnimations
         ring.BeginAnimation(UIElement.OpacityProperty, opacity);
     }
 
-    /// <summary>Starts the dot's pulse, or stops it, which puts the dot back at full opacity at once.</summary>
-    internal static void Pulse(UIElement dot, bool on)
+    /// <summary>
+    /// Starts the dot's pulse, down to <paramref name="low"/> at its middle, or stops it, which
+    /// puts the dot back at full opacity at once. The recording panel's dot pulses the same way to
+    /// its own depth (06 2.6).
+    /// </summary>
+    internal static void Pulse(UIElement dot, bool on, double low = PulseLowOpacity)
     {
         ArgumentNullException.ThrowIfNull(dot);
         if (!on)
@@ -81,7 +85,7 @@ internal static class PillAnimations
             RepeatBehavior = RepeatBehavior.Forever,
         };
         pulse.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, At(0)));
-        pulse.KeyFrames.Add(new SplineDoubleKeyFrame(PulseLowOpacity, At(ShellConstants.PulseMs / 2.0), EaseInOut()));
+        pulse.KeyFrames.Add(new SplineDoubleKeyFrame(low, At(ShellConstants.PulseMs / 2.0), EaseInOut()));
         pulse.KeyFrames.Add(new SplineDoubleKeyFrame(1, At(ShellConstants.PulseMs), EaseInOut()));
         dot.BeginAnimation(UIElement.OpacityProperty, pulse);
     }

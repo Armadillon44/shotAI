@@ -1,0 +1,99 @@
+<UserControl x:Class="ShotAI.App.Home.RecordingPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:ShotAI.Core.Home;assembly=ShotAI.Core"
+             Focusable="False" IsTabStop="False">
+  <!--
+    The recording panel (spec 06 2.6, project.css .rec): in the Recording view's own scroller,
+    padded as .project__body (1.75rem 2rem). The panel is 1rem 1.25rem inside a 1px border with
+    the card's corners, danger-tinted while recording and amber while paused; the head row holds
+    the dot, the label and the count; then Pause or Resume and Stop, the hint, and the steps
+    listed so far, up to 14rem tall. The styles are read with DynamicResource, so the view also
+    loads outside the Application (the tests' windows).
+  -->
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="Visible" />
+  </UserControl.Resources>
+
+  <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
+    <Border x:Name="Panel" Margin="32,28" Padding="20,16" BorderThickness="1" CornerRadius="{DynamicResource Radius.card}" VerticalAlignment="Top">
+      <Border.Style>
+        <Style TargetType="Border">
+          <Setter Property="BorderBrush" Value="{DynamicResource Brush.danger-bd}" />
+          <Setter Property="Background" Value="{DynamicResource Brush.danger-tint}" />
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPaused}" Value="True">
+              <Setter Property="BorderBrush" Value="{DynamicResource Brush.caut-bd}" />
+              <Setter Property="Background" Value="{DynamicResource Brush.caut-bg}" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </Border.Style>
+      <StackPanel>
+        <!-- .rec__head: the dot, the label and the count, 0.6rem apart, centred on one line. -->
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Ellipse x:Name="Dot" Width="12" Height="12" VerticalAlignment="Center">
+            <Ellipse.Style>
+              <Style TargetType="Ellipse">
+                <Setter Property="Fill" Value="{DynamicResource Brush.danger}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsPaused}" Value="True">
+                    <Setter Property="Fill" Value="{DynamicResource Brush.draft}" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Ellipse.Style>
+          </Ellipse>
+          <TextBlock x:Name="Label" Grid.Column="1" Margin="9.6,0" VerticalAlignment="Center" Text="{Binding Label}" FontWeight="650"
+                     TextWrapping="Wrap" Foreground="{DynamicResource Brush.ink}" />
+          <TextBlock x:Name="Count" Grid.Column="2" VerticalAlignment="Center" Text="{Binding CountText}" FontSize="13.6"
+                     Foreground="{DynamicResource Brush.ink-2}" Typography.NumeralAlignment="Tabular" />
+        </Grid>
+
+        <!-- .rec__controls: Pause or Resume, one button (D-HOME-38), and Stop, 0.5rem apart, 0.8rem below the head. -->
+        <StackPanel Orientation="Horizontal" Margin="0,12.8,0,0">
+          <Button x:Name="PauseResumeButton" Style="{DynamicResource Button.Base}" Content="{Binding PauseResumeText}"
+                  Command="{Binding PauseResumeCommand}" />
+          <Button x:Name="StopButton" Margin="8,0,0,0" Style="{DynamicResource Button.Primary}" Content="{x:Static core:HomeText.Stop}"
+                  Command="{Binding StopCommand}" />
+        </StackPanel>
+
+        <!-- project__hint: ink-2, 1.55 line height, 52ch; 1em above and below, the controls' and the list's margins collapsing into it. -->
+        <TextBlock x:Name="Hint" Margin="0,16" HorizontalAlignment="Left" MaxWidth="468" Text="{x:Static core:HomeText.RecordingHint}"
+                   TextWrapping="Wrap" LineStackingStrategy="BlockLineHeight" LineHeight="24.8" Foreground="{DynamicResource Brush.ink-2}" />
+
+        <!-- .rec__steps: shown when there is a step; 14rem at most, scrolling; rows 0.3rem apart, none after the last. -->
+        <ScrollViewer x:Name="StepsScroller" MaxHeight="224" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                      Focusable="False" Visibility="{Binding HasSteps, Converter={StaticResource Visible}}">
+          <ItemsControl x:Name="Steps" Margin="0,0,0,-4.8" ItemsSource="{Binding Steps}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <!-- .rec__step: 1.5rem, the rest and auto, 0.5rem apart; 0.35rem 0.5rem inside, on the surface. -->
+                <Border Margin="0,0,0,4.8" Padding="8,5.6" Background="{DynamicResource Brush.surface}" CornerRadius="{DynamicResource Radius.control-sm}">
+                  <Grid TextElement.FontSize="13.6">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="24" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="Order" Text="{Binding Order}" TextAlignment="Right" Foreground="{DynamicResource Brush.ink-3}"
+                               Typography.NumeralAlignment="Tabular" />
+                    <TextBlock x:Name="Caption" Grid.Column="1" Margin="8,0" Text="{Binding Caption}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource Brush.ink}" />
+                    <TextBlock x:Name="Window" Grid.Column="2" MaxWidth="256" Text="{Binding Window}" FontSize="12.48" TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Brush.ink-3}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </StackPanel>
+    </Border>
+  </ScrollViewer>
+</UserControl>

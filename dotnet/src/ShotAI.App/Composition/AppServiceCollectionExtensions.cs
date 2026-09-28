@@ -72,6 +72,7 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<ReportImageLoader>();
         services.AddSingleton<ReportViewModelFactory>();
         services.AddTransient<ProjectDetailViewModel>();
+        services.AddTransient<RecordingPanelViewModel>();
         services.AddTransient<ShellViewModel>();
         services.AddSingleton<RemoteVisibilityApplier>();
         services.AddSingleton<ShellShutdown>();
