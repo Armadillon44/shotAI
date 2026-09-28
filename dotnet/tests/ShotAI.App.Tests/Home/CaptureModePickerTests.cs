@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShotAI.App.Chrome;
 using ShotAI.App.Home;
@@ -8,6 +9,7 @@ using ShotAI.Core.Capture;
 using ShotAI.Core.Home;
 using ShotAI.Core.Model;
 using Xunit;
+using CaptureMode = ShotAI.Core.Capture.CaptureMode;
 using Rect = ShotAI.Core.Model.Rect;
 
 namespace ShotAI.App.Tests.Home;
@@ -393,6 +395,56 @@ public sealed class CaptureModePickerTests
             window.Close();
         }
     });
+
+    /// <summary>
+    /// 7.9: the arrows move the mode among the chips, in their order and wrapping, and the focus
+    /// follows (<c>RadioGroupKeys</c>); WPF's own arrows would move only the focus.
+    /// </summary>
+    [Fact]
+    public Task ArrowsMoveTheMode() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        var view = new HomeView { DataContext = t.Home };
+        var window = TestShell.Host(view);
+        window.Show();
+        try
+        {
+            await TestShell.Settle();
+            Assert.True(Arrow(view.ScreenChip, Key.Right).Handled);
+            Assert.Equal(CaptureMode.Auto, t.Mode.Mode);
+            Assert.True(view.AutoChip.IsChecked);
+            Assert.False(view.ScreenChip.IsChecked);
+            Assert.True(view.AutoChip.IsFocused);
+            Arrow(view.AutoChip, Key.Down);
+            Assert.Equal(CaptureMode.Window, t.Mode.Mode);
+            Arrow(view.WindowChip, Key.Left);
+            Assert.Equal(CaptureMode.Auto, t.Mode.Mode);
+            Arrow(view.AutoChip, Key.Up);
+            Assert.Equal(CaptureMode.Screen, t.Mode.Mode);
+
+            // Back from the first is the last, and on from the last the first.
+            Arrow(view.ScreenChip, Key.Left);
+            Assert.Equal(CaptureMode.Area, t.Mode.Mode);
+            Assert.True(view.AreaChip.IsFocused);
+            Arrow(view.AreaChip, Key.Right);
+            Assert.Equal(CaptureMode.Screen, t.Mode.Mode);
+
+            // Another key is not the group's.
+            Assert.False(Arrow(view.ScreenChip, Key.Space).Handled);
+            Assert.Equal(CaptureMode.Screen, t.Mode.Mode);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    private static KeyEventArgs Arrow(UIElement target, Key key)
+    {
+        var e = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(target)!, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+        target.RaiseEvent(e);
+        return e;
+    }
 
     private static (bool Window, bool Area, bool Auto) Warned(CaptureModePickerViewModel picker) =>
         (picker.ShowsWindowWarning, picker.ShowsAreaWarning, picker.ShowsAutoWarning);

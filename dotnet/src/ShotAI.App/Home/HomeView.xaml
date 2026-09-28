@@ -181,12 +181,13 @@
         </Grid>
 
         <!--
-          2.4: the mode chips, one radio group (the arrows move between them, 7.9), after the Mode
+          2.4: the mode chips, one radio group whose arrows move the mode (7.9), after the Mode
           label and before Auto's warning, 0.4rem apart; then the plain-language hint (62ch), and the
           target dropdown's trigger, the Area button or a warning, as the mode needs.
         -->
         <StackPanel DataContext="{Binding Mode}">
-          <WrapPanel x:Name="ModeRow" Margin="0,11.2,0,0" AutomationProperties.Name="{x:Static core:HomeText.ModeGroupName}">
+          <WrapPanel x:Name="ModeRow" Margin="0,11.2,0,0" AutomationProperties.Name="{x:Static core:HomeText.ModeGroupName}"
+                     chrome:RadioGroupKeys.MovesSelection="True">
             <TextBlock Margin="0,0,8.8,0" VerticalAlignment="Center" Text="{Binding Source={x:Static core:HomeText.ModeLabel}, Converter={StaticResource UpperCase}}"
                        FontFamily="{DynamicResource Font.label-stack}" FontStretch="{DynamicResource Font.label-stretch}" FontSize="{DynamicResource Fs.label}"
                        Foreground="{DynamicResource Brush.ink-3}" />
