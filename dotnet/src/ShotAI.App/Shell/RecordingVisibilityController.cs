@@ -14,8 +14,10 @@ namespace ShotAI.App.Shell;
 /// ordered path, <see cref="IUiDispatcher.Post"/>, so they are handled in the order the engine
 /// raised them: the pill is shown before it receives the recording state (INV-SHELL-21,
 /// INV-IPC-5). A state event is applied by reading <see cref="ICaptureService.GetState"/> when
-/// its posted action runs, not from its payload (spec 11 T7); an error is applied from its
-/// payload. Startup step 8 attaches the windows, and step 9 starts it.
+/// its posted action runs, not from its payload (spec 11 T7), through a
+/// <see cref="CaptureStateFollower"/>, which queues one such action at a time (Q-IPC-20); an
+/// error is applied from its payload, each one posted. Startup step 8 attaches the windows, and
+/// step 9 starts it.
 /// </remarks>
 public sealed class RecordingVisibilityController : IAppStartup, IDisposable
 {
@@ -23,6 +25,7 @@ public sealed class RecordingVisibilityController : IAppStartup, IDisposable
     private readonly IUiDispatcher _ui;
     private readonly CapturePillViewModel _pill;
     private readonly RecordingVisibilityPlanner _planner = new();
+    private readonly CaptureStateFollower _state;
     private IRecordingWindows? _windows;
     private bool _started;
     private bool _disposed;
@@ -36,6 +39,7 @@ public sealed class RecordingVisibilityController : IAppStartup, IDisposable
         _capture = capture;
         _ui = ui;
         _pill = pill;
+        _state = new CaptureStateFollower(capture, ui, pill.OnState);
     }
 
     /// <summary>Startup step 8: the windows the recording shows and hides. Until then a change moves no window.</summary>
@@ -51,8 +55,8 @@ public sealed class RecordingVisibilityController : IAppStartup, IDisposable
         if (_started || _disposed) return;
         _started = true;
         _capture.RecordingChanged += OnRecordingChanged;
-        _capture.StateChanged += OnStateChanged;
         _capture.CaptureFailed += OnCaptureFailed;
+        _state.Follow();
     }
 
     /// <summary>Stops following the engine; idempotent.</summary>
@@ -60,20 +64,14 @@ public sealed class RecordingVisibilityController : IAppStartup, IDisposable
     {
         _disposed = true;
         _capture.RecordingChanged -= OnRecordingChanged;
-        _capture.StateChanged -= OnStateChanged;
         _capture.CaptureFailed -= OnCaptureFailed;
+        _state.Dispose();
     }
 
     private void OnRecordingChanged(object? sender, RecordingChangedEventArgs e) =>
         _ui.Post(() =>
         {
             if (!_disposed) Apply(e.Recording, e.ShowPill);
-        });
-
-    private void OnStateChanged(object? sender, CaptureState e) =>
-        _ui.Post(() =>
-        {
-            if (!_disposed) _pill.OnState(_capture.GetState());
         });
 
     private void OnCaptureFailed(object? sender, CaptureErrorEventArgs e) =>

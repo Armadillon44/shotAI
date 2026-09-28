@@ -29,7 +29,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
 {
     private readonly ICaptureService _capture;
     private readonly IProjectService _projects;
-    private readonly IUiDispatcher _ui;
+    private readonly CaptureStateFollower _state;
     private ShellViewKind _currentView = ShellViewKind.Home;
     private bool _settingsOpen;
     private string? _openProjectPath;
@@ -59,7 +59,6 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         Confirm = confirm;
         _capture = capture;
         _projects = projects;
-        _ui = ui;
         // Both live as long as the shell, so neither subscription outlives what it holds; the menu
         // lives as long as the app, which has the one shell.
         home.OpenRequested += (_, path) => _ = OpenProjectAsync(path);
@@ -73,9 +72,10 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
             if (e.PropertyName == nameof(ProjectDetailViewModel.RawProjectTheme)) FollowProjectTheme();
         };
         menu.ProjectThemeChosen += (_, choice) => Project.SetProjectTheme(choice.ProjectPath, choice.Brand);
-        // 11 T7: subscribe, then read; each change re-reads the state when its post runs.
-        capture.StateChanged += OnCaptureStateChanged;
-        ApplyCaptureState(capture.GetState());
+        // 11 T7: subscribe, then read; each change re-reads the state when its post runs, one
+        // post at a time (Q-IPC-20).
+        _state = new CaptureStateFollower(capture, ui, ApplyCaptureState);
+        _state.Follow();
     }
 
     /// <summary>Raised once after each transition, when every fact of it is set; <see cref="NavigationState"/> follows it.</summary>
@@ -182,7 +182,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _capture.StateChanged -= OnCaptureStateChanged;
+        _state.Dispose();
     }
 
     /// <summary>
@@ -337,12 +337,6 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         _busy = busy;
         Home.Hero.IsBusy = busy;
     }
-
-    private void OnCaptureStateChanged(object? sender, CaptureState e) =>
-        _ui.Post(() =>
-        {
-            if (!_disposed) ApplyCaptureState(_capture.GetState());
-        });
 
     // 2.1: a session hides every view behind the Recording view; its end shows the project it
     // recorded into, read again so the new steps show (EDGE-REP-43).
