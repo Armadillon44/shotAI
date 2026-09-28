@@ -52,7 +52,18 @@ internal sealed class FakeSession(OpenedProject opened, SynchronizationContext? 
 
     public Task<ProjectManifest> Apply(ProjectOperation op) => throw new NotSupportedException();
 
-    public Task<ProjectManifest> ApplyDurable(Func<IProjectService, Task<ProjectManifest>> call) => throw new NotSupportedException();
+    /// <summary>The manifests the durable calls gave, in order (a call gets no store: an adopt's needs none).</summary>
+    public List<ProjectManifest> Durables { get; } = [];
+
+    /// <summary>As S5 with nothing pending: the call's manifest becomes <see cref="Current"/>, and <see cref="ManifestChangeKind.Durable"/> is raised.</summary>
+    public async Task<ProjectManifest> ApplyDurable(Func<IProjectService, Task<ProjectManifest>> call)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        var manifest = await call(null!);
+        Durables.Add(manifest);
+        Raise(manifest, ManifestChangeKind.Durable);
+        return manifest;
+    }
 
     public Task WhenIdleAsync(CancellationToken ct = default) => Task.CompletedTask;
 

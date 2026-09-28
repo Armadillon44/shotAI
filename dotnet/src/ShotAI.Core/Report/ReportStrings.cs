@@ -46,6 +46,15 @@ public static class ReportStrings
     /// <summary>The accessible name of a section row whose heading is empty (7.18; native).</summary>
     public const string SectionName = "Section";
 
+    /// <summary>The command bar's Resume capturing (2.3), added in WP-B9a.</summary>
+    public const string ResumeCapturing = "\u23fa Resume capturing";
+
+    /// <summary>Its tooltip.</summary>
+    public const string ResumeCapturingTitle = "Resume capturing \u2014 click through more steps; they append to this project";
+
+    /// <summary>Its tooltip while a text step is being edited, when it is disabled (INV-REP-24, WP-C2's editor).</summary>
+    public const string ResumeCapturingBlockedTitle = "Finish editing the text step first";
+
     /// <summary>The command bar's count: <c>`${n} step${n === 1 ? '' : 's'}`</c>, every step counted.</summary>
     public static string StepCount(int count) =>
         count.ToString(CultureInfo.InvariantCulture) + " step" + (count == 1 ? "" : "s");

@@ -1663,7 +1663,7 @@ As built in WP-B6: `WindowInfoTests` has `ExplorerFileDescriptionIsWindowsExplor
 
 **Q-CAP-23. Why did Electron's main-thread stalls drop clicks?** uiohook's hook proc queues nonblocking (INV-CAP-17 note), so the documented symptom has no mechanism in the code read here. Recommended default: no action for the native port (its hook proc is independent of the dispatcher); record hook reinstalls in the log so any field recurrence is visible. Decided in WP-B4: the default; the hook procedure only copies into the ring, and every reinstall is logged at warning.
 
-**Q-CAP-24. Incomplete targets from the UI.** Electron starts a recording for `{ mode: 'window' }` or `{ mode: 'area' }` without the window or area (EDGE-CAP-60). Recommended default: parity plus one start-time warning (D23); spec 06 should make the chooser impossible to submit incomplete.
+**Q-CAP-24. Incomplete targets from the UI.** Electron starts a recording for `{ mode: 'window' }` or `{ mode: 'area' }` without the window or area (EDGE-CAP-60). Recommended default: parity plus one start-time warning (D23); spec 06 should make the chooser impossible to submit incomplete. Decided in WP-B9a: the default. Home's Capture runs only while the mode is ready (06 INV-HOME-16), and the picker's `BuildTarget` turns a Window mode with no window, or an Area mode with no area, into an Auto target (06 EDGE-HOME-7), which only Resume capturing can reach; so no incomplete target leaves the UI, and the engine's D23 warning stays for any other caller.
 
 **Risk R1 (high).** Hook removal by `LowLevelHooksTimeout` is silent and loses clicks. Mitigated by INV-CAP-17, the watchdog and AC-CAP-23.
 

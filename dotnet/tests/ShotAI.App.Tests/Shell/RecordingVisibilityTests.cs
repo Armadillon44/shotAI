@@ -14,7 +14,7 @@ namespace ShotAI.App.Tests.Shell;
 /// INV-SHELL-9), driven by a fake engine: a recording hides the main window and shows the pill;
 /// the no-click screenshot hides the main window only; the end hides the pill and brings the main
 /// window back, restored. Whether Windows gives it the foreground depends on the last input
-/// (EDGE-SHELL-30), so the activation is the manual script's (WP-B9).
+/// (EDGE-SHELL-30), so the activation is the manual script's (WP-B9a).
 /// </summary>
 public sealed class RecordingVisibilityTests
 {

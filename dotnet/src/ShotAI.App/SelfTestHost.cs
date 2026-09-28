@@ -33,7 +33,7 @@ public static partial class SelfTestHost
         return mode.Kind switch
         {
             StartupModeKind.StoreSelfTest => StoreSelfTest.RunAsync(new ProjectStoreFactory(TimeProvider.System, loggers), paths, output, error, log),
-            // The capture self-test is spec 02's (WP-B9) and the update self-test comes with the
+            // The capture self-test is spec 02's (WP-B9b) and the update self-test comes with the
             // update check (WP-E1); until then each switch is an error, never the app.
             StartupModeKind.CaptureSelfTest => NotInThisBuildAsync(error, log, "[capture-test] ERROR this build has no capture self-test"),
             StartupModeKind.UpdateSelfTest => NotInThisBuildAsync(error, log, "[update-test] ERROR this build has no update self-test"),

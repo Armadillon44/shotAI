@@ -28,7 +28,7 @@ public sealed class ReportLayoutTests
     {
         public Rig(double? viewWidth = null, double? windowWidth = null, double height = 900)
         {
-            Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), new RecordingLayout(), NullLogger<ProjectDetailViewModel>.Instance);
+            Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), new RecordingLayout(), new FixedTargets(), NullLogger<ProjectDetailViewModel>.Instance);
             View = new ProjectDetailView { DataContext = Project };
             FrameworkElement content = View;
             if (viewWidth is { } w)

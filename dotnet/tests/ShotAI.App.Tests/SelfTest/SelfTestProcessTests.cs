@@ -73,7 +73,7 @@ public sealed partial class SelfTestProcessTests
         Assert.EndsWith("] [info]  (main)     exiting (code 0)", lines[^1], StringComparison.Ordinal);
     }
 
-    /// <summary>The capture self-test is spec 02's (WP-B9); until then its switch fails with exit code 2.</summary>
+    /// <summary>The capture self-test is spec 02's (WP-B9b); until then its switch fails with exit code 2.</summary>
     [Fact]
     public async Task CaptureSwitchIsAnErrorInThisBuild()
     {

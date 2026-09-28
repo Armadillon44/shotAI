@@ -64,6 +64,10 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<INoticeService>(sp => sp.GetRequiredService<NoticeCenter>());
         services.AddSingleton<ConfirmService>();
         services.AddSingleton<IConfirmService>(sp => sp.GetRequiredService<ConfirmService>());
+        // The picker is the one named singleton view model of 06 (EDGE-HOME-57, INV-IPC-22), and
+        // the project view reads its target for Resume capturing (R-ARCH-26).
+        services.AddSingleton<CaptureModePickerViewModel>();
+        services.AddSingleton<ICaptureTargetSelection>(sp => sp.GetRequiredService<CaptureModePickerViewModel>());
         services.AddTransient<HomeViewModel>();
         services.AddSingleton<ReportImageLoader>();
         services.AddSingleton<ReportViewModelFactory>();

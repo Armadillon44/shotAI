@@ -8,8 +8,9 @@
   <!--
     The project view (spec 05 2.2, 2.3, 7.9): the command bar pinned above its own scroller, which
     holds the report's frame; the report's notices float at the top of that scroller, under the bar,
-    so they never scroll away (EDGE-REP-31). The bar's actions (the SOP panel, the size control,
-    Resume capturing, Export) join with their packages. The data context is the ProjectDetailViewModel.
+    so they never scroll away (EDGE-REP-31). Of the bar's actions, Resume capturing is here (WP-B9a);
+    the SOP panel, the size control and Export join with their packages. The data context is the
+    ProjectDetailViewModel.
   -->
   <UserControl.Resources>
     <ResourceDictionary>
@@ -25,22 +26,32 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- 2.3: Back, the title (one line, an ellipsis, its tooltip the whole title) and the step count. -->
+    <!--
+      2.3: the head row (Back, the title on one line with an ellipsis and the whole title as its
+      tooltip, the step count), and 0.55rem under it the actions row, which wraps with 0.5rem gaps.
+    -->
     <Border x:Name="CommandBar" Padding="32,9.6,32,14.4" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.hair}"
             Background="{DynamicResource Brush.ground}">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <Button x:Name="BackButton" VerticalAlignment="Center" Style="{DynamicResource Button.Small}"
-                Content="{x:Static core:ReportStrings.Back}" Command="{Binding BackCommand}" />
-        <TextBlock x:Name="TitleText" Grid.Column="1" Margin="13.6,0" VerticalAlignment="Center" Text="{Binding Title}" ToolTip="{Binding Title}"
-                   TextTrimming="CharacterEllipsis" FontSize="18.4" FontWeight="650" AutomationProperties.HeadingLevel="Level2" />
-        <TextBlock x:Name="CountText" Grid.Column="2" VerticalAlignment="Center" Text="{Binding StepCount}" FontSize="13.6"
-                   Foreground="{DynamicResource Brush.ink-2}" Typography.NumeralAlignment="Tabular" />
-      </Grid>
+      <StackPanel>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Button x:Name="BackButton" VerticalAlignment="Center" Style="{DynamicResource Button.Small}"
+                  Content="{x:Static core:ReportStrings.Back}" Command="{Binding BackCommand}" />
+          <TextBlock x:Name="TitleText" Grid.Column="1" Margin="13.6,0" VerticalAlignment="Center" Text="{Binding Title}" ToolTip="{Binding Title}"
+                     TextTrimming="CharacterEllipsis" FontSize="18.4" FontWeight="650" AutomationProperties.HeadingLevel="Level2" />
+          <TextBlock x:Name="CountText" Grid.Column="2" VerticalAlignment="Center" Text="{Binding StepCount}" FontSize="13.6"
+                     Foreground="{DynamicResource Brush.ink-2}" Typography.NumeralAlignment="Tabular" />
+        </Grid>
+        <WrapPanel x:Name="Actions" Margin="0,8.8,0,0">
+          <Button x:Name="ResumeCaptureButton" Style="{DynamicResource Button.Small}" Content="{x:Static core:ReportStrings.ResumeCapturing}"
+                  ToolTip="{x:Static core:ReportStrings.ResumeCapturingTitle}" ToolTipService.ShowOnDisabled="True"
+                  Command="{Binding ResumeCaptureCommand}" />
+        </WrapPanel>
+      </StackPanel>
     </Border>
 
     <!-- 2.1: Loading... in place of the report while a project opens. -->

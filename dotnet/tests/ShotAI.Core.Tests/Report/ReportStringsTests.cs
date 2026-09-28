@@ -23,6 +23,9 @@ public sealed class ReportStringsTests
         Assert.Equal("note callout \u2014 not a numbered step", ReportStrings.CalloutBadgeTip("note"));
         Assert.Equal("Import failed: ", ReportStrings.ImportFailed);
         Assert.Equal("Export failed: ", ReportStrings.ExportFailed);
+        Assert.Equal("\u23fa Resume capturing", ReportStrings.ResumeCapturing);
+        Assert.Equal("Resume capturing \u2014 click through more steps; they append to this project", ReportStrings.ResumeCapturingTitle);
+        Assert.Equal("Finish editing the text step first", ReportStrings.ResumeCapturingBlockedTitle);
     }
 
     /// <summary>
@@ -87,6 +90,8 @@ public sealed class ReportStringsTests
         Assert.Contains("{steps.length} step{steps.length === 1 ? '' : 's'}", detail, StringComparison.Ordinal);
         Assert.Contains(ReportStrings.ImportFailed + "{importErr}", detail, StringComparison.Ordinal);
         Assert.Contains(ReportStrings.ExportFailed + "{exportErr}", detail, StringComparison.Ordinal);
+        Assert.Contains($"? '{ReportStrings.ResumeCapturingBlockedTitle}'\n                  : '{ReportStrings.ResumeCapturingTitle}'", detail.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.Contains($">\n              {ReportStrings.ResumeCapturing}\n            </button>", detail.ReplaceLineEndings("\n"), StringComparison.Ordinal);
 
         var report = ElectronSource.Read("src/renderer/project/Report.tsx");
         Assert.Contains(ReportStrings.CaptionEmpty, report, StringComparison.Ordinal);
