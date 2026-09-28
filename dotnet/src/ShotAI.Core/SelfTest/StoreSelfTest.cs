@@ -59,7 +59,7 @@ public static partial class StoreSelfTest
         SelfTestStore? store = null;
         try
         {
-            store = factory.Create(new IsolatedPaths(paths, testRoot, settingsFile));
+            store = factory.Create(new SelfTestPaths(paths, testRoot, settingsFile));
             return await RunStepsAsync(store.Projects, testRoot, output, log).ConfigureAwait(false);
         }
         catch (Exception e)
@@ -199,22 +199,4 @@ public static partial class StoreSelfTest
 
     [LoggerMessage(Level = LogLevel.Information, Message = "{Line}")]
     private static partial void SelfTestLine(ILogger logger, string line);
-
-    // The app's paths, with the two the settings service and the store read pointed at the test's own.
-    private sealed class IsolatedPaths(IAppPaths paths, string testRoot, string settingsFile) : IAppPaths
-    {
-        public string UserDataDirectory => paths.UserDataDirectory;
-
-        public string SettingsFile => settingsFile;
-
-        public string LogsDirectory => paths.LogsDirectory;
-
-        public string LocalDataDirectory => paths.LocalDataDirectory;
-
-        public string DefaultProjectsDir => testRoot;
-
-        public string TempDirectory => paths.TempDirectory;
-
-        public string FontsDirectory => paths.FontsDirectory;
-    }
 }
