@@ -1,6 +1,9 @@
 using System.Reflection;
+using System.Windows.Threading;
 using Microsoft.Extensions.Logging.Abstractions;
+using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
+using ShotAI.App.Threading;
 using ShotAI.Core.Settings;
 using ShotAI.Core.Store;
 using Xunit;
@@ -10,8 +13,8 @@ namespace ShotAI.App.Tests.Composition;
 /// <summary>
 /// Spec 11 Q-IPC-18, 8.2: a disposed view model is in no singleton event's invocation list, so a
 /// singleton never keeps a closed view alive. The events that exist so far are
-/// <see cref="IProjectService.ProjectsChanged"/> and <see cref="ISettingsService.Changed"/>; the
-/// capture and update events join with their services.
+/// <see cref="IProjectService.ProjectsChanged"/>, <see cref="ISettingsService.Changed"/> and the
+/// capture engine's four (WP-B9b); the update events join with their service.
 /// </summary>
 public sealed class SubscriberDisposalTests
 {
@@ -25,6 +28,23 @@ public sealed class SubscriberDisposalTests
         vm.Dispose();
         Assert.DoesNotContain(vm, Subscribers(c.Store, nameof(IProjectService.ProjectsChanged)));
         Assert.DoesNotContain(vm, Subscribers(c.Settings, nameof(ISettingsService.Changed)));
+    });
+
+    /// <summary>
+    /// The capture events: the recording panel, the shell and the pill's controller, the engine's
+    /// UI subscribers, leave every one of them when disposed, the state follower's handler with them.
+    /// </summary>
+    [Fact]
+    public Task DisposedCaptureSubscribersLeaveEveryCaptureEvent() => Sta.RunAsync(() =>
+    {
+        var t = new TestShell();
+        var ui = new WpfUiDispatcher(Dispatcher.CurrentDispatcher);
+        var controller = new RecordingVisibilityController(t.Capture, ui, new CapturePillViewModel(t.Capture, ui, NullLogger<CapturePillViewModel>.Instance));
+        controller.Start();
+        Assert.Equal(1 + 3 + 3, t.Capture.Subscribers);
+        controller.Dispose();
+        t.Dispose();
+        Assert.Equal(0, t.Capture.Subscribers);
     });
 
     /// <summary>The check sees a subscriber that forgets to leave.</summary>

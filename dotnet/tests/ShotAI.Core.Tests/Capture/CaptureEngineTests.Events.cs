@@ -112,6 +112,28 @@ public sealed partial class CaptureEngineTests
     }
 
     /// <summary>
+    /// ARCHITECTURE 11 PB-4: each landed step logs its job's time at debug, from the grab to the
+    /// store's append, whatever its length; a suppressed step logs none.
+    /// </summary>
+    [Fact]
+    public async Task EachLandedStepLogsItsJobTiming()
+    {
+        await using var h = new EngineHarness();
+        h.Screen.OnGrab = _ => h.Clock.Advance(50);
+        h.Codec.OnEncode = () => h.Clock.Advance(30);
+        var p = h.Project();
+        await h.StartAsync(p);
+        await h.ClickAsync(100, 100);
+        await h.HotkeyAsync();
+        h.Windows.Current = FakeWindows.App("shotAI", "shotAI", pid: h.Own.ProcessId);
+        await h.HotkeyAsync();
+
+        Assert.Equal(
+            ["capture job: step #1 80ms (grab 50, encode 30, write 0, store 0)", "capture job: step #2 80ms (grab 50, encode 30, write 0, store 0)"],
+            h.LogLines(LogLevel.Debug).Where(l => l.StartsWith("capture job:", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
     /// R-ARCH-10, AC-CAP-35: <c>Dispose</c> returns at once without awaiting a capture in flight,
     /// tears the triggers down once, and a second call does nothing.
     /// </summary>

@@ -29,4 +29,7 @@ public partial class ShellView : UserControl
 
     /// <summary>The target dropdown's popover in the overlay layer.</summary>
     internal TargetDropdownView Dropdown => TargetDropdown;
+
+    /// <summary>The Recording view's panel.</summary>
+    internal RecordingPanelView Panel => RecordingPanel;
 }

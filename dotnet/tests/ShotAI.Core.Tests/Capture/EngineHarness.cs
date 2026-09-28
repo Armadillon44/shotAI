@@ -348,11 +348,14 @@ internal sealed class FakeCodec : IImageCodec
     /// <summary>Runs at the start of every encode (to move the clock).</summary>
     public Action? OnEncode { get; set; }
 
+    /// <summary>When set, the PNG carries its size in a real IHDR chunk, where a PNG reader looks for it.</summary>
+    public bool RealIhdr { get; set; }
+
     public byte[] EncodePng(PixelFrame frame)
     {
         lock (_crops) _encodedLive.Add(!frame.IsDisposed);
         OnEncode?.Invoke();
-        var png = FakePng.Of(frame.Width, frame.Height);
+        var png = RealIhdr ? FakePng.WithIhdr(frame.Width, frame.Height) : FakePng.Of(frame.Width, frame.Height);
         return PngBytes > png.Length ? [.. png, .. new byte[PngBytes - png.Length]] : png;
     }
 
@@ -374,6 +377,17 @@ internal static class FakePng
         [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, .. BitConverter.GetBytes(width), .. BitConverter.GetBytes(height)];
 
     public static (int Width, int Height) SizeOf(byte[] png) => (BitConverter.ToInt32(png, 8), BitConverter.ToInt32(png, 12));
+
+    /// <summary>The signature and an IHDR chunk's head: its length, its type, then the width and height, big-endian.</summary>
+    public static byte[] WithIhdr(int width, int height)
+    {
+        var png = new byte[33];
+        byte[] head = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R'];
+        head.CopyTo(png, 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(png.AsSpan(16), (uint)width);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(png.AsSpan(20), (uint)height);
+        return png;
+    }
 }
 
 internal sealed class FakeWindows : IWindowInfoProvider
@@ -387,7 +401,10 @@ internal sealed class FakeWindows : IWindowInfoProvider
 
     public ForegroundInfo? Foreground() => FailForeground ? throw new InvalidOperationException("GetForegroundWindow failed") : Current;
 
-    public IReadOnlyList<ListedWindow> ListWindows() => [.. Listed];
+    /// <summary>When set, listing the windows throws.</summary>
+    public bool FailListing { get; set; }
+
+    public IReadOnlyList<ListedWindow> ListWindows() => FailListing ? throw new InvalidOperationException("EnumWindows failed") : [.. Listed];
 
     public ListedWindow? Resolve(CaptureTargetWindow target) => Listed.FirstOrDefault(w => w.Id == target.Id);
 

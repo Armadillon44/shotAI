@@ -77,7 +77,9 @@ public sealed partial class CaptureEngine
         var filename = ShotNaming.Format(order);
         var screenshot = ShotsFolder + "/" + filename;
         var path = PathConfine.ConfineNoLinks(s.ProjectDir, screenshot, _probe) ?? throw new CaptureException(CaptureMessages.ShotsOutsideProject);
+        var writeStart = _clock.NowMs();
         await WriteShotAsync(path, shot.Png).ConfigureAwait(false);
+        var writeMs = _clock.NowMs() - writeStart;
 
         var window = foreground is null ? null : new CapturedWindow(foreground.App, foreground.Title, foreground.Pid, foreground.WindowRect);
         var el = await ElementOrUnavailableAsync(element).ConfigureAwait(false);
@@ -95,6 +97,7 @@ public sealed partial class CaptureEngine
             fromCursor = job.InsertAt is null && s.InsertCursor is not null;
         }
         ProjectManifest manifest;
+        var storeStart = _clock.NowMs();
         try
         {
             manifest = index is { } at
@@ -107,6 +110,7 @@ public sealed partial class CaptureEngine
             OrphanShot(_log, order, path);
             throw;
         }
+        var storeMs = _clock.NowMs() - storeStart;
         var landedIndex = manifest.Steps.FindIndex(x => string.Equals(x.Id, id, StringComparison.Ordinal));
         var landed = landedIndex >= 0 ? manifest.Steps[landedIndex] : step;
         lock (_gate)
@@ -120,6 +124,8 @@ public sealed partial class CaptureEngine
             }
         }
         LogStep(order, job, mode, autoMode, window, el, filename, shot);
+        // PB-4: every job's time, from the grab to the store's append, the element's wait included.
+        CaptureJobTiming(_log, order, _clock.NowMs() - grabStart, grabMs, downMs, writeMs, storeMs);
         if (job.Broadcast)
         {
             Raise(StepLanded, new StepLandedEventArgs(landed, landedIndex, s.ProjectPath), nameof(StepLanded));
