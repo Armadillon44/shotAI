@@ -19,7 +19,8 @@ with its fonts (WP-A14), the main window with its menu and About (WP-A15), the H
 (WP-B1), the capture engine's sessions and pipeline (WP-B2), its click decisions and context
 menus (WP-B3), the input hook with the hotkey (WP-B4), the screen read with display affinity
 (WP-B5), the window information with UI Automation (WP-B6), the capture pill (WP-B7), the
-area-select overlay (WP-B8) and recording from Home and the project view (WP-B9a):
+area-select overlay (WP-B8), recording from Home and the project view (WP-B9a) and the recording
+panel (WP-B9b):
 analyzers, supply-chain rules, Core's
 error, threading and composition types, `JsJson` (reads what `JSON.parse` reads, writes the
 bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron
@@ -129,7 +130,9 @@ it needs and says why, and Empty Project makes a project and opens it without re
 picker keeps its mode and picks while the app runs. The project view's Resume capturing records
 more steps into the open project with the picker's target as it is at the click. When a recording
 ends, the project shows with its new steps, read again into the open session; a discarded new
-project goes back to Home. The in-window recording panel arrives with WP-B9b.
+project goes back to Home. A main window shown during a recording, as a second launch shows it,
+holds the recording panel: the steps so far and their count, Pause or Resume, Stop, and each failed
+capture as the error notice.
 Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
 WP-B10.
 

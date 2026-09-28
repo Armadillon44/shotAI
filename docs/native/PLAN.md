@@ -1587,7 +1587,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-SHELL-15 | window size persistence | WP-A15 | no (decided in WP-A15) |
 | Q-SHELL-16 | UI-thread exceptions | WP-A12 | log, handle, show the generic notice (log and handle done in WP-A12: `CrashLogging`; the notice done in WP-A16, while the main window is visible) |
 | Q-SHELL-17 | HUD during the screenshot settle | WP-C4 | none |
-| Q-SHELL-18 | second launch while recording | WP-B9b | parity (surfaces the main window) |
+| Q-SHELL-18 | second launch while recording | WP-B9b | parity (surfaces the main window) (decided in WP-B9b: parity; the panel lists the steps so far) |
 | Q-SHELL-19 | the legacy guard's `MessageBox` | WP-E5 | keep until S5, allowlisted |
 | Q-SHELL-20 | widths and invisible borders | WP-A20 | outer widths; measure once (the default taken in WP-A15; the measurement is in #137's manual script) |
 | Q-SHELL-21 | `ShowActivated` after `Hide` | WP-B7 | test; `SW_SHOWNOACTIVATE` path if needed (decided in WP-B7: not needed) |
@@ -1805,9 +1805,9 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-17 | subscriber that forgets to marshal | WP-A12 | `VerifyAccess` in Debug, affinity tests (done in WP-A12: `ViewModelBase.CheckAffinity`, on in Debug builds; `Threading/ViewModelAffinityTests`) |
 | Q-IPC-18 | singleton keeping a view alive | WP-A12 | `SubscriberDisposalTests` (done in WP-A12, over the two events that exist so far) |
 | Q-IPC-19 | channel map maintenance | WP-A1 | `MatchesElectronWhileItExists` |
-| Q-IPC-20 | dispatcher priority | WP-B9b | `Normal` plus coalescing; the 20-click script |
+| Q-IPC-20 | dispatcher priority | WP-B9b | `Normal` plus coalescing; the 20-click script (decided in WP-B9b: `Normal`, and Core's `CaptureStateFollower` coalesces each subscriber's `StateChanged`; the 20-click run is manual) |
 | Q-IPC-21 | `VSTHRD200` on `Apply` | WP-A9 | keep the names, suppress on two members (done in WP-A9) |
-| Q-IPC-22 | `GetState()` ahead of `StepLanded` | WP-B9b | panel shows the list length |
+| Q-IPC-22 | `GetState()` ahead of `StepLanded` | WP-B9b | panel shows the list length (decided in WP-B9b: as planned, 06 D-HOME-37) |
 | Q-IPC-23 | `StartAsync` during a screenshot | WP-B2 | throws `A recording is already in progress` (D21) (decided in WP-B2) |
 
 #### 12 Packaging, CI and release
