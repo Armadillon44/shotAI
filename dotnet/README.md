@@ -49,7 +49,9 @@ formats and queues its line, and one writer appends per batch, rotates past 5 Mi
 first, `App` logs the banner, loads the settings, builds and validates the container, shows a
 placeholder window, logs the runtime line, and on exit cancels, flushes the queued writes for at
 most 5 s and disposes in the specified order; `--selftest` runs the store self-test against a
-settings file and projects folder of its own and exits 0 on `[selftest] PASS`. Every window the app
+settings file and projects folder of its own and exits 0 on `[selftest] PASS`, and `--capture-selftest`
+runs the capture self-test the same way: the seams, one step through the whole pipeline and each
+capture mode, exiting 0 on `[capture-test] PASS` and 1 on FAIL. Every window the app
 shows is excluded from capture before it is first visible: a `ShotAIWindow` registers its HWND
 when it is created, and a hook on the UI thread registers any other window it shows (tooltips,
 menus, drop-downs, system dialogs) just before the show. One instance runs per user session: a
@@ -167,6 +169,7 @@ dotnet run --project tools/ShotAI.GenBrand -- --check                           
 dotnet test --solution ShotAI.slnx -c Release                                         # Windows: every test project
 dotnet run --project src/ShotAI.App                                                   # Windows only
 dotnet run --project src/ShotAI.App -- --selftest                                     # Windows: exits 0 on PASS
+dotnet run --project src/ShotAI.App -- --capture-selftest                             # Windows: exits 0 on PASS
 ```
 
 The whole solution **builds** on Linux and macOS (`EnableWindowsTargeting`), so a broken
