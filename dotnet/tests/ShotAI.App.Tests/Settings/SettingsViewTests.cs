@@ -137,11 +137,12 @@ public sealed class SettingsViewTests
     });
 
     /// <summary>
-    /// A chip group's chips share a name of the group's own while it shows and give it up when it
-    /// goes, so WPF's static table of radio group names keeps none of them.
+    /// A chip group's chips share a name of the group's own while they show and give it up when
+    /// they go, with their tab or with the whole view, so WPF's static table of radio group names
+    /// keeps none of them.
     /// </summary>
     [Fact]
-    public Task ChipsGiveUpTheirGroupNameWhenTheTabGoes() => Hosted(async (view, rig) =>
+    public Task ChipsGiveUpTheirGroupNameWhenTheyGo() => Hosted(async (view, rig) =>
     {
         var chips = Chips(Group(view, SettingsText.Tone));
         var name = chips[0].GroupName;
@@ -149,9 +150,15 @@ public sealed class SettingsViewTests
         Assert.All(chips, c => Assert.Equal(name, c.GroupName));
         Assert.NotEqual(name, Chips(Group(view, SettingsText.Model))[0].GroupName);
 
-        rig.Vm.IsCaptureTab = true;
+        rig.Vm.IsAppearanceTab = true;
         await TestShell.Settle();
         Assert.All(chips, c => Assert.True(string.IsNullOrEmpty(c.GroupName)));
+
+        var themes = Chips(Group(view, SettingsText.Theme));
+        Assert.All(themes, c => Assert.False(string.IsNullOrEmpty(c.GroupName)));
+        Window.GetWindow(view)!.Content = null;
+        await TestShell.Settle();
+        Assert.All(themes, c => Assert.True(string.IsNullOrEmpty(c.GroupName)));
     });
 
     /// <summary>

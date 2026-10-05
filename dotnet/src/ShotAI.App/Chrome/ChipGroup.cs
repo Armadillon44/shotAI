@@ -18,9 +18,11 @@ namespace ShotAI.App.Chrome;
 /// <remarks>
 /// The chips share a group name of their own: a generated container has no logical parent, which
 /// is what groups radio buttons that have no name, so checking one would leave the others checked.
-/// They hold it only while the group is loaded: WPF keeps each group name in a static table and
-/// drops it when its last radio button gives it up, so a name no chip gave up would stay there
-/// for good, one more each time a view with chips is made.
+/// They hold it only while they show: WPF keeps each group name in a static table and drops it
+/// when its last radio button gives it up, so a name no chip gave up would stay there for good,
+/// one more each time a view with chips is made. A chip gives it up when its container is cleared
+/// (the items go, as when a tab's template is dropped) and when the group unloads with its chips
+/// (as when the whole view is dropped).
 /// </remarks>
 public sealed class ChipGroup : ItemsControl
 {
@@ -92,6 +94,7 @@ public sealed class ChipGroup : ItemsControl
         {
             BindingOperations.ClearBinding(chip, ToggleButton.IsCheckedProperty);
             BindingOperations.ClearBinding(chip, ContentControl.ContentProperty);
+            chip.GroupName = null;
         }
         base.ClearContainerForItemOverride(element, item);
     }
