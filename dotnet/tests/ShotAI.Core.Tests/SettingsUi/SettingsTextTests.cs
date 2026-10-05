@@ -66,6 +66,24 @@ public sealed partial class SettingsTextTests
         Assert.Throws<ArgumentNullException>(() => SettingsText.CustomInstructionsCount(null!));
     }
 
+    /// <summary>
+    /// A text field's text as the textarea's value: CR LF and a lone CR become LF, as HTML
+    /// normalizes them; LF and the other line separators stay as they are.
+    /// </summary>
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("a\r\nb", "a\nb")]
+    [InlineData("a\rb", "a\nb")]
+    [InlineData("a\nb", "a\nb")]
+    [InlineData("\r\n\r\n", "\n\n")]
+    [InlineData("\r\r\n\n", "\n\n\n")]
+    [InlineData("a\u2028b\u0085c\fd", "a\u2028b\u0085c\fd")]
+    public void TextareaValue(string text, string value)
+    {
+        Assert.Equal(value, SettingsText.TextareaValue(text));
+        Assert.Throws<ArgumentNullException>(() => SettingsText.TextareaValue(null!));
+    }
+
     /// <summary>2.26: the Capture tab.</summary>
     [Fact]
     public void CaptureTab()

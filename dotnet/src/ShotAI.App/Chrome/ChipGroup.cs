@@ -18,6 +18,9 @@ namespace ShotAI.App.Chrome;
 /// <remarks>
 /// The chips share a group name of their own: a generated container has no logical parent, which
 /// is what groups radio buttons that have no name, so checking one would leave the others checked.
+/// They hold it only while the group is loaded: WPF keeps each group name in a static table and
+/// drops it when its last radio button gives it up, so a name no chip gave up would stay there
+/// for good, one more each time a view with chips is made.
 /// </remarks>
 public sealed class ChipGroup : ItemsControl
 {
@@ -36,6 +39,13 @@ public sealed class ChipGroup : ItemsControl
     private static int s_groups;
 
     private readonly string _groupName = "ChipGroup" + Interlocked.Increment(ref s_groups).ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>A chip group; its chips take its group name when it loads and give it up when it unloads.</summary>
+    public ChipGroup()
+    {
+        Loaded += (_, _) => NameChips(_groupName);
+        Unloaded += (_, _) => NameChips(null);
+    }
 
     /// <inheritdoc cref="LabelPathProperty"/>
     public string LabelPath
@@ -70,7 +80,7 @@ public sealed class ChipGroup : ItemsControl
         base.PrepareContainerForItemOverride(element, item);
         if (element is not RadioButton chip || ReferenceEquals(chip, item)) return;
         chip.Margin = new Thickness(0, 0, Gap, Gap);
-        chip.GroupName = _groupName;
+        chip.GroupName = IsLoaded ? _groupName : null;
         chip.SetBinding(ContentControl.ContentProperty, new Binding(LabelPath) { Source = item, Mode = BindingMode.OneWay });
         chip.SetBinding(ToggleButton.IsCheckedProperty, new Binding(CheckedPath) { Source = item, Mode = BindingMode.TwoWay });
     }
@@ -88,6 +98,14 @@ public sealed class ChipGroup : ItemsControl
 
     /// <inheritdoc/>
     protected override AutomationPeer OnCreateAutomationPeer() => new GroupPeer(this);
+
+    private void NameChips(string? name)
+    {
+        for (var i = 0; i < Items.Count; i++)
+        {
+            if (ItemContainerGenerator.ContainerFromIndex(i) is RadioButton chip && !ReferenceEquals(chip, Items[i])) chip.GroupName = name;
+        }
+    }
 
     // A plain element peer: its children are the chips' own radio button peers, with no data
     // item wrapped around each as an ItemsControl's peer would.

@@ -76,19 +76,20 @@ public sealed class AiSettingsViewModel : SettingsSectionViewModel
         }
     }
 
-    /// <summary>The live length out of the cap: <c>12/2000</c>.</summary>
-    public string CustomInstructionsCount => SettingsText.CustomInstructionsCount(_customInstructions);
+    /// <summary>The live length out of the cap, a line break counting one as in Electron: <c>12/2000</c>.</summary>
+    public string CustomInstructionsCount => SettingsText.CustomInstructionsCount(SettingsText.TextareaValue(_customInstructions));
 
     /// <summary>The field is empty, so its placeholder shows.</summary>
     public bool ShowsCustomInstructionsPlaceholder => _customInstructions.Length == 0;
 
     /// <summary>
-    /// Writes the custom instructions as typed, unless they are what is stored (D-HOME-31). After
-    /// a failed write the field shows the stored value, whatever <see cref="Refresh"/> saw.
+    /// Writes the custom instructions as typed, their line breaks as LF as Electron stores them,
+    /// unless they are what is stored (D-HOME-31). After a failed write the field shows the stored
+    /// value, whatever <see cref="Refresh"/> saw.
     /// </summary>
     public async Task CommitCustomInstructionsAsync()
     {
-        var value = _customInstructions;
+        var value = SettingsText.TextareaValue(_customInstructions);
         if (!await WriteAsync(s => s with { Sop = s.Sop with { CustomInstructions = value } })) ShowStoredCustomInstructions();
     }
 

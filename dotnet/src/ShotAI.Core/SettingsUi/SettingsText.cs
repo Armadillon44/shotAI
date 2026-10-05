@@ -173,6 +173,17 @@ public static class SettingsText
         + (federated ? "sign in with your work account" : "connect your Anthropic API key")
         + ".";
 
+    /// <summary>
+    /// A text field's text as Electron's textarea gives it to script: each CR LF pair, then each
+    /// lone CR, as LF (HTML's newline normalization). WPF's text box breaks a line with CR LF, so
+    /// the custom instructions are counted and stored this way, as Electron counts and stores them.
+    /// </summary>
+    public static string TextareaValue(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+    }
+
     /// <summary>The custom instructions' live length, in UTF-16 code units, out of the cap: <c>12/2000</c>.</summary>
     public static string CustomInstructionsCount(string value)
     {

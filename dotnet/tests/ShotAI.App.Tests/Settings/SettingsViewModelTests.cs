@@ -247,6 +247,25 @@ public sealed class SettingsViewModelTests
     });
 
     /// <summary>
+    /// A line break in the custom instructions, CR LF in a WPF text box, counts one and is stored
+    /// as LF, as Electron's textarea has it; the same text again writes nothing.
+    /// </summary>
+    [Fact]
+    public Task CustomInstructionsKeepElectronsLineBreaks() => Sta.RunAsync(async () =>
+    {
+        using var rig = new SettingsRig();
+        rig.Vm.Ai.CustomInstructions = "a\r\nb";
+        Assert.Equal("3/2000", rig.Vm.Ai.CustomInstructionsCount);
+        await rig.Vm.Ai.CommitCustomInstructionsAsync();
+        await TestShell.Settle();
+        Assert.Equal(("a\nb", 1), (rig.Current.Sop.CustomInstructions, rig.Settings.Writes));
+
+        rig.Vm.Ai.CustomInstructions = "a\r\nb";
+        await rig.Vm.Ai.CommitCustomInstructionsAsync();
+        Assert.Equal(1, rig.Settings.Writes);
+    });
+
+    /// <summary>
     /// D-HOME-31: a field that loses the focus unchanged, a slider key-up on the stored step, and a
     /// click on the chip already chosen write nothing.
     /// </summary>

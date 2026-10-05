@@ -36,6 +36,14 @@ public sealed class ArchiveAgeOptionsTests
         Assert.Equal(6, options.Count);
     }
 
+    /// <summary>2.37, 7.13: an option's text is its label, which is what WPF names its list item after.</summary>
+    [Fact]
+    public void AnOptionReadsAsItsLabel()
+    {
+        Assert.Equal(["Never", "After 1 month", "After 3 months", "After 6 months", "After 1 year"], ArchiveAgeOptions.Standard.Select(o => o.ToString()));
+        Assert.Equal("After 45 days", ArchiveAgeOptions.For(45)[^1].ToString());
+    }
+
     /// <summary>The standard options as <c>Settings.tsx</c> writes them.</summary>
     [Fact]
     public void TheOptionsMatchTheElectronSource()

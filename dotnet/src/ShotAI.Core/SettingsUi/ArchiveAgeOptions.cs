@@ -3,7 +3,14 @@ using System.Globalization;
 namespace ShotAI.Core.SettingsUi;
 
 /// <summary>One entry of the Auto-archive list (spec 06 2.28): the age in days, 0 for never, and its label.</summary>
-public sealed record ArchiveAgeOption(int Days, string Label);
+public sealed record ArchiveAgeOption(int Days, string Label)
+{
+    /// <summary>
+    /// The label: WPF names a list item's automation peer after the item's text, so a screen
+    /// reader reads the option as it shows (2.37, 7.13).
+    /// </summary>
+    public override string ToString() => Label;
+}
 
 /// <summary>
 /// The Auto-archive list (spec 06 2.28, 7.4): Electron's five ages, and an entry of its own for

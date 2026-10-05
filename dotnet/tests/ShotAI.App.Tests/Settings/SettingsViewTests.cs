@@ -137,6 +137,24 @@ public sealed class SettingsViewTests
     });
 
     /// <summary>
+    /// A chip group's chips share a name of the group's own while it shows and give it up when it
+    /// goes, so WPF's static table of radio group names keeps none of them.
+    /// </summary>
+    [Fact]
+    public Task ChipsGiveUpTheirGroupNameWhenTheTabGoes() => Hosted(async (view, rig) =>
+    {
+        var chips = Chips(Group(view, SettingsText.Tone));
+        var name = chips[0].GroupName;
+        Assert.False(string.IsNullOrEmpty(name));
+        Assert.All(chips, c => Assert.Equal(name, c.GroupName));
+        Assert.NotEqual(name, Chips(Group(view, SettingsText.Model))[0].GroupName);
+
+        rig.Vm.IsCaptureTab = true;
+        await TestShell.Settle();
+        Assert.All(chips, c => Assert.True(string.IsNullOrEmpty(c.GroupName)));
+    });
+
+    /// <summary>
     /// INV-HOME-43: the auto-archive drop-down is a popup of the select's own template, which 03's
     /// show hook registers and excludes from capture before it is visible.
     /// </summary>
@@ -224,8 +242,13 @@ public sealed class SettingsViewTests
 
         rig.Vm.IsStorageTab = true;
         await TestShell.Settle();
-        Assert.Equal(SettingsText.AutoArchiveName, Peer(Combo(view)).GetName());
+        var combo = Combo(view);
+        Assert.Equal(SettingsText.AutoArchiveName, Peer(combo).GetName());
         Assert.Equal(SettingsText.ChangeFolder, Peer(VisualTree.Descendants<Button>(view.TabPanel).Single()).GetName());
+        combo.IsDropDownOpen = true;
+        await TestShell.Settle();
+        Assert.Equal(ArchiveAgeOptions.Standard.Select(o => o.Label), Enumerable.Range(0, combo.Items.Count).Select(i => Peer(combo.ItemContainerGenerator.ContainerFromIndex(i)).GetName()));
+        combo.IsDropDownOpen = false;
 
         rig.Vm.IsAboutTab = true;
         await TestShell.Settle();

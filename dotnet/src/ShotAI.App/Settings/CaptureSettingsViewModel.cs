@@ -44,8 +44,10 @@ public sealed class CaptureSettingsViewModel : SettingsSectionViewModel
 
     /// <summary>
     /// Writes the slider's value as the step it parses to (EDGE-HOME-38), unless that is what is
-    /// stored (D-HOME-31): a Tab key-up that only lands on the slider writes nothing. After a
-    /// failed write the slider shows the stored value, whatever <see cref="Refresh"/> saw.
+    /// stored (D-HOME-31): a Tab key-up that only lands on the slider writes nothing. A stored
+    /// value between steps (a hand edit) is written as its step on the first release, as
+    /// Electron's range input, which shows and writes the step, does. After a failed write the
+    /// slider shows the stored value, whatever <see cref="Refresh"/> saw.
     /// </summary>
     public async Task CommitScaleAsync()
     {
