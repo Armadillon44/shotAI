@@ -116,11 +116,12 @@ public sealed partial class SettingsTextTests
         Assert.Throws<ArgumentNullException>(() => SettingsText.BrandBlurb(null!));
     }
 
-    /// <summary>EDGE-HOME-26: any brand but the default reads LFI's blurb, as Electron's binary choice gives it.</summary>
+    /// <summary>EDGE-HOME-26: any brand but the default reads LFI's blurb, as Electron's binary choice gives it; ids compare ordinally.</summary>
     [Theory]
     [InlineData("lfi")]
     [InlineData("future")]
     [InlineData("")]
+    [InlineData("SHOTAI")]
     public void AnyOtherBrandReadsLfisBlurb(string brand) =>
         Assert.Equal("LaCrosse Footwear corporate \u2014 charcoal and rust.", SettingsText.BrandBlurb(brand));
 

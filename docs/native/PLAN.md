@@ -1643,7 +1643,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-EDIT-18 | double-click time | WP-C9 | the system value |
 | Q-EDIT-19 | OCR token splitting | WP-C11 | measure; join rule if needed |
 | Q-EDIT-20 | cross-spec names | WP-C7 | closed by R-ARCH-7 and R-ARCH-8; texts applied in the 2026-09-23 consolidation |
-| Q-EDIT-21 | system dialogs are unregistered shotAI HWNDs | WP-C9 (color dialog); WP-B10a and WP-D10 (`IFileDialogs`, `IExportDialogs`) | `CC_ENABLEHOOK` hook registers the `ChooseColor` HWND with `OwnWindowRegistry` on `WM_INITDIALOG`, pinned in `AllWindowsRegisteredTests`; the file dialogs get the equivalent registration in the WP that adds them. Updated in WP-A13: the UI thread's show hook registers every dialog it shows before it is visible, so each of these WPs adds its `AllWindowsRegisteredTests` case and needs no registration of its own |
+| Q-EDIT-21 | system dialogs are unregistered shotAI HWNDs | WP-C9 (color dialog); WP-B10a and WP-D10 (`IFileDialogs`, `IExportDialogs`) | `CC_ENABLEHOOK` hook registers the `ChooseColor` HWND with `OwnWindowRegistry` on `WM_INITDIALOG`, pinned in `AllWindowsRegisteredTests`; the file dialogs get the equivalent registration in the WP that adds them. Updated in WP-A13: the UI thread's show hook registers every dialog it shows before it is visible, so each of these WPs adds its `AllWindowsRegisteredTests` case and needs no registration of its own. Done for `IFileDialogs` in WP-B10a: `AllWindowsRegisteredTests.FolderDialogIsExcludedBeforeItIsShown` |
 
 #### 05 Report
 
@@ -1682,9 +1682,9 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-HOME-6 | default focus in destructive confirms | WP-A19a | parity (taken in WP-A19a: the confirm button has the focus, Delete included) |
 | Q-HOME-7 | bulk failure reporting | WP-D16 | parity (last failure) |
 | Q-HOME-8 | manual check raising the notice | WP-E1 | parity |
-| Q-HOME-9 | recents after a folder change | WP-B10a | parity |
+| Q-HOME-9 | recents after a folder change | WP-B10a | parity (decided in WP-B10a: parity, the store keeps the recents) |
 | Q-HOME-10 | tour bubble height | WP-B10b | the 220 DIP rule |
-| Q-HOME-11 | blurbs for a third brand | WP-B10a | keyed by brand id |
+| Q-HOME-11 | blurbs for a third brand | WP-B10a | keyed by brand id (decided in WP-B10a: the two strings keyed by brand id, LFI's for any other; a test fails when a brand ships without one) |
 | Q-HOME-12 | high contrast | WP-A14, WP-E6 | the `SystemColors` mapping after design sign-off; not a pilot blocker. Built in WP-A14 behind `ThemeManager.HighContrastMappingEnabled`, off; WP-E6's sign-off turns it on |
 | Q-HOME-13 | emoji in labels | WP-A16 | accept monochrome (taken in WP-A16) |
 | Q-HOME-14 | row shadows | WP-A16 | keep; replace if AC-HOME-35 fails (kept in WP-A16; AC-HOME-35 is manual) |
@@ -1804,7 +1804,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-INFRA-17 | generator location | WP-A4 | `dotnet/tools/ShotAI.GenBrand` plus the checked-in table |
 | Q-INFRA-18 | pending update across launches | WP-E1 | parity (not remembered) |
 | Q-INFRA-19 | static Archivo source | WP-A14 | upstream release matching 2.001, else a documented fontTools script. Decided in WP-A14: no release tags exist; commit `555fa4a`, which built the bundled variable file, unmodified |
-| Q-INFRA-20 | a write whose re-read fails | WP-A10, WP-B10a | as specified (the service half done in WP-A10); the notice agreed with 06 in WP-B10a |
+| Q-INFRA-20 | a write whose re-read fails | WP-A10, WP-B10a | as specified (the service half done in WP-A10); the notice agreed with 06 in WP-B10a (decided in WP-B10a: the standard error notice, with the OS's message) |
 | Q-INFRA-21 | user info in links | WP-A19b | parity (allowed) (taken in WP-A19b) |
 | Q-INFRA-22 | does `OpenAsync` throw | WP-A19b | 11's contract (R-ARCH-25) (taken in WP-A19b: `LauncherExceptionPropagates`) |
 | 10 risks | JsJson layout; three generators; GitHub API dependence; users switching builds | WP-A10, WP-A4, WP-E1, WP-E5 | byte tests; parity test plus manual macOS stamp check; `--update-selftest`; pilot notes |
@@ -1825,7 +1825,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-10 | exit flush as a blocking wait | WP-A12 | bounded blocking wait (DL4) (done in WP-A12: `ShutdownFlush`, `Shutdown/ExitFlushTests`) |
 | Q-IPC-11 | debug call logging volume | WP-A12 | Debug level (`ServiceLog.Call` is Debug since WP-A11) |
 | Q-IPC-12 | `ShotAIException` everywhere | WP-A1 | foundation first; each spec derives |
-| Q-IPC-13 | recents on a folder change | WP-B10a | parity |
+| Q-IPC-13 | recents on a folder change | WP-B10a | parity (decided in WP-B10a: parity) |
 | Q-IPC-14 | where `IExternalLinks` lives | WP-A19b | 11's algorithm, 10's registration (taken in WP-A19b: Core `ShotAI.Core.Links`, registered by `AddShotAICore`) |
 | Q-IPC-15 | Pause and Resume off the UI thread | WP-B7 | `Task.Run` (decided in WP-B7) |
 | Q-IPC-16 | image decoding in-process | WP-A17 | closed by R-ARCH-21 (ARCHITECTURE 15.4): explicit decoders after magic bytes; WP-A17 implements it |
