@@ -135,8 +135,8 @@ ends, the project shows with its new steps, read again into the open session; a 
 project goes back to Home. A main window shown during a recording, as a second launch shows it,
 holds the recording panel: the steps so far and their count, Pause or Resume, Stop, and each failed
 capture as the error notice.
-Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15 and Settings with
-WP-B10.
+Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15, Settings with
+WP-B10a and the onboarding tour with WP-B10b.
 
 ## Layout
 
