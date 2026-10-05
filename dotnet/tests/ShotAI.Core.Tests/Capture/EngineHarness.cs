@@ -296,6 +296,7 @@ internal sealed class FakeCodec : IImageCodec
     private readonly List<PixelRect> _crops = [];
     private readonly List<PixelFrame> _made = [];
     private readonly List<bool> _encodedLive = [];
+    private int _encodes;
 
     public IReadOnlyList<PixelRect> Crops
     {
@@ -351,11 +352,20 @@ internal sealed class FakeCodec : IImageCodec
     /// <summary>When set, the PNG carries its size in a real IHDR chunk, where a PNG reader looks for it.</summary>
     public bool RealIhdr { get; set; }
 
+    /// <summary>With <see cref="RealIhdr"/>, the size the IHDR gives the nth encode (from 1) of a frame, to make a shot read back wrong; the frame's own when unset.</summary>
+    public Func<int, PixelFrame, (int Width, int Height)>? IhdrSize { get; set; }
+
+    /// <summary>The encode (from 1) that returns no bytes, as a broken encoder might.</summary>
+    public int? EmptyAt { get; set; }
+
     public byte[] EncodePng(PixelFrame frame)
     {
         lock (_crops) _encodedLive.Add(!frame.IsDisposed);
+        var n = Interlocked.Increment(ref _encodes);
         OnEncode?.Invoke();
-        var png = RealIhdr ? FakePng.WithIhdr(frame.Width, frame.Height) : FakePng.Of(frame.Width, frame.Height);
+        if (n == EmptyAt) return [];
+        var (width, height) = IhdrSize?.Invoke(n, frame) ?? (frame.Width, frame.Height);
+        var png = RealIhdr ? FakePng.WithIhdr(width, height) : FakePng.Of(frame.Width, frame.Height);
         return PngBytes > png.Length ? [.. png, .. new byte[PngBytes - png.Length]] : png;
     }
 

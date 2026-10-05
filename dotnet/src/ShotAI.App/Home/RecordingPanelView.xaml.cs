@@ -32,9 +32,6 @@ public partial class RecordingPanelView : UserControl
         Unloaded += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParameterChanged;
     }
 
-    /// <summary>Whether the dot pulses now, for the tests.</summary>
-    internal bool Pulsing => _pulsing;
-
     private void Follow(RecordingPanelViewModel? viewModel)
     {
         if (_viewModel is { } old) old.PropertyChanged -= OnViewModelChanged;

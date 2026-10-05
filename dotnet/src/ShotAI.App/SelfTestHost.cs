@@ -93,7 +93,10 @@ public static partial class SelfTestHost
     [LoggerMessage(Level = LogLevel.Information, Message = "{Line}")]
     private static partial void SelfTestLine(ILogger logger, string line);
 
-    // The container first, which ends the engine and flushes the store, then the settings it read.
+    // The container ends the engine and flushes the store. It disposes the settings service too,
+    // through Core's forwarding registrations, which may come before the store's own disposal;
+    // that is safe, since the store's queued jobs never read the settings and every call was
+    // awaited before the clean-up. The settings service's own disposal after it then does nothing.
     private sealed class Owner(ServiceProvider provider, SettingsService settings) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()

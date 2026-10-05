@@ -129,6 +129,46 @@ public sealed class CaptureSelfTestTests : IAsyncDisposable
         Assert.Equal((1100, 800), CaptureSelfTest.MenuAutoStored(monitor, new Rect(200, 200, 900, 600), new Point(100, 100), 0.85));
     }
 
+    /// <summary>
+    /// Q-CAP-35: a window's menu selection is cropped on the monitor that holds the window's
+    /// corner, so a picked window on a secondary wider than the primary gives a crop wider than the
+    /// primary, which Electron's check failed.
+    /// </summary>
+    [Fact]
+    public async Task MenuWindowOnAWiderSecondaryPasses()
+    {
+        var frame = new Rect(1366, 0, 2560, 1400);
+        _h.Screen.Displays.Clear();
+        _h.Screen.Displays.Add(FakeMonitorCapture.Monitor(1, 0, 0, 1366, 768, primary: true));
+        _h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1366, 0, 2560, 1440));
+        _h.Windows.Current = FakeWindows.App("Terminal", "pwsh", frame);
+        _h.Windows.Listed.Clear();
+        _h.Windows.Listed.Add(new ListedWindow(7, 200, "pwsh", "Terminal", frame, false, true));
+
+        Assert.Equal(SelfTestOutcome.Pass, await RunAsync());
+        Assert.Contains("[capture-test] mode menu(window)  = 2560x1400", Out);
+        Assert.Contains("[capture-test] mode screen        = 1366x768", Out);
+    }
+
+    /// <summary>Q-CAP-35: a window's menu selection wider than every monitor the test sees fails the run.</summary>
+    [Fact]
+    public async Task AMenuWindowCropWiderThanEveryMonitorFails()
+    {
+        var frame = new Rect(1366, 0, 2560, 1400);
+        _h.Screen.Displays.Clear();
+        _h.Screen.Displays.Add(FakeMonitorCapture.Monitor(1, 0, 0, 1366, 768, primary: true));
+        _h.Screen.Displays.Add(FakeMonitorCapture.Monitor(2, 1366, 0, 2560, 1440));
+        _h.Windows.Current = FakeWindows.App("Terminal", "pwsh", frame);
+        _h.Windows.Listed.Clear();
+        _h.Windows.Listed.Add(new ListedWindow(7, 200, "pwsh", "Terminal", frame, false, true));
+
+        // The test sees the primary alone, so the engine's crop on the secondary is wider than any monitor it knows.
+        Assert.Equal(SelfTestOutcome.Fail, await CaptureSelfTest.RunAsync(_ => Services(screen: new PrimaryOnly(_h.Screen)), _paths, _out, _err, Log));
+        Assert.Empty(Err);
+        Assert.Contains("[capture-test] mode menu(window)  = 2560x1400", Out);
+        Assert.Equal("[capture-test] FAIL", Out[^1]);
+    }
+
     /// <summary>With no pickable window the window checks are skipped, which is no failure.</summary>
     [Fact]
     public async Task NoPickableWindowsSkipsTheWindowChecks()
@@ -162,6 +202,64 @@ public sealed class CaptureSelfTestTests : IAsyncDisposable
         Assert.Contains("[capture-test] pipeline step    = (none)", Out);
         Assert.Contains("[capture-test] pipeline caption  = undefined", Out);
         Assert.Contains("[capture-test] shot written       = false", Out);
+        // The log reads as the console does: no caption, not a caption's length.
+        var logged = _logs.Entries.Select(e => e.Message).ToList();
+        Assert.Contains("[capture-test] pipeline caption  = undefined", logged);
+        Assert.DoesNotContain(logged, l => l.Contains("(caption of", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A suppressed pipeline step alone fails the run: one of shotAI's windows lies under the
+    /// hotkey step's point, not under the modes' clicks, which all pass.
+    /// </summary>
+    [Fact]
+    public async Task ASuppressedPipelineStepAloneFailsTheRun()
+    {
+        _h.Own.Windows.Add(new Rect(0, 0, 50, 50));
+
+        Assert.Equal(SelfTestOutcome.Fail, await RunAsync());
+        Assert.Empty(Err);
+        Assert.Contains("[capture-test] pipeline step    = (none)", Out);
+        Assert.Contains("[capture-test] mode screen        = 1920x1080", Out);
+        Assert.Contains("[capture-test] mode menu(screen)  = 1920x1080", Out);
+        Assert.Equal("[capture-test] FAIL", Out[^1]);
+    }
+
+    /// <summary>An empty shot alone fails the run: the pipeline's step lands, but its file has no bytes (<c>capture-selftest.ts:82-84</c>).</summary>
+    [Fact]
+    public async Task AnEmptyShotAloneFailsThePipeline()
+    {
+        _h.Codec.EmptyAt = 1;
+
+        Assert.Equal(SelfTestOutcome.Fail, await CaptureSelfTest.RunAsync(_ => Services(codec: new FakeCodec()), _paths, _out, _err, Log));
+        Assert.Empty(Err);
+        Assert.Contains("[capture-test] pipeline step    = shots/step-0001.png", Out);
+        Assert.Contains("[capture-test] shot written       = false", Out);
+        Assert.Contains("[capture-test] mode screen        = 1920x1080", Out);
+        Assert.Equal("[capture-test] FAIL", Out[^1]);
+    }
+
+    /// <summary>
+    /// Each mode's size alone fails the run: its shot reads back a pixel wider, empty, or wider
+    /// than any monitor, and every other check passes. The engine encodes the pipeline's shot,
+    /// then each mode's in order; the run's own seams check encodes with a codec of its own.
+    /// </summary>
+    [Theory]
+    [InlineData("screen", 2, 1921)]
+    [InlineData("area", 3, 301)]
+    [InlineData("window", 4, 0)]
+    [InlineData("menu(window)", 5, 1921)]
+    [InlineData("menu(auto)", 6, 1101)]
+    [InlineData("menu(screen)", 7, 1921)]
+    public async Task EachModesSizeAloneFailsTheRun(string mode, int encode, int width)
+    {
+        _h.Codec.IhdrSize = (n, frame) => (n == encode ? width : frame.Width, frame.Height);
+
+        Assert.Equal(SelfTestOutcome.Fail, await CaptureSelfTest.RunAsync(_ => Services(codec: new FakeCodec()), _paths, _out, _err, Log));
+        Assert.Empty(Err);
+        Assert.Single(Out, l => l.StartsWith("[capture-test] mode " + mode.PadRight(13) + " = " + width.ToString(System.Globalization.CultureInfo.InvariantCulture) + "x", StringComparison.Ordinal));
+        Assert.Contains("[capture-test] shot written       = true", Out);
+        Assert.Equal("[capture-test] FAIL", Out[^1]);
     }
 
     /// <summary>A failing seam is reported on standard error, the other checks still run, and the run fails.</summary>
@@ -210,6 +308,21 @@ public sealed class CaptureSelfTestTests : IAsyncDisposable
         Assert.Equal(["[capture-test] modes: no monitor available"], Err);
         Assert.Contains("[capture-test] shot written       = true", Out);
         Assert.DoesNotContain(Out, l => l.StartsWith("[capture-test] listTargets", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Q-CAP-32: a monitor read that throws in the modes check fails that check and the run, on
+    /// standard error, but is no error outside the checks: the verdict is still printed.
+    /// </summary>
+    [Fact]
+    public async Task AFailingMonitorReadFailsTheModesAlone()
+    {
+        var screen = new MonitorsFailLater(_h.Screen);
+
+        Assert.Equal(SelfTestOutcome.Fail, await CaptureSelfTest.RunAsync(_ => Services(screen: screen), _paths, _out, _err, Log));
+        Assert.Equal(["[capture-test] modes FAILED: EnumDisplayMonitors failed"], Err);
+        Assert.Contains("[capture-test] shot written       = true", Out);
+        Assert.Equal("[capture-test] FAIL", Out[^1]);
     }
 
     /// <summary>Failing modes alone fail the run: listing the windows throws, and the rest of the modes do not run.</summary>
@@ -291,8 +404,8 @@ public sealed class CaptureSelfTestTests : IAsyncDisposable
     private Task<SelfTestOutcome> RunAsync() => CaptureSelfTest.RunAsync(_ => Services(), _paths, _out, _err, Log);
 
     // The body's own seams may differ from the engine's, so a test can fail one check alone.
-    private CaptureSelfTestServices Services(IScreenCapture? screen = null, IWindowInfoProvider? windows = null) =>
-        new(_h.Engine, _h.Projects, screen ?? _h.Screen, windows ?? _h.Windows, _h.Codec, _h.Triggers, _h.Settings, new Owner(() => Interlocked.Increment(ref _disposed)));
+    private CaptureSelfTestServices Services(IScreenCapture? screen = null, IWindowInfoProvider? windows = null, IImageCodec? codec = null) =>
+        new(_h.Engine, _h.Projects, screen ?? _h.Screen, windows ?? _h.Windows, codec ?? _h.Codec, _h.Triggers, _h.Settings, new Owner(() => Interlocked.Increment(ref _disposed)));
 
     private static string Ints(double value) => ((int)value).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
@@ -302,6 +415,29 @@ public sealed class CaptureSelfTestTests : IAsyncDisposable
         private int _reads;
 
         public IReadOnlyList<MonitorDescriptor> Monitors() => Interlocked.Increment(ref _reads) == 1 ? inner.Monitors() : [];
+
+        public MonitorDescriptor? FromPoint(int x, int y) => inner.FromPoint(x, y);
+
+        public PixelFrame Grab(MonitorDescriptor monitor) => inner.Grab(monitor);
+    }
+
+    // The screen as the test's body sees it, with the primary monitor alone; the engine sees them all.
+    private sealed class PrimaryOnly(IScreenCapture inner) : IScreenCapture
+    {
+        public IReadOnlyList<MonitorDescriptor> Monitors() => [.. inner.Monitors().Where(m => m.IsPrimary)];
+
+        public MonitorDescriptor? FromPoint(int x, int y) => inner.FromPoint(x, y);
+
+        public PixelFrame Grab(MonitorDescriptor monitor) => inner.Grab(monitor);
+    }
+
+    // The screen whose monitor read works for the seams check and throws for the modes check's.
+    private sealed class MonitorsFailLater(IScreenCapture inner) : IScreenCapture
+    {
+        private int _reads;
+
+        public IReadOnlyList<MonitorDescriptor> Monitors() =>
+            Interlocked.Increment(ref _reads) == 1 ? inner.Monitors() : throw new InvalidOperationException("EnumDisplayMonitors failed");
 
         public MonitorDescriptor? FromPoint(int x, int y) => inner.FromPoint(x, y);
 

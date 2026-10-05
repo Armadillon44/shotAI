@@ -34,8 +34,9 @@ public sealed record CaptureSelfTestServices(
 /// The checks run in Electron's order, each even when an earlier one failed: the seams the engine
 /// reads, one hotkey step through the whole pipeline, then each capture mode. Each session ends
 /// in a <c>finally</c>, since one engine runs them all. The full-monitor sizes allow for the
-/// downscale (EDGE-CAP-34), and the auto mode's menu selection must be exactly the owner and the
-/// click box's crop (Q-CAP-25). Lines go to standard output, the failures to standard error, and
+/// downscale (EDGE-CAP-34), the auto mode's menu selection must be exactly the owner and the
+/// click box's crop (Q-CAP-25), and the window mode's may be as wide as the widest monitor
+/// (Q-CAP-35). Lines go to standard output, the failures to standard error, and
 /// every line to the log at Information; the log's copy carries no window title or caption (10
 /// 7.5.5). The steps run on the pool: the grab takes the shield's lock and the codec refuses an
 /// STA thread.
@@ -179,7 +180,10 @@ public static partial class CaptureSelfTest
             var shotExists = step is not null && ShotWritten(Path.Combine(created.Path, step.Screenshot));
             var caption = step is null ? "undefined" : step.Caption;
             await print.OutAsync(Prefix + "pipeline step    = " + (step is null ? "(none)" : step.Screenshot)).ConfigureAwait(false);
-            await print.OutAsync(Prefix + "pipeline caption  = " + caption, Prefix + "pipeline caption  = (caption of " + Count(caption.Length) + " characters)").ConfigureAwait(false);
+            // With no step there is no caption, and the log says so as the console does.
+            await print.OutAsync(
+                Prefix + "pipeline caption  = " + caption,
+                step is null ? null : Prefix + "pipeline caption  = (caption of " + Count(caption.Length) + " characters)").ConfigureAwait(false);
             await print.OutAsync(Prefix + "pipeline monitor  = " + MonitorText(step)).ConfigureAwait(false);
             await print.OutAsync(Prefix + "manifest steps    = " + Count(steps.Count)).ConfigureAwait(false);
             await print.OutAsync(Prefix + "shot written       = " + (shotExists ? "true" : "false")).ConfigureAwait(false);
@@ -199,16 +203,17 @@ public static partial class CaptureSelfTest
     // checkCaptureModes (capture-selftest.ts:116-232): one click step per mode, each into its own project.
     private static async Task<bool> CheckModesAsync(CaptureSelfTestServices s, string root, Printer print)
     {
-        var all = s.Screen.Monitors();
-        var mon = all.FirstOrDefault(m => m.IsPrimary) ?? all.FirstOrDefault();
-        if (mon is null)
-        {
-            await print.ErrAsync(Prefix + "modes: no monitor available").ConfigureAwait(false);
-            return false;
-        }
-        var ok = true;
         try
         {
+            // Read inside the check: a monitor read that throws fails the modes, not the run (Q-CAP-32).
+            var all = s.Screen.Monitors();
+            var mon = all.FirstOrDefault(m => m.IsPrimary) ?? all.FirstOrDefault();
+            if (mon is null)
+            {
+                await print.ErrAsync(Prefix + "modes: no monitor available").ConfigureAwait(false);
+                return false;
+            }
+            var ok = true;
             await s.Projects.SetProjectsDirAsync(root).ConfigureAwait(false);
             var targets = await s.Engine.ListTargetsAsync().ConfigureAwait(false);
             await print.OutAsync(Prefix + "listTargets       = " + Count(targets.Windows.Count) + " windows, " + Count(targets.Monitors.Count) + " monitors").ConfigureAwait(false);
@@ -233,9 +238,11 @@ public static partial class CaptureSelfTest
                 var windowTarget = new CaptureTarget("window", Window: new CaptureTargetWindow(w.Id, w.Pid, w.Title));
                 var win = await RunModeAsync(s, root, print, "window", windowTarget, point).ConfigureAwait(false);
                 ok = ok && win is { Width: >= 1, Height: >= 1 };
-                // A menu selection in window mode crops to the picked window and the menu box.
+                // A menu selection in window mode crops to the picked window and the menu box, on the
+                // monitor that holds the window's corner (2.8 path A), which need not be the primary:
+                // no wider than the widest monitor (Q-CAP-35).
                 var menuWin = await RunModeAsync(s, root, print, "menu(window)", windowTarget, point, menuPopup: true).ConfigureAwait(false);
-                ok = ok && menuWin is { Width: >= 1 } mw && mw.Width <= (int)mon.Bounds.Width;
+                ok = ok && menuWin is { Width: >= 1 } mw && mw.Width <= all.Max(m => (int)m.Bounds.Width);
             }
             else
             {

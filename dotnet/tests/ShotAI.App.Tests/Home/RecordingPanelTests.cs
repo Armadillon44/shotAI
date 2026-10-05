@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Collections.Specialized;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -178,25 +180,28 @@ public sealed class RecordingPanelTests
         Assert.Equal("Capture error: ", t.Notices.Error?.Text);
     });
 
-    /// <summary>11 T6: every event reaches the panel on the UI thread, from the engine's.</summary>
+    /// <summary>11 T6: every event reaches the panel on the UI thread, from the engine's: the steps, the state and the error's notice.</summary>
     [Fact]
     public Task EventsFromAPoolThreadAreMarshalled() => Sta.RunAsync(async () =>
     {
         using var t = new TestShell();
         var ui = Thread.CurrentThread;
-        var threads = new List<Thread>();
-        t.Recording.Steps.CollectionChanged += (_, _) => threads.Add(Thread.CurrentThread);
-        t.Recording.PropertyChanged += (_, _) => threads.Add(Thread.CurrentThread);
+        var threads = new ConcurrentQueue<Thread>();
+        t.Recording.Steps.CollectionChanged += (_, _) => threads.Enqueue(Thread.CurrentThread);
+        t.Recording.PropertyChanged += (_, _) => threads.Enqueue(Thread.CurrentThread);
+        ((INotifyCollectionChanged)t.Notices.Notices).CollectionChanged += (_, _) => threads.Enqueue(Thread.CurrentThread);
         t.Capture.State = FakeCaptureService.Recording(0);
 
         await Task.Run(() =>
         {
             t.Capture.RaiseStepLanded(Shot("s1"), 0);
             t.Capture.RaiseStepLanded(Shot("s2"), 1);
+            t.Capture.RaiseError("Disk full");
         });
         await TestShell.Settle();
 
         Assert.Equal(2, t.Recording.Steps.Count);
+        Assert.Equal("Capture error: Disk full", t.Notices.Error?.Text);
         Assert.NotEmpty(threads);
         Assert.All(threads, thread => Assert.Same(ui, thread));
     });
@@ -235,7 +240,7 @@ public sealed class RecordingPanelTests
             Assert.Same(window.FindResource("Brush.danger-tint"), panel.Background);
             Assert.Same(window.FindResource("Brush.danger-bd"), panel.BorderBrush);
             Assert.Same(window.FindResource("Brush.danger"), dot.Fill);
-            Assert.Equal(SystemParameters.ClientAreaAnimation, view.Pulsing);
+            Assert.Equal(SystemParameters.ClientAreaAnimation, dot.HasAnimatedProperties);
             Assert.Equal(HomeText.Pause, VisualTree.Named<Button>(view, "PauseResumeButton").Content);
 
             t.Capture.RaiseState(FakeCaptureService.Paused(1));
@@ -244,7 +249,7 @@ public sealed class RecordingPanelTests
             Assert.Same(window.FindResource("Brush.caut-bg"), panel.Background);
             Assert.Same(window.FindResource("Brush.caut-bd"), panel.BorderBrush);
             Assert.Same(window.FindResource("Brush.draft"), dot.Fill);
-            Assert.False(view.Pulsing);
+            Assert.False(dot.HasAnimatedProperties);
             Assert.Equal(1.0, dot.Opacity);
             Assert.Equal(HomeText.Resume, VisualTree.Named<Button>(view, "PauseResumeButton").Content);
             Assert.Same(window.FindResource("Button.Primary"), VisualTree.Named<Button>(view, "StopButton").Style);

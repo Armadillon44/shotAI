@@ -18,7 +18,8 @@ namespace ShotAI.App.Tests.Threading;
 /// <c>StateChanged</c> for each step from its own thread, and two UI subscribers, the recording
 /// panel and the pill, see them in raise order: every step once and in order, and a state read
 /// after the last raise. A state post that is still queued takes the place of a later one, so
-/// with the UI thread held the panel sees <c>[S, T, S]</c>, the one state reading both steps.
+/// with the UI thread held the panel sees <c>[S, T, S]</c>, the one state reading both steps,
+/// and each subscriber has posted one state, not one per step.
 /// </summary>
 public sealed class EventOrderTests
 {
@@ -54,12 +55,15 @@ public sealed class EventOrderTests
             held.Set();
             release.Wait(Sta.Timeout);
         });
+        var posted = 0;
 
         var raising = Task.Run(() =>
         {
             held.Wait(Sta.Timeout);
+            var before = s.Ui.Posts;
             s.Capture.RaiseStepLanded(Shot("s1"), 0);
             s.Capture.RaiseStepLanded(Shot("s2"), 1);
+            posted = s.Ui.Posts - before;
             release.Set();
         });
         await raising;
@@ -67,11 +71,20 @@ public sealed class EventOrderTests
 
         Assert.Equal(["S1", "T2", "S2"], s.Panel);
         Assert.Equal([ShellStrings.PillActiveLabel(false, 2)], s.Pill);
+        // Q-IPC-20: the panel's two steps, and one state for each follower, the panel's and the
+        // pill's; one per step each would be six.
+        Assert.Equal(4, posted);
 
         // The queue is free again: the next step's state posts anew.
-        await Task.Run(() => s.Capture.RaiseStepLanded(Shot("s3"), 2));
+        var third = await Task.Run(() =>
+        {
+            var before = s.Ui.Posts;
+            s.Capture.RaiseStepLanded(Shot("s3"), 2);
+            return s.Ui.Posts - before;
+        });
         await TestShell.Settle();
         Assert.Equal(["S1", "T2", "S2", "S3", "T3"], s.Panel);
+        Assert.Equal(3, third);
     });
 
     /// <summary>The panel and the pill's controller over one engine, with what each saw after the start.</summary>
@@ -83,7 +96,7 @@ public sealed class EventOrderTests
 
         public Subscribers()
         {
-            Ui = new WpfUiDispatcher(Dispatcher.CurrentDispatcher);
+            Ui = new AreaSelectionHarness.CountingDispatcher(new WpfUiDispatcher(Dispatcher.CurrentDispatcher));
             Capture.State = FakeCaptureService.Recording(0);
             _panel = new RecordingPanelViewModel(Capture, Ui, new NoticeCenter(NullLogger<NoticeCenter>.Instance));
             _pill = new CapturePillViewModel(Capture, Ui, NullLogger<CapturePillViewModel>.Instance);
@@ -99,7 +112,8 @@ public sealed class EventOrderTests
 
         public FakeCaptureService Capture { get; } = new();
 
-        public WpfUiDispatcher Ui { get; }
+        /// <summary>The UI thread's dispatcher, counting the posts made through it.</summary>
+        public AreaSelectionHarness.CountingDispatcher Ui { get; }
 
         /// <summary><c>S</c> and the list's length for each step listed, <c>T</c> and the count read for each state applied.</summary>
         public List<string> Panel { get; } = [];
