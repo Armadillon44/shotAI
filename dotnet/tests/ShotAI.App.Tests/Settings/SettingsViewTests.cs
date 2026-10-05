@@ -5,6 +5,7 @@ using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using ShotAI.App.Chrome;
 using ShotAI.App.Settings;
@@ -71,6 +72,10 @@ public sealed class SettingsViewTests
 
         rig.Vm.IsStorageTab = true;
         await TestShell.Settle();
+
+        // A client's first request roots the window's peers at its handle; until one comes, a peer
+        // hands out no providers.
+        User32.SendMessage(new WindowInteropHelper(Window.GetWindow(view)).Handle, User32.WmGetObject, 0, User32.UiaRootObjectId);
         var selection = (ISelectionProvider)strip.GetPattern(PatternInterface.Selection);
         Assert.False(selection.CanSelectMultiple);
         Assert.True(selection.IsSelectionRequired);
@@ -179,20 +184,22 @@ public sealed class SettingsViewTests
         {
             var tokens = ThemeTokenSet.For(brand, appearance);
             await TestShell.Settle();
-            var instructions = Field(view, SettingsText.CustomInstructions);
+            AssertField(Field(view, SettingsText.CustomInstructions));
             rig.Vm.IsStorageTab = true;
             await TestShell.Settle();
             var combo = Combo(view);
-            var box = (Border)combo.Template.FindName("Field", combo);
+            AssertField(combo);
+            Assert.Equal(Colour(tokens, "field-bg"), Solid(((Border)combo.Template.FindName("Field", combo)).Background));
             rig.Vm.IsAboutTab = true;
             await TestShell.Settle();
-            var name = Field(view, SettingsText.YourName);
-            foreach (var control in new Control[] { instructions, combo, name })
+            AssertField(Field(view, SettingsText.YourName));
+
+            // Each while its tab shows: a section's controls leave the tree, and their styles, with it.
+            void AssertField(Control control)
             {
                 Assert.Equal(Colour(tokens, "field-bg"), Solid(control.Background));
                 Assert.Equal(Colour(tokens, "ink"), Solid(control.Foreground));
             }
-            Assert.Equal(Colour(tokens, "field-bg"), Solid(box.Background));
         }
         finally
         {

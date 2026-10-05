@@ -1,5 +1,6 @@
+using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using ShotAI.App.Chrome;
 using ShotAI.App.Home;
 using ShotAI.App.Report;
@@ -15,6 +16,7 @@ public partial class ShellView : UserControl
     {
         InitializeComponent();
         TargetDropdown.Attach(Home.TargetTrigger, Home.ScrollViewer);
+        DataContextChanged += OnDataContextChanged;
     }
 
     /// <summary>The Home view, made once and kept.</summary>
@@ -35,8 +37,24 @@ public partial class ShellView : UserControl
     /// <summary>The Recording view's panel.</summary>
     internal RecordingPanelView Panel => RecordingPanel;
 
-    /// <summary>The Settings view while Settings is open and laid out, else null.</summary>
-    internal SettingsView? SettingsView =>
-        VisualTreeHelper.GetChildrenCount(SettingsHost) > 0 && VisualTreeHelper.GetChild(SettingsHost, 0) is ContentPresenter presenter
-            && VisualTreeHelper.GetChildrenCount(presenter) > 0 ? VisualTreeHelper.GetChild(presenter, 0) as SettingsView : null;
+    /// <summary>The Settings view while Settings is open, else null.</summary>
+    internal SettingsView? SettingsView => SettingsHost.Content as SettingsView;
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.OldValue is INotifyPropertyChanged old) old.PropertyChanged -= OnViewModelChanged;
+        if (e.NewValue is INotifyPropertyChanged model) model.PropertyChanged += OnViewModelChanged;
+        ShowSettings(e.NewValue as ShellViewModel);
+    }
+
+    private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ShellViewModel.Settings)) ShowSettings(sender as ShellViewModel);
+    }
+
+    // A view of its own for each open (D-HOME-16). A content template would not do: a host
+    // collapsed while Settings is closed applies no template, so the next open's model would
+    // reach the last open's view, scrolled where that one was left.
+    private void ShowSettings(ShellViewModel? shell) =>
+        SettingsHost.Content = shell?.Settings is { } settings ? new SettingsView { DataContext = settings } : null;
 }
