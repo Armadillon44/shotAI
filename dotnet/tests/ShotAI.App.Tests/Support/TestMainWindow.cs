@@ -3,6 +3,7 @@ using ShotAI.App.Chrome;
 using ShotAI.App.Home;
 using ShotAI.App.Report;
 using ShotAI.App.Services;
+using ShotAI.App.Settings;
 using ShotAI.App.Shell;
 using ShotAI.App.Threading;
 using ShotAI.Core.Store;
@@ -53,7 +54,9 @@ internal static class TestMainWindow
         var project = new ProjectDetailViewModel(
             projects, new ProjectSessionFactory(projects, NullLogger<ProjectSessionFactory>.Instance), new ReportViewModelFactory(), new RecordingLayout(), mode,
             NullLogger<ProjectDetailViewModel>.Instance);
-        return new ShellViewModel(home, project, new RecordingPanelViewModel(capture, ui, notices), menu, notices, confirm, capture, projects, ui);
+        var settings = new SettingsViewModelFactory(
+            new FakeSettingsService(), projects, new FakeFileDialogs(), new FakeAppInfo(), notices, ui, NullLogger<SettingsViewModel>.Instance);
+        return new ShellViewModel(home, project, new RecordingPanelViewModel(capture, ui, notices), menu, notices, confirm, capture, projects, settings, ui);
     }
 }
 

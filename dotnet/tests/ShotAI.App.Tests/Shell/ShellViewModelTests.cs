@@ -10,7 +10,8 @@ namespace ShotAI.App.Tests.Shell;
 /// <summary>
 /// Spec 06 8.4 and 2.1: the view shown, derived from the open project and Settings; the header
 /// and its Settings button; Home entered and left as it comes and goes. The recording rows are
-/// <c>ShellViewModelTests.Recording.cs</c> (WP-B9a); the tour's join in WP-B10.
+/// <c>ShellViewModelTests.Recording.cs</c> (WP-B9a), the Settings rows
+/// <c>ShellViewModelTests.Settings.cs</c> (WP-B10a); the tour's join in WP-B10b.
 /// </summary>
 public sealed partial class ShellViewModelTests
 {
@@ -248,15 +249,16 @@ public sealed partial class ShellViewModelTests
     public Task ArgumentsAreChecked() => Sta.RunAsync(() =>
     {
         using var t = new TestShell();
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, null!, t.Notices, t.Confirm, t.Capture, t.Projects, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, (INoticeService)null!, t.Confirm, t.Capture, t.Projects, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, null!, t.Capture, t.Projects, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, null!, t.Projects, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, null!, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, null!));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, null!, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, (INoticeService)null!, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, null!, t.Capture, t.Projects, t.SettingsFactory, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, null!, t.Projects, t.SettingsFactory, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, null!, t.SettingsFactory, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, null!, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, null!));
         Assert.Throws<ArgumentNullException>(() => t.Shell.ShowProject(null!, null));
     });
 }

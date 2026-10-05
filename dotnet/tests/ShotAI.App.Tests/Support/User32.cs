@@ -13,6 +13,8 @@ internal static unsafe partial class User32
     public const uint WdaNone = 0;
     public const uint WdaExcludeFromCapture = 0x11;
     public const uint WmClose = 0x0010;
+    public const uint WmCommand = 0x0111;
+    public const nuint IdCancel = 2;
     public const int SwMinimize = 6;
     public const int SwMaximize = 3;
     public const int SwShowNoActivate = 4;

@@ -348,8 +348,11 @@
 
   <!--
     settings switch: a 38 x 22 track, radius-chip, control-bd, checked accent; an 18 DIP surface knob
-    at 2, checked at 18, shadow 0 1px 2px rgba(0, 0, 0, 0.25). The 0.15 s transitions join with the
-    Settings view (WP-B10).
+    at 2, checked at 18, shadow 0 1px 2px rgba(0, 0, 0, 0.25). CSS's 0.15 s ease transitions of the
+    track's background and the knob's left are the CheckStates transitions: the accent track fades
+    in over the control-bd one, which is the same sRGB mix, and the knob slides 16 DIP, each on CSS
+    ease's spline. A state reached without a transition (the first frame, or Windows' animations
+    off) is reached at once.
   -->
   <Style x:Key="Switch" TargetType="CheckBox">
     <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
@@ -358,7 +361,52 @@
       <Setter.Value>
         <ControlTemplate TargetType="CheckBox">
           <Grid Width="38" Height="22" Background="Transparent">
+            <VisualStateManager.CustomVisualStateManager>
+              <chrome:MotionAwareStateManager />
+            </VisualStateManager.CustomVisualStateManager>
+            <VisualStateManager.VisualStateGroups>
+              <VisualStateGroup x:Name="CheckStates">
+                <VisualStateGroup.Transitions>
+                  <VisualTransition To="Checked">
+                    <Storyboard>
+                      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity">
+                        <SplineDoubleKeyFrame KeyTime="0:0:0.15" Value="1" KeySpline="0.25,0.1 0.25,1" />
+                      </DoubleAnimationUsingKeyFrames>
+                      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Knob" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)">
+                        <SplineDoubleKeyFrame KeyTime="0:0:0.15" Value="16" KeySpline="0.25,0.1 0.25,1" />
+                      </DoubleAnimationUsingKeyFrames>
+                    </Storyboard>
+                  </VisualTransition>
+                  <VisualTransition To="Unchecked">
+                    <Storyboard>
+                      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity">
+                        <SplineDoubleKeyFrame KeyTime="0:0:0.15" Value="0" KeySpline="0.25,0.1 0.25,1" />
+                      </DoubleAnimationUsingKeyFrames>
+                      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Knob" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)">
+                        <SplineDoubleKeyFrame KeyTime="0:0:0.15" Value="0" KeySpline="0.25,0.1 0.25,1" />
+                      </DoubleAnimationUsingKeyFrames>
+                    </Storyboard>
+                  </VisualTransition>
+                </VisualStateGroup.Transitions>
+                <VisualState x:Name="Checked">
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="1" Duration="0" />
+                    <DoubleAnimation Storyboard.TargetName="Knob" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" To="16" Duration="0" />
+                  </Storyboard>
+                </VisualState>
+                <VisualState x:Name="Unchecked" />
+                <VisualState x:Name="Indeterminate" />
+              </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
             <Border x:Name="Track" Background="{DynamicResource Brush.control-bd}" Tag="{DynamicResource RadiusValue.chip}">
+              <Border.CornerRadius>
+                <MultiBinding Converter="{StaticResource CapsuleCornerConverter}">
+                  <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}" />
+                  <Binding Path="Tag" RelativeSource="{RelativeSource Self}" />
+                </MultiBinding>
+              </Border.CornerRadius>
+            </Border>
+            <Border x:Name="On" Opacity="0" Background="{DynamicResource Brush.accent}" Tag="{DynamicResource RadiusValue.chip}">
               <Border.CornerRadius>
                 <MultiBinding Converter="{StaticResource CapsuleCornerConverter}">
                   <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}" />
@@ -368,16 +416,15 @@
             </Border>
             <Ellipse x:Name="Knob" Width="18" Height="18" Margin="2" HorizontalAlignment="Left" VerticalAlignment="Top"
                      Fill="{DynamicResource Brush.surface}">
+              <Ellipse.RenderTransform>
+                <TranslateTransform />
+              </Ellipse.RenderTransform>
               <Ellipse.Effect>
                 <DropShadowEffect Color="{StaticResource FixedColors.KnobShadow}" Opacity="0.25" ShadowDepth="1" Direction="270" BlurRadius="2" />
               </Ellipse.Effect>
             </Ellipse>
           </Grid>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.accent}" />
-              <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
-            </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.55" />
             </Trigger>
@@ -399,7 +446,8 @@
 
   <!--
     settings toggle: a card whose whole area toggles its switch, the text on the left and the switch on
-    the right, 1rem apart; 0.9rem 1.1rem, 1px hair, radius-panel, surface-2.
+    the right, 1rem apart; 0.9rem 1.1rem, 1px hair, radius-panel, surface-2. Its switch moves as the
+    Switch style's does.
   -->
   <Style x:Key="SettingsToggleCard" TargetType="CheckBox">
     <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
@@ -417,6 +465,43 @@
           <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource Radius.panel}"
                   Padding="{TemplateBinding Padding}">
+            <VisualStateManager.CustomVisualStateManager>
+              <chrome:MotionAwareStateManager />
+            </VisualStateManager.CustomVisualStateManager>
+            <VisualStateManager.VisualStateGroups>
+              <VisualStateGroup x:Name="CheckStates">
+                <VisualStateGroup.Transitions>
+                  <VisualTransition To="Checked">
+                    <Storyboard>
+                      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity">
+                        <SplineDoubleKeyFrame KeyTime="0:0:0.15" Value="1" KeySpline="0.25,0.1 0.25,1" />
+                      </DoubleAnimationUsingKeyFrames>
+                      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Knob" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)">
+                        <SplineDoubleKeyFrame KeyTime="0:0:0.15" Value="16" KeySpline="0.25,0.1 0.25,1" />
+                      </DoubleAnimationUsingKeyFrames>
+                    </Storyboard>
+                  </VisualTransition>
+                  <VisualTransition To="Unchecked">
+                    <Storyboard>
+                      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity">
+                        <SplineDoubleKeyFrame KeyTime="0:0:0.15" Value="0" KeySpline="0.25,0.1 0.25,1" />
+                      </DoubleAnimationUsingKeyFrames>
+                      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Knob" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)">
+                        <SplineDoubleKeyFrame KeyTime="0:0:0.15" Value="0" KeySpline="0.25,0.1 0.25,1" />
+                      </DoubleAnimationUsingKeyFrames>
+                    </Storyboard>
+                  </VisualTransition>
+                </VisualStateGroup.Transitions>
+                <VisualState x:Name="Checked">
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="On" Storyboard.TargetProperty="Opacity" To="1" Duration="0" />
+                    <DoubleAnimation Storyboard.TargetName="Knob" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" To="16" Duration="0" />
+                  </Storyboard>
+                </VisualState>
+                <VisualState x:Name="Unchecked" />
+                <VisualState x:Name="Indeterminate" />
+              </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -433,8 +518,19 @@
                     </MultiBinding>
                   </Border.CornerRadius>
                 </Border>
+                <Border x:Name="On" Opacity="0" Background="{DynamicResource Brush.accent}" Tag="{DynamicResource RadiusValue.chip}">
+                  <Border.CornerRadius>
+                    <MultiBinding Converter="{StaticResource CapsuleCornerConverter}">
+                      <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}" />
+                      <Binding Path="Tag" RelativeSource="{RelativeSource Self}" />
+                    </MultiBinding>
+                  </Border.CornerRadius>
+                </Border>
                 <Ellipse x:Name="Knob" Width="18" Height="18" Margin="2" HorizontalAlignment="Left" VerticalAlignment="Top"
                          Fill="{DynamicResource Brush.surface}">
+                  <Ellipse.RenderTransform>
+                    <TranslateTransform />
+                  </Ellipse.RenderTransform>
                   <Ellipse.Effect>
                     <DropShadowEffect Color="{StaticResource FixedColors.KnobShadow}" Opacity="0.25" ShadowDepth="1" Direction="270" BlurRadius="2" />
                   </Ellipse.Effect>
@@ -443,9 +539,167 @@
             </Grid>
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.accent}" />
-              <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.55" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+    The quality slider: Chromium's range input with accent-color, a 4 DIP track whose part before the
+    thumb is the accent and the rest control-bd, and a 16 DIP accent thumb. A click on the track moves
+    the thumb there (the view sets IsMoveToPointEnabled).
+  -->
+  <Style x:Key="RangeFill" TargetType="RepeatButton">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RepeatButton">
+          <Grid Background="Transparent">
+            <Border Height="4" VerticalAlignment="Center" CornerRadius="2" Background="{TemplateBinding Background}" />
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="RangeThumb" TargetType="Thumb">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Thumb">
+          <Ellipse Width="16" Height="16" Fill="{DynamicResource Brush.accent}" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="Range" TargetType="Slider">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="MinHeight" Value="16" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Slider">
+          <Grid Background="Transparent">
+            <Track x:Name="PART_Track">
+              <Track.DecreaseRepeatButton>
+                <RepeatButton Style="{StaticResource RangeFill}" Background="{DynamicResource Brush.accent}" Command="Slider.DecreaseLarge" />
+              </Track.DecreaseRepeatButton>
+              <Track.IncreaseRepeatButton>
+                <RepeatButton Style="{StaticResource RangeFill}" Background="{DynamicResource Brush.control-bd}" Command="Slider.IncreaseLarge" />
+              </Track.IncreaseRepeatButton>
+              <Track.Thumb>
+                <Thumb Style="{StaticResource RangeThumb}" />
+              </Track.Thumb>
+            </Track>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.55" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+    The auto-archive select (D-HOME-30): project input's box, field-bg and ink, with the drop-down
+    arrow 0.75rem from the right; focused, the focus-ring outline and an accent border. The drop-down
+    is the template's own Popup, which 03's show hook registers before it is visible (INV-HOME-43),
+    drawn as the app's menus are: surface, a hair border, radius-control and the menu shadow, 4 DIP
+    under the box and at least as wide. Its margin leaves room for the shadow, which a popup would
+    otherwise clip, and the offsets put the border where the margin moved it from.
+  -->
+  <Style x:Key="SelectItem" TargetType="ComboBoxItem">
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.ink}" />
+    <Setter Property="Padding" Value="9.6,6.72" />
+    <Setter Property="FontSize" Value="{DynamicResource Fs.body}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ComboBoxItem">
+          <Border Background="{TemplateBinding Background}" CornerRadius="{DynamicResource Radius.control-sm}">
+            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+    <Style.Triggers>
+      <Trigger Property="IsSelected" Value="True">
+        <Setter Property="FontWeight" Value="{DynamicResource Fw.title}" />
+      </Trigger>
+      <Trigger Property="IsHighlighted" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Brush.accent-tint}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style x:Key="SelectInput" TargetType="ComboBox">
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Background" Value="{DynamicResource Brush.field-bg}" />
+    <Setter Property="Foreground" Value="{DynamicResource Brush.ink}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.control-bd}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="12,8.8" />
+    <Setter Property="FontSize" Value="15.2" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="ItemContainerStyle" Value="{StaticResource SelectItem}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ComboBox">
+          <Grid>
+            <Border x:Name="Ring" Margin="-2" BorderThickness="2" BorderBrush="{DynamicResource Brush.focus-ring}"
+                    CornerRadius="{DynamicResource Radius.control}" Visibility="Collapsed" />
+            <Border x:Name="Field" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource Radius.control}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" IsHitTestVisible="False"
+                                  Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                  ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                  ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+                <Path Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center" IsHitTestVisible="False" Data="M 0,0 L 4,4 L 8,0"
+                      Stroke="{DynamicResource Brush.ink-2}" StrokeThickness="1.5" />
+              </Grid>
+            </Border>
+            <ToggleButton Focusable="False" IsTabStop="False" ClickMode="Press"
+                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+              <ToggleButton.Template>
+                <ControlTemplate TargetType="ToggleButton">
+                  <Border Background="Transparent" />
+                </ControlTemplate>
+              </ToggleButton.Template>
+            </ToggleButton>
+            <Popup x:Name="PART_Popup" Placement="Bottom" PlacementTarget="{Binding ElementName=Field}" HorizontalOffset="-24" VerticalOffset="-12"
+                   AllowsTransparency="True" Focusable="False" PopupAnimation="None"
+                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}">
+              <Border x:Name="DropDown" Margin="24,16,24,32" Padding="4.8" BorderThickness="1" SnapsToDevicePixels="True"
+                      MinWidth="{Binding ActualWidth, ElementName=Field}" MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                      BorderBrush="{DynamicResource Brush.hair}" Background="{DynamicResource Brush.surface}"
+                      CornerRadius="{DynamicResource Radius.control}" Effect="{DynamicResource Shadow.menu}">
+                <ScrollViewer Focusable="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                  <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                </ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+              <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+              <Setter TargetName="Field" Property="BorderBrush" Value="{DynamicResource Brush.accent}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.55" />
@@ -680,7 +934,8 @@
 
   <!--
     settings tab: 0.55rem 0.9rem, a 2 DIP bottom border on the container's 1 DIP hair line (margin -1),
-    ink-2, fs-body, fw-title; hover ink; on: accent text and border.
+    ink-2, fs-body, fw-title; on: accent text and border; hover ink, the on tab's text too, since
+    :hover outranks the on class. Only the on tab is a Tab stop (the roving tab index, INV-HOME-39).
   -->
   <Style x:Key="TabUnderline" TargetType="RadioButton">
     <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
@@ -704,12 +959,15 @@
       </Setter.Value>
     </Setter>
     <Style.Triggers>
-      <Trigger Property="IsMouseOver" Value="True">
-        <Setter Property="Foreground" Value="{DynamicResource Brush.ink}" />
-      </Trigger>
       <Trigger Property="IsChecked" Value="True">
         <Setter Property="Foreground" Value="{DynamicResource Brush.accent}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.accent}" />
+      </Trigger>
+      <Trigger Property="IsChecked" Value="False">
+        <Setter Property="IsTabStop" Value="False" />
+      </Trigger>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.ink}" />
       </Trigger>
     </Style.Triggers>
   </Style>

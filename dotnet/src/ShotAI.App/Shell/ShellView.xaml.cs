@@ -1,7 +1,9 @@
 using System.Windows.Controls;
+using System.Windows.Media;
 using ShotAI.App.Chrome;
 using ShotAI.App.Home;
 using ShotAI.App.Report;
+using ShotAI.App.Settings;
 
 namespace ShotAI.App.Shell;
 
@@ -32,4 +34,9 @@ public partial class ShellView : UserControl
 
     /// <summary>The Recording view's panel.</summary>
     internal RecordingPanelView Panel => RecordingPanel;
+
+    /// <summary>The Settings view while Settings is open and laid out, else null.</summary>
+    internal SettingsView? SettingsView =>
+        VisualTreeHelper.GetChildrenCount(SettingsHost) > 0 && VisualTreeHelper.GetChild(SettingsHost, 0) is ContentPresenter presenter
+            && VisualTreeHelper.GetChildrenCount(presenter) > 0 ? VisualTreeHelper.GetChild(presenter, 0) as SettingsView : null;
 }

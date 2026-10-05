@@ -25,6 +25,8 @@ public sealed class ViewModelDependencyTests
     [
         "IUiDispatcher", "INoticeService", "IConfirmService",
         "IProjectSessionFactory", "EditorFactory", "SopPanelViewModelFactory", "ReportViewModelFactory", "DocScaleEditorFactory",
+        // Settings is made fresh on each open (06 7.12; added in WP-B10a).
+        "SettingsViewModelFactory",
         "ICaptureTargetSelection",
         // The registered clock (ARCHITECTURE 4.3), for a view model that reads the time (06's HomeViewModel; added in WP-A16).
         "TimeProvider",

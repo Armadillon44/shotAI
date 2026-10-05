@@ -19,17 +19,17 @@ public sealed class XamlResourceKeyGuardTests
     internal static IReadOnlyList<(string Why, IReadOnlyList<string> Keys)> NotReadYet { get; } =
     [
         (
-            "A colour as a Color is for effects and gradients; the tour (WP-B10) and the report's editing states (WP-C2) are its first readers.",
+            "A colour as a Color is for effects and gradients; the tour (WP-B10b) and the report's editing states (WP-C2) are its first readers.",
             PaletteRoles.All.Select(r => ThemeTokenKeys.Color(r.Token)).ToArray()
         ),
         (
-            "The status colour of a view that does not exist yet: the Settings chips' ok state (WP-B10).",
+            "Read by no Electron rule either: the SOP badge reads ok-ink and ok-tint, and the test chip the note colours; the generated table declares it, so the dictionary has it.",
             [ThemeTokenKeys.Brush("ok")]
         ),
         (
-            "Radii, sizes, weights and shadows of views that do not exist yet: the tour (WP-B10), the report's editors (WP-C2).",
+            "Radii, sizes, weights and shadows of views that do not exist yet: the tour (WP-B10b), the report's editors (WP-C2).",
             [
-                ThemeTokenKeys.RadiusValue("panel"), ThemeTokenKeys.RadiusValue("card"),
+                ThemeTokenKeys.RadiusValue("card"),
                 ThemeTokenKeys.RadiusValue("control"), ThemeTokenKeys.RadiusValue("control-sm"),
                 ThemeTokenKeys.FsDisplay, ThemeTokenKeys.FwDisplay,
                 ThemeTokenKeys.Shadow,

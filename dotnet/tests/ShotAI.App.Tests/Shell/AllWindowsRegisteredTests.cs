@@ -7,6 +7,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging.Abstractions;
+using ShotAI.App.Services;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Support;
 using ShotAI.App.Threading;
@@ -201,6 +202,56 @@ public sealed partial class AllWindowsRegisteredTests
         return Task.CompletedTask;
     });
 
+    /// <summary>
+    /// Q-EDIT-21: Settings' folder dialog, a system dialog the UI thread shows modally, is excluded
+    /// before it is visible. A timer, which the dialog's modal loop runs, reads it once it shows
+    /// and cancels it.
+    /// </summary>
+    [Fact]
+    public Task FolderDialogIsExcludedBeforeItIsShown() => WithWindowAsync((window, registry, probe) =>
+    {
+        var main = new WindowInteropHelper(window).Handle;
+        nint dialog = 0;
+        (bool Registered, uint Affinity, uint? AtShow) seen = default;
+        var clock = Stopwatch.StartNew();
+        var ticks = 0;
+        var timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(50) };
+        timer.Tick += (_, _) =>
+        {
+            if (dialog == 0 && User32.VisibleThreadWindows().FirstOrDefault(h => h != main) is var shown and not 0)
+            {
+                dialog = shown;
+                seen = (registry.IsRegistered(dialog), User32.Affinity(dialog), probe.AffinityAtFirstShow(dialog));
+            }
+            if (dialog != 0)
+            {
+                // Cancel, as the dialog's Cancel button does; should a dialog not take that, close it.
+                var cancel = ticks++ % 2 == 0;
+                User32.PostMessage(dialog, cancel ? User32.WmCommand : User32.WmClose, cancel ? User32.IdCancel : 0, 0);
+            }
+            else if (clock.Elapsed > TimeSpan.FromSeconds(30))
+            {
+                timer.Stop();
+            }
+        };
+        timer.Start();
+        string? picked;
+        try
+        {
+            picked = new WpfFileDialogs().PickFolder(window, "Choose shotAI projects folder", Path.GetTempPath());
+        }
+        finally
+        {
+            timer.Stop();
+        }
+        Assert.NotEqual(0, dialog);
+        Assert.Null(picked);
+        Assert.True(seen.Registered, $"0x{dialog:x} was not registered while shown");
+        Assert.Equal(User32.WdaExcludeFromCapture, seen.Affinity);
+        Assert.Equal(User32.WdaExcludeFromCapture, seen.AtShow);
+        return Task.CompletedTask;
+    });
+
     /// <summary>With the window and a popup open, every visible top-level window of the UI thread is registered and excluded.</summary>
     [Fact]
     public Task EveryShownHwndIsRegistered() => WithWindowAsync(async (window, registry, probe) =>
@@ -257,7 +308,7 @@ public sealed partial class AllWindowsRegisteredTests
 
     internal static bool UsesMessageBox(string code) => MessageBoxUse().IsMatch(Comments().Replace(code, ""));
 
-    private static OwnWindowRegistry NewRegistry() => new(NullLogger<OwnWindowRegistry>.Instance);
+    internal static OwnWindowRegistry NewRegistry() => new(NullLogger<OwnWindowRegistry>.Instance);
 
     private static CapturePillWindow NewPill(OwnWindowRegistry registry, ShellShutdown shutdown) =>
         new(new WindowRegistration(registry), new CapturePillViewModel(new FakeCaptureService(), new WpfUiDispatcher(Dispatcher.CurrentDispatcher), NullLogger<CapturePillViewModel>.Instance), shutdown);
@@ -288,7 +339,7 @@ public sealed partial class AllWindowsRegisteredTests
     });
 
     // The HWND of the popup that holds content, once it is visible.
-    private static async Task<nint> PopupHandleAsync(Visual content)
+    internal static async Task<nint> PopupHandleAsync(Visual content)
     {
         var clock = Stopwatch.StartNew();
         while (clock.Elapsed < TimeSpan.FromSeconds(10))
@@ -300,7 +351,7 @@ public sealed partial class AllWindowsRegisteredTests
         return 0;
     }
 
-    private static void AssertExcludedBeforeShown(OwnWindowRegistry registry, ShowProbe probe, nint hwnd)
+    internal static void AssertExcludedBeforeShown(OwnWindowRegistry registry, ShowProbe probe, nint hwnd)
     {
         Assert.True(registry.IsRegistered(hwnd), $"0x{hwnd:x} is not registered");
         Assert.Equal(User32.WdaExcludeFromCapture, User32.Affinity(hwnd));

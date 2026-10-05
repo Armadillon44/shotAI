@@ -4,6 +4,7 @@
              xmlns:home="clr-namespace:ShotAI.App.Home"
              xmlns:report="clr-namespace:ShotAI.App.Report"
              xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
+             xmlns:settings="clr-namespace:ShotAI.App.Settings"
              xmlns:corehome="clr-namespace:ShotAI.Core.Home;assembly=ShotAI.Core"
              xmlns:coreshell="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
              Focusable="False" IsTabStop="False">
@@ -12,11 +13,15 @@
     Settings and Recording hosts, one shown at a time, and above them the overlay layer, which holds
     the target dropdown's popover, the confirm dialog and the notices. Home and the project view are
     made once and kept, so Home's scroller keeps its place (7.7) while the project view starts each
-    open at the top (05 EDGE-REP-42); Settings fills its host in WP-B10. The Recording host holds
-    the recording panel (WP-B9b), made once too, which a window shown during a session shows.
+    open at the top (05 EDGE-REP-42); the Settings host shows the shell's Settings, a new view for
+    each open, so it starts at the top too (06 D-HOME-16). The Recording host holds the recording
+    panel (WP-B9b), made once too, which a window shown during a session shows.
   -->
   <UserControl.Resources>
     <BooleanToVisibilityConverter x:Key="Visible" />
+    <DataTemplate DataType="{x:Type settings:SettingsViewModel}">
+      <settings:SettingsView />
+    </DataTemplate>
   </UserControl.Resources>
   <Grid Grid.IsSharedSizeScope="True">
     <Grid.RowDefinitions>
@@ -51,7 +56,7 @@
       <Grid x:Name="ProjectHost" Visibility="{Binding ProjectVisible, Converter={StaticResource Visible}}">
         <report:ProjectDetailView x:Name="Project" DataContext="{Binding Project}" />
       </Grid>
-      <ContentControl x:Name="SettingsHost" Focusable="False" IsTabStop="False"
+      <ContentControl x:Name="SettingsHost" Focusable="False" IsTabStop="False" Content="{Binding Settings}"
                       Visibility="{Binding SettingsVisible, Converter={StaticResource Visible}}" />
       <ContentControl x:Name="RecordingHost" Focusable="False" IsTabStop="False"
                       Visibility="{Binding RecordingVisible, Converter={StaticResource Visible}}">

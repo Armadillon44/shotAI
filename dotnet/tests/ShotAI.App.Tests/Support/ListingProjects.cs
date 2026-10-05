@@ -24,6 +24,29 @@ internal sealed class ListingProjects : FakeProjectService, IProjectService
     /// <summary>What an ungated call returns.</summary>
     public IReadOnlyList<ProjectSummary> Listing { get; set; } = [];
 
+    /// <summary>The projects folder a read returns, which a set replaces.</summary>
+    public string ProjectsDir { get; set; } = @"C:\Users\test\Documents\shotAI";
+
+    /// <summary>Each folder a set was asked for, in order.</summary>
+    public List<string> ProjectsDirsSet { get; } = [];
+
+    /// <summary>When set, a set of the projects folder throws it and changes nothing.</summary>
+    public Exception? SetProjectsDirFailure { get; set; }
+
+    /// <summary>Runs after a set took, as the real store's write of the setting does.</summary>
+    public Action<string>? ProjectsDirSet { get; set; }
+
+    public override Task<string> GetProjectsDirAsync() => Task.FromResult(ProjectsDir);
+
+    public override Task SetProjectsDirAsync(string dir)
+    {
+        ProjectsDirsSet.Add(dir);
+        if (SetProjectsDirFailure is { } failure) return Task.FromException(failure);
+        ProjectsDir = dir;
+        ProjectsDirSet?.Invoke(dir);
+        return Task.CompletedTask;
+    }
+
     /// <summary>When set, an ungated call throws it.</summary>
     public Exception? Failure { get; set; }
 
