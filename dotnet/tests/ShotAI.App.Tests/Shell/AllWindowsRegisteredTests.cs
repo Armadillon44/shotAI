@@ -205,7 +205,8 @@ public sealed partial class AllWindowsRegisteredTests
     /// <summary>
     /// Q-EDIT-21: Settings' folder dialog, a system dialog the UI thread shows modally, is excluded
     /// before it is visible. A timer, which the dialog's modal loop runs, reads it once it shows
-    /// and cancels it.
+    /// and cancels it, for as long as the pick has not returned: a dialog slow to show is still
+    /// read and closed.
     /// </summary>
     [Fact]
     public Task FolderDialogIsExcludedBeforeItIsShown() => WithWindowAsync((window, registry, probe) =>
@@ -213,7 +214,6 @@ public sealed partial class AllWindowsRegisteredTests
         var main = new WindowInteropHelper(window).Handle;
         nint dialog = 0;
         (bool Registered, uint Affinity, uint? AtShow) seen = default;
-        var clock = Stopwatch.StartNew();
         var ticks = 0;
         var timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(50) };
         timer.Tick += (_, _) =>
@@ -223,16 +223,10 @@ public sealed partial class AllWindowsRegisteredTests
                 dialog = shown;
                 seen = (registry.IsRegistered(dialog), User32.Affinity(dialog), probe.AffinityAtFirstShow(dialog));
             }
-            if (dialog != 0)
-            {
-                // Cancel, as the dialog's Cancel button does; should a dialog not take that, close it.
-                var cancel = ticks++ % 2 == 0;
-                User32.PostMessage(dialog, cancel ? User32.WmCommand : User32.WmClose, cancel ? User32.IdCancel : 0, 0);
-            }
-            else if (clock.Elapsed > TimeSpan.FromSeconds(30))
-            {
-                timer.Stop();
-            }
+            if (dialog == 0) return;
+            // Cancel, as the dialog's Cancel button does; should a dialog not take that, close it.
+            var cancel = ticks++ % 2 == 0;
+            User32.PostMessage(dialog, cancel ? User32.WmCommand : User32.WmClose, cancel ? User32.IdCancel : 0, 0);
         };
         timer.Start();
         string? picked;

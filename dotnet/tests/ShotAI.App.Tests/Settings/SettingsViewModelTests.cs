@@ -36,7 +36,7 @@ public sealed class SettingsViewModelTests
     [Fact]
     public Task ShowsCoercedValue() => Sta.RunAsync(async () =>
     {
-        using var rig = new SettingsRig(s => SettingsCoercer.Normalize(s with { ArchiveAgeDays = 1825 }, @"C:\Users\test\Documents\shotAI"));
+        using var rig = new SettingsRig(s => SettingsCoercer.Normalize(s with { ArchiveAgeDays = 5000 }, @"C:\Users\test\Documents\shotAI"));
         Assert.Equal(new ArchiveAgeOption(1825, "After 1825 days"), rig.Vm.Storage.ArchiveAge);
         Assert.Equal(6, rig.Vm.Storage.ArchiveAges.Count);
 
@@ -75,19 +75,33 @@ public sealed class SettingsViewModelTests
 
     public static TheoryData<string> ControlNames() => [.. Controls.Keys];
 
+    // Each control, with the rollback after the refresh the optimistic step posted, and before it.
+    public static TheoryData<string, bool> FailureCases()
+    {
+        var cases = new TheoryData<string, bool>();
+        foreach (var control in Controls.Keys)
+        {
+            cases.Add(control, false);
+            cases.Add(control, true);
+        }
+        return cases;
+    }
+
     /// <summary>
     /// INV-HOME-28, D-HOME-8: a write that fails is undone by the service; the control shows the
-    /// stored value again and the failure is the error notice, with the OS's message.
+    /// stored value again and the failure is the error notice, with the OS's message. A field shows
+    /// it too when the rollback came before any refresh could see the failed value.
     /// </summary>
     [Theory]
-    [MemberData(nameof(ControlNames))]
-    public Task RollsBackWithNoticeOnFailure(string control) => Sta.RunAsync(async () =>
+    [MemberData(nameof(FailureCases))]
+    public Task RollsBackWithNoticeOnFailure(string control, bool rollsBackFirst) => Sta.RunAsync(async () =>
     {
         using var rig = new SettingsRig(s => s with { UserName = "Pat" });
         var (change, shown, stored) = Controls[control];
         var before = stored(rig.Current);
         Assert.Equal(before, shown(rig.Vm));
         rig.Settings.WriteFails = DiskFull;
+        rig.Settings.RollsBackFirst = rollsBackFirst;
 
         await change(rig.Vm);
         await TestShell.Settle();
@@ -179,6 +193,7 @@ public sealed class SettingsViewModelTests
         rig.Vm.Capture.RemoteVisible = false;
         Assert.True(await TestShell.UntilAsync(() => rig.Notices.Error is not null && applier.LoopForTest.IsCompleted));
         Assert.True(rig.Current.RemoteVisible);
+        Assert.True(protection.Calls.Count > 1, "the failed toggle applied nothing");
         Assert.False(protection.Calls[^1].Excluded);
     });
 
@@ -280,11 +295,13 @@ public sealed class SettingsViewModelTests
     public Task AChangeFromAnotherThreadIsShown() => Sta.RunAsync(async () =>
     {
         using var rig = new SettingsRig();
-        var raised = new List<string?>();
-        rig.Vm.Capture.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        var ui = Environment.CurrentManagedThreadId;
+        var raised = new List<(string? Name, int Thread)>();
+        rig.Vm.Capture.PropertyChanged += (_, e) => raised.Add((e.PropertyName, Environment.CurrentManagedThreadId));
         await rig.Settings.SetFromAnotherThreadAsync(s => s with { RemoteVisible = true });
         await TestShell.Settle();
-        Assert.Contains(nameof(CaptureSettingsViewModel.RemoteVisible), raised);
+        Assert.Contains((nameof(CaptureSettingsViewModel.RemoteVisible), ui), raised);
+        Assert.All(raised, r => Assert.Equal(ui, r.Thread));
         Assert.True(rig.Vm.Capture.RemoteVisible);
     });
 
@@ -396,9 +413,13 @@ public sealed class SettingsViewModelTests
         Assert.Equal(SettingsText.Error(UserMessage.From(new InvalidOperationException())!), rig.Vm.ErrorText);
         Assert.Contains(rig.Logs.Entries, e => e.Level == LogLevel.Error && e.Message.StartsWith("settings: unexpected error", StringComparison.Ordinal));
 
+        rig.Vm.Capture.RemoteVisible = false;
+        await TestShell.Settle();
+        Assert.False(rig.Vm.HasError);
         rig.Dialogs.Throws = new OperationCanceledException();
         await rig.Vm.Storage.ChangeProjectsDirCommand.ExecuteAsync(owner);
-        Assert.Equal(SettingsText.Error(UserMessage.From(new InvalidOperationException())!), rig.Vm.ErrorText);
+        Assert.False(rig.Vm.HasError);
+        Assert.Single(rig.Logs.Entries, e => e.Level == LogLevel.Error);
     });
 
     /// <summary>Back asks the shell to close Settings; dispose leaves the settings' event, and a refresh already posted does nothing.</summary>

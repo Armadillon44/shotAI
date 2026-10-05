@@ -317,6 +317,96 @@ public sealed class SettingsViewTests
         slider.RaiseEvent(new DragCompletedEventArgs(0, 0, false) { RoutedEvent = Thumb.DragCompletedEvent });
         await TestShell.Settle();
         Assert.Equal((0.75, 2), (rig.Current.CaptureScale, rig.Settings.Writes));
+
+        slider.Value = 0.9;
+        slider.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseUpEvent });
+        await TestShell.Settle();
+        Assert.Equal((0.9, 3), (rig.Current.CaptureScale, rig.Settings.Writes));
+    });
+
+    /// <summary>
+    /// INV-HOME-28: after a failed write each control shows the stored value again, whether the
+    /// rollback came after the refresh the optimistic step posted or before it.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task AFailedWriteShowsTheStoredValue(bool rollsBackFirst) => Sta.RunAsync(async () =>
+    {
+        using var rig = new SettingsRig(s => s with { UserName = "Pat" });
+        var view = new SettingsView { DataContext = rig.Vm };
+        var window = TestShell.Host(view);
+        window.Show();
+        try
+        {
+            await TestShell.Settle();
+            var before = rig.Current;
+            rig.Settings.WriteFails = new IOException("The disk is full.");
+            rig.Settings.RollsBackFirst = rollsBackFirst;
+
+            Click(Switch(view, SettingsText.AiSwitch));
+            await TestShell.Settle();
+            Assert.True(Switch(view, SettingsText.AiSwitch).IsChecked);
+            Click(Chips(Group(view, SettingsText.Tone))[2]);
+            await TestShell.Settle();
+            Assert.Equal([true, false, false, false], Chips(Group(view, SettingsText.Tone)).Select(c => c.IsChecked == true));
+            var instructions = Field(view, SettingsText.CustomInstructions);
+            instructions.Text = "Note the permissions";
+            LoseFocus(instructions);
+            await TestShell.Settle();
+            Assert.Equal("", instructions.Text);
+
+            rig.Vm.IsCaptureTab = true;
+            await TestShell.Settle();
+            var slider = Slider(view);
+            slider.Value = 0.6;
+            slider.RaiseEvent(new DragCompletedEventArgs(0, 0, false) { RoutedEvent = Thumb.DragCompletedEvent });
+            await TestShell.Settle();
+            Assert.Equal(0.85, slider.Value);
+            Click(Switch(view, SettingsText.RemoteVisible));
+            await TestShell.Settle();
+            Assert.False(Switch(view, SettingsText.RemoteVisible).IsChecked);
+
+            rig.Vm.IsStorageTab = true;
+            await TestShell.Settle();
+            var combo = Combo(view);
+            combo.SelectedItem = combo.Items[4];
+            await TestShell.Settle();
+            Assert.Equal(90, ((ArchiveAgeOption)combo.SelectedItem).Days);
+
+            rig.Vm.IsAboutTab = true;
+            await TestShell.Settle();
+            var name = Field(view, SettingsText.YourName);
+            name.Text = "Dana";
+            LoseFocus(name);
+            await TestShell.Settle();
+            Assert.Equal("Pat", name.Text);
+            Click(Switch(view, SettingsText.IncludeName));
+            await TestShell.Settle();
+            Assert.False(Switch(view, SettingsText.IncludeName).IsChecked);
+            Click(Switch(view, SettingsText.CheckForUpdates));
+            await TestShell.Settle();
+            Assert.True(Switch(view, SettingsText.CheckForUpdates).IsChecked);
+
+            Assert.Equal(9, rig.Settings.Writes);
+            Assert.Same(before, rig.Current);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>2.28: Change... opens the folder dialog over the window Settings is in.</summary>
+    [Fact]
+    public Task ChangeOpensTheDialogOverItsWindow() => Hosted(async (view, rig) =>
+    {
+        rig.Vm.IsStorageTab = true;
+        await TestShell.Settle();
+        var change = VisualTree.Descendants<Button>(view.TabPanel).Single();
+        ((IInvokeProvider)Peer(change).GetPattern(PatternInterface.Invoke)).Invoke();
+        Assert.True(await TestShell.UntilAsync(() => rig.Dialogs.FolderPicks.Count == 1));
+        Assert.Same(Window.GetWindow(view), rig.Dialogs.FolderPicks[0].Owner);
     });
 
     /// <summary>06 2.24: the inline error shows above the tabs with its prefix, and goes when a setting is written.</summary>
@@ -332,6 +422,10 @@ public sealed class SettingsViewTests
         Assert.True(error.IsVisible);
         Assert.Equal("Error: The device is not ready.", ((TextBlock)error.Child).Text);
         Assert.True(VisualTree.Origin(error, view).Y < VisualTree.Origin(view.TabStrip, view).Y);
+
+        Click(Chips(Group(view, SettingsText.Tone))[1]);
+        await TestShell.Settle();
+        Assert.False(error.IsVisible);
     });
 
     // The view in a shown window over a SettingsRig, then the body, then the window closed.

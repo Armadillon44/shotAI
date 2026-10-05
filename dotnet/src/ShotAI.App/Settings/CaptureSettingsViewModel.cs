@@ -44,21 +44,25 @@ public sealed class CaptureSettingsViewModel : SettingsSectionViewModel
 
     /// <summary>
     /// Writes the slider's value as the step it parses to (EDGE-HOME-38), unless that is what is
-    /// stored (D-HOME-31): a Tab key-up that only lands on the slider writes nothing.
+    /// stored (D-HOME-31): a Tab key-up that only lands on the slider writes nothing. After a
+    /// failed write the slider shows the stored value, whatever <see cref="Refresh"/> saw.
     /// </summary>
-    public Task CommitScaleAsync()
+    public async Task CommitScaleAsync()
     {
         var scale = CaptureScaleSteps.Snap(_scale);
-        return WriteAsync(s => s with { CaptureScale = scale });
+        if (!await WriteAsync(s => s with { CaptureScale = scale })) ShowStoredScale();
     }
 
     /// <inheritdoc/>
     internal override void Refresh()
     {
         OnPropertyChanged(nameof(RemoteVisible));
-        var stored = Settings.Current.CaptureScale;
-        if (stored.Equals(_storedScale)) return;
-        _storedScale = stored;
-        Scale = stored;
+        if (!Settings.Current.CaptureScale.Equals(_storedScale)) ShowStoredScale();
+    }
+
+    private void ShowStoredScale()
+    {
+        _storedScale = Settings.Current.CaptureScale;
+        Scale = _storedScale;
     }
 }

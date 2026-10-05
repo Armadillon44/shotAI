@@ -21,6 +21,13 @@ internal sealed class FakeSettingsService : ISettingsService
     /// <summary>When set, each write is applied, then rolled back, and its task faults with it.</summary>
     public Exception? WriteFails { get; set; }
 
+    /// <summary>
+    /// With <see cref="WriteFails"/>, the rollback comes before the UI thread runs what the
+    /// optimistic step posted, as the real service's can when its file write fails at once;
+    /// otherwise it comes after.
+    /// </summary>
+    public bool RollsBackFirst { get; set; }
+
     /// <summary>The writes asked for: <see cref="UpdateAsync"/> calls.</summary>
     public int Writes { get; private set; }
 
@@ -59,8 +66,9 @@ internal sealed class FakeSettingsService : ISettingsService
         Set(s => SettingsCoercer.Normalize(change(s), @"C:\Users\test\Documents\shotAI"));
         if (WriteFails is not { } failure) return _current;
         // The outcome comes from the settings queue, after the optimistic step.
-        await Task.Yield();
+        if (!RollsBackFirst) await Task.Yield();
         Set(_ => previous, rollback: true);
+        if (RollsBackFirst) await Task.Yield();
         throw failure;
     }
 

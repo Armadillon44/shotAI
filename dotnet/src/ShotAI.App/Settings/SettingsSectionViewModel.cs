@@ -11,6 +11,13 @@ namespace ShotAI.App.Settings;
 /// then shows as the error notice. The section never keeps the old value: <see cref="Refresh"/>,
 /// run after each change, shows the stored one, coerced or rolled back.
 /// </summary>
+/// <remarks>
+/// A field that keeps its edit until it loses the focus is replaced by <see cref="Refresh"/> only
+/// when its own setting changed, so another setting's change keeps the edit. After its own
+/// failed write it shows the stored value whatever <see cref="Refresh"/> saw: the service rolls
+/// the write back on its own thread, and when that comes before the refresh the optimistic step
+/// posted, no refresh sees the setting change while the field still holds what failed.
+/// </remarks>
 public abstract class SettingsSectionViewModel : ViewModelBase
 {
     private readonly INoticeService _notices;

@@ -78,12 +78,17 @@ public sealed class AboutSettingsViewModel : SettingsSectionViewModel
     /// Writes the name as typed (10 keeps the first 120 code units, untrimmed), unless it is what
     /// is stored (D-HOME-31); then, if the stored name trims to nothing, turns
     /// <c>Include my name</c> off, since an empty name cannot be included (INV-HOME-29). A failed
-    /// name write stops there, as Electron's did.
+    /// name write stops there, as Electron's did, with the field showing the stored name, whatever
+    /// <see cref="Refresh"/> saw.
     /// </summary>
     public async Task CommitUserNameAsync()
     {
         var name = _userName;
-        if (!await WriteAsync(s => s with { UserName = name })) return;
+        if (!await WriteAsync(s => s with { UserName = name }))
+        {
+            ShowStoredUserName();
+            return;
+        }
         var stored = Settings.Current;
         if (JsString.Trim(stored.UserName).Length == 0 && stored.IncludeNameInReports)
             await WriteAsync(s => s with { IncludeNameInReports = false });
@@ -97,9 +102,12 @@ public sealed class AboutSettingsViewModel : SettingsSectionViewModel
     {
         OnPropertyChanged(nameof(IncludeName));
         OnPropertyChanged(nameof(UpdateCheckEnabled));
-        var stored = Settings.Current.UserName;
-        if (string.Equals(stored, _storedUserName, StringComparison.Ordinal)) return;
-        _storedUserName = stored;
-        UserName = stored;
+        if (!string.Equals(Settings.Current.UserName, _storedUserName, StringComparison.Ordinal)) ShowStoredUserName();
+    }
+
+    private void ShowStoredUserName()
+    {
+        _storedUserName = Settings.Current.UserName;
+        UserName = _storedUserName;
     }
 }

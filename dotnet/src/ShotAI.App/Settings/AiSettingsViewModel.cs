@@ -82,11 +82,14 @@ public sealed class AiSettingsViewModel : SettingsSectionViewModel
     /// <summary>The field is empty, so its placeholder shows.</summary>
     public bool ShowsCustomInstructionsPlaceholder => _customInstructions.Length == 0;
 
-    /// <summary>Writes the custom instructions as typed, unless they are what is stored (D-HOME-31).</summary>
-    public Task CommitCustomInstructionsAsync()
+    /// <summary>
+    /// Writes the custom instructions as typed, unless they are what is stored (D-HOME-31). After
+    /// a failed write the field shows the stored value, whatever <see cref="Refresh"/> saw.
+    /// </summary>
+    public async Task CommitCustomInstructionsAsync()
     {
         var value = _customInstructions;
-        return WriteAsync(s => s with { Sop = s.Sop with { CustomInstructions = value } });
+        if (!await WriteAsync(s => s with { Sop = s.Sop with { CustomInstructions = value } })) ShowStoredCustomInstructions();
     }
 
     /// <inheritdoc/>
@@ -101,10 +104,13 @@ public sealed class AiSettingsViewModel : SettingsSectionViewModel
         OnPropertyChanged(nameof(ModelBlurb));
         OnPropertyChanged(nameof(ToneBlurb));
         OnPropertyChanged(nameof(EffortBlurb));
-        var stored = Settings.Current.Sop.CustomInstructions;
-        if (string.Equals(stored, _storedCustomInstructions, StringComparison.Ordinal)) return;
-        _storedCustomInstructions = stored;
-        CustomInstructions = stored;
+        if (!string.Equals(Settings.Current.Sop.CustomInstructions, _storedCustomInstructions, StringComparison.Ordinal)) ShowStoredCustomInstructions();
+    }
+
+    private void ShowStoredCustomInstructions()
+    {
+        _storedCustomInstructions = Settings.Current.Sop.CustomInstructions;
+        CustomInstructions = _storedCustomInstructions;
     }
 
     private void ShowChoices()
