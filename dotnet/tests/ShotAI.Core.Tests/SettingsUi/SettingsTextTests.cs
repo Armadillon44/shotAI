@@ -58,6 +58,8 @@ public sealed partial class SettingsTextTests
         Assert.Equal("e.g. Reference our ticketing system, avoid jargon, always note required permissions\u2026", SettingsText.CustomInstructionsPlaceholder);
         Assert.Equal("0/2000", SettingsText.CustomInstructionsCount(""));
         Assert.Equal("5/2000", SettingsText.CustomInstructionsCount("Hello"));
+        // The length as typed: spaces and line breaks count, as the textarea's value.length does.
+        Assert.Equal("6/2000", SettingsText.CustomInstructionsCount(" a\n b "));
         // UTF-16 code units, as JavaScript's length: an emoji counts two.
         Assert.Equal("2/2000", SettingsText.CustomInstructionsCount("\U0001F600"));
         Assert.Equal("2000/2000", SettingsText.CustomInstructionsCount(new string('x', SopCatalog.CustomInstructionsMax)));

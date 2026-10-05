@@ -33,6 +33,8 @@ public sealed class ControlStylesTests
             "MenuItem.Danger", "MenuHeader", "PickerItem", "TabUnderline", "HomeTab", "HomeTabCount", "FocusVisual",
             // Added in WP-A19a: the row checkbox, the bulk bar's toggle and delete, the rename box.
             "RowCheck", "BulkToggle", "Button.SmallDanger", "RenameInput",
+            // Added in WP-B10a: Settings' quality slider and its parts, and the auto-archive select and its items.
+            "Range", "RangeFill", "RangeThumb", "SelectInput", "SelectItem",
         })
         {
             Assert.IsType<Style>(controls[key]);
@@ -108,6 +110,44 @@ public sealed class ControlStylesTests
     });
 
     /// <summary>
+    /// 06 2.24: a switch, alone or in a toggle card, shows its state when it is first shown, and a
+    /// change reaches the other state (the knob 16 DIP across, the accent track over the plain one)
+    /// whether Windows' animations play it or not. A state the template does not define (a button's
+    /// Normal, Pressed or Focused) is ignored, as WPF's own manager ignores it.
+    /// </summary>
+    [Theory]
+    [InlineData("Switch")]
+    [InlineData("SettingsToggleCard")]
+    public Task SwitchesShowTheirState(string style) => Sta.RunAsync(async () =>
+    {
+        var (window, panel) = Host(ThemeResources.Build(ThemeTokenSet.For("shotAI", Appearance.Light)));
+        var controls = Load("Themes/Controls.xaml");
+        var on = new CheckBox { Content = "On", IsChecked = true, Style = (Style)controls[style] };
+        var off = new CheckBox { Content = "Off", IsChecked = false, Style = (Style)controls[style] };
+        panel.Children.Add(on);
+        panel.Children.Add(off);
+        window.Show();
+        try
+        {
+            await Until(() => Knob(on) == (16.0, 1.0) && Knob(off) == (0.0, 0.0));
+            Assert.Equal((16.0, 1.0), Knob(on));
+            Assert.Equal((0.0, 0.0), Knob(off));
+
+            on.IsChecked = false;
+            off.IsChecked = true;
+            Assert.True(VisualStateManager.GoToState(on, "Unchecked", useTransitions: true));
+            Assert.False(VisualStateManager.GoToState(on, "Pressed", useTransitions: true));
+            await Until(() => Knob(on) == (0.0, 0.0) && Knob(off) == (16.0, 1.0));
+            Assert.Equal((0.0, 0.0), Knob(on));
+            Assert.Equal((16.0, 1.0), Knob(off));
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>
     /// Why a chip's corner is bound (06 7.5, settling its UNVERIFIED note): WPF clamps a corner to
     /// half of each side on its own, so CSS's <c>999px</c> on a 100 x 30 box is an ellipse, not
     /// the capsule CSS draws. The point (15, 1) lies inside the capsule's 15 DIP end and outside the ellipse.
@@ -156,6 +196,25 @@ public sealed class ControlStylesTests
         return (window, panel);
     }
 
+    // Animations tick with the frames: settles until the condition holds, at most 5 s.
+    private static async Task Until(Func<bool> condition)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition() && clock.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            await Settle();
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        }
+    }
+
+    // A switch's knob offset and the opacity of its accent track.
+    private static (double X, double Opacity) Knob(CheckBox box)
+    {
+        var knob = (FrameworkElement)box.Template.FindName("Knob", box);
+        var track = (FrameworkElement)box.Template.FindName("On", box);
+        return (((TranslateTransform)knob.RenderTransform).X, track.Opacity);
+    }
+
     private static FrameworkElement Instance(Type target) => target switch
     {
         _ when target == typeof(ButtonBase) || target == typeof(Button) => new Button { Content = "Label" },
@@ -167,6 +226,11 @@ public sealed class ControlStylesTests
         _ when target == typeof(ListBoxItem) => new ListBoxItem { Content = "Label", IsSelected = true },
         _ when target == typeof(Border) => new Border { Child = new TextBlock { Text = "Label" } },
         _ when target == typeof(TextBlock) => new TextBlock { Text = "Label" },
+        _ when target == typeof(RepeatButton) => new RepeatButton { Content = "Label" },
+        _ when target == typeof(Thumb) => new Thumb { Width = 16, Height = 16 },
+        _ when target == typeof(Slider) => new Slider { Minimum = 0.5, Maximum = 1, Value = 0.85 },
+        _ when target == typeof(ComboBoxItem) => new ComboBoxItem { Content = "Label", IsSelected = true },
+        _ when target == typeof(ComboBox) => new ComboBox { ItemsSource = new[] { "Label", "Other" }, SelectedIndex = 0 },
         _ => throw new InvalidOperationException($"no instance for a style of {target.Name}: add one here"),
     };
 
