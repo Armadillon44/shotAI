@@ -192,6 +192,18 @@ internal sealed class FakeCaptureService : ICaptureService
         StateChanged?.Invoke(this, Idle);
     }
 
+    /// <summary>
+    /// A step lands as the engine lands one (02 INV-CAP-27): the count is committed first, then
+    /// <see cref="StepLanded"/> and <see cref="StateChanged"/> are raised, back to back.
+    /// </summary>
+    public void RaiseStepLanded(ProjectStep step, int index)
+    {
+        CaptureState state;
+        lock (_gate) state = _state = _state with { StepCount = _state.StepCount + 1 };
+        StepLanded?.Invoke(this, new StepLandedEventArgs(step, index, state.ProjectPath ?? ""));
+        StateChanged?.Invoke(this, state);
+    }
+
     /// <summary>Raises <see cref="CaptureFailed"/> with <paramref name="message"/>.</summary>
     public void RaiseError(string message) => CaptureFailed?.Invoke(this, new CaptureErrorEventArgs(message));
 

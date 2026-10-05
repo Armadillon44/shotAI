@@ -45,7 +45,8 @@ internal sealed class TestShell : IDisposable
         IProjectSessionFactory real = new ProjectSessionFactory(Projects, new Logger<ProjectSessionFactory>(Logs));
         Sessions = sessions?.Invoke(real) ?? real;
         Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, Mode, new Logger<ProjectDetailViewModel>(Logs));
-        Shell = new ShellViewModel(Home, Project, Menu, Notices, Confirm, Capture, Projects, ui);
+        Recording = new RecordingPanelViewModel(Capture, ui, Notices);
+        Shell = new ShellViewModel(Home, Project, Recording, Menu, Notices, Confirm, Capture, Projects, ui);
         Navigation.Follow(Shell);
     }
 
@@ -86,11 +87,15 @@ internal sealed class TestShell : IDisposable
 
     public ProjectDetailViewModel Project { get; }
 
+    /// <summary>The recording panel, which the shell seeds.</summary>
+    public RecordingPanelViewModel Recording { get; }
+
     public ShellViewModel Shell { get; }
 
     public void Dispose()
     {
         Shell.Dispose();
+        Recording.Dispose();
         Project.Dispose();
         Home.Dispose();
         Menu.Dispose();

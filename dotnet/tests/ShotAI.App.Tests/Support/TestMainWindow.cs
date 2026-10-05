@@ -53,7 +53,7 @@ internal static class TestMainWindow
         var project = new ProjectDetailViewModel(
             projects, new ProjectSessionFactory(projects, NullLogger<ProjectSessionFactory>.Instance), new ReportViewModelFactory(), new RecordingLayout(), mode,
             NullLogger<ProjectDetailViewModel>.Instance);
-        return new ShellViewModel(home, project, menu, notices, confirm, capture, projects, ui);
+        return new ShellViewModel(home, project, new RecordingPanelViewModel(capture, ui, notices), menu, notices, confirm, capture, projects, ui);
     }
 }
 

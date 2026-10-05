@@ -23,8 +23,8 @@ public sealed class XamlResourceKeyGuardTests
             PaletteRoles.All.Select(r => ThemeTokenKeys.Color(r.Token)).ToArray()
         ),
         (
-            "Status colours of views that do not exist yet: the recording panel's paused dot (WP-B9b) and the Settings chips (WP-B10).",
-            [.. new[] { "ok", "draft" }.Select(ThemeTokenKeys.Brush)]
+            "The status colour of a view that does not exist yet: the Settings chips' ok state (WP-B10).",
+            [ThemeTokenKeys.Brush("ok")]
         ),
         (
             "Radii, sizes, weights and shadows of views that do not exist yet: the tour (WP-B10), the report's editors (WP-C2).",

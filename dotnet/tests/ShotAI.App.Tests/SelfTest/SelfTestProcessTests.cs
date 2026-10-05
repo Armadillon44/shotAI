@@ -9,7 +9,7 @@ namespace ShotAI.App.Tests.SelfTest;
 
 /// <summary>
 /// Spec 10 8.5 (AC-INFRA-25, AC-INFRA-27, and AC-INFRA-14 for the run's own lines): the built
-/// <c>shotAI.exe</c> run with <c>--selftest</c> and its output redirected, as the documented
+/// <c>shotAI.exe</c> run with <c>--selftest</c> or <c>--capture-selftest</c> and its output redirected, as the documented
 /// <c>Start-Process</c> call runs it. <c>--update-selftest</c> is not run (network).
 /// </summary>
 /// <remarks>
@@ -73,15 +73,35 @@ public sealed partial class SelfTestProcessTests
         Assert.EndsWith("] [info]  (main)     exiting (code 0)", lines[^1], StringComparison.Ordinal);
     }
 
-    /// <summary>The capture self-test is spec 02's (WP-B9b); until then its switch fails with exit code 2.</summary>
+    /// <summary>
+    /// AC-CAP-28, AC-INFRA-26: the capture self-test on the runner's desktop prints PASS and exits
+    /// 0, with nothing on standard error, and leaves the user's settings and the temp folder as they
+    /// were (INV-INFRA-30).
+    /// </summary>
     [Fact]
-    public async Task CaptureSwitchIsAnErrorInThisBuild()
+    public async Task CaptureSwitchPassesAndExitsZero()
     {
         using var temp = new TempDir();
+        var before = Hash(AppProcess.Settings);
         var run = await RunAsync(["--capture-selftest"], temp.Root);
-        Assert.Equal(2, run.ExitCode);
-        Assert.Equal("[capture-test] ERROR this build has no capture self-test", run.Error.TrimEnd());
-        Assert.Equal("", run.Output);
+        var shown = run.Output + run.Error;
+        Assert.True(run.ExitCode == 0, $"exit code {run.ExitCode}:{Environment.NewLine}{shown}");
+        Assert.Equal("[capture-test] PASS", LastLine(run.Output));
+        Assert.Equal("", run.Error);
+        Assert.StartsWith("[capture-test] runtime win32/", run.Output, StringComparison.Ordinal);
+        Assert.Contains("[capture-test] shot written       = true", run.Output, StringComparison.Ordinal);
+        Assert.Equal(before, Hash(AppProcess.Settings));
+        Assert.Empty(Directory.GetFileSystemEntries(temp.Root));
+    }
+
+    /// <summary>Electron's variable runs the capture self-test too, with no switch.</summary>
+    [Fact]
+    public async Task CaptureVariableRunsToo()
+    {
+        using var temp = new TempDir();
+        var run = await RunAsync([], temp.Root, ("SHOTAI_CAPTURE_TEST", "1"));
+        Assert.True(run.ExitCode == 0, $"exit code {run.ExitCode}:{Environment.NewLine}{run.Output}{run.Error}");
+        Assert.Equal("[capture-test] PASS", LastLine(run.Output));
     }
 
     private static async Task<(int ExitCode, string Output, string Error)> RunAsync(string[] args, string temp, params (string Name, string Value)[] env)

@@ -702,12 +702,12 @@ Split from WP-B9 in WP-B9a (2.2 step 3).
 |---|---|
 | Goal | The in-window recording panel a window shown during a recording displays (a second launch, Q-SHELL-18), the capture events' order and coalescing measured, and `--capture-selftest` |
 | Spec inputs | 06 2.6, 7.6 (`RecordingPanelViewModel`), 8.4 (`RecordingPanelTests`), EDGE-HOME-30; 02 2.13, 2.16, EDGE-CAP-34; 10 7.8 (`--capture-selftest`); 11 7.7 (subscribe then read), INV-IPC-5, INV-IPC-7, EDGE-IPC-35; ARCHITECTURE 11 (PB-4); Q-SHELL-18, Q-IPC-20, Q-IPC-22 |
-| Deliverables | App `RecordingPanelViewModel` (shows the list length, Q-IPC-22) and its view in the shell's Recording view; the `StateChanged` coalescing of Q-IPC-20; the `--capture-selftest` body with the macOS size corrections; the Debug timing line per capture job (PB-4) added to 02's log table |
-| Tests | No Electron file. New: Core `Threading/SubscribeThenReadTests` (the capture cases; the update cases join with WP-E1); App `Home/RecordingPanelTests`, `Threading/EventOrderTests`, and the capture self-test's |
+| Deliverables | App `RecordingPanelViewModel` (shows the list length, Q-IPC-22) and its view in the shell's Recording view; the `StateChanged` coalescing of Q-IPC-20; the `--capture-selftest` body with the macOS size corrections; the Debug timing line per capture job (PB-4) added to 02's log table. As built in WP-B9b: Core `CaptureStateFollower` (the coalescing), `RecordingStepRow` and `CaptureSelfTest` with the engine's internal `CaptureStepForSelfTestAsync`; App `RecordingPanelViewModel` and `RecordingPanelView`, held by the shell as `Recording` and seeded in `RecordAsync`; `SelfTestHost` runs the capture mode over a container of its own; the PB-4 line is `capture job:` at Debug (02 2.6). PB-5's perf case is not built here: no WP owns it, and WP-B11, which records the budgets, takes it (deviation) |
+| Tests | No Electron file. New: Core `Threading/SubscribeThenReadTests` (the capture cases; the update cases join with WP-E1); App `Home/RecordingPanelTests`, `Threading/EventOrderTests`, and the capture self-test's. As built in WP-B9b: Core `SubscribeThenReadTests` 13, `RecordingStepRowTests` 29 cases, `CaptureSelfTestTests` 34 and five engine cases; App `RecordingPanelTests` 14, `EventOrderTests` 2, a capture-events case in `SubscriberDisposalTests`, `SelfTestHostTests.CaptureModeRunsTheCaptureSelfTest` and `SelfTestProcessTests.CaptureSwitchPassesAndExitsZero` and `.CaptureVariableRunsToo` |
 | Acceptance criteria | AC-CAP-28, AC-INFRA-26, AC-IPC-5, AC-IPC-7 |
 | Depends on | WP-B9a |
 | Size | M |
-| Risks and de-risking | A burst of capture events starving input and render (Q-IPC-20): the 20-clicks-in-5-seconds script must record 20 steps and the pill must stay responsive; `StateChanged` subscribers coalesce |
+| Risks and de-risking | A burst of capture events starving input and render (Q-IPC-20): the 20-clicks-in-5-seconds script must record 20 steps and the pill must stay responsive; `StateChanged` subscribers coalesce. Outcome in WP-B9b: every subscriber's `StateChanged` goes through Core's `CaptureStateFollower`, one queued re-read at a time; `EventOrderTests` hold the UI thread and see one state for two steps, every step kept. The 20-clicks-in-5-seconds run is step 5 of the PR's manual script. A review of the branch found three parity gaps, fixed before the merge: the panel's text at WPF's 12 DIP, a wheel over the list that did not reach the view, and a zero window. A second review found three self-test defects, also fixed before the merge: `menu(window)` bounded by the primary's width, which fails a healthy machine whose picked window is on a wider secondary (Q-CAP-35); a monitor read outside the modes check, which made a failing read an error rather than a FAIL (Q-CAP-32); and the log's copy of the caption line when no step landed. A review of the tests found checks that no test failed on their own (the pipeline, each mode's size, an empty shot), a held-queue case that counted no posts, a capture error's thread and the dot's animation unchecked; each has its test now. A second mutation round over the self-test's verdict, each check and these fixes: 18 mutants, 16 caught; the 2 left, the target list's monitor count and the manifest step's id, cannot be observed with a correct engine. 51 mutations of the Core changes: 40 caught on the first pass, 8 more after new tests, and 3 that a correct engine cannot show |
 | Demo | `--capture-selftest` prints `[capture-test] PASS`; a second launch during a recording shows the panel with the steps so far |
 
 #### WP-B10. Settings view (non-AI groups) and the onboarding tour
@@ -1565,6 +1565,17 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-CAP-22 | cross-thread affinity and the shield lock | WP-B5 | DL1 plus `ShieldDeadlockTests` (decided in WP-B5) |
 | Q-CAP-23 | why Electron dropped clicks | WP-B4 | no action; reinstalls logged (decided in WP-B4) |
 | Q-CAP-24 | incomplete targets | WP-B9a | the picker cannot submit incomplete; D23 warning (decided in WP-B9a: an incomplete Window or Area target becomes Auto, which only Resume reaches) |
+| Q-CAP-25 | the self-test's `menu(auto)` assertion | WP-B9b | the exact stored crop of the owner and the click box (decided in WP-B9b) |
+| Q-CAP-26 | the self-test's full-monitor sizes | WP-B9b | `DownscalePolicy.Compute`, exactly (decided in WP-B9b, EDGE-CAP-34) |
+| Q-CAP-27 | the self-test's runtime and seam lines | WP-B9b | `window info`, `screen capture` and `input hook`; `win32/<arch>` and `.NET <version>` (decided in WP-B9b) |
+| Q-CAP-28 | the self-test's input hook check | WP-B9b | resolved, never attached (decided in WP-B9b) |
+| Q-CAP-29 | where the self-test lives | WP-B9b | Core's `CaptureSelfTest` over the engine's internal step (decided in WP-B9b) |
+| Q-CAP-30 | the self-test's lines in the log | WP-B9b | the title's and the caption's length only (decided in WP-B9b) |
+| Q-CAP-31 | a self-test while shotAI runs | WP-E1 | the losing self-test process prints an `ERROR` line, activates nothing and exits 2, with the mode parsed before the single-instance lock; WP-E1 brings the update self-test, which shares the switch |
+| Q-CAP-32 | one engine for every check | WP-B9b | each session stopped in a `finally`; a monitor read that throws fails the modes check only (decided in WP-B9b) |
+| Q-CAP-33 | the self-test's file names | WP-B9b | Electron's, and the settings file (decided in WP-B9b) |
+| Q-CAP-34 | the self-test's error line | WP-B9b | `[capture-test] ERROR ` and the exception, exit 2 (decided in WP-B9b) |
+| Q-CAP-35 | the self-test's `menu(window)` bound | WP-B9b | the widest monitor's width, not the primary's (decided in WP-B9b) |
 
 #### 03 Windows and shell
 
@@ -1587,7 +1598,7 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-SHELL-15 | window size persistence | WP-A15 | no (decided in WP-A15) |
 | Q-SHELL-16 | UI-thread exceptions | WP-A12 | log, handle, show the generic notice (log and handle done in WP-A12: `CrashLogging`; the notice done in WP-A16, while the main window is visible) |
 | Q-SHELL-17 | HUD during the screenshot settle | WP-C4 | none |
-| Q-SHELL-18 | second launch while recording | WP-B9b | parity (surfaces the main window) |
+| Q-SHELL-18 | second launch while recording | WP-B9b | parity (surfaces the main window) (decided in WP-B9b: parity; the panel lists the steps so far) |
 | Q-SHELL-19 | the legacy guard's `MessageBox` | WP-E5 | keep until S5, allowlisted |
 | Q-SHELL-20 | widths and invisible borders | WP-A20 | outer widths; measure once (the default taken in WP-A15; the measurement is in #137's manual script) |
 | Q-SHELL-21 | `ShowActivated` after `Hide` | WP-B7 | test; `SW_SHOWNOACTIVATE` path if needed (decided in WP-B7: not needed) |
@@ -1805,9 +1816,9 @@ Every open question of every spec, with the WP that owns its decision and the de
 | Q-IPC-17 | subscriber that forgets to marshal | WP-A12 | `VerifyAccess` in Debug, affinity tests (done in WP-A12: `ViewModelBase.CheckAffinity`, on in Debug builds; `Threading/ViewModelAffinityTests`) |
 | Q-IPC-18 | singleton keeping a view alive | WP-A12 | `SubscriberDisposalTests` (done in WP-A12, over the two events that exist so far) |
 | Q-IPC-19 | channel map maintenance | WP-A1 | `MatchesElectronWhileItExists` |
-| Q-IPC-20 | dispatcher priority | WP-B9b | `Normal` plus coalescing; the 20-click script |
+| Q-IPC-20 | dispatcher priority | WP-B9b | `Normal` plus coalescing; the 20-click script (decided in WP-B9b: `Normal`, and Core's `CaptureStateFollower` coalesces each subscriber's `StateChanged`; the 20-click run is manual) |
 | Q-IPC-21 | `VSTHRD200` on `Apply` | WP-A9 | keep the names, suppress on two members (done in WP-A9) |
-| Q-IPC-22 | `GetState()` ahead of `StepLanded` | WP-B9b | panel shows the list length |
+| Q-IPC-22 | `GetState()` ahead of `StepLanded` | WP-B9b | panel shows the list length (decided in WP-B9b: as planned, 06 D-HOME-37) |
 | Q-IPC-23 | `StartAsync` during a screenshot | WP-B2 | throws `A recording is already in progress` (D21) (decided in WP-B2) |
 
 #### 12 Packaging, CI and release
@@ -2473,7 +2484,7 @@ Tick a box when the WP meets its definition of done (1.3), with the PR number. A
 - [x] WP-B7. Capture pill and recording visibility (#149)
 - [x] WP-B8. Area-select overlay (#150)
 - [ ] WP-B9a. Recording from Home and the project view: merged in #151, manual pending: AC-CAP-10, AC-CAP-14, AC-CAP-15, AC-CAP-19, AC-CAP-22, AC-CAP-23, AC-CAP-24, AC-CAP-25, AC-CAP-26, AC-SHELL-3, AC-SHELL-7, AC-SHELL-8, AC-SHELL-9, AC-SHELL-10, AC-SHELL-11, AC-SHELL-12, AC-SHELL-13, AC-SHELL-14, AC-SHELL-15, AC-SHELL-16, AC-SHELL-17, AC-SHELL-19, AC-SHELL-26, AC-SHELL-27, AC-SHELL-31, AC-SHELL-32, AC-HOME-13, AC-HOME-14, AC-IPC-21
-- [ ] WP-B9b. Recording panel, event order and the capture self-test
+- [ ] WP-B9b. Recording panel, event order and the capture self-test: merged in #152, manual pending: AC-IPC-7 (the manual half), and AC-CAP-28 and AC-INFRA-26 on the reference x64 and ARM64 machines
 - [ ] WP-B10. Settings view (non-AI groups) and the onboarding tour
 - [ ] WP-B11. Phase B exit (M-B)
 
