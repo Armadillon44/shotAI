@@ -2,6 +2,7 @@ using ShotAI.App.Chrome;
 using ShotAI.App.Home;
 using ShotAI.App.Report;
 using ShotAI.App.Settings;
+using ShotAI.App.Tour;
 using ShotAI.Core.Capture;
 using ShotAI.Core.Json;
 using ShotAI.Core.Model;
@@ -24,7 +25,8 @@ namespace ShotAI.App.Shell;
 /// the menu's Brand choice goes to the project view (WP-A18); a capture session shows the
 /// Recording view (WP-B9a), which holds the recording panel (WP-B9b); the menu's Settings request,
 /// which the header's button raises too, opens Settings, made fresh on each open, and its Back
-/// closes it (WP-B10a).
+/// closes it (WP-B10a); the onboarding tour shows over Home only, and Settings' Show intro tour
+/// replays it (WP-B10b).
 /// </remarks>
 public sealed class ShellViewModel : ViewModelBase, IDisposable
 {
@@ -44,11 +46,12 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// The shell over Home, the project view, the recording panel, the menu's requests, the notices,
-    /// the confirm dialog, the capture engine and the store, making each Settings with <paramref name="settings"/>.
+    /// the confirm dialog, the capture engine and the store, making each Settings with
+    /// <paramref name="settings"/> and showing <paramref name="tour"/> over Home.
     /// </summary>
     public ShellViewModel(
         HomeViewModel home, ProjectDetailViewModel project, RecordingPanelViewModel recording, AppMenuViewModel menu, INoticeService notices,
-        IConfirmService confirm, ICaptureService capture, IProjectService projects, SettingsViewModelFactory settings, IUiDispatcher ui)
+        IConfirmService confirm, ICaptureService capture, IProjectService projects, SettingsViewModelFactory settings, TourViewModel tour, IUiDispatcher ui)
     {
         ArgumentNullException.ThrowIfNull(home);
         ArgumentNullException.ThrowIfNull(project);
@@ -59,6 +62,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(tour);
         ArgumentNullException.ThrowIfNull(ui);
         Home = home;
         Project = project;
@@ -66,6 +70,8 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         Menu = menu;
         Notices = notices;
         Confirm = confirm;
+        Tour = tour;
+        tour.HomeShowing = _currentView == ShellViewKind.Home;
         _capture = capture;
         _projects = projects;
         _settingsFactory = settings;
@@ -110,6 +116,9 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
     /// <summary>The confirm dialog the overlay layer shows (06 7.11).</summary>
     public IConfirmService Confirm { get; }
 
+    /// <summary>The onboarding tour the overlay layer shows over Home (06 2.31, 7.8).</summary>
+    public TourViewModel Tour { get; }
+
     /// <summary>The view on screen.</summary>
     public ShellViewKind CurrentView
     {
@@ -124,6 +133,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(RecordingVisible));
             OnPropertyChanged(nameof(SettingsButtonVisible));
             OnPropertyChanged(nameof(HeaderVisible));
+            Tour.HomeShowing = value == ShellViewKind.Home;
             if (!_started) return;
             if (old == ShellViewKind.Home) Home.OnLeave();
             if (value == ShellViewKind.Home) Home.OnEnter();
@@ -235,6 +245,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
             var settings = _settingsFactory.Create();
             settings.BackRequested += OnSettingsBack;
             settings.ProjectsDirChanged += OnProjectsDirChanged;
+            settings.ReplayTourRequested += OnReplayTour;
             Settings = settings;
         }
         SettingsOpen = true;
@@ -247,6 +258,21 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         SettingsOpen = false;
         DropSettings();
         Derive();
+    }
+
+    /// <summary>
+    /// Settings' <c>Show intro tour</c> (2.31): the open project closes as its Back closes it,
+    /// Settings closes, and the tour opens on Home at its first step, at once where Electron's
+    /// waited for the project to be left (D-HOME-17, EDGE-HOME-20). The project goes first, so
+    /// no step between shows it, or wears its brand. Ignored while a capture session exists,
+    /// which Settings cannot show over.
+    /// </summary>
+    public void ReplayTour()
+    {
+        if (_recording) return;
+        if (OpenProjectPath is not null) Project.BackCommand.Execute(null);
+        if (SettingsOpen) CloseSettings();
+        Tour.Replay();
     }
 
     /// <summary>
@@ -377,12 +403,15 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         if (Settings is not { } settings) return;
         settings.BackRequested -= OnSettingsBack;
         settings.ProjectsDirChanged -= OnProjectsDirChanged;
+        settings.ReplayTourRequested -= OnReplayTour;
         settings.Flush();
         settings.Dispose();
         Settings = null;
     }
 
     private void OnSettingsBack(object? sender, EventArgs e) => CloseSettings();
+
+    private void OnReplayTour(object? sender, EventArgs e) => ReplayTour();
 
     // 2.28: a new projects folder is listed at once (11 7.3.5: a user-initiated refresh, whose
     // failure shows the error notice).

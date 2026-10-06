@@ -5,6 +5,8 @@
              xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
              xmlns:core="clr-namespace:ShotAI.Core.Home;assembly=ShotAI.Core"
              xmlns:capture="clr-namespace:ShotAI.Core.Capture;assembly=ShotAI.Core"
+             xmlns:tour="clr-namespace:ShotAI.App.Tour"
+             xmlns:coretour="clr-namespace:ShotAI.Core.Tour;assembly=ShotAI.Core"
              Focusable="False" IsTabStop="False">
   <!--
     Home (spec 06 2.3, 2.4, 2.7 to 2.12, 2.17): the create hero with the capture-mode picker, the
@@ -152,7 +154,7 @@
         with Capture and Empty Project, 0.6rem apart. Enter in the name box is Capture's, when it can
         run (7.9); the box's placeholder is a TextBlock over it, and its help text for assistive tech.
       -->
-      <StackPanel x:Name="Hero" Margin="0,0,0,24" DataContext="{Binding Hero}">
+      <StackPanel x:Name="Hero" Margin="0,0,0,24" DataContext="{Binding Hero}" tour:TourAnchor.Id="{x:Static coretour:TourAnchorId.Hero}">
         <TextBlock Margin="0,0,0,11.2" Text="{x:Static core:HomeText.StartProject}" FontSize="{DynamicResource Fs.section}"
                    FontWeight="{DynamicResource Fw.section}" AutomationProperties.HeadingLevel="Level2" />
         <TextBlock Margin="0,-4.8,0,16" HorizontalAlignment="Left" MaxWidth="472.5" TextWrapping="Wrap" Text="{x:Static core:HomeText.Mission}"
@@ -174,6 +176,7 @@
                      Text="{x:Static core:HomeText.NamePlaceholder}" Foreground="{DynamicResource Brush.ink-3}"
                      Visibility="{Binding ShowNamePlaceholder, Converter={StaticResource Visible}}" />
           <Button x:Name="CaptureButton" Grid.Column="1" Margin="9.6,0,0,0" Style="{DynamicResource Button.Primary}" Content="{Binding CaptureText}"
+                  tour:TourAnchor.Id="{x:Static coretour:TourAnchorId.Capture}"
                   ToolTip="{x:Static core:HomeText.CaptureButtonTitle}" ToolTipService.ShowOnDisabled="True" Command="{Binding CaptureCommand}" />
           <Button x:Name="EmptyProjectButton" Grid.Column="2" Margin="9.6,0,0,0" Style="{DynamicResource Button.Ghost}"
                   Content="{x:Static core:HomeText.EmptyProject}" ToolTip="{x:Static core:HomeText.EmptyProjectTitle}" ToolTipService.ShowOnDisabled="True"
@@ -187,6 +190,7 @@
         -->
         <StackPanel DataContext="{Binding Mode}">
           <chrome:GroupWrapPanel x:Name="ModeRow" Margin="0,11.2,0,0" AutomationProperties.Name="{x:Static core:HomeText.ModeGroupName}"
+                                 tour:TourAnchor.Id="{x:Static coretour:TourAnchorId.Mode}"
                                  chrome:RadioGroupKeys.MovesSelection="True">
             <TextBlock Margin="0,0,8.8,0" VerticalAlignment="Center" Text="{Binding Source={x:Static core:HomeText.ModeLabel}, Converter={StaticResource UpperCase}}"
                        FontFamily="{DynamicResource Font.label-stack}" FontStretch="{DynamicResource Font.label-stretch}" FontSize="{DynamicResource Fs.label}"

@@ -152,17 +152,25 @@ public sealed class XamlChromeGuardTests
         Assert.NotEmpty(XamlChromeGuard.LiteralFallbacks(Mutated("<Border x:Key=\"Mutant\" Background=\"{Binding Fill, TargetNullValue='#6344f1'}\" />"), XamlChromeGuard.Real));
     }
 
-    /// <summary>(d) A key exemption whose element is gone is stale; while it exists, it lets its literals through.</summary>
+    /// <summary>
+    /// (d) The tour pill's styles deleted while their exemption stays: the exemption is stale.
+    /// While they exist, it is what lets their literals through.
+    /// </summary>
     [Fact]
     public void AStaleExemptionIsCaught()
     {
-        var why = "A mock-up of the recording pill, shown in the tour; the real pill is out of scope by decision.";
-        var withPrefix = XamlChromeGuard.Real with { KeyPrefixes = [new("TourPill", why)] };
-        Assert.Single(XamlChromeGuard.StaleOrUnreasoned(AppSources.Xaml(), AppSources.Code(), withPrefix), o => o.StartsWith("TourPill:", StringComparison.Ordinal));
+        var overlay = Source("Tour/TourOverlay.xaml");
+        var doc = XamlChromeGuard.Parse(overlay);
+        var pillStyles = doc.Descendants().Where(e => XamlChromeGuard.KeyOf(e)?.StartsWith("TourPill.", StringComparison.Ordinal) == true).ToList();
+        Assert.NotEmpty(pillStyles);
+        pillStyles.ForEach(e => e.Remove());
+        var deleted = overlay with { Text = doc.ToString() };
+        var sources = AppSources.Xaml().Select(f => f.Path == overlay.Path ? deleted : f).ToList();
+        Assert.Single(XamlChromeGuard.StaleOrUnreasoned(sources, AppSources.Code(), XamlChromeGuard.Real), o => o.StartsWith("TourPill.:", StringComparison.Ordinal));
 
-        var present = Mutated("<Style x:Key=\"TourPill.Mock\"><Setter Property=\"Background\" Value=\"#6344F1\" /></Style>");
-        Assert.Empty(XamlChromeGuard.ColourLiterals(present, withPrefix));
-        Assert.Empty(XamlChromeGuard.StaleOrUnreasoned([.. AppSources.Xaml(), present], AppSources.Code(), withPrefix));
+        var unexempt = XamlChromeGuard.Real with { KeyPrefixes = [.. XamlChromeGuard.Real.KeyPrefixes.Where(p => p.Name != "TourPill.")] };
+        Assert.Empty(XamlChromeGuard.CornerRadii(overlay, XamlChromeGuard.Real));
+        Assert.NotEmpty(XamlChromeGuard.CornerRadii(overlay, unexempt));
     }
 
     [Fact]

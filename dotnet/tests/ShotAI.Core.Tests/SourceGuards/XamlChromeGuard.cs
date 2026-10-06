@@ -22,7 +22,7 @@ internal static partial class XamlChromeGuard
     /// <summary>Colour channel spread above which a colour is chromatic (2.35 rule 3).</summary>
     public const int NeutralSpread = 40;
 
-    /// <summary>The exemptions of the App as it is: the notice template (WP-A16), the report's click ring (WP-A17), the capture pill (WP-B7) and the area overlay (WP-B8); the tour pill (WP-B10b) adds its key prefix.</summary>
+    /// <summary>The exemptions of the App as it is: the notice template (WP-A16), the report's click ring (WP-A17), the capture pill (WP-B7), the area overlay (WP-B8) and the tour's pill mock-up (WP-B10b).</summary>
     public static Exemptions Real { get; } = new(
         Files:
         [
@@ -33,6 +33,7 @@ internal static partial class XamlChromeGuard
             new("Notice.", "The notice's 8 DIP corners and drop shadow are notice.css's own, not tokens: a notice looks the same under every brand and appearance (06 2.21)."),
             new("Pill.", "The capture pill's colours and its 7 and 5 DIP corners are toolbar.css's own, not tokens: the pill looks the same under every brand and appearance, as Electron's toolbar page did (03 2.4.8)."),
             new("Overlay.", "The area overlay's colours, its hit-test fill of black at alpha 1 and its 12 and 6 DIP corners are overlay.css's own, not tokens: the overlay looks the same under every brand and appearance, as Electron's overlay page did (03 2.5.5, EDGE-SHELL-28)."),
+            new("TourPill.", "The tour's recording pill mock-up keeps the 6 DIP chip corners of project.css's tour__pill-btn: it pictures the capture pill, which looks the same under every brand and appearance (06 2.31)."),
         ],
         CodeFiles:
         [
@@ -44,6 +45,9 @@ internal static partial class XamlChromeGuard
             new("FixedColors.NoticeError", "The error notice fill, rgba(185, 28, 28, 0.6): notices look the same under every brand, as notice.css does outside Electron's guard (06 2.21)."),
             new("FixedColors.NoticeInfo", "The info notice fill, rgba(37, 99, 235, 0.6): notices look the same under every brand, as notice.css does outside Electron's guard (06 2.21)."),
             new("FixedColors.NoticeSuccess", "The success notice fill, rgba(22, 163, 74, 0.6): notices look the same under every brand, as notice.css does outside Electron's guard (06 2.21)."),
+            new("FixedColors.TourPillDot", "The tour pill mock-up's live dot, #34d399: it pictures the capture pill's green dot, the same under every brand (06 2.31)."),
+            new("FixedColors.TourPillDiscardText", "The tour pill mock-up's discard chip text, #fca5a5: it pictures the capture pill's red discard, the same under every brand (06 2.31)."),
+            new("FixedColors.TourPillDiscardBorder", "The tour pill mock-up's discard chip border, #5a3040: it pictures the capture pill's red discard, the same under every brand (06 2.31)."),
         ]);
 
     /// <summary>WPF's named colours (<c>System.Windows.Media.Colors</c>), which a XAML value may name instead of a hex.</summary>

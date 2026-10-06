@@ -7,6 +7,7 @@ using ShotAI.App.Report;
 using ShotAI.App.Settings;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Chrome;
+using ShotAI.App.Tour;
 using ShotAI.App.Threading;
 using ShotAI.Core.Store;
 using ShotAI.Core.Theme;
@@ -48,7 +49,8 @@ internal sealed class TestShell : IDisposable
         Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, Mode, new Logger<ProjectDetailViewModel>(Logs));
         Recording = new RecordingPanelViewModel(Capture, ui, Notices);
         SettingsFactory = new SettingsViewModelFactory(Settings, Projects, Dialogs, AppInfo, Notices, ui, new Logger<SettingsViewModel>(Logs));
-        Shell = new ShellViewModel(Home, Project, Recording, Menu, Notices, Confirm, Capture, Projects, SettingsFactory, ui);
+        Tour = new TourViewModel(Settings, new Logger<TourViewModel>(Logs));
+        Shell = new ShellViewModel(Home, Project, Recording, Menu, Notices, Confirm, Capture, Projects, SettingsFactory, Tour, ui);
         Navigation.Follow(Shell);
     }
 
@@ -100,6 +102,9 @@ internal sealed class TestShell : IDisposable
 
     /// <summary>The factory the shell makes each Settings with.</summary>
     public SettingsViewModelFactory SettingsFactory { get; }
+
+    /// <summary>The onboarding tour, closed until the test opens it.</summary>
+    public TourViewModel Tour { get; }
 
     public ShellViewModel Shell { get; }
 

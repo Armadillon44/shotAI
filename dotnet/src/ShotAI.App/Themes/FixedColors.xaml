@@ -7,7 +7,7 @@
     The colours that are not tokens (spec 06 2.21, 2.23, 2.24, 2.31 and 7.5): the same under every
     brand and appearance. The one XAML file XamlChromeGuardTests lets name a colour (INV-HOME-24);
     an entry whose channel spread is above 40 must be one of the guard's reasoned chromatic keys.
-    They are fixed, so they are read with StaticResource. The tour pill mock-up joins with the tour.
+    They are fixed, so they are read with StaticResource.
   -->
 
   <!--
@@ -30,6 +30,25 @@
   <!-- The neutral scrims, 0.55 alpha (0x8C): the confirm dialog's rgba(17, 19, 24) (2.23) and the tour's rgba(17, 19, 27) (2.31). -->
   <SolidColorBrush x:Key="FixedColors.ConfirmScrim" Color="#8C111318" po:Freeze="True" />
   <SolidColorBrush x:Key="FixedColors.TourDim" Color="#8C11131B" po:Freeze="True" />
+
+  <!-- The tour bubble's shadow, 0 18px 44px rgba(20, 22, 31, 0.3) (2.31): neutral; the 0.3 is the effect's opacity. -->
+  <Color x:Key="FixedColors.TourShadow">#FF14161F</Color>
+
+  <!--
+    The tour's recording pill mock-up (2.31, project.css:2945-2991): a picture of the capture pill,
+    which looks the same under every brand and appearance (03 2.4.8), so a themed mock-up would stop
+    looking like what it teaches. Its Stop chip alone is the accent, as Electron's is. The dot, the
+    discard chip's text and its border are chromatic: rgb(52, 211, 153), rgb(252, 165, 165) and
+    rgb(90, 48, 64).
+  -->
+  <SolidColorBrush x:Key="FixedColors.TourPillBackground" Color="#FF1F2330" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.TourPillText" Color="#FFF4F5F7" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.TourPillHint" Color="#FFAEB4C7" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.TourPillDot" Color="#FF34D399" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.TourPillChipText" Color="#FFCFD4E4" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.TourPillChipBorder" Color="#FF3A4159" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.TourPillDiscardText" Color="#FFFCA5A5" po:Freeze="True" />
+  <SolidColorBrush x:Key="FixedColors.TourPillDiscardBorder" Color="#FF5A3040" po:Freeze="True" />
 
   <!-- The confirm card's shadow, 0 12px 40px rgba(0, 0, 0, 0.25) (2.23): neutral; the 0.25 is the effect's opacity. -->
   <Color x:Key="FixedColors.ConfirmShadow">#FF000000</Color>

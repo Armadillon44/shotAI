@@ -238,8 +238,9 @@
 
     <!--
       The About tab (2.29): the name group (the field under the hint at Chromium's 20-character
-      input width, and the Include switch 0.75rem under it), the About line, and the update check's
-      switch. The name is written when its field loses the focus.
+      input width, and the Include switch 0.75rem under it), the About line, the update check's
+      switch, and Getting started, whose button sits in a row 0.2rem under its hint, as the
+      Storage tab's folder row does. The name is written when its field loses the focus.
     -->
     <DataTemplate DataType="{x:Type settings:AboutSettingsViewModel}">
       <StackPanel>
@@ -283,6 +284,16 @@
                 <TextBlock Style="{StaticResource ToggleHint}" Text="{x:Static ui:SettingsText.CheckForUpdatesHint}" />
               </StackPanel>
             </CheckBox>
+          </StackPanel>
+        </Border>
+        <Border Margin="0,16,0,0" Style="{DynamicResource SettingsGroup}">
+          <StackPanel>
+            <TextBlock Style="{StaticResource Heading}" Text="{x:Static ui:SettingsText.GettingStarted}" />
+            <TextBlock Margin="0" Style="{StaticResource Hint}" Text="{x:Static ui:SettingsText.GettingStartedHint}" />
+            <StackPanel Margin="0,3.2,0,0" Orientation="Horizontal">
+              <Button x:Name="ShowIntroTour" Style="{DynamicResource Button.Small}" Content="{x:Static ui:SettingsText.ShowIntroTour}"
+                      Command="{Binding ShowIntroTourCommand}" />
+            </StackPanel>
           </StackPanel>
         </Border>
       </StackPanel>

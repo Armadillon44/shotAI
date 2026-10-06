@@ -131,6 +131,14 @@ public partial class App : Application
         _services.GetRequiredService<RecordingVisibilityController>().Attach(new RecordingWindows(main, pill));
         _crash.AttachNotices(_services.GetRequiredService<INoticeService>(), () => main.IsVisible);
         main.ContentRendered += LogFirstRender;
+        // 06 7.8: the first run's tour opens after the first frame, and shows once Home does.
+        EventHandler? openTour = null;
+        openTour = (_, _) =>
+        {
+            main.ContentRendered -= openTour;
+            shell.Tour.OpenIfNotSeen();
+        };
+        main.ContentRendered += openTour;
         ShowThemed(_services.GetRequiredService<ThemeManager>(), Resources, main);
         StartAll(_services.GetServices<IAppStartup>());
         // Step 10: the windows exist, excluded; only now does the setting relax them (INV-SHELL-2).

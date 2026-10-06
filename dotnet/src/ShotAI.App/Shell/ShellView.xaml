@@ -4,13 +4,15 @@
              xmlns:home="clr-namespace:ShotAI.App.Home"
              xmlns:report="clr-namespace:ShotAI.App.Report"
              xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
+             xmlns:tour="clr-namespace:ShotAI.App.Tour"
+             xmlns:coretour="clr-namespace:ShotAI.Core.Tour;assembly=ShotAI.Core"
              xmlns:corehome="clr-namespace:ShotAI.Core.Home;assembly=ShotAI.Core"
              xmlns:coreshell="clr-namespace:ShotAI.Core.Shell;assembly=ShotAI.Core"
              Focusable="False" IsTabStop="False">
   <!--
     The main window's content (spec 06 2.2, 7.6, 03 7.4.10): the shotAI header, the Home, project,
     Settings and Recording hosts, one shown at a time, and above them the overlay layer, which holds
-    the target dropdown's popover, the confirm dialog and the notices. Home and the project view are
+    the target dropdown's popover, the confirm dialog, the notices and the onboarding tour. Home and the project view are
     made once and kept, so Home's scroller keeps its place (7.7) while the project view starts each
     open at the top (05 EDGE-REP-42); the Settings host shows the shell's Settings in a view the code
     behind makes for each open, so it starts at the top too (06 D-HOME-16). The Recording host holds
@@ -39,6 +41,7 @@
                      FontSize="15.2" FontWeight="650" AutomationProperties.HeadingLevel="Level1" />
         </StackPanel>
         <Button x:Name="SettingsButton" DockPanel.Dock="Right" VerticalAlignment="Center" Style="{DynamicResource Button.Small}"
+                tour:TourAnchor.Id="{x:Static coretour:TourAnchorId.Settings}"
                 Content="{x:Static corehome:HomeText.SettingsButton}" ToolTip="{x:Static corehome:HomeText.SettingsButtonTitle}"
                 Command="{Binding Menu.OpenSettingsCommand}" Visibility="{Binding SettingsButtonVisible, Converter={StaticResource Visible}}" />
       </DockPanel>
@@ -62,8 +65,8 @@
 
     <!--
       03 7.4.10: the overlay layer, over the header and the views: the target dropdown's backdrop
-      and popover (Electron's z 50 and 51), the confirm dialog's scrim over both, and above them the
-      notices at the top of the content area (z 60).
+      and popover (Electron's z 50 and 51), the confirm dialog's scrim over both, the notices at the
+      top of the content area (z 60), and over everything the onboarding tour (z 1000, 06 2.31).
     -->
     <Grid x:Name="OverlayLayer" Grid.RowSpan="2">
       <Grid.RowDefinitions>
@@ -73,6 +76,7 @@
       <home:TargetDropdownView x:Name="TargetDropdown" Grid.RowSpan="2" DataContext="{Binding Home.Mode}" />
       <chrome:ConfirmHost x:Name="Confirm" Grid.RowSpan="2" DataContext="{Binding Confirm}" />
       <chrome:NoticeHost x:Name="Notices" Grid.Row="1" DataContext="{Binding Notices}" />
+      <tour:TourOverlay x:Name="TourLayer" Grid.RowSpan="2" DataContext="{Binding Tour}" />
     </Grid>
   </Grid>
 </UserControl>

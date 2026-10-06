@@ -53,6 +53,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         foreach (var section in _sections) section.Writing += (_, _) => Error = null;
         Storage.Failed += (_, e) => Fail(e);
         Storage.ProjectsDirChanged += (_, _) => ProjectsDirChanged?.Invoke(this, EventArgs.Empty);
+        About.ReplayTourRequested += (_, _) => ReplayTourRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary><c>&#8592; Back</c>: the shell closes Settings.</summary>
@@ -60,6 +61,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     /// <summary>The projects folder changed: the shell has Home list it (2.28).</summary>
     public event EventHandler? ProjectsDirChanged;
+
+    /// <summary>About's <c>Show intro tour</c>: the shell closes Settings and replays the tour (2.31).</summary>
+    public event EventHandler? ReplayTourRequested;
 
     /// <summary>The AI tab.</summary>
     public AiSettingsViewModel Ai { get; }

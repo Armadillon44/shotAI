@@ -7,6 +7,7 @@ using ShotAI.App.Report;
 using ShotAI.App.Services;
 using ShotAI.App.Settings;
 using ShotAI.App.Shell;
+using ShotAI.App.Tour;
 using ShotAI.App.Threading;
 using ShotAI.Core.Paths;
 using ShotAI.Core.Settings;
@@ -76,6 +77,7 @@ public static class AppServiceCollectionExtensions
         services.AddTransient<ProjectDetailViewModel>();
         services.AddTransient<RecordingPanelViewModel>();
         services.AddSingleton<SettingsViewModelFactory>();
+        services.AddTransient<TourViewModel>();
         services.AddTransient<ShellViewModel>();
         services.AddSingleton<RemoteVisibilityApplier>();
         services.AddSingleton<ShellShutdown>();
