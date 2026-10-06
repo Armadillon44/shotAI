@@ -116,17 +116,23 @@ public sealed class TourOverlayTests
         Assert.Contains(VisualTree.Descendants<TextBlock>(overlay.PillMock), b => b.Text == TourText.PillLabel);
     });
 
-    /// <summary>EDGE-HOME-43: an anchor scrolled out of view is brought into it before it is measured.</summary>
+    /// <summary>
+    /// EDGE-HOME-43: an anchor scrolled out of view is brought into it, by the least scroll that
+    /// shows it whole, before it is measured.
+    /// </summary>
     [Fact]
     public Task TheAnchorIsBroughtIntoView() => Hosted(async (view, t, _) =>
     {
         var scroller = view.HomeView.ScrollViewer;
         Assert.True(scroller.ScrollableHeight > 500);
+        Assert.True(RectIn(view.HomeView.Hero, scroller).Bottom < 0);
         t.Tour.Replay();
         await TestShell.Settle();
-        Assert.True(scroller.VerticalOffset < 1, $"offset {scroller.VerticalOffset}");
+        Assert.True(scroller.VerticalOffset < 600, $"offset {scroller.VerticalOffset}");
+        var inView = RectIn(view.HomeView.Hero, scroller);
+        Assert.Equal(0, inView.Top, 1);
+        Assert.True(inView.Bottom <= scroller.ViewportHeight, $"hero bottom {inView.Bottom} of {scroller.ViewportHeight}");
         var hero = RectIn(view.HomeView.Hero, view.Tour);
-        Assert.True(hero.Top >= 0, $"hero top {hero.Top}");
         Assert.Equal(hero.Top - TourLayout.SpotPad, view.Tour.Placement!.Spot!.Value.Top, 2);
     }, scrolledTo: 600, open: false);
 
