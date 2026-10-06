@@ -137,6 +137,20 @@ internal sealed class TestShell : IDisposable
     }
 
     /// <summary>
+    /// Runs the layout pass now, for a test that reads what layout sets (a measure's state, an
+    /// <c>ActualWidth</c>, a scroll offset) after a wait. <see cref="Settle"/> waits for posted
+    /// work, but WPF runs layout with its render tick, which it holds back while the last frame
+    /// is still being presented, longer on a busy runner, so the wait alone can read the state
+    /// before the pass. <c>UpdateLayout</c> lays out only what was invalidated, on every window
+    /// of this thread, so a change that failed to invalidate still fails the test.
+    /// </summary>
+    public static void LaidOut(UIElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        element.UpdateLayout();
+    }
+
+    /// <summary>
     /// Settles until <paramref name="condition"/> holds, for work that finishes on the thread pool
     /// (an image decode); false when it still does not after <paramref name="seconds"/>.
     /// </summary>

@@ -108,6 +108,7 @@ public sealed class ReportLayoutTests
         {
             session.Raise(Of("Wide", s, Shot("s1", "shots/wide.png")), ManifestChangeKind.Persisted, []);
             await TestShell.Settle();
+            TestShell.LaidOut(r.View);
             var widths = DocScale.Widths(s);
             Assert.Equal(s, r.Project.Report!.Scale);
             Assert.Equal(widths.RepFrame, r.View.ReportFrame.FrameWidth);
@@ -130,6 +131,7 @@ public sealed class ReportLayoutTests
         using var r = new Rig(viewWidth: 1400);
         ProjectStep[] all = [Text("t1", heading: "A")];
         await r.OpenAsync(@"C:\Projects\Small", Of("Small", scale, all[..steps]));
+        TestShell.LaidOut(r.View);
         var widths = DocScale.Widths(scale);
         Assert.Equal(widths.RepFrame, r.View.ReportFrame.FrameWidth);
         Assert.Equal(widths.HtmlColumn, r.Column.ActualWidth, 6);
@@ -146,6 +148,7 @@ public sealed class ReportLayoutTests
         await r.OpenAsync(dir, Of("Wide", Shot("s1", "shots/wide.png")));
         var figure = await r.FigureAsync();
         await TestShell.Settle();
+        TestShell.LaidOut(r.View);
         var viewport = r.View.ScrollViewer.ViewportWidth;
         Assert.True(viewport < DocScale.Widths(1).RepFrame);
         Assert.Equal(viewport, r.View.ReportFrame.FrameWidth, 6);
@@ -166,8 +169,10 @@ public sealed class ReportLayoutTests
         await r.OpenAsync(@"C:\Projects\A", Of("A", many));
         r.View.ScrollViewer.ScrollToVerticalOffset(600);
         await TestShell.Settle();
+        TestShell.LaidOut(r.View);
         Assert.Equal(600, r.View.ScrollViewer.VerticalOffset, 3);
         await r.OpenAsync(@"C:\Projects\B", Of("B", many));
+        TestShell.LaidOut(r.View);
         Assert.Equal(0, r.View.ScrollViewer.VerticalOffset, 3);
     });
 }
