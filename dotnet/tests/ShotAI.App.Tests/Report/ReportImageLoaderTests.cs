@@ -43,6 +43,13 @@ public sealed class ReportImageLoaderTests
         return figure;
     }
 
+    // What the figure's measure pass sets (its fit, pan, ring and parts) is read after a layout
+    // pass: Settle waits for posted work, but WPF can hold a pass back while the render thread is
+    // busy, as it is with other tests' windows drawing, so the wait alone could read the state
+    // before it (both Windows legs failed that way once). UpdateLayout lays out only what was
+    // invalidated, so a change the figure failed to invalidate still fails the test.
+    private static void LaidOut(UIElement element) => element.UpdateLayout();
+
     private static Window Host(FrameworkElement content, double width = 800, double height = 700)
     {
         var window = TestShell.Host(content, width, height);
@@ -227,6 +234,7 @@ public sealed class ReportImageLoaderTests
             Assert.Same(first, figure.Shown);
             Assert.False(figure.IsLoadingPlaceholder);
             Assert.True(await TestShell.UntilAsync(() => !ReferenceEquals(first, figure.Shown)));
+            LaidOut(figure);
             Assert.Equal(new ImageSize(300, 300), figure.Shown!.NaturalSize);
             Assert.Equal(new ReportFit(300, 300, 302, 302), figure.Fit);
         }
@@ -248,6 +256,7 @@ public sealed class ReportImageLoaderTests
         try
         {
             Assert.True(await TestShell.UntilAsync(() => figure.IsMissing));
+            LaidOut(figure);
             var text = Assert.Single(VisualTree.Descendants<TextBlock>(figure), t => t.Name == "PART_Missing");
             Assert.Equal("Image missing: shots/none.png", text.Text);
             Assert.Equal(Visibility.Visible, text.Visibility);
@@ -307,6 +316,7 @@ public sealed class ReportImageLoaderTests
         try
         {
             Assert.True(await TestShell.UntilAsync(() => figure.Shown is not null));
+            LaidOut(figure);
             Assert.Equal(new ReportFit(400, 200, 402, 202), figure.Fit);
             Assert.Equal(new Point(100, 50), figure.RingCentre);
             var ring = Assert.Single(VisualTree.Descendants<System.Windows.Shapes.Ellipse>(figure), e => e.Name == "PART_Ring");
@@ -317,16 +327,19 @@ public sealed class ReportImageLoaderTests
             // Zoom 2, centred: the image is 800 by 400 in a 400 by 200 box, offset by half its range.
             figure.Zoom = 2;
             await TestShell.Settle();
+            LaidOut(figure);
             Assert.Equal(new Point(-200, -100), figure.PanOffset);
             Assert.Equal(new Point(0, 0), figure.RingCentre);
 
             figure.Marker = new ReportMarker(401, 50, style);
             await TestShell.Settle();
+            LaidOut(figure);
             Assert.Null(figure.RingCentre);
             Assert.Equal(Visibility.Collapsed, ring.Visibility);
 
             figure.Marker = null;
             await TestShell.Settle();
+            LaidOut(figure);
             Assert.Null(figure.RingCentre);
         }
         finally
@@ -355,6 +368,7 @@ public sealed class ReportImageLoaderTests
         try
         {
             Assert.True(await TestShell.UntilAsync(() => figure.Shown is not null));
+            LaidOut(figure);
             Assert.Equal(new Point(x, y), figure.PanOffset);
             var box = Assert.Single(VisualTree.Descendants<Border>(figure), b => b.Name == "PART_Wrap");
             Assert.Equal((402.0, 202.0), (box.ActualWidth, box.ActualHeight));
