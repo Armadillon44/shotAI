@@ -138,11 +138,13 @@ internal sealed class TestShell : IDisposable
 
     /// <summary>
     /// Runs the layout pass now, for a test that reads what layout sets (a measure's state, an
-    /// <c>ActualWidth</c>, a scroll offset) after a wait. <see cref="Settle"/> waits for posted
-    /// work, but WPF runs layout with its render tick, which it holds back while the last frame
-    /// is still being presented, longer on a busy runner, so the wait alone can read the state
-    /// before the pass. <c>UpdateLayout</c> lays out only what was invalidated, on every window
-    /// of this thread, so a change that failed to invalidate still fails the test.
+    /// <c>ActualWidth</c>, a scroll offset, what a <c>LayoutUpdated</c> handler sets) after a
+    /// wait. WPF runs layout in its render tick, posted above the priorities
+    /// <see cref="Settle"/> yields to, but a tick can end before layout (MediaContext returns
+    /// early while it has no channel to the render thread), and the CI runners have shown layout
+    /// state missing after a settle on both legs. <c>UpdateLayout</c> runs the pass whatever the
+    /// tick does, and lays out only what was invalidated, on every window of this thread, so a
+    /// change that failed to invalidate still fails the test.
     /// </summary>
     public static void LaidOut(UIElement element)
     {

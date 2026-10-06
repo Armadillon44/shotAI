@@ -41,6 +41,7 @@ public sealed class TourOverlayTests
         {
             if (i > 0) t.Tour.NextCommand.Execute(null);
             await TestShell.Settle();
+            TestShell.LaidOut(view);
             var expected = TourLayout.Place(anchors[i] is { } a ? RectIn(a, overlay) : null, overlay.ActualWidth, overlay.ActualHeight);
             Assert.Equal(expected, overlay.Placement);
             placements.Add(expected);
@@ -136,6 +137,7 @@ public sealed class TourOverlayTests
         Assert.True(RectIn(view.HomeView.Hero, scroller).Bottom < 0);
         t.Tour.Replay();
         await TestShell.Settle();
+        TestShell.LaidOut(view);
         Assert.True(scroller.VerticalOffset < 600, $"offset {scroller.VerticalOffset}");
         var inView = RectIn(view.HomeView.Hero, scroller);
         Assert.Equal(TourLayout.SpotPad + 3, inView.Top, 1);
@@ -156,16 +158,19 @@ public sealed class TourOverlayTests
         var capture = view.HomeView.CaptureButton;
         t.Tour.NextCommand.Execute(null);
         await TestShell.Settle();
+        TestShell.LaidOut(view);
         var before = overlay.Placement!.Spot!.Value;
 
         capture.Width = capture.ActualWidth + 80;
         await TestShell.Settle();
+        TestShell.LaidOut(view);
         var moved = overlay.Placement!.Spot!.Value;
         Assert.NotEqual(before, moved);
         Assert.Equal(TourLayout.Place(RectIn(capture, overlay), overlay.ActualWidth, overlay.ActualHeight), overlay.Placement);
 
         view.HomeView.ScrollViewer.ScrollToVerticalOffset(30);
         await TestShell.Settle();
+        TestShell.LaidOut(view);
         Assert.Equal(30, view.HomeView.ScrollViewer.VerticalOffset, 2);
         Assert.Equal(moved.Top - 30, overlay.Placement!.Spot!.Value.Top, 2);
 
@@ -181,6 +186,7 @@ public sealed class TourOverlayTests
         TourAnchor.SetId(view.HomeView.CaptureButton, null);
         t.Tour.NextCommand.Execute(null);
         await TestShell.Settle();
+        TestShell.LaidOut(view);
         Assert.True(view.Tour.Placement!.Centred);
         Assert.False(view.Tour.RingPath.IsVisible);
         Assert.IsType<RectangleGeometry>(view.Tour.DimPath.Data);
@@ -210,6 +216,7 @@ public sealed class TourOverlayTests
         Assert.True(overlay.BackAction.IsFocused);
         Assert.True(Press(overlay.BackAction, Key.Left).Handled);
         await TestShell.Settle();
+        TestShell.LaidOut(view);
         Assert.Equal(0, t.Tour.Index);
         Assert.True(overlay.Primary.IsFocused);
         Assert.True(Press(overlay.Primary, Key.Left).Handled);
@@ -235,6 +242,7 @@ public sealed class TourOverlayTests
         Assert.True(name.IsFocused);
         t.Tour.Replay();
         await TestShell.Settle();
+        TestShell.LaidOut(view);
         Assert.True(view.Tour.Primary.IsFocused);
 
         // Something else in the window takes the focus while the tour is up.
@@ -328,6 +336,7 @@ public sealed class TourOverlayTests
         Assert.True(hit.IsDescendantOf(capture));
         t.Tour.Replay();
         await TestShell.Settle();
+        TestShell.LaidOut(view);
         Assert.Equal(Visibility.Visible, view.Tour.Visibility);
         Assert.NotNull(view.Tour.Placement);
     }, open: false);
@@ -350,11 +359,15 @@ public sealed class TourOverlayTests
             {
                 view.HomeView.ScrollViewer.ScrollToVerticalOffset(scrolledTo);
                 await TestShell.Settle();
+                TestShell.LaidOut(view);
                 Assert.Equal(scrolledTo, view.HomeView.ScrollViewer.VerticalOffset, 2);
             }
             if (open)
             {
                 t.Tour.OpenIfNotSeen();
+                await TestShell.Settle();
+                // The overlay is laid out and its parts loaded before the body reads them.
+                TestShell.LaidOut(view);
                 await TestShell.Settle();
                 Assert.True(t.Tour.IsShown);
             }
