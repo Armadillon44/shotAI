@@ -167,8 +167,9 @@ public sealed class ReportImageLoaderTests
             Assert.True(await TestShell.UntilAsync(() => loader.DecodeCount == 2 && figure.Shown!.DecodedWidth > ReportFigure.DecodeWidth(natural, 800, 1, 1, dpi)));
             Assert.Equal(ReportFigure.DecodeWidth(natural, 800, 2, 1, dpi), figure.Shown!.DecodedWidth);
 
+            // The measure pass decides any new decode; the decode counts on the pool after its read.
             figure.Zoom = 1;
-            await TestShell.Settle();
+            TestShell.LaidOut(figure);
             await Task.Delay(200, TestContext.Current.CancellationToken);
             await TestShell.Settle();
             Assert.Equal(2, loader.DecodeCount);
@@ -196,7 +197,7 @@ public sealed class ReportImageLoaderTests
             figure.Zoom = 3;
             figure.PanX = 0;
             figure.PanY = 1;
-            await TestShell.Settle();
+            TestShell.LaidOut(figure);
             await Task.Delay(200, TestContext.Current.CancellationToken);
             await TestShell.Settle();
             Assert.Equal(1, loader.DecodeCount);
@@ -227,6 +228,7 @@ public sealed class ReportImageLoaderTests
             Assert.Same(first, figure.Shown);
             Assert.False(figure.IsLoadingPlaceholder);
             Assert.True(await TestShell.UntilAsync(() => !ReferenceEquals(first, figure.Shown)));
+            TestShell.LaidOut(figure);
             Assert.Equal(new ImageSize(300, 300), figure.Shown!.NaturalSize);
             Assert.Equal(new ReportFit(300, 300, 302, 302), figure.Fit);
         }
@@ -248,6 +250,7 @@ public sealed class ReportImageLoaderTests
         try
         {
             Assert.True(await TestShell.UntilAsync(() => figure.IsMissing));
+            TestShell.LaidOut(figure);
             var text = Assert.Single(VisualTree.Descendants<TextBlock>(figure), t => t.Name == "PART_Missing");
             Assert.Equal("Image missing: shots/none.png", text.Text);
             Assert.Equal(Visibility.Visible, text.Visibility);
@@ -277,7 +280,8 @@ public sealed class ReportImageLoaderTests
         window.Show();
         try
         {
-            await TestShell.Settle();
+            // Loaded is where the figure decides whether it is near enough to load.
+            Assert.True(await TestShell.UntilAsync(() => figure.IsLoaded));
             await Task.Delay(300, TestContext.Current.CancellationToken);
             await TestShell.Settle();
             Assert.Equal(0, loader.DecodeCount);
@@ -307,6 +311,7 @@ public sealed class ReportImageLoaderTests
         try
         {
             Assert.True(await TestShell.UntilAsync(() => figure.Shown is not null));
+            TestShell.LaidOut(figure);
             Assert.Equal(new ReportFit(400, 200, 402, 202), figure.Fit);
             Assert.Equal(new Point(100, 50), figure.RingCentre);
             var ring = Assert.Single(VisualTree.Descendants<System.Windows.Shapes.Ellipse>(figure), e => e.Name == "PART_Ring");
@@ -317,17 +322,25 @@ public sealed class ReportImageLoaderTests
             // Zoom 2, centred: the image is 800 by 400 in a 400 by 200 box, offset by half its range.
             figure.Zoom = 2;
             await TestShell.Settle();
+            TestShell.LaidOut(figure);
             Assert.Equal(new Point(-200, -100), figure.PanOffset);
             Assert.Equal(new Point(0, 0), figure.RingCentre);
 
             figure.Marker = new ReportMarker(401, 50, style);
             await TestShell.Settle();
+            TestShell.LaidOut(figure);
             Assert.Null(figure.RingCentre);
             Assert.Equal(Visibility.Collapsed, ring.Visibility);
 
+            // A ring drawn again goes when the click is cleared.
+            figure.Marker = new ReportMarker(100, 50, style);
+            TestShell.LaidOut(figure);
+            Assert.Equal(new Point(0, 0), figure.RingCentre);
+            Assert.Equal(Visibility.Visible, ring.Visibility);
             figure.Marker = null;
-            await TestShell.Settle();
+            TestShell.LaidOut(figure);
             Assert.Null(figure.RingCentre);
+            Assert.Equal(Visibility.Collapsed, ring.Visibility);
         }
         finally
         {
@@ -355,6 +368,7 @@ public sealed class ReportImageLoaderTests
         try
         {
             Assert.True(await TestShell.UntilAsync(() => figure.Shown is not null));
+            TestShell.LaidOut(figure);
             Assert.Equal(new Point(x, y), figure.PanOffset);
             var box = Assert.Single(VisualTree.Descendants<Border>(figure), b => b.Name == "PART_Wrap");
             Assert.Equal((402.0, 202.0), (box.ActualWidth, box.ActualHeight));

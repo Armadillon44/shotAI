@@ -6,6 +6,7 @@ using ShotAI.App.Services;
 using ShotAI.App.Settings;
 using ShotAI.App.Shell;
 using ShotAI.App.Threading;
+using ShotAI.App.Tour;
 using ShotAI.Core.Store;
 using ShotAI.Platform.Capture;
 using ShotAI.Platform.Imaging;
@@ -54,9 +55,10 @@ internal static class TestMainWindow
         var project = new ProjectDetailViewModel(
             projects, new ProjectSessionFactory(projects, NullLogger<ProjectSessionFactory>.Instance), new ReportViewModelFactory(), new RecordingLayout(), mode,
             NullLogger<ProjectDetailViewModel>.Instance);
-        var settings = new SettingsViewModelFactory(
-            new FakeSettingsService(), projects, new FakeFileDialogs(), new FakeAppInfo(), notices, ui, NullLogger<SettingsViewModel>.Instance);
-        return new ShellViewModel(home, project, new RecordingPanelViewModel(capture, ui, notices), menu, notices, confirm, capture, projects, settings, ui);
+        var store = new FakeSettingsService();
+        var settings = new SettingsViewModelFactory(store, projects, new FakeFileDialogs(), new FakeAppInfo(), notices, ui, NullLogger<SettingsViewModel>.Instance);
+        var tour = new TourViewModel(store, NullLogger<TourViewModel>.Instance);
+        return new ShellViewModel(home, project, new RecordingPanelViewModel(capture, ui, notices), menu, notices, confirm, capture, projects, settings, tour, ui);
     }
 }
 

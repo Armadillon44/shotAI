@@ -265,6 +265,29 @@ public sealed class SettingsViewTests
     });
 
     /// <summary>
+    /// 2.29: About ends with Getting started, its hint and <c>&#8634; Show intro tour</c>, whose
+    /// click asks the shell for the tour (2.31).
+    /// </summary>
+    [Fact]
+    public Task ShowIntroTourAsksForTheTour() => Hosted(async (view, rig) =>
+    {
+        rig.Vm.IsAboutTab = true;
+        await TestShell.Settle();
+        var texts = VisualTree.Descendants<TextBlock>(view.TabPanel).Where(t => t.IsVisible).Select(t => t.Text).ToList();
+        Assert.Equal(SettingsText.GettingStartedHint, texts[texts.IndexOf(SettingsText.GettingStarted) + 1]);
+        var button = VisualTree.Named<Button>(view.TabPanel, "ShowIntroTour");
+        Assert.Equal(SettingsText.ShowIntroTour, Peer(button).GetName());
+        Assert.Same(button, VisualTree.Descendants<Button>(view.TabPanel).Last(b => b.IsVisible));
+
+        var asked = 0;
+        rig.Vm.ReplayTourRequested += (_, _) => asked++;
+        ((IInvokeProvider)Peer(button).GetPattern(PatternInterface.Invoke)).Invoke();
+        await TestShell.Settle();
+        Assert.Equal(1, asked);
+        Assert.Equal(0, rig.Settings.Writes);
+    });
+
+    /// <summary>
     /// 2.25, 2.29: the AI tab's options hide while its switch is off, the off line shows instead,
     /// and Include is disabled while the name field is blank.
     /// </summary>

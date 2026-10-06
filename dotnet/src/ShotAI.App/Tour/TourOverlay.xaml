@@ -1,0 +1,207 @@
+<UserControl x:Class="ShotAI.App.Tour.TourOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chrome="clr-namespace:ShotAI.App.Chrome"
+             xmlns:coretour="clr-namespace:ShotAI.Core.Tour;assembly=ShotAI.Core"
+             Focusable="False" IsTabStop="False" Visibility="Collapsed"
+             AutomationProperties.Name="{x:Static coretour:TourText.DialogName}" AutomationProperties.IsDialog="True">
+  <!--
+    The onboarding tour (spec 06 2.31, 7.8), last in the overlay layer, so above the header, the
+    views, the confirm dialog and the notices (Electron's z 1000): a transparent scrim whose click
+    finishes the tour, the dim with a hole over the step's anchor and the accent ring around it,
+    or a full dim for a step with none, and the bubble, placed in code from TourLayout.Place. The
+    bubble is a focus scope whose Tab cycles inside it; the code behind focuses the primary button
+    on each step and takes Escape, Right and Left. Collapsed while the tour is not shown. The data
+    context is the TourViewModel.
+  -->
+  <!-- The fixed colours are merged here, as Controls.xaml merges them, so the reads resolve wherever the overlay is made. -->
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="../Themes/FixedColors.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <BooleanToVisibilityConverter x:Key="Visible" />
+      <chrome:UpperCaseConverter x:Key="UpperCase" />
+      <chrome:CapsuleCornerConverter x:Key="CapsuleCornerConverter" />
+
+      <!-- tour__btn: 0.82rem, 600, radius-control, 6px 12px, 1px hair, surface, ink; hover ground. -->
+      <Style x:Key="TourButton" TargetType="Button">
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource FocusVisual}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.surface}" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.ink}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.hair}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="FontSize" Value="13.12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="Button">
+              <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource Radius.control}">
+                <ContentPresenter Margin="{TemplateBinding Padding}" RecognizesAccessKey="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+          <Trigger Property="IsMouseOver" Value="True">
+            <Setter Property="Background" Value="{DynamicResource Brush.ground}" />
+          </Trigger>
+        </Style.Triggers>
+      </Style>
+
+      <!-- the primary tour__btn (its pri modifier): accent fill and border, on-accent text; hover accent-press. -->
+      <Style x:Key="TourButton.Primary" TargetType="Button" BasedOn="{StaticResource TourButton}">
+        <Setter Property="Background" Value="{DynamicResource Brush.accent}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.on-accent}" />
+        <Style.Triggers>
+          <Trigger Property="IsMouseOver" Value="True">
+            <Setter Property="Background" Value="{DynamicResource Brush.accent-press}" />
+          </Trigger>
+        </Style.Triggers>
+      </Style>
+
+      <!--
+        the Skip tour__btn (its skip modifier): no border, no fill, ink-3, 6px all round. .tour__btn:hover
+        outranks the modifier, so a hovered Skip takes the ground fill too, as in Electron.
+      -->
+      <Style x:Key="TourButton.Skip" TargetType="Button" BasedOn="{StaticResource TourButton}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.ink-3}" />
+        <Setter Property="Padding" Value="6" />
+      </Style>
+
+      <!--
+        The recording pill mock-up (2.31): tour__pill, a capsule 7px 10px inside, 10px above the
+        body, its items 8px apart. Its colours are the capture pill's, the same under every brand.
+      -->
+      <Style x:Key="TourPill.Body" TargetType="Border">
+        <Setter Property="Margin" Value="0,0,0,10" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="Background" Value="{StaticResource FixedColors.TourPillBackground}" />
+        <Setter Property="CornerRadius" Value="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource CapsuleCornerConverter}}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource FixedColors.TourPillText}" />
+      </Style>
+
+      <!-- tour__pill-btn: 0.66rem, 1px border, 6px corners, 2px 6px inside. -->
+      <Style x:Key="TourPill.Chip" TargetType="Border">
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="Padding" Value="6,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{StaticResource FixedColors.TourPillChipBorder}" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="TextElement.FontSize" Value="10.56" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource FixedColors.TourPillChipText}" />
+      </Style>
+
+      <!-- the Stop tour__pill-btn (its stop modifier): the accent, as the capture pill's Stop is the one coloured chip. -->
+      <Style x:Key="TourPill.Stop" TargetType="Border" BasedOn="{StaticResource TourPill.Chip}">
+        <Setter Property="Background" Value="{DynamicResource Brush.accent}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.accent}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.on-accent}" />
+      </Style>
+
+      <!-- the discard tour__pill-btn (its x modifier): the red discard. -->
+      <Style x:Key="TourPill.Discard" TargetType="Border" BasedOn="{StaticResource TourPill.Chip}">
+        <Setter Property="BorderBrush" Value="{StaticResource FixedColors.TourPillDiscardBorder}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource FixedColors.TourPillDiscardText}" />
+      </Style>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <Grid x:Name="Root">
+    <!-- tour__scrim: takes every click outside the bubble, the anchor's included. -->
+    <Border x:Name="Scrim" Background="Transparent" />
+    <!-- tour__spot and tour__fulldim: the dim with its hole, and the 3 DIP accent ring outside the hole. -->
+    <Path x:Name="Dim" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" Fill="{StaticResource FixedColors.TourDim}" />
+    <Path x:Name="Ring" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+          Stroke="{DynamicResource Brush.accent}" StrokeThickness="3" />
+
+    <!-- tour__bubble: 330 DIP wide (at most the window less 24), placed from TourLayout.Place in code. -->
+    <Grid x:Name="BubbleBox" Width="330" HorizontalAlignment="Center" VerticalAlignment="Center"
+          FocusManager.IsFocusScope="True" KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Contained">
+      <Border x:Name="Bubble" Padding="18,16,18,14" Background="{DynamicResource Brush.surface}" BorderBrush="{DynamicResource Brush.hair}"
+              BorderThickness="1" CornerRadius="{DynamicResource Radius.panel}">
+        <Border.Effect>
+          <DropShadowEffect ShadowDepth="18" Direction="270" BlurRadius="44" Opacity="0.3" Color="{StaticResource FixedColors.TourShadow}" />
+        </Border.Effect>
+        <StackPanel>
+          <!--
+            tour__step: 0.7rem, 700, upper case at the label stretch, accent. Its accessible name is
+            the step line as written, and the code behind announces it on each step (7.8).
+          -->
+          <TextBlock x:Name="StepLineText" Text="{Binding StepLine, Converter={StaticResource UpperCase}}" FontFamily="{DynamicResource Font.label-stack}"
+                     FontStretch="{DynamicResource Font.label-stretch}" FontSize="11.2" FontWeight="Bold" Foreground="{DynamicResource Brush.accent}"
+                     AutomationProperties.LiveSetting="Polite" />
+          <!-- tour__h: an h3 at 1.1rem, ink, 4px above and 8px below. -->
+          <TextBlock x:Name="Headline" Margin="0,4,0,8" Text="{Binding Step.Headline}" TextWrapping="Wrap" FontSize="17.6" FontWeight="Bold"
+                     Foreground="{DynamicResource Brush.ink}" AutomationProperties.HeadingLevel="Level3" />
+          <chrome:AutomationHiddenBorder x:Name="Pill" Style="{StaticResource TourPill.Body}"
+                                         Visibility="{Binding Step.ShowPill, Converter={StaticResource Visible}}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{StaticResource FixedColors.TourPillDot}" />
+              <!-- tour__pill-lab: 0.78rem, 600, line-height 1.15, and its small second line at 0.64rem, 500. -->
+              <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{x:Static coretour:TourText.PillLabel}" FontSize="12.48" FontWeight="SemiBold"
+                           LineStackingStrategy="BlockLineHeight" LineHeight="14.352" />
+                <TextBlock Text="{x:Static coretour:TourText.PillHint}" FontSize="10.24" FontWeight="Medium" Foreground="{StaticResource FixedColors.TourPillHint}"
+                           LineStackingStrategy="BlockLineHeight" LineHeight="11.776" />
+              </StackPanel>
+              <Border Grid.Column="3" Style="{StaticResource TourPill.Chip}">
+                <TextBlock Text="{x:Static coretour:TourText.PillPause}" />
+              </Border>
+              <Border Grid.Column="4" Style="{StaticResource TourPill.Stop}">
+                <TextBlock Text="{x:Static coretour:TourText.PillStop}" />
+              </Border>
+              <Border Grid.Column="5" Style="{StaticResource TourPill.Discard}">
+                <TextBlock Text="{x:Static coretour:TourText.PillDiscard}" />
+              </Border>
+            </Grid>
+          </chrome:AutomationHiddenBorder>
+          <!-- tour__body: 0.9rem, line-height 1.5, ink-2. -->
+          <TextBlock x:Name="Body" Text="{Binding Step.Body}" TextWrapping="Wrap" FontSize="14.4" LineStackingStrategy="BlockLineHeight"
+                     LineHeight="21.6" Foreground="{DynamicResource Brush.ink-2}" />
+          <!-- tour__nav: the dots, pushed left, then Skip, Back and the primary button, 8px apart, 14px under the body. -->
+          <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel x:Name="Dots" Orientation="Horizontal" VerticalAlignment="Center" />
+            <Button x:Name="SkipButton" Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource TourButton.Skip}"
+                    Content="{x:Static coretour:TourText.Skip}" Command="{Binding FinishCommand}" />
+            <Button x:Name="BackButton" Grid.Column="2" Margin="8,0,0,0" Style="{StaticResource TourButton}"
+                    Content="{x:Static coretour:TourText.Back}" Command="{Binding BackCommand}"
+                    Visibility="{Binding CanGoBack, Converter={StaticResource Visible}}" />
+            <Button x:Name="PrimaryButton" Grid.Column="3" Margin="8,0,0,0" Style="{StaticResource TourButton.Primary}"
+                    Content="{Binding PrimaryText}" Command="{Binding NextCommand}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+      <!-- tour__caret: a 14 DIP square turned 45 degrees, surface with hair on its two outward sides, 8 DIP over the bubble's padding edge. -->
+      <Border x:Name="Caret" Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="Collapsed"
+              Background="{DynamicResource Brush.surface}" BorderBrush="{DynamicResource Brush.hair}" RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform>
+          <RotateTransform Angle="45" />
+        </Border.RenderTransform>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

@@ -249,16 +249,17 @@ public sealed partial class ShellViewModelTests
     public Task ArgumentsAreChecked() => Sta.RunAsync(() =>
     {
         using var t = new TestShell();
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, null!, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, (INoticeService)null!, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, null!, t.Capture, t.Projects, t.SettingsFactory, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, null!, t.Projects, t.SettingsFactory, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, null!, t.SettingsFactory, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, null!, Ui()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, null!));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, null!, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, null!, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, null!, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, (INoticeService)null!, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, null!, t.Capture, t.Projects, t.SettingsFactory, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, null!, t.Projects, t.SettingsFactory, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, null!, t.SettingsFactory, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, null!, t.Tour, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, null!, Ui()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(t.Home, t.Project, t.Recording, t.Menu, t.Notices, t.Confirm, t.Capture, t.Projects, t.SettingsFactory, t.Tour, null!));
         Assert.Throws<ArgumentNullException>(() => t.Shell.ShowProject(null!, null));
     });
 }

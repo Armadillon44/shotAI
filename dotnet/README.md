@@ -20,7 +20,7 @@ with its fonts (WP-A14), the main window with its menu and About (WP-A15), the H
 menus (WP-B3), the input hook with the hotkey (WP-B4), the screen read with display affinity
 (WP-B5), the window information with UI Automation (WP-B6), the capture pill (WP-B7), the
 area-select overlay (WP-B8), recording from Home and the project view (WP-B9a), the recording
-panel (WP-B9b) and Settings (WP-B10a):
+panel (WP-B9b), Settings (WP-B10a) and the onboarding tour (WP-B10b):
 analyzers, supply-chain rules, Core's
 error, threading and composition types, `JsJson` (reads what `JSON.parse` reads, writes the
 bytes `JSON.stringify` writes), and `ManifestCodec`, which writes the same bytes as Electron
@@ -141,8 +141,13 @@ remote visibility; Appearance's theme and brand; Storage's projects folder (chan
 folder dialog, after which Home lists again) and auto-archive age; About's name, include-name and
 update-check switches. Every control shows what is stored and writes at once, a field when it
 loses the focus or Settings closes; a failed write is rolled back and shows the error notice.
-Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15, the sign-in and
-API key groups of Settings with WP-D7 and the onboarding tour with WP-B10b.
+On the first launch the onboarding tour opens over Home: five steps that spotlight the hero, the
+Capture button, the mode row and the header's Settings button, with a picture of the capture pill
+between, each brought into view and followed as the layout moves; Skip, Done, Escape or a click
+outside closes it and writes `hasSeenTour` once, and About's `Show intro tour` closes Settings and
+the open project and shows it again.
+Editing the report arrives with WP-C2 and WP-C3, the package import with WP-D15, and the sign-in
+and API key groups of Settings with WP-D7.
 
 ## Layout
 

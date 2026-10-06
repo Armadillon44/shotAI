@@ -178,6 +178,9 @@ public sealed partial class SettingsTextTests
         Assert.Equal(
             "Asks GitHub once a day, when shotAI starts, whether a newer version has been released, and tells you if one has. This is the only time shotAI contacts the internet on its own. It never installs anything by itself.",
             SettingsText.CheckForUpdatesHint);
+        Assert.Equal("Getting started", SettingsText.GettingStarted);
+        Assert.Equal("New to shotAI, or want a refresher? Replay the quick intro tour on the home screen.", SettingsText.GettingStartedHint);
+        Assert.Equal("\u21ba Show intro tour", SettingsText.ShowIntroTour);
     }
 
     /// <summary>7.12: the About line names .NET where Electron named itself (D-HOME-22).</summary>
@@ -258,6 +261,9 @@ public sealed partial class SettingsTextTests
 
         var ipc = ElectronSource.Read("src/main/ipc.ts");
         Assert.Contains($"title: '{SettingsText.FolderDialogTitle}',", ipc, StringComparison.Ordinal);
+        Assert.Contains($"<h3 className=\"settings__h\">{SettingsText.GettingStarted}</h3>", source, StringComparison.Ordinal);
+        Assert.Contains($"<p className=\"settings__hint\"> {SettingsText.GettingStartedHint} </p>", text, StringComparison.Ordinal);
+        Assert.Contains($"> {SettingsText.ShowIntroTour} </button>", text, StringComparison.Ordinal);
     }
 
     // JSX's entities as the source writes them.

@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.Input;
 using ShotAI.App.Chrome;
 using ShotAI.App.Services;
 using ShotAI.Core.Json;
@@ -8,10 +9,10 @@ namespace ShotAI.App.Settings;
 
 /// <summary>
 /// The About tab (spec 06 2.29, 7.12): the name credited on exports and whether to include it,
-/// the app's identity line, and the daily update check's switch. <c>Check now</c> joins with the
-/// update service (WP-E1) and <c>Show intro tour</c> with the tour (WP-B10b).
+/// the app's identity line, the daily update check's switch, and Getting started's
+/// <c>Show intro tour</c> (WP-B10b). <c>Check now</c> joins with the update service (WP-E1).
 /// </summary>
-public sealed class AboutSettingsViewModel : SettingsSectionViewModel
+public sealed partial class AboutSettingsViewModel : SettingsSectionViewModel
 {
     private readonly IAppInfo _appInfo;
     private string _userName;
@@ -25,6 +26,9 @@ public sealed class AboutSettingsViewModel : SettingsSectionViewModel
         _appInfo = appInfo;
         _userName = _storedUserName = settings.Current.UserName;
     }
+
+    /// <summary><c>Show intro tour</c> was clicked: the shell replays the tour on Home (2.31).</summary>
+    public event EventHandler? ReplayTourRequested;
 
     /// <summary>
     /// The name as typed: local until the field loses the focus or Settings closes (2.29,
@@ -93,6 +97,10 @@ public sealed class AboutSettingsViewModel : SettingsSectionViewModel
         if (JsString.Trim(stored.UserName).Length == 0 && stored.IncludeNameInReports)
             await WriteAsync(s => s with { IncludeNameInReports = false });
     }
+
+    /// <summary><c>&#8634; Show intro tour</c> (2.29): Settings closes and the tour shows on Home.</summary>
+    [RelayCommand]
+    private void ShowIntroTour() => ReplayTourRequested?.Invoke(this, EventArgs.Empty);
 
     /// <inheritdoc/>
     internal override void Flush() => _ = CommitUserNameAsync();

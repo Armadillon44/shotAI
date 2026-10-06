@@ -7,6 +7,7 @@ using ShotAI.App.Report;
 using ShotAI.App.Settings;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Chrome;
+using ShotAI.App.Tour;
 using ShotAI.App.Threading;
 using ShotAI.Core.Store;
 using ShotAI.Core.Theme;
@@ -48,7 +49,8 @@ internal sealed class TestShell : IDisposable
         Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, Mode, new Logger<ProjectDetailViewModel>(Logs));
         Recording = new RecordingPanelViewModel(Capture, ui, Notices);
         SettingsFactory = new SettingsViewModelFactory(Settings, Projects, Dialogs, AppInfo, Notices, ui, new Logger<SettingsViewModel>(Logs));
-        Shell = new ShellViewModel(Home, Project, Recording, Menu, Notices, Confirm, Capture, Projects, SettingsFactory, ui);
+        Tour = new TourViewModel(Settings, new Logger<TourViewModel>(Logs));
+        Shell = new ShellViewModel(Home, Project, Recording, Menu, Notices, Confirm, Capture, Projects, SettingsFactory, Tour, ui);
         Navigation.Follow(Shell);
     }
 
@@ -101,6 +103,9 @@ internal sealed class TestShell : IDisposable
     /// <summary>The factory the shell makes each Settings with.</summary>
     public SettingsViewModelFactory SettingsFactory { get; }
 
+    /// <summary>The onboarding tour, closed until the test opens it.</summary>
+    public TourViewModel Tour { get; }
+
     public ShellViewModel Shell { get; }
 
     public void Dispose()
@@ -129,6 +134,22 @@ internal sealed class TestShell : IDisposable
     {
         await Dispatcher.Yield(DispatcherPriority.Background);
         await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>
+    /// Runs the layout pass now, for a test that reads what layout sets (a measure's state, an
+    /// <c>ActualWidth</c>, a scroll offset, what a <c>LayoutUpdated</c> handler sets) after a
+    /// wait. WPF runs layout in its render tick, posted above the priorities
+    /// <see cref="Settle"/> yields to, but a tick can end before layout (MediaContext returns
+    /// early while it has no channel to the render thread), and the CI runners have shown layout
+    /// state missing after a settle on both legs. <c>UpdateLayout</c> runs the pass whatever the
+    /// tick does, and lays out only what was invalidated, on every window of this thread, so a
+    /// change that failed to invalidate still fails the test.
+    /// </summary>
+    public static void LaidOut(UIElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        element.UpdateLayout();
     }
 
     /// <summary>

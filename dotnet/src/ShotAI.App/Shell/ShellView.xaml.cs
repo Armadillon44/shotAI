@@ -5,17 +5,22 @@ using ShotAI.App.Chrome;
 using ShotAI.App.Home;
 using ShotAI.App.Report;
 using ShotAI.App.Settings;
+using ShotAI.App.Tour;
 
 namespace ShotAI.App.Shell;
 
 /// <summary>The main window's content (spec 06 7.6): its data context is the <see cref="ShellViewModel"/>.</summary>
 public partial class ShellView : UserControl
 {
-    /// <summary>A shell view; the target dropdown's popover hangs from Home's trigger and moves with Home's scroller.</summary>
+    /// <summary>
+    /// A shell view; the target dropdown's popover hangs from Home's trigger and moves with Home's
+    /// scroller, and the tour finds its anchors in the view and follows Home's scroller too.
+    /// </summary>
     public ShellView()
     {
         InitializeComponent();
         TargetDropdown.Attach(Home.TargetTrigger, Home.ScrollViewer);
+        TourLayer.Attach(this, Home.ScrollViewer);
         DataContextChanged += OnDataContextChanged;
     }
 
@@ -33,6 +38,9 @@ public partial class ShellView : UserControl
 
     /// <summary>The target dropdown's popover in the overlay layer.</summary>
     internal TargetDropdownView Dropdown => TargetDropdown;
+
+    /// <summary>The onboarding tour in the overlay layer.</summary>
+    internal TourOverlay Tour => TourLayer;
 
     /// <summary>The Recording view's panel.</summary>
     internal RecordingPanelView Panel => RecordingPanel;

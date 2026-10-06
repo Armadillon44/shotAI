@@ -37,6 +37,7 @@ public sealed class ReportAutomationTests
                 Text("t2", "Tip", callout: "tip")));
             Assert.True(await project.OpenAsync(@"C:\Projects\A"));
             await TestShell.Settle();
+            TestShell.LaidOut(view);
 
             var list = UIElementAutomationPeer.CreatePeerForElement(view.CardList);
             Assert.IsType<ReportListAutomationPeer>(list);
@@ -50,6 +51,7 @@ public sealed class ReportAutomationTests
             // The names follow the steps.
             sessions.Created[0].Raise(Of("Expense report", Shot("s1", caption: "Click Open")), ManifestChangeKind.External);
             await TestShell.Settle();
+            TestShell.LaidOut(view);
             list.ResetChildrenCache();
             Assert.Equal(["Step 1, Click Open"], list.GetChildren().Select(row => row.GetName()));
         }
