@@ -9,8 +9,9 @@ namespace ShotAI.Core.SettingsUi;
 /// <summary>
 /// Settings' strings (spec 06 2.24 to 2.29, 7.4), each checked against <c>Settings.tsx</c> and
 /// pinned by <c>SettingsTextTests</c> on Linux: the shell, the AI tab's switch and SOP options,
-/// and the Capture, Appearance, Storage and About tabs. The sign-in and key groups' strings join
-/// with WP-D7, the update check's with WP-E1, and the intro tour's with WP-B10b.
+/// and the Capture, Appearance, Storage and About tabs, the About tab's Getting started group
+/// included (WP-B10b). The sign-in and key groups' strings join with WP-D7 and the update
+/// check's with WP-E1.
 /// </summary>
 /// <remarks>
 /// JSX folds each line break in a text block to a space, so a hint that wraps in the source is
@@ -142,6 +143,15 @@ public static class SettingsText
     /// <summary>Its hint.</summary>
     public const string CheckForUpdatesHint =
         "Asks GitHub once a day, when shotAI starts, whether a newer version has been released, and tells you if one has. This is the only time shotAI contacts the internet on its own. It never installs anything by itself.";
+
+    /// <summary>The Getting started group's heading (2.29).</summary>
+    public const string GettingStarted = "Getting started";
+
+    /// <summary>Its hint.</summary>
+    public const string GettingStartedHint = "New to shotAI, or want a refresher? Replay the quick intro tour on the home screen.";
+
+    /// <summary>The button that shows the tour again on Home (2.31).</summary>
+    public const string ShowIntroTour = "\u21ba Show intro tour";
 
     /// <summary>The theme choices in order, each with its label and the hint under the group (2.27).</summary>
     public static IReadOnlyList<(ThemePref Id, string Label, string Blurb)> Themes { get; } = Array.AsReadOnly(new[]
