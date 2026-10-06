@@ -8,8 +8,8 @@ namespace ShotAI.App.Tests.Shell;
 
 /// <summary>
 /// Spec 06 8.4, INV-HOME-19, 2.19 and 7.7: Home keeps its offset across the other views; the
-/// project view starts every open at the top (05 EDGE-REP-42). The Settings view, which also
-/// starts at the top, joins with WP-B10.
+/// project view starts every open at the top (05 EDGE-REP-42), and so does Settings, a new view
+/// for each open, from Home or from a scrolled project (D-HOME-16).
 /// </summary>
 public sealed class ShellScrollTests
 {
@@ -79,6 +79,50 @@ public sealed class ShellScrollTests
             await TestShell.Settle();
             Assert.Equal(ShellViewKind.Project, t.Shell.CurrentView);
             Assert.Equal(0, scroller.VerticalOffset, 3);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>D-HOME-16, AC-HOME-15: Settings opens at the top, after a Settings scrolled down and over a scrolled project.</summary>
+    [Fact]
+    public Task SettingsStartsAtTheTop() => Sta.RunAsync(async () =>
+    {
+        using var t = new TestShell();
+        ShotAI.Core.Model.ProjectStep[] many = [.. Enumerable.Range(1, 30).Select(i => Manifests.Text($"t{i}", heading: $"Step {i}", body: "Some text"))];
+        t.Projects.CanOpen(@"C:\p\a", Manifests.Of("A", many));
+        var view = new ShellView { DataContext = t.Shell };
+        var window = TestShell.Host(view, height: 400);
+        window.Show();
+        try
+        {
+            t.Shell.Start();
+            t.Shell.OpenSettings();
+            await TestShell.Settle();
+            var first = view.SettingsView!;
+            Assert.True(first.ScrollViewer.ScrollableHeight > 150);
+            first.ScrollViewer.ScrollToVerticalOffset(150);
+            await TestShell.Settle();
+            Assert.Equal(150, first.ScrollViewer.VerticalOffset, 3);
+
+            t.Shell.CloseSettings();
+            t.Shell.OpenSettings();
+            await TestShell.Settle();
+            Assert.NotSame(first, view.SettingsView);
+            Assert.Equal(0, view.SettingsView!.ScrollViewer.VerticalOffset, 3);
+
+            t.Shell.CloseSettings();
+            await t.Shell.OpenProjectAsync(@"C:\p\a");
+            await TestShell.Settle();
+            view.ProjectView.ScrollViewer.ScrollToVerticalOffset(600);
+            await TestShell.Settle();
+            t.Shell.OpenSettings();
+            await TestShell.Settle();
+            Assert.Equal(ShellViewKind.Settings, t.Shell.CurrentView);
+            Assert.True(view.SettingsView!.IsVisible);
+            Assert.Equal(0, view.SettingsView.ScrollViewer.VerticalOffset, 3);
         }
         finally
         {

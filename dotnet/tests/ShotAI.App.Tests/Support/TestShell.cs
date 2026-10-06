@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using ShotAI.App.Chrome;
 using ShotAI.App.Home;
 using ShotAI.App.Report;
+using ShotAI.App.Settings;
 using ShotAI.App.Shell;
 using ShotAI.App.Tests.Chrome;
 using ShotAI.App.Threading;
@@ -46,7 +47,8 @@ internal sealed class TestShell : IDisposable
         Sessions = sessions?.Invoke(real) ?? real;
         Project = new ProjectDetailViewModel(Projects, Sessions, new ReportViewModelFactory(), Layout, Mode, new Logger<ProjectDetailViewModel>(Logs));
         Recording = new RecordingPanelViewModel(Capture, ui, Notices);
-        Shell = new ShellViewModel(Home, Project, Recording, Menu, Notices, Confirm, Capture, Projects, ui);
+        SettingsFactory = new SettingsViewModelFactory(Settings, Projects, Dialogs, AppInfo, Notices, ui, new Logger<SettingsViewModel>(Logs));
+        Shell = new ShellViewModel(Home, Project, Recording, Menu, Notices, Confirm, Capture, Projects, SettingsFactory, ui);
         Navigation.Follow(Shell);
     }
 
@@ -89,6 +91,15 @@ internal sealed class TestShell : IDisposable
 
     /// <summary>The recording panel, which the shell seeds.</summary>
     public RecordingPanelViewModel Recording { get; }
+
+    /// <summary>The folder dialog Settings' Change... shows, answered as the test sets it.</summary>
+    public FakeFileDialogs Dialogs { get; } = new();
+
+    /// <summary>The app's identity Settings' About line shows.</summary>
+    public FakeAppInfo AppInfo { get; } = new();
+
+    /// <summary>The factory the shell makes each Settings with.</summary>
+    public SettingsViewModelFactory SettingsFactory { get; }
 
     public ShellViewModel Shell { get; }
 

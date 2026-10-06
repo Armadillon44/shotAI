@@ -13,6 +13,10 @@ internal static unsafe partial class User32
     public const uint WdaNone = 0;
     public const uint WdaExcludeFromCapture = 0x11;
     public const uint WmClose = 0x0010;
+    public const uint WmCommand = 0x0111;
+    public const uint WmGetObject = 0x003D;
+    public const nint UiaRootObjectId = -25;
+    public const nuint IdCancel = 2;
     public const int SwMinimize = 6;
     public const int SwMaximize = 3;
     public const int SwShowNoActivate = 4;
@@ -59,6 +63,10 @@ internal static unsafe partial class User32
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool PostMessage(nint hwnd, uint message, nuint wParam, nint lParam);
+
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    public static partial nint SendMessage(nint hwnd, uint message, nuint wParam, nint lParam);
 
     [LibraryImport("user32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

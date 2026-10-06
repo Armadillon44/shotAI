@@ -12,7 +12,8 @@
     Settings and Recording hosts, one shown at a time, and above them the overlay layer, which holds
     the target dropdown's popover, the confirm dialog and the notices. Home and the project view are
     made once and kept, so Home's scroller keeps its place (7.7) while the project view starts each
-    open at the top (05 EDGE-REP-42); Settings fills its host in WP-B10. The Recording host holds
+    open at the top (05 EDGE-REP-42); the Settings host shows the shell's Settings in a view the code
+    behind makes for each open, so it starts at the top too (06 D-HOME-16). The Recording host holds
     the recording panel (WP-B9b), made once too, which a window shown during a session shows.
   -->
   <UserControl.Resources>

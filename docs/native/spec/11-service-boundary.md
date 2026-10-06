@@ -864,6 +864,8 @@ public interface IFileDialogs                   // UI thread; owner is the main 
 
 P2 natively: `SettingsViewModel.ChangeProjectsFolderAsync()`: `current = await projects.GetProjectsDirAsync()`; `dir = dialogs.PickFolder(main, "Choose shotAI projects folder", current)`; null: return; `await projects.SetProjectsDirAsync(dir)`; refresh Home (06). Recents are not cleared (EDGE-IPC-28). 09's `IExportDialogs` may be implemented on top of `IFileDialogs`.
 
+As built in WP-B10a: `WpfFileDialogs` is registered as the singleton `IFileDialogs`; it sets `InitialDirectory` only when it is given one, and WPF itself ignores a starting folder that is missing, so the dialog then opens where Windows would. P2 is `StorageSettingsViewModel.ChangeProjectsDirCommand`, which takes the window from the view; a failure of any of its calls is Settings' inline error (06 7.12), and the shell refreshes Home as a user-initiated refresh after it. 03's show hook registers the dialog's window before it is visible (04 Q-EDIT-21), pinned by `AllWindowsRegisteredTests.FolderDialogIsExcludedBeforeItIsShown`.
+
 #### 7.3.6 Settings and updates (10), the members this spec depends on
 
 ```csharp
@@ -1500,7 +1502,7 @@ The `channel-map.json` format (one object per channel, in 2.4 order):
 
 **Q-IPC-12. `ShotAIException` across all specs.** Several specs name BCL exception types for user-facing messages. Recommended default: PLAN.md adds a foundation task that introduces `ShotAI.Core.Errors` first, and each subsystem PR derives its user-text exceptions from it; `UserMessageTests` plus each spec's message tests catch misses. Decided in WP-A1: default adopted; `ShotAI.Core.Errors` (`ShotAIException`, `UserMessage.From`, `UserMessage.Generic`) and `Errors/UserMessageTests` are in place.
 
-**Q-IPC-13. Clearing recents on a projects-folder change.** macOS clears; Electron does not. Recommended default: Electron parity for 2.0.0; raise a cross-platform issue.
+**Q-IPC-13. Clearing recents on a projects-folder change.** macOS clears; Electron does not. Recommended default: Electron parity for 2.0.0; raise a cross-platform issue. Decided in WP-B10a: parity, recents are kept (06 Q-HOME-9); the cross-platform issue is the pilot's.
 
 **Q-IPC-14. Where `IExternalLinks` is implemented.** 08 assigns "the base openExternal allowlist and opener" to 10; this spec fixes the algorithm because it lives in `src/main/ipc.ts`. Recommended default: the algorithm and tests here are normative; 10 registers `ExternalLinks` and may add settings-related links but must not change the allowlist. Decided in WP-A19b: the default. `ExternalLinks` is Core's (`ShotAI.Core.Links`), with this algorithm, and `AddShotAICore` registers it.
 

@@ -5,6 +5,7 @@ using ShotAI.App.Chrome;
 using ShotAI.App.Home;
 using ShotAI.App.Report;
 using ShotAI.App.Services;
+using ShotAI.App.Settings;
 using ShotAI.App.Shell;
 using ShotAI.App.Threading;
 using ShotAI.Core.Paths;
@@ -56,6 +57,7 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<NavigationState>();
         services.AddSingleton<IShellNavigationState>(sp => sp.GetRequiredService<NavigationState>());
         services.AddSingleton<IAppInfo, AppInfoProvider>();
+        services.AddSingleton<IFileDialogs, WpfFileDialogs>();
         services.AddSingleton<MainWindowSizer>();
         services.AddSingleton<IMainWindowLayout>(sp => sp.GetRequiredService<MainWindowSizer>());
         services.AddSingleton<IAreaSelectionService, AreaSelectionService>();
@@ -73,6 +75,7 @@ public static class AppServiceCollectionExtensions
         services.AddSingleton<ReportViewModelFactory>();
         services.AddTransient<ProjectDetailViewModel>();
         services.AddTransient<RecordingPanelViewModel>();
+        services.AddSingleton<SettingsViewModelFactory>();
         services.AddTransient<ShellViewModel>();
         services.AddSingleton<RemoteVisibilityApplier>();
         services.AddSingleton<ShellShutdown>();

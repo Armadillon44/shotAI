@@ -22,7 +22,7 @@ internal static partial class XamlChromeGuard
     /// <summary>Colour channel spread above which a colour is chromatic (2.35 rule 3).</summary>
     public const int NeutralSpread = 40;
 
-    /// <summary>The exemptions of the App as it is: the notice template (WP-A16), the report's click ring (WP-A17), the capture pill (WP-B7) and the area overlay (WP-B8); the tour pill (WP-B10) adds its key prefix.</summary>
+    /// <summary>The exemptions of the App as it is: the notice template (WP-A16), the report's click ring (WP-A17), the capture pill (WP-B7) and the area overlay (WP-B8); the tour pill (WP-B10b) adds its key prefix.</summary>
     public static Exemptions Real { get; } = new(
         Files:
         [

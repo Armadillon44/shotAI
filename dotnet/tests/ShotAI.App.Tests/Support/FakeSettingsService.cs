@@ -6,7 +6,10 @@ namespace ShotAI.App.Tests.Support;
 /// <summary>
 /// An <see cref="ISettingsService"/> the test drives: <see cref="Set"/> replaces the snapshot and
 /// raises <see cref="Changed"/> on the calling thread, as the real service does for its
-/// optimistic step; the settings-queue thread is <see cref="SetFromAnotherThreadAsync"/>.
+/// optimistic step; the settings-queue thread is <see cref="SetFromAnotherThreadAsync"/>. A write
+/// applies at once, coerced as the real service coerces, and with <see cref="WriteFails"/> set it
+/// fails as the real service's does when the file write fails: the change is rolled back with
+/// <see cref="SettingsChangedEventArgs.IsRollback"/> and the task faults.
 /// </summary>
 internal sealed class FakeSettingsService : ISettingsService
 {
@@ -14,6 +17,19 @@ internal sealed class FakeSettingsService : ISettingsService
 
     /// <summary>When set, reading <see cref="Current"/> throws it.</summary>
     public Exception? CurrentThrows { get; set; }
+
+    /// <summary>When set, each write is applied, then rolled back, and its task faults with it.</summary>
+    public Exception? WriteFails { get; set; }
+
+    /// <summary>
+    /// With <see cref="WriteFails"/>, the rollback comes before the UI thread runs what the
+    /// optimistic step posted, as the real service's can when its file write fails at once;
+    /// otherwise it comes after.
+    /// </summary>
+    public bool RollsBackFirst { get; set; }
+
+    /// <summary>The writes asked for: <see cref="UpdateAsync"/> calls.</summary>
+    public int Writes { get; private set; }
 
     public AppSettings Current
     {
@@ -43,10 +59,17 @@ internal sealed class FakeSettingsService : ISettingsService
     public Task SetFromAnotherThreadAsync(Func<AppSettings, AppSettings> change) =>
         Task.Run(() => Set(change), TestContext.Current.CancellationToken);
 
-    public Task<AppSettings> UpdateAsync(Func<AppSettings, AppSettings> change, CancellationToken ct = default)
+    public async Task<AppSettings> UpdateAsync(Func<AppSettings, AppSettings> change, CancellationToken ct = default)
     {
-        Set(change);
-        return Task.FromResult(_current);
+        Writes++;
+        var previous = _current;
+        Set(s => SettingsCoercer.Normalize(change(s), @"C:\Users\test\Documents\shotAI"));
+        if (WriteFails is not { } failure) return _current;
+        // The outcome comes from the settings queue, after the optimistic step.
+        if (!RollsBackFirst) await Task.Yield();
+        Set(_ => previous, rollback: true);
+        if (RollsBackFirst) await Task.Yield();
+        throw failure;
     }
 
     public Task FlushAsync(TimeSpan timeout) => Task.CompletedTask;

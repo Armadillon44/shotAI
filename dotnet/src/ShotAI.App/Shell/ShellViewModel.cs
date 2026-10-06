@@ -1,6 +1,7 @@
 using ShotAI.App.Chrome;
 using ShotAI.App.Home;
 using ShotAI.App.Report;
+using ShotAI.App.Settings;
 using ShotAI.Core.Capture;
 using ShotAI.Core.Json;
 using ShotAI.Core.Model;
@@ -21,17 +22,19 @@ namespace ShotAI.App.Shell;
 /// The inputs land with their views: Home's Open opens the project view, whose successful open
 /// shows it and whose Back closes it (WP-A17); the open project's pin follows its session, and
 /// the menu's Brand choice goes to the project view (WP-A18); a capture session shows the
-/// Recording view (WP-B9a), which holds the recording panel (WP-B9b); Settings and its Back call
-/// <see cref="OpenSettings"/> and <see cref="CloseSettings"/> (WP-B10). Until then the header's
-/// Settings button raises the menu's request.
+/// Recording view (WP-B9a), which holds the recording panel (WP-B9b); the menu's Settings request,
+/// which the header's button raises too, opens Settings, made fresh on each open, and its Back
+/// closes it (WP-B10a).
 /// </remarks>
 public sealed class ShellViewModel : ViewModelBase, IDisposable
 {
     private readonly ICaptureService _capture;
     private readonly IProjectService _projects;
+    private readonly SettingsViewModelFactory _settingsFactory;
     private readonly CaptureStateFollower _state;
     private ShellViewKind _currentView = ShellViewKind.Home;
     private bool _settingsOpen;
+    private SettingsViewModel? _settings;
     private string? _openProjectPath;
     private string? _rawProjectTheme;
     private bool _recording;
@@ -39,10 +42,13 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
     private bool _started;
     private bool _disposed;
 
-    /// <summary>The shell over Home, the project view, the recording panel, the menu's requests, the notices, the confirm dialog and the capture engine.</summary>
+    /// <summary>
+    /// The shell over Home, the project view, the recording panel, the menu's requests, the notices,
+    /// the confirm dialog, the capture engine and the store, making each Settings with <paramref name="settings"/>.
+    /// </summary>
     public ShellViewModel(
         HomeViewModel home, ProjectDetailViewModel project, RecordingPanelViewModel recording, AppMenuViewModel menu, INoticeService notices,
-        IConfirmService confirm, ICaptureService capture, IProjectService projects, IUiDispatcher ui)
+        IConfirmService confirm, ICaptureService capture, IProjectService projects, SettingsViewModelFactory settings, IUiDispatcher ui)
     {
         ArgumentNullException.ThrowIfNull(home);
         ArgumentNullException.ThrowIfNull(project);
@@ -52,6 +58,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         ArgumentNullException.ThrowIfNull(confirm);
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(projects);
+        ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(ui);
         Home = home;
         Project = project;
@@ -61,6 +68,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         Confirm = confirm;
         _capture = capture;
         _projects = projects;
+        _settingsFactory = settings;
         // Both live as long as the shell, so neither subscription outlives what it holds; the menu
         // lives as long as the app, which has the one shell.
         home.OpenRequested += (_, path) => _ = OpenProjectAsync(path);
@@ -74,6 +82,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
             if (e.PropertyName == nameof(ProjectDetailViewModel.RawProjectTheme)) FollowProjectTheme();
         };
         menu.ProjectThemeChosen += (_, choice) => Project.SetProjectTheme(choice.ProjectPath, choice.Brand);
+        menu.OpenSettingsRequested += (_, _) => OpenSettings();
         // 11 T7: subscribe, then read; each change re-reads the state when its post runs, one
         // post at a time (Q-IPC-20).
         _state = new CaptureStateFollower(capture, ui, ApplyCaptureState);
@@ -126,6 +135,16 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
     {
         get => _settingsOpen;
         private set => SetProperty(ref _settingsOpen, value);
+    }
+
+    /// <summary>
+    /// The open Settings, made on each open, so it starts on AI at the top (06 7.12, D-HOME-16);
+    /// null while Settings is closed.
+    /// </summary>
+    public SettingsViewModel? Settings
+    {
+        get => _settings;
+        private set => SetProperty(ref _settings, value);
     }
 
     /// <summary>The open project's folder, or null.</summary>
@@ -182,12 +201,13 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         if (CurrentView == ShellViewKind.Home) Home.OnEnter();
     }
 
-    /// <summary>Stops following the capture engine (the container disposes the shell at exit).</summary>
+    /// <summary>Stops following the capture engine and closes Settings (the container disposes the shell at exit).</summary>
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _state.Dispose();
+        DropSettings();
     }
 
     /// <summary>
@@ -203,18 +223,29 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         if (_started && CurrentView == ShellViewKind.Home) Home.OnWindowActivated();
     }
 
-    /// <summary>Settings opens over the view shown (2.1: from Home or from the project); ignored while a capture session exists (INV-HOME-18).</summary>
+    /// <summary>
+    /// Settings opens over the view shown (2.1: from Home or from the project), a new one unless it
+    /// is open already; ignored while a capture session exists (INV-HOME-18).
+    /// </summary>
     public void OpenSettings()
     {
         if (_recording) return;
+        if (Settings is null)
+        {
+            var settings = _settingsFactory.Create();
+            settings.BackRequested += OnSettingsBack;
+            settings.ProjectsDirChanged += OnProjectsDirChanged;
+            Settings = settings;
+        }
         SettingsOpen = true;
         Derive();
     }
 
-    /// <summary>Settings' Back: to the open project, or Home.</summary>
+    /// <summary>Settings' Back: to the open project, or Home. Its unsaved edits are written first (EDGE-HOME-39).</summary>
     public void CloseSettings()
     {
         SettingsOpen = false;
+        DropSettings();
         Derive();
     }
 
@@ -242,6 +273,7 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         RawProjectTheme = rawTheme;
         OpenProjectPath = path;
         SettingsOpen = false;
+        DropSettings();
         Derive();
     }
 
@@ -338,6 +370,23 @@ public sealed class ShellViewModel : ViewModelBase, IDisposable
         if (_recording || OpenProjectPath is not { } path) return;
         await RecordAsync(path, target, createdThisSession: false);
     }
+
+    // Settings closes: the edits its fields hold are written, then it stops following the settings.
+    private void DropSettings()
+    {
+        if (Settings is not { } settings) return;
+        settings.BackRequested -= OnSettingsBack;
+        settings.ProjectsDirChanged -= OnProjectsDirChanged;
+        settings.Flush();
+        settings.Dispose();
+        Settings = null;
+    }
+
+    private void OnSettingsBack(object? sender, EventArgs e) => CloseSettings();
+
+    // 2.28: a new projects folder is listed at once (11 7.3.5: a user-initiated refresh, whose
+    // failure shows the error notice).
+    private void OnProjectsDirChanged(object? sender, EventArgs e) => _ = Home.RefreshAsync(userInitiated: true);
 
     private void SetBusy(bool busy)
     {
