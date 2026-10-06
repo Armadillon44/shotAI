@@ -110,20 +110,10 @@ jobs:
       # CoreWindow above every desktop window, topmost ones included), so the capture tests' own
       # windows never reach the screen they read (docs/native/spec/02-capture.md 8.4, found in
       # WP-B5). Nothing in the job needs it; it is closed before the tests, and named in the log.
-      # The runner agent's own console, a Windows Terminal, can also cover the capture tests'
-      # windows, so the screen reads see it instead (found in WP-B10b). It hosts the agent, and
-      # closing it ends the job, so its window is minimized instead (6 is SW_MINIMIZE); a failure
-      # to minimize it is only logged.
       - name: Clear the desktop for the capture tests
         run: |
           $prompts = @(Get-Process WWAHost -ErrorAction SilentlyContinue)
           foreach ($p in $prompts) { Write-Host "stopping $($p.ProcessName) $($p.Id): '$($p.MainWindowTitle)'" }
           $prompts | Stop-Process -Force
-          Add-Type -Namespace Desktop -Name Window -MemberDefinition '[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);'
-          foreach ($t in @(Get-Process WindowsTerminal -ErrorAction SilentlyContinue)) {
-            if ($t.MainWindowHandle -eq [IntPtr]::Zero) { continue }
-            Write-Host "minimizing $($t.ProcessName) $($t.Id): '$($t.MainWindowTitle)'"
-            try { [void][Desktop.Window]::ShowWindow($t.MainWindowHandle, 6) } catch { Write-Host "could not minimize it: $_" }
-          }
       - name: Test
         run: dotnet test --solution ShotAI.slnx -c Release --no-build
