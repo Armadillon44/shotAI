@@ -109,10 +109,12 @@ jobs:
       # The windows-11-arm image opens a full-screen "Microsoft account" prompt (WWAHost, a
       # CoreWindow above every desktop window, topmost ones included), so the capture tests' own
       # windows never reach the screen they read (docs/native/spec/02-capture.md 8.4, found in
-      # WP-B5). Nothing in the job needs it; it is closed before the tests, and named in the log.
+      # WP-B5). It can also open a Windows Terminal running wsl.exe over the same area, which
+      # the capture tests read instead of their own window (found in WP-B10b). Nothing in the job
+      # needs either; both are closed before the tests, and named in the log.
       - name: Clear the desktop for the capture tests
         run: |
-          $prompts = @(Get-Process WWAHost -ErrorAction SilentlyContinue)
+          $prompts = @(Get-Process WWAHost, WindowsTerminal -ErrorAction SilentlyContinue)
           foreach ($p in $prompts) { Write-Host "stopping $($p.ProcessName) $($p.Id): '$($p.MainWindowTitle)'" }
           $prompts | Stop-Process -Force
       - name: Test
