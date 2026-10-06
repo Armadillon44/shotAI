@@ -35,6 +35,9 @@ public partial class TourOverlay : UserControl
     private static readonly KeySpline Ease = new(0.25, 0.1, 0.25, 1);
     private static readonly TimeSpan SpotTransition = TimeSpan.FromSeconds(0.25);
 
+    // The accent ring's width outside the spot (box-shadow's 3px spread).
+    private const double RingWidth = 3;
+
     private readonly RectangleGeometry _full = new();
     private readonly RectangleGeometry _hole = new();
     private readonly RectangleGeometry _ringLine = new();
@@ -48,6 +51,7 @@ public partial class TourOverlay : UserControl
     private IInputElement? _focusBefore;
     private bool _shown;
     private bool _focusPending;
+    private bool _appearing;
 
     /// <summary>An overlay drawing its data context's tour.</summary>
     public TourOverlay()
@@ -148,7 +152,7 @@ public partial class TourOverlay : UserControl
             Hide();
             return;
         }
-        if (!IsKeyboardFocusWithin) _focusBefore = Keyboard.FocusedElement;
+        if (!IsKeyboardFocusWithin) _focusBefore = Keyboard.FocusedElement ?? FocusManager.GetFocusedElement(FocusManager.GetFocusScope(this));
         // Each presentation starts with a new spot, which appears where it belongs.
         _spotTarget = null;
         Visibility = Visibility.Visible;
@@ -164,12 +168,16 @@ public partial class TourOverlay : UserControl
         _placement = null;
         _spotTarget = null;
         _focusPending = false;
+        StopAppearing();
         BeginAnimation(SpotProperty, null);
         LiveRegion.SetText(StepLineText, null);
-        // The focus goes back to what had it, if that is still on screen.
+        // The focus goes back to what had it, if that is still on screen: logically in its scope
+        // too, so a window without the keyboard focus gets it back when it is activated.
         var before = _focusBefore;
         _focusBefore = null;
-        if (before is UIElement { IsVisible: true } element) element.Focus();
+        if (before is not UIElement { IsVisible: true } element) return;
+        FocusManager.SetFocusedElement(FocusManager.GetFocusScope(element), element);
+        element.Focus();
     }
 
     // A new step: its anchor, brought into view, is measured once the layout has settled, which
@@ -180,7 +188,12 @@ public partial class TourOverlay : UserControl
         for (var i = 0; i < Dots.Children.Count; i++)
             ((Shape)Dots.Children[i]).SetResourceReference(Shape.FillProperty, ThemeTokenKeys.Brush(i == tour.Index ? "accent" : "hair"));
         _anchor = FindAnchor();
-        _anchor?.BringIntoView();
+        // The spot and its ring reach 9 DIP past the anchor, so that margin comes into view too.
+        if (_anchor is { } anchor)
+        {
+            var reach = TourLayout.SpotPad + RingWidth;
+            anchor.BringIntoView(new Rect(-reach, -reach, anchor.RenderSize.Width + 2 * reach, anchor.RenderSize.Height + 2 * reach));
+        }
         AutomationProperties.SetName(StepLineText, tour.StepLine);
         LiveRegion.SetText(StepLineText, tour.StepLine);
         _focusPending = true;
@@ -195,6 +208,8 @@ public partial class TourOverlay : UserControl
         Remeasure();
         if (!_focusPending || !PrimaryButton.IsVisible) return;
         _focusPending = false;
+        // Logically in the bubble's scope as well, which a window without the keyboard focus keeps.
+        FocusManager.SetFocusedElement(BubbleBox, PrimaryButton);
         PrimaryButton.Focus();
     }
 
@@ -262,7 +277,10 @@ public partial class TourOverlay : UserControl
     }
 
     // tour__spot: a step with no spot has the full dim; a spot that was shown moves to the new
-    // place, and one that was not appears there, as a new element did in Electron.
+    // place, and one that was not appears there, as a new element did in Electron. A spot that
+    // appears keeps appearing until a frame has drawn it: the measure that showed it can come
+    // before the scroll BringIntoView queued, which ScrollViewer runs in a later pass of the same
+    // layout, and the measure after that scroll must not slide in from where the anchor was.
     private void MoveSpot(LayoutRect? spot)
     {
         if (spot is not { } s)
@@ -275,7 +293,8 @@ public partial class TourOverlay : UserControl
         }
         var target = new Rect(s.Left, s.Top, s.Width, s.Height);
         if (_spotTarget == target) return;
-        var moves = _spotTarget is not null && SystemParameters.ClientAreaAnimation;
+        if (_spotTarget is null) StartAppearing();
+        var moves = !_appearing && SystemParameters.ClientAreaAnimation;
         _spotTarget = target;
         Dim.Data = _dim;
         Ring.Visibility = Visibility.Visible;
@@ -290,6 +309,22 @@ public partial class TourOverlay : UserControl
         move.KeyFrames.Add(new SplineRectKeyFrame(target, KeyTime.FromTimeSpan(SpotTransition), Ease));
         BeginAnimation(SpotProperty, move, HandoffBehavior.SnapshotAndReplace);
     }
+
+    private void StartAppearing()
+    {
+        if (_appearing) return;
+        _appearing = true;
+        CompositionTarget.Rendering += OnAppeared;
+    }
+
+    private void StopAppearing()
+    {
+        if (!_appearing) return;
+        _appearing = false;
+        CompositionTarget.Rendering -= OnAppeared;
+    }
+
+    private void OnAppeared(object? sender, EventArgs e) => StopAppearing();
 
     // The hole is the spot with the card's corners; the ring's 3 DIP line runs 1.5 DIP outside it,
     // so it covers the band box-shadow's 3 DIP spread drew, its outer corners 3 DIP rounder.

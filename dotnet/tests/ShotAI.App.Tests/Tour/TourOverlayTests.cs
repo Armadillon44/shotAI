@@ -26,12 +26,16 @@ public sealed class TourOverlayTests
     /// <summary>
     /// INV-HOME-21: for each step the drawn placement is <see cref="TourLayout.Place"/> of the
     /// anchor's rectangle in the overlay, and the bubble, the caret and the spot are where it says;
-    /// the pill step is centred over a full dim, with no caret and no ring.
+    /// the pill step is centred over a full dim, with no caret and no ring. The short window puts
+    /// Home's steps' bubbles above their anchors, the tall one below.
     /// </summary>
-    [Fact]
-    public Task SpotAndBubbleFollowPlace() => Hosted(async (view, t, _) =>
+    [Theory]
+    [InlineData(740, false)]
+    [InlineData(420, true)]
+    public Task SpotAndBubbleFollowPlace(double height, bool someAbove) => Hosted(async (view, t, _) =>
     {
         var overlay = view.Tour;
+        var placements = new List<TourPlacement>();
         FrameworkElement?[] anchors = [view.HomeView.Hero, view.HomeView.CaptureButton, view.HomeView.ModeRow, null, view.SettingsButton];
         for (var i = 0; i < anchors.Length; i++)
         {
@@ -39,6 +43,7 @@ public sealed class TourOverlayTests
             await TestShell.Settle();
             var expected = TourLayout.Place(anchors[i] is { } a ? RectIn(a, overlay) : null, overlay.ActualWidth, overlay.ActualHeight);
             Assert.Equal(expected, overlay.Placement);
+            placements.Add(expected);
 
             var bubble = overlay.BubbleElement;
             var origin = VisualTree.Origin(bubble, overlay);
@@ -85,7 +90,9 @@ public sealed class TourOverlayTests
             line.Inflate(1.5, 1.5);
             Assert.Equal((line, radius + 1.5), (ring.Rect, ring.RadiusX));
         }
-    });
+        Assert.Equal(someAbove, placements.Any(p => p.BubbleBottom is not null));
+        Assert.Contains(placements, p => p.BubbleTop is not null);
+    }, height: height);
 
     /// <summary>
     /// 2.31: the bubble's content for each step: the step line upper-cased and named as written,
@@ -117,8 +124,9 @@ public sealed class TourOverlayTests
     });
 
     /// <summary>
-    /// EDGE-HOME-43: an anchor scrolled out of view is brought into it, by the least scroll that
-    /// shows it whole, before it is measured.
+    /// EDGE-HOME-43: an anchor scrolled out of view is brought into it, with the 9 DIP its spot and
+    /// ring reach past it, by the least scroll that shows them whole, before it is measured; the
+    /// spot appears there, not sliding in from where the anchor was before the scroll.
     /// </summary>
     [Fact]
     public Task TheAnchorIsBroughtIntoView() => Hosted(async (view, t, _) =>
@@ -130,10 +138,11 @@ public sealed class TourOverlayTests
         await TestShell.Settle();
         Assert.True(scroller.VerticalOffset < 600, $"offset {scroller.VerticalOffset}");
         var inView = RectIn(view.HomeView.Hero, scroller);
-        Assert.Equal(0, inView.Top, 1);
+        Assert.Equal(TourLayout.SpotPad + 3, inView.Top, 1);
         Assert.True(inView.Bottom <= scroller.ViewportHeight, $"hero bottom {inView.Bottom} of {scroller.ViewportHeight}");
         var hero = RectIn(view.HomeView.Hero, view.Tour);
         Assert.Equal(hero.Top - TourLayout.SpotPad, view.Tour.Placement!.Spot!.Value.Top, 2);
+        Assert.Equal(view.Tour.SpotTarget, view.Tour.SpotDrawn);
     }, scrolledTo: 600, open: false);
 
     /// <summary>
@@ -196,7 +205,9 @@ public sealed class TourOverlayTests
         Assert.Equal(1, t.Tour.Index);
         Assert.True(overlay.Primary.IsFocused);
 
-        overlay.BackAction.Focus();
+        // A window the tests do not activate has no keyboard focus, so focus moves logically here.
+        FocusManager.SetFocusedElement(overlay.BubbleElement, overlay.BackAction);
+        Assert.True(overlay.BackAction.IsFocused);
         Assert.True(Press(overlay.BackAction, Key.Left).Handled);
         await TestShell.Settle();
         Assert.Equal(0, t.Tour.Index);
@@ -214,6 +225,25 @@ public sealed class TourOverlayTests
         Assert.Equal(1, t.Settings.Writes);
         Assert.True(t.Settings.Current.HasSeenTour);
     });
+
+    /// <summary>7.8: when the tour closes, the focus goes back to what had it before it opened.</summary>
+    [Fact]
+    public Task FocusGoesBackWhenTheTourCloses() => Hosted(async (view, t, window) =>
+    {
+        var name = view.HomeView.NameBox;
+        FocusManager.SetFocusedElement(window, name);
+        Assert.True(name.IsFocused);
+        t.Tour.Replay();
+        await TestShell.Settle();
+        Assert.True(view.Tour.Primary.IsFocused);
+
+        // Something else in the window takes the focus while the tour is up.
+        FocusManager.SetFocusedElement(window, view.HomeView.CaptureButton);
+        Assert.False(name.IsFocused);
+        Assert.True(Press(view.Tour.Primary, Key.Escape).Handled);
+        await TestShell.Settle();
+        Assert.True(name.IsFocused);
+    }, open: false);
 
     /// <summary>2.31: a click outside the bubble, the spotlit anchor included, finishes; one inside does not.</summary>
     [Fact]
@@ -302,14 +332,15 @@ public sealed class TourOverlayTests
         Assert.NotNull(view.Tour.Placement);
     }, open: false);
 
-    // The shell over a store of `projects` rows, Home started and scrolled to `scrolledTo`, and the tour opened (unless not).
-    private static Task Hosted(Func<ShellView, TestShell, Window, Task> body, int projects = 0, double scrolledTo = 0, bool open = true) => Sta.RunAsync(async () =>
+    // The shell in a window `height` tall over a store of `projects` rows, Home started and scrolled to `scrolledTo`, and the tour opened (unless not).
+    private static Task Hosted(
+        Func<ShellView, TestShell, Window, Task> body, int projects = 0, double scrolledTo = 0, bool open = true, double height = 740) => Sta.RunAsync(async () =>
     {
         using var t = new TestShell();
         t.Projects.Listing = [.. Enumerable.Range(0, projects > 0 ? projects : scrolledTo > 0 ? 40 : 0)
             .Select(i => Project($@"C:\p\{i:D2}", $"Project {i:D2}", "2026-07-22T09:00:00.000Z"))];
         var view = new ShellView { DataContext = t.Shell };
-        var window = TestShell.Host(view);
+        var window = TestShell.Host(view, height: height);
         window.Show();
         try
         {

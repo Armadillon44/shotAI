@@ -97,6 +97,19 @@ public sealed class TourViewModelTests
         Assert.True(settings.Current.HasSeenTour);
     });
 
+    /// <summary>A replay starts at the first step, even over a tour already shown (2.31's state machine).</summary>
+    [Fact]
+    public Task ReplayStartsAtTheFirstStep() => Sta.RunAsync(() =>
+    {
+        var (tour, settings, _) = Make(seen: false);
+        tour.OpenIfNotSeen();
+        tour.NextCommand.Execute(null);
+        tour.NextCommand.Execute(null);
+        tour.Replay();
+        Assert.Equal((true, 0), (tour.IsShown, tour.Index));
+        Assert.Equal(0, settings.Writes);
+    });
+
     /// <summary>2.31's last row: leaving Home hides it, still open; it comes back at the first step.</summary>
     [Fact]
     public Task LeavingHomeResetsStep() => Sta.RunAsync(() =>

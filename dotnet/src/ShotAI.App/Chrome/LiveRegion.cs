@@ -13,8 +13,9 @@ namespace ShotAI.App.Chrome;
 /// </summary>
 /// <remarks>
 /// Bind the text of the element itself, <c>{Binding Text, RelativeSource={RelativeSource Self}}</c>,
-/// so the announcement follows the change it announces. The notices use it; the bulk count
-/// (WP-A19) and the tour's step line (WP-B10b) will too.
+/// so the announcement follows the change it announces; the notices and the bulk count do. The
+/// tour's step line (WP-B10b) sets it from code instead, after the line's accessible name, so the
+/// announcement reads the new step, and clears it while the tour is hidden.
 /// </remarks>
 public static class LiveRegion
 {

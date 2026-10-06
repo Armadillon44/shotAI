@@ -112,7 +112,11 @@ public sealed partial class TourViewModel : ViewModelBase
     }
 
     /// <summary>Settings' <c>Show intro tour</c>: the tour opens at its first step; <c>hasSeenTour</c> is not touched.</summary>
-    public void Replay() => IsOpen = true;
+    public void Replay()
+    {
+        Index = 0;
+        IsOpen = true;
+    }
 
     /// <summary>Next, or Right: the next step, or on the last one the tour finishes.</summary>
     [RelayCommand]
