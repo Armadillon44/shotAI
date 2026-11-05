@@ -1,5 +1,0 @@
-{
-  "version": 1,
-  "title": "Backup two",
-  "sopBackup": {"title": "", "steps": [], "tone": "concise", "introEditedByUser": false, "intro": null, "model": "claude-sonnet-5", "future": "dropped"}
-}
