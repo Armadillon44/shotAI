@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Pinned rather than "lts/*": this is the version the suite is known to
           # pass on. There is no .nvmrc or engines field to inherit from.
